@@ -61,7 +61,7 @@ const wa = new Client({
   prefix: null, // for command message
   ignoreMe: true, // ignore messages from yourself (your phone number)
   phoneNumber: 628xxx, // fill your phone number if auth type is 'pairing'
-  authPath: ".zaileys", // auth directory path
+  authPath: ".zaileys", // auth directory path for session and chat store
   authType: "pairing", // auth type 'pairing' or 'qr'
   showLogs: true, // show logs of any chats
   autoMentions: true, // if true, @everyone will be mentioned
@@ -90,20 +90,6 @@ wa.on("message", (ctx) => {}); // message from anything
 wa.on("command", (ctx) => {}); // message that starts with prefix at beginning of word
 wa.on("call", (ctx) => {}); // if someone call
 ```
-
-## Features
-
-- **Simple Client Initialization**: Easy setup with the `Client` class.
-- **Effortless Connection Management**: Connect and reconnect to WhatsApp with built-in functions.
-- **Versatile Message Handling**: Send and receive text, media, and interactive messages.
-- **Group Management**: Create, join, and manage WhatsApp groups.
-- **Contact Management**: Interact with contacts, block/unblock, and manage your contact list.
-- **Real-time Event Handling**: Get notified of events in real-time using a simple event listener system.
-- **Advanced Media Support**: Send and receive various types of media messages, including images, videos, audio, documents, and stickers.
-- **Location and Live Location Sharing**: Share and receive locations and live locations.
-- **Interactive Messages**: Send and receive interactive messages like buttons, lists, and quick reply buttons.
-- **Presence Management**: Manage your online presence with presence features.
-- **Device Synchronization**: Leverage multi-device features for seamless device synchronization.
 
 ## Contributing
 

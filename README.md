@@ -18,7 +18,7 @@
 </div>
 
 > [!WARNING]
-> This is beta features, not recomended to use in production. Join whatsapp community for latest info [WhatsApp Channel](https://whatsapp.com/channel/0029VazENbmInlqHIWzgn33h)
+> This is beta version, not recomended to use in production. Join whatsapp community for latest info [WhatsApp Channel](https://whatsapp.com/channel/0029VazENbmInlqHIWzgn33h)
 
 Zaileys is a powerful and flexible WhatsApp API library for Node.js, built on top of [Baileys](https://github.com/WhiskeySockets/Baileys). It simplifies the process of integrating WhatsApp functionalities into your applications, providing a comprehensive set of features for building robust and scalable WhatsApp-based solutions.
 
@@ -48,9 +48,9 @@ deno add npm:zaileys
 
 ## # Usage & Configuration
 
-### Import Client
+### 📌 Import Library
 
-```javascript
+```js
 // ESM
 import { Client } from "zaileys";
 
@@ -58,9 +58,10 @@ import { Client } from "zaileys";
 const { Client } = require("zaileys");
 ```
 
-### Configuration
+### ⚙️  Configuration
 
-Default configuration of Client
+> [!WARNING]
+> Attention! in the beta version this library uses the built-in Baileys [`makeInMemoryStore`](https://github.com/WhiskeySockets/Baileys?tab=readme-ov-file#implementing-a-data-store) function which will most likely use quite a lot of RAM.
 
 ```ts
 const wa = new Client({

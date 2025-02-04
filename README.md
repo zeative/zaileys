@@ -48,7 +48,7 @@ deno add npm:zaileys
 
 ## # Usage & Configuration
 
-### 📌 Import Library
+### 📦 Import Library
 
 ```js
 // ESM
@@ -90,16 +90,31 @@ const wa = new Client({
 });
 ```
 
-### Event Handler
+### 🛎️ Event Handler
 
 ```ts
-wa.on("connection", (ctx) => {}); // connection listener
-wa.on("message", (ctx) => {}); // message from anything
-wa.on("command", (ctx) => {}); // message that starts with prefix at beginning of word
-wa.on("call", (ctx) => {}); // if someone call
+wa.on("connection", (ctx) => {}); // listener for current connection
+wa.on("message", (ctx) => {}); // listener for message from any chats
+wa.on("command", (ctx) => {}); // listener for message that starts with prefix at beginning of word
+wa.on("call", (ctx) => {}); // listener for someone call to bot
 ```
 
-## Contributing
+### 🔹 Send Text
+
+```ts
+wa.on("message", (ctx) => {
+  if (ctx.text == "ping") {
+    ctx.sendText("Pong!");
+  }
+
+  // text with footer message (doesn't work on whatsapp desktop)
+  if (ctx.text == "pong") {
+    ctx.sendText("Ping!", { footer: "Footer message" });
+  }
+});
+```
+
+## # Contributing
 
 Contributions are welcome! Please follow these steps to contribute:
 
@@ -111,10 +126,10 @@ Contributions are welcome! Please follow these steps to contribute:
 
 Please ensure your code follows the project's coding standards and includes appropriate tests.
 
-## License
+## # License
 
 This project is licensed under the [MIT License](LICENSE) - see the [LICENSE](LICENSE) file for details.
 
-## Acknowledgements
+## # Acknowledgements
 
 - [Baileys](https://github.com/WhiskeySockets/Baileys) - The WhatsApp Web API library this project is based on.

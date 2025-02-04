@@ -18,7 +18,7 @@
 </div>
 
 > [!WARNING]
-> This is beta features, not recomended to use in production. Join the whatsapp community for the latest info [WhatsApp Channel](https://whatsapp.com/channel/0029VazENbmInlqHIWzgn33h)
+> This is beta features, not recomended to use in production. Join whatsapp community for latest info [WhatsApp Channel](https://whatsapp.com/channel/0029VazENbmInlqHIWzgn33h)
 
 Zaileys is a powerful and flexible WhatsApp API library for Node.js, built on top of [Baileys](https://github.com/WhiskeySockets/Baileys). It simplifies the process of integrating WhatsApp functionalities into your applications, providing a comprehensive set of features for building robust and scalable WhatsApp-based solutions.
 
@@ -26,13 +26,11 @@ Zaileys is a powerful and flexible WhatsApp API library for Node.js, built on to
 
 - **Multi-Device Support:** Leverage the latest WhatsApp multi-device features for enhanced reliability and performance.
 - **Customizable:** Adapt the library to your specific needs with flexible configuration options and modular design.
-- **Comprehensive API:** Access a wide range of WhatsApp functionalities, including sending and receiving messages, media handling, group management, and more.
-- **Easy to Use:** Designed with developer experience in mind, Zaileys offers a clean and intuitive API that is easy to learn and use.
 
-## Installation
+## # Installation
 
 ```bash
-npm add
+npm add zaileys
 
 pnpm add zaileys
 
@@ -43,7 +41,12 @@ bun add zaileys
 deno add npm:zaileys
 ```
 
-## Usage
+## #  Example Code
+
+> [!TIP]
+> If you don't want to take time for setup and configuration, use the [example.ts](https://raw.githubusercontent.com/zeative/zaileys/refs/heads/main/test/example.ts) file that I have provided.
+
+## # Usage & Configuration
 
 ### Import Client
 

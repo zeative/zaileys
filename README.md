@@ -2,8 +2,17 @@
 
 <h1 align="center" id="title">Zaileys - Typescript/Javascript WhatsApp NodeJS API</h1>
 
+<div align='center'>
+
 [![NPM Version](https://img.shields.io/npm/v/zaileys.svg)](https://www.npmjs.com/package/zaileys)
-[![License](https://img.shields.io/npm/l/zaileys.svg)](https://github.com/WhiskeySockets/Baileys/blob/main/LICENSE)
+[![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/zeative/zaileys/total)](https://github.com/zeative/zaileys)
+[![NPM Downloads](https://img.shields.io/npm/dw/%40zeative%2Fzaileys?label=npm&color=%23CB3837)](https://github.com/zeative/zaileys)
+[![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/zeative/zaileys)](https://github.com/zeative/zaileys)
+[![GitHub License](https://img.shields.io/github/license/zeative/zaileys)](https://github.com/zeative/zaileys)
+[![GitHub Repo stars](https://img.shields.io/github/stars/zeative/zaileys)](https://github.com/zeative/zaileys)
+[![GitHub forks](https://img.shields.io/github/forks/zeative/zaileys)](https://github.com/zeative/zaileys)
+
+</div>
 
 Zaileys is a powerful and flexible WhatsApp API library for Node.js, built on top of Baileys. It simplifies the process of integrating WhatsApp functionalities into your applications, providing a comprehensive set of features for building robust and scalable WhatsApp-based solutions. 
 

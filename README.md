@@ -15,11 +15,11 @@
 
 </div>
 
-> ### This is beta features, not recomended to use in production
+> ### ⛔ This is beta features, not recomended to use in production
 
 Zaileys is a powerful and flexible WhatsApp API library for Node.js, built on top of Baileys. It simplifies the process of integrating WhatsApp functionalities into your applications, providing a comprehensive set of features for building robust and scalable WhatsApp-based solutions.
 
-**Key Features:**
+## •  Features
 
 - **Multi-Device Support:** Leverage the latest WhatsApp multi-device features for enhanced reliability and performance.
 - **Comprehensive API:** Access a wide range of WhatsApp functionalities, including sending and receiving messages, media handling, group management, and more.

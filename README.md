@@ -89,6 +89,7 @@ const wa = new Client({
   },
 });
 ```
+
 <hr>
 
 > [!NOTE]
@@ -109,6 +110,7 @@ wa.on("message", (ctx) => {}); // listener for message from any chats
 wa.on("command", (ctx) => {}); // listener for message that starts with prefix at beginning of word
 wa.on("call", (ctx) => {}); // listener for someone call to bot
 ```
+
 <hr>
 
 ### 🔹 Connection Handler
@@ -120,9 +122,10 @@ wa.on("connection", (ctx) => {
   }
 });
 ```
+
 <hr>
 
-### 🔹 Send Text
+### 🔹 Send Text Message
 
 [Here](#) you can find out the complete parameters for the `.sendText()` function
 
@@ -149,9 +152,10 @@ wa.on("message", (ctx) => {
   }
 });
 ```
+
 <hr>
 
-### 🔹 Send Reply
+### 🔹 Send Reply Message
 
 [Here](#) you can find out the complete parameters for the `.sendReply()` function
 
@@ -174,9 +178,10 @@ wa.on("message", (ctx) => {
 ```
 
 [Here](#) you can find out all the **verified** platforms provided
+
 <hr>
 
-### 🔹 Send Sticker
+### 🔹 Send Sticker Message
 
 [Here](#) you can find out the complete parameters for the `.sendSticker()` function
 
@@ -184,7 +189,7 @@ wa.on("message", (ctx) => {
 wa.on("message", async (ctx) => {
   if (ctx.chatType == "sticker") {
     const sticker = await ctx.media?.buffer!();
-    
+
     ctx.sendSticker(sticker);
   }
 
@@ -193,9 +198,10 @@ wa.on("message", async (ctx) => {
   }
 });
 ```
+
 <hr>
 
-### 🔹 Send Image
+### 🔹 Send Image Message
 
 [Here](#) you can find out the complete parameters for the `.sendImage()` function
 
@@ -203,18 +209,25 @@ wa.on("message", async (ctx) => {
 wa.on("message", async (ctx) => {
   if (ctx.chatType == "image") {
     const image = await ctx.media?.buffer!();
-    
+
     ctx.sendImage(image);
   }
 
   if (ctx.text == "image") {
     ctx.sendImage("https://gtihub.com/zeative.png");
   }
+
+  if (ctx.text == "mypp") {
+    const picture = await ctx.senderImage();
+
+    ctx.sendImage(picture);
+  }
 });
 ```
+
 <hr>
 
-### 🔹 Send Video
+### 🔹 Send Video Message
 
 [Here](#) you can find out the complete parameters for the `.sendVideo()` function
 
@@ -222,7 +235,7 @@ wa.on("message", async (ctx) => {
 wa.on("message", async (ctx) => {
   if (ctx.chatType == "video") {
     const video = await ctx.media?.buffer!();
-    
+
     ctx.sendVideo(video);
   }
 
@@ -231,9 +244,10 @@ wa.on("message", async (ctx) => {
   }
 });
 ```
+
 <hr>
 
-### 🔹 Send Audio
+### 🔹 Send Audio Message
 
 [Here](#) you can find out the complete parameters for the `.sendAudio()` function
 
@@ -241,12 +255,80 @@ wa.on("message", async (ctx) => {
 wa.on("message", async (ctx) => {
   if (ctx.chatType == "audio") {
     const audio = await ctx.media?.buffer!();
-    
+
     ctx.sendAudio(audio);
   }
 
   if (ctx.text == "audio") {
     ctx.sendAudio("https://gtihub.com/zeative.png");
+  }
+});
+```
+
+<hr>
+
+### 🔹 With Prefix Message
+
+> [!NOTE]
+> You must set `prefix` option to anything character
+
+```ts
+wa.on("message", async (ctx) => {
+  // for example set prefix to "/"
+  // and user text "/test"
+  if (ctx.command == "test") {
+    ctx.sendText("From command message!");
+  }
+});
+```
+
+<hr>
+
+### 🔹 Mentioned User
+
+> [!NOTE]
+> You must set `autoMentions` option to `true` and bot will send text as mentions
+
+```ts
+wa.on("message", async (ctx) => {
+  if (ctx.text == "mentions") {
+    ctx.sendText("Here user mentioned: @0 @18002428478");
+    // example output: "Here user mentioned: @WhatsApp @ChatGPT"
+
+    // if `autoMentions` is inactive or `false`
+    // output can be plain text: "Here user mentioned: @0 @18002428478"
+  }
+});
+```
+
+<hr>
+
+### 🔹 Citation Handler
+
+> [!NOTE]
+> You must set `citation` like [example](https://github.com/zeative/zaileys?tab=readme-ov-file#%EF%B8%8F-configuration) above before
+
+```ts
+const wa = new Client({
+  ...,
+
+  // just example you can edit with your own
+  citation: {
+    authors: ["628xxxx"],
+    myPrivateGroups: ["1203633xxxxx"]
+  }
+})
+
+wa.on("message", async (ctx) => {
+  const isAuthors = ctx.citation?.isAuthors;
+  const isMyPrivateGroups = ctx.citation?.isMyPrivateGroups;
+  
+  if (isAuthors && ctx.text == "ping") {
+    ctx.sendText("Message for my author: kejaa");
+  }
+
+  if (isMyPrivateGroups && ctx.text == "pong") {
+    ctx.sendText("Message for my private group!");
   }
 });
 ```
@@ -270,4 +352,3 @@ This project is licensed under the [MIT License](LICENSE) - see the [LICENSE](LI
 ## # Acknowledgements
 
 - [Baileys](https://github.com/WhiskeySockets/Baileys) - The WhatsApp Web API library this project is based on.
-```

@@ -89,6 +89,7 @@ const wa = new Client({
   },
 });
 ```
+<hr>
 
 > [!NOTE]
 > The functions and parameters below may change at any time considering that this library is a beta version. So when you update a library to the latest version but an error occurs, there may be changes to certain functions and parameters.
@@ -108,6 +109,7 @@ wa.on("message", (ctx) => {}); // listener for message from any chats
 wa.on("command", (ctx) => {}); // listener for message that starts with prefix at beginning of word
 wa.on("call", (ctx) => {}); // listener for someone call to bot
 ```
+<hr>
 
 ### 🔹 Connection Handler
 
@@ -118,6 +120,7 @@ wa.on("connection", (ctx) => {
   }
 });
 ```
+<hr>
 
 ### 🔹 Send Text
 
@@ -146,6 +149,7 @@ wa.on("message", (ctx) => {
   }
 });
 ```
+<hr>
 
 ### 🔹 Send Reply
 
@@ -170,6 +174,7 @@ wa.on("message", (ctx) => {
 ```
 
 [Here](#) you can find out all the **verified** platforms provided
+<hr>
 
 ### 🔹 Send Sticker
 
@@ -188,6 +193,7 @@ wa.on("message", async (ctx) => {
   }
 });
 ```
+<hr>
 
 ### 🔹 Send Image
 
@@ -206,6 +212,7 @@ wa.on("message", async (ctx) => {
   }
 });
 ```
+<hr>
 
 ### 🔹 Send Video
 
@@ -224,6 +231,7 @@ wa.on("message", async (ctx) => {
   }
 });
 ```
+<hr>
 
 ### 🔹 Send Audio
 

@@ -101,6 +101,8 @@ wa.on("call", (ctx) => {}); // listener for someone call to bot
 
 ### 🔹 Send Text
 
+[Here]() you can find out the complete parameters for the `.sendText()` function
+
 ```ts
 wa.on("message", (ctx) => {
   if (ctx.text == "ping") {

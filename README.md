@@ -41,7 +41,7 @@ bun add zaileys
 deno add npm:zaileys
 ```
 
-## #  Example Code
+## # Example Code
 
 > [!TIP]
 > If you don't want to take time for setup and configuration, use the [example.ts](https://github.com/zeative/zaileys/blob/main/test/example.ts) file that I have provided.
@@ -58,21 +58,22 @@ import { Client } from "zaileys";
 const { Client } = require("zaileys");
 ```
 
-### ⚙️  Configuration
+### ⚙️ Configuration
 
 > [!WARNING]
-> Attention! in the beta version this library uses the built-in Baileys [`makeInMemoryStore`](https://github.com/WhiskeySockets/Baileys?tab=readme-ov-file#implementing-a-data-store) function which will most likely use quite a lot of RAM.
+> Warning! in beta version this library uses built-in Baileys [`makeInMemoryStore`](https://github.com/WhiskeySockets/Baileys?tab=readme-ov-file#implementing-a-data-store) function which will most likely use quite a lot of RAM.
+> If you experience this, you can delete the `.zaileys/memory.json` file then restart the server.
 
 ```ts
 const wa = new Client({
-  prefix: null, // for command message
-  ignoreMe: true, // ignore messages from yourself (your phone number)
-  phoneNumber: 628xxx, // fill your phone number if auth type is 'pairing'
+  prefix: "/", // for command message, example '/'
+  ignoreMe: true, // ignore messages from bot (bot phone number)
+  phoneNumber: 628xxx, // fill bot phone number if auth type is 'pairing'
   authPath: ".zaileys", // auth directory path for session and chat store
   authType: "pairing", // auth type 'pairing' or 'qr'
   showLogs: true, // show logs of any chats
-  autoMentions: true, // if true, @everyone will be mentioned
-  autoOnline: true, // your status will be mark online
+  autoMentions: true, // bot will be auto mentioned if text contains sender number with '@' prefix
+  autoOnline: true, // bot status will be mark online
   autoRead: true, // auto read message from any chats
   autoRejectCall: true,  // auto reject call if someone call you
   citation: {
@@ -83,8 +84,8 @@ const wa = new Client({
 
     // just sample, you can rename with any key
     authors: () => ["628xxxx"], // key 'authors' will be 'isAuthors'
-    myGroups: () => ["1203633xxxxx"], // key 'authors' will be 'isMyGroups'
-    ...otherKey // key 'authors' will be 'isOtherKey'
+    myGroups: () => ["1203633xxxxx"], // key 'myGroups' will be 'isMyGroups'
+    ...otherKey // key 'otherKey' will be 'isOtherKey'
   },
 });
 ```

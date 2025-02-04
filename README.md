@@ -1,13 +1,13 @@
 <p align="center"><img src="https://socialify.git.ci/zeative/zaileys/image?description=1&amp;descriptionEditable=Zaileys%20is%20a%20simplified%20version%20of%20the%20Baileys%20package%20%0Awhich%20is%20easier%20and%20faster.&amp;font=KoHo&amp;forks=1&amp;issues=1&amp;language=1&amp;name=1&amp;owner=1&amp;pattern=Circuit%20Board&amp;pulls=1&amp;stargazers=1&amp;theme=Auto" alt="project-image"></p>
 
-<h1 align="center" id="title">Zaileys - Typescript/Javascript WhatsApp NodeJS API</h1>
+<h1 align="center" id="title">Zaileys - Simplify Typescript/Javascript WhatsApp NodeJS API</h1>
 
 <div align='center'>
 
 [![NPM Version](https://img.shields.io/npm/v/zaileys.svg)](https://www.npmjs.com/package/zaileys)
-[![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/zeative/zaileys/total)](https://github.com/zeative/zaileys)
-[![NPM Downloads](https://img.shields.io/npm/dw/%40zeative%2Fzaileys?label=npm&color=%23CB3837)](https://github.com/zeative/zaileys)
-[![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/zeative/zaileys)](https://github.com/zeative/zaileys)
+[![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/zeative/zaileys/total)](https://www.npmjs.com/package/zaileys)
+[![NPM Downloads](https://img.shields.io/npm/dw/%40zeative%2Fzaileys?label=npm&color=%23CB3837)](https://www.npmjs.com/package/zaileys)
+[![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/zeative/zaileys)](https://www.npmjs.com/package/zaileys)
 [![GitHub License](https://img.shields.io/github/license/zeative/zaileys)](https://github.com/zeative/zaileys)
 <br>
 [![GitHub Repo stars](https://img.shields.io/github/stars/zeative/zaileys)](https://github.com/zeative/zaileys)

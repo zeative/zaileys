@@ -272,7 +272,7 @@ export class Client extends EventEmitter {
       await this.socket.sendMessage(
         this.temporaryMessage?.roomId!,
         { text },
-        { quoted: { ...this.temporaryMessage?.message()!, key: this.generateFakeVerified(this?.temporaryMessage?.message()!.key!, payload!.fakeVerified!) } }
+        { quoted: { ...this?.temporaryMessage?.message()!, key: this.generateFakeVerified(this?.temporaryMessage?.message()!.key!, payload?.fakeVerified!) } }
       );
     }
   }
@@ -317,7 +317,7 @@ export class Client extends EventEmitter {
     const stickerr = typeof sticker == "string" ? { sticker: { url: sticker } } : { sticker };
 
     this.socket.sendMessage(
-      this?.temporaryMessage?.roomId!,
+      this.temporaryMessage?.roomId!,
       { ...stickerr },
       {
         ...(payload?.asReply && { quoted: this?.temporaryMessage?.message() }),

@@ -8,7 +8,6 @@
   "entryPointStrategy": "expand",
   "customCss": "./docs.css",
   "out": "docs",
-  "gaID": "G-T0LG3JX1FJ",
   "extends": [],
   "navigationLinks": {
     "⭐ Star on Github": "https://github.com/zeative/zaileys"

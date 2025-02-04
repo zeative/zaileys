@@ -1,2 +1,9 @@
 node_modules
 .zaileys
+src
+test
+
+yarn*
+docs*
+tsconfig*
+typedoc*

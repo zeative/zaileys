@@ -5,4 +5,6 @@
 
 img {
   border-radius: 12px;
+  border-width: 4px !important;
+  border-color: dimgray !important;
 }

@@ -18,5 +18,7 @@
     "😾 Saweria": "https://saweria.co/zaadevofc",
     "": ""
   },
-  "pretty": true
+  "pretty": true,
+  "plugin": ["typedoc-material-theme"],
+  "themeColor": "#cb9820"
 }

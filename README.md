@@ -314,21 +314,32 @@ const wa = new Client({
 
   // just example you can edit with your own
   citation: {
-    authors: ["628xxxx"],
-    myPrivateGroups: ["1203633xxxxx"]
+    authors: () => ["628xxxx"],
+    myPrivateGroups: () => ["1203633xxxxx"],
+    bannedUsers: async () => {
+      const res = await fetch("/get/user/banned")
+      const users = await res.json()
+
+      return users // ["628xx", "628xx", "628xx"]
+    }
   }
 })
 
 wa.on("message", async (ctx) => {
   const isAuthors = ctx.citation?.isAuthors;
   const isMyPrivateGroups = ctx.citation?.isMyPrivateGroups;
+  const isBannedUsers = ctx.citation?.isBannedUsers;
   
-  if (isAuthors && ctx.text == "ping") {
+  if (isAuthors && ctx.text == "test1") {
     ctx.sendText("Message for my author: kejaa");
   }
 
-  if (isMyPrivateGroups && ctx.text == "pong") {
+  if (isMyPrivateGroups && ctx.text == "test2") {
     ctx.sendText("Message for my private group!");
+  }
+
+  if (isBannedUsers && ctx.text) {
+    ctx.sendText("Your number is banned!");
   }
 });
 ```

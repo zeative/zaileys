@@ -95,6 +95,13 @@ const wa = new Client({
 
 ### 🛎️ Event Handler
 
+You can find out the output type of each object in the listener below:
+
+- ctx for [`connection`]()
+- ctx for [`message`]()
+- ctx for [`command`]()
+- ctx for [`call`]()
+
 ```ts
 wa.on("connection", (ctx) => {}); // listener for current connection
 wa.on("message", (ctx) => {}); // listener for message from any chats
@@ -164,6 +171,78 @@ wa.on("message", (ctx) => {
 
 [Here](#) you can find out all the **verified** platforms provided
 
+### 🔹 Send Sticker
+
+[Here](#) you can find out the complete parameters for the `.sendSticker()` function
+
+```ts
+wa.on("message", async (ctx) => {
+  if (ctx.chatType == "sticker") {
+    const sticker = await ctx.media?.buffer!();
+    
+    ctx.sendSticker(sticker);
+  }
+
+  if (ctx.text == "sticker") {
+    ctx.sendSticker("https://gtihub.com/zeative.png");
+  }
+});
+```
+
+### 🔹 Send Image
+
+[Here](#) you can find out the complete parameters for the `.sendImage()` function
+
+```ts
+wa.on("message", async (ctx) => {
+  if (ctx.chatType == "image") {
+    const image = await ctx.media?.buffer!();
+    
+    ctx.sendImage(image);
+  }
+
+  if (ctx.text == "image") {
+    ctx.sendImage("https://gtihub.com/zeative.png");
+  }
+});
+```
+
+### 🔹 Send Video
+
+[Here](#) you can find out the complete parameters for the `.sendVideo()` function
+
+```ts
+wa.on("message", async (ctx) => {
+  if (ctx.chatType == "video") {
+    const video = await ctx.media?.buffer!();
+    
+    ctx.sendVideo(video);
+  }
+
+  if (ctx.text == "video") {
+    ctx.sendVideo("https://gtihub.com/zeative.png");
+  }
+});
+```
+
+### 🔹 Send Audio
+
+[Here](#) you can find out the complete parameters for the `.sendAudio()` function
+
+```ts
+wa.on("message", async (ctx) => {
+  if (ctx.chatType == "audio") {
+    const audio = await ctx.media?.buffer!();
+    
+    ctx.sendAudio(audio);
+  }
+
+  if (ctx.text == "audio") {
+    ctx.sendAudio("https://gtihub.com/zeative.png");
+  }
+});
+```
+
 ## # Contributing
 
 Contributions are welcome! Please follow these steps to contribute:
@@ -183,3 +262,4 @@ This project is licensed under the [MIT License](LICENSE) - see the [LICENSE](LI
 ## # Acknowledgements
 
 - [Baileys](https://github.com/WhiskeySockets/Baileys) - The WhatsApp Web API library this project is based on.
+```

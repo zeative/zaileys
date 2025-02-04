@@ -15,49 +15,95 @@
 
 </div>
 
-Zaileys is a powerful and flexible WhatsApp API library for Node.js, built on top of Baileys. It simplifies the process of integrating WhatsApp functionalities into your applications, providing a comprehensive set of features for building robust and scalable WhatsApp-based solutions. 
+> This is beta features, not recomended to use in production
+
+Zaileys is a powerful and flexible WhatsApp API library for Node.js, built on top of Baileys. It simplifies the process of integrating WhatsApp functionalities into your applications, providing a comprehensive set of features for building robust and scalable WhatsApp-based solutions.
 
 **Key Features:**
 
-*   **Multi-Device Support:** Leverage the latest WhatsApp multi-device features for enhanced reliability and performance.
-*   **Comprehensive API:** Access a wide range of WhatsApp functionalities, including sending and receiving messages, media handling, group management, and more.
-*   **Easy to Use:**  Designed with developer experience in mind, Zaileys offers a clean and intuitive API that is easy to learn and use.
-*   **Highly Customizable:** Adapt the library to your specific needs with flexible configuration options and modular design.
+- **Multi-Device Support:** Leverage the latest WhatsApp multi-device features for enhanced reliability and performance.
+- **Comprehensive API:** Access a wide range of WhatsApp functionalities, including sending and receiving messages, media handling, group management, and more.
+- **Easy to Use:** Designed with developer experience in mind, Zaileys offers a clean and intuitive API that is easy to learn and use.
+- **Customizable:** Adapt the library to your specific needs with flexible configuration options and modular design.
 
 ## Installation
 
 ```bash
-npm install zaileys
+npm add
+
+pnpm add zaileys
+
+yarn add zaileys
+
+bun add zaileys
+
+deno add npm:zaileys
 ```
 
 ## Usage
 
 ### Import Client
 
-```typescript
-import { Client } from 'zaileys';
+```javascript
+// ESM
+import { Client } from "zaileys";
+
+// CJS
+const { Client } = require("zaileys");
 ```
 
-### Basic Example
+### Configuration
 
-```typescript
-import { Client } from 'zaileys';
+Default configuration of Client
 
+```ts
+const wa = new Client({
+  prefix: null, // for command message
+  ignoreMe: true, // ignore messages from yourself (your phone number)
+  phoneNumber: 628xxx, // fill your phone number if auth type is 'pairing'
+  authPath: ".zaileys", // auth directory path
+  authType: "pairing", // auth type 'pairing' or 'qr'
+  showLogs: true, // show logs of any chats
+  autoMentions: true, // if true, @everyone will be mentioned
+  autoOnline: true, // your status will be mark online
+  autoRead: true, // auto read message from any chats
+  autoRejectCall: true,  // auto reject call if someone call you
+  citation: {
+    // your citation will be boolean object based on validate with your value
+    // system will be validate your value with 'senderId' and 'roomId'
+    // if one is valid then the key will return 'boolean'
+    // sample output: { isAuthors: boolean }
+
+    // just sample, you can rename with any key
+    authors: () => ["628xxxx"], // key 'authors' will be 'isAuthors'
+    myGroups: () => ["1203633xxxxx"], // key 'authors' will be 'isMyGroups'
+    ...otherKey // key 'authors' will be 'isOtherKey'
+  },
+});
+```
+
+### Event Handler
+
+```ts
+wa.on("connection", (ctx) => {}); // connection listener
+wa.on("message", (ctx) => {}); // message from anything
+wa.on("command", (ctx) => {}); // message that starts with prefix at beginning of word
+wa.on("call", (ctx) => {}); // if someone call
 ```
 
 ## Features
 
--   **Simple Client Initialization**: Easy setup with the `Client` class.
--   **Effortless Connection Management**: Connect and reconnect to WhatsApp with built-in functions.
--   **Versatile Message Handling**: Send and receive text, media, and interactive messages.
--   **Group Management**: Create, join, and manage WhatsApp groups.
--   **Contact Management**: Interact with contacts, block/unblock, and manage your contact list.
--   **Real-time Event Handling**: Get notified of events in real-time using a simple event listener system.
--   **Advanced Media Support**: Send and receive various types of media messages, including images, videos, audio, documents, and stickers.
--   **Location and Live Location Sharing**: Share and receive locations and live locations.
--   **Interactive Messages**: Send and receive interactive messages like buttons, lists, and quick reply buttons.
--   **Presence Management**: Manage your online presence with presence features.
--   **Device Synchronization**: Leverage multi-device features for seamless device synchronization.
+- **Simple Client Initialization**: Easy setup with the `Client` class.
+- **Effortless Connection Management**: Connect and reconnect to WhatsApp with built-in functions.
+- **Versatile Message Handling**: Send and receive text, media, and interactive messages.
+- **Group Management**: Create, join, and manage WhatsApp groups.
+- **Contact Management**: Interact with contacts, block/unblock, and manage your contact list.
+- **Real-time Event Handling**: Get notified of events in real-time using a simple event listener system.
+- **Advanced Media Support**: Send and receive various types of media messages, including images, videos, audio, documents, and stickers.
+- **Location and Live Location Sharing**: Share and receive locations and live locations.
+- **Interactive Messages**: Send and receive interactive messages like buttons, lists, and quick reply buttons.
+- **Presence Management**: Manage your online presence with presence features.
+- **Device Synchronization**: Leverage multi-device features for seamless device synchronization.
 
 ## Contributing
 
@@ -77,4 +123,4 @@ This project is licensed under the [MIT License](LICENSE) - see the [LICENSE](LI
 
 ## Acknowledgements
 
--   [Baileys](https://github.com/WhiskeySockets/Baileys) - The WhatsApp Web API library this project is based on.
+- [Baileys](https://github.com/WhiskeySockets/Baileys) - The WhatsApp Web API library this project is based on.

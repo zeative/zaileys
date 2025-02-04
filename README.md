@@ -1,6 +1,8 @@
-<img alt="Zaileys - Simplify Typescript/Javascript WhatsApp NodeJS API" align='center' border='4'  src="https://socialify.git.ci/zeative/zaileys/image?description=1&amp;descriptionEditable=Zaileys%20is%20a%20simplified%20version%20of%20the%20Baileys%20package%20%0Awhich%20is%20easier%20and%20faster.&amp;font=KoHo&amp;forks=1&amp;issues=1&amp;language=1&amp;name=1&amp;owner=1&amp;pattern=Circuit%20Board&amp;pulls=1&amp;stargazers=1&amp;theme=Auto">
+<div align='center'>
+  <img alt="Zaileys - Simplify Typescript/Javascript WhatsApp NodeJS API" border='4' src="https://socialify.git.ci/zeative/zaileys/image?description=1&amp;descriptionEditable=Zaileys%20is%20a%20simplified%20version%20of%20the%20Baileys%20package%20%0Awhich%20is%20easier%20and%20faster.&amp;font=KoHo&amp;forks=1&amp;issues=1&amp;language=1&amp;name=1&amp;owner=1&amp;pattern=Circuit%20Board&amp;pulls=1&amp;stargazers=1&amp;theme=Auto">
+</div>
 
-<h1 align="center" id="title">Zaileys - Simplify Typescript/Javascript WhatsApp NodeJS API</h1>
+<h1 align="center">Zaileys - Simplify Typescript/Javascript WhatsApp NodeJS API</h1>
 
 <div align='center'>
 
@@ -15,16 +17,17 @@
 
 </div>
 
-> ### ⛔ This is beta features, not recomended to use in production
+> [!WARNING]
+> This is beta features, not recomended to use in production. Join the whatsapp community for the latest info [WhatsApp Channel](https://whatsapp.com/channel/0029VazENbmInlqHIWzgn33h)
 
-Zaileys is a powerful and flexible WhatsApp API library for Node.js, built on top of Baileys. It simplifies the process of integrating WhatsApp functionalities into your applications, providing a comprehensive set of features for building robust and scalable WhatsApp-based solutions.
+Zaileys is a powerful and flexible WhatsApp API library for Node.js, built on top of [Baileys](https://github.com/WhiskeySockets/Baileys). It simplifies the process of integrating WhatsApp functionalities into your applications, providing a comprehensive set of features for building robust and scalable WhatsApp-based solutions.
 
-## •  Features
+## # Features
 
 - **Multi-Device Support:** Leverage the latest WhatsApp multi-device features for enhanced reliability and performance.
+- **Customizable:** Adapt the library to your specific needs with flexible configuration options and modular design.
 - **Comprehensive API:** Access a wide range of WhatsApp functionalities, including sending and receiving messages, media handling, group management, and more.
 - **Easy to Use:** Designed with developer experience in mind, Zaileys offers a clean and intuitive API that is easy to learn and use.
-- **Customizable:** Adapt the library to your specific needs with flexible configuration options and modular design.
 
 ## Installation
 

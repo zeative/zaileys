@@ -42,7 +42,7 @@ wa.on("message", async (ctx) => {
   }
 
   if (ctx.command == "tags") {
-    wa.sendReply(ctx.text.slice(6));
+    wa.sendReply(ctx.text.slice(6), { fakeVerified: 'chatgpt'});
   }
 
   if (ctx.command == "image") {

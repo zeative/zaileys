@@ -90,6 +90,9 @@ const wa = new Client({
 });
 ```
 
+> [!NOTE]
+> The functions and parameters below may change at any time considering that this library is a beta version. So when you update a library to the latest version but an error occurs, there may be changes to certain functions and parameters.
+
 ### 🛎️ Event Handler
 
 ```ts
@@ -99,14 +102,35 @@ wa.on("command", (ctx) => {}); // listener for message that starts with prefix a
 wa.on("call", (ctx) => {}); // listener for someone call to bot
 ```
 
+### 🔹 Connection Handler
+
+```ts
+wa.on("connection", (ctx) => {
+  if (ctx.status == "open") {
+    // do something
+  }
+});
+```
+
 ### 🔹 Send Text
 
-[Here]() you can find out the complete parameters for the `.sendText()` function
+[Here](#) you can find out the complete parameters for the `.sendText()` function
 
 ```ts
 wa.on("message", (ctx) => {
   if (ctx.text == "ping") {
-    ctx.sendText("Pong!");
+    ctx.sendText("Hello! " + ctx.senderName);
+  }
+
+  // text from reply message
+  if (ctx.reply?.text == "ping") {
+    ctx.sendText("Pong from reply!");
+  }
+
+  // text from nested reply message
+  // you can retrieve reply messages of any depth
+  if (ctx.reply?.reply?.reply?.text == "ping") {
+    ctx.sendText("Pong from nested reply!");
   }
 
   // text with footer message (doesn't work on whatsapp desktop)
@@ -115,6 +139,30 @@ wa.on("message", (ctx) => {
   }
 });
 ```
+
+### 🔹 Send Reply
+
+[Here](#) you can find out the complete parameters for the `.sendReply()` function
+
+```ts
+wa.on("message", (ctx) => {
+  if (ctx.text == "ping") {
+    ctx.sendReply("Pong!");
+  }
+
+  // reply with footer message (doesn't work on whatsapp desktop)
+  if (ctx.text == "pong") {
+    ctx.sendReply("Ping!", { footer: "Footer message" });
+  }
+
+  // reply with fake verified badge
+  if (ctx.text == "fake") {
+    ctx.sendReply("Fake Verified!", { fakeVerified: "whatsapp" });
+  }
+});
+```
+
+[Here](#) you can find out all the **verified** platforms provided
 
 ## # Contributing
 

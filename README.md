@@ -44,7 +44,7 @@ deno add npm:zaileys
 ## #  Example Code
 
 > [!TIP]
-> If you don't want to take time for setup and configuration, use the [example.ts](https://raw.githubusercontent.com/zeative/zaileys/refs/heads/main/test/example.ts) file that I have provided.
+> If you don't want to take time for setup and configuration, use the [example.ts](https://github.com/zeative/zaileys/blob/main/test/example.ts) file that I have provided.
 
 ## # Usage & Configuration
 

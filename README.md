@@ -9,9 +9,7 @@
 [![NPM Downloads](https://img.shields.io/npm/dw/%40zaadevofc%2Fzaileys?label=npm&color=%23CB3837)](https://github.com/zeative/zaileys)
 [![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/zeative/zaileys)](https://github.com/zeative/zaileys)
 [![GitHub License](https://img.shields.io/github/license/zeative/zaileys)](https://github.com/zeative/zaileys)
-
 <br>
-
 [![GitHub Repo stars](https://img.shields.io/github/stars/zeative/zaileys)](https://github.com/zeative/zaileys)
 [![GitHub forks](https://img.shields.io/github/forks/zeative/zaileys)](https://github.com/zeative/zaileys)
 

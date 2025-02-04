@@ -1,4 +1,6 @@
-# Zaileys
+<p align="center"><img src="https://socialify.git.ci/zaadevofc/zaileys/image?description=1&amp;descriptionEditable=Zaileys%20is%20a%20simplified%20version%20of%20the%20Baileys%20package%20%0Awhich%20is%20easier%20and%20faster.&amp;font=KoHo&amp;forks=1&amp;issues=1&amp;language=1&amp;name=1&amp;owner=1&amp;pattern=Circuit%20Board&amp;pulls=1&amp;stargazers=1&amp;theme=Auto" alt="project-image"></p>
+
+<h1 align="center" id="title">Zaileys - Typescript/Javascript WhatsApp NodeJS API</h1>
 
 [![NPM Version](https://img.shields.io/npm/v/zaileys.svg)](https://www.npmjs.com/package/zaileys)
 [![License](https://img.shields.io/npm/l/zaileys.svg)](https://github.com/WhiskeySockets/Baileys/blob/main/LICENSE)
@@ -11,8 +13,6 @@ Zaileys is a powerful and flexible WhatsApp API library for Node.js, built on to
 *   **Comprehensive API:** Access a wide range of WhatsApp functionalities, including sending and receiving messages, media handling, group management, and more.
 *   **Easy to Use:**  Designed with developer experience in mind, Zaileys offers a clean and intuitive API that is easy to learn and use.
 *   **Highly Customizable:** Adapt the library to your specific needs with flexible configuration options and modular design.
-
-**Keywords:** whatsapp, js-whatsapp, whatsapp-api, whatsapp-web, whatsapp-chat, whatsapp-group, automation, multi-device, baileys
 
 ## Installation
 
@@ -33,21 +33,6 @@ import { Client } from 'zaileys';
 ```typescript
 import { Client } from 'zaileys';
 
-async function main() {
-  const client = new Client();
-
-  await client.connect();
-
-  // Send a message to a user
-  await client.sendMessage('1234567890@s.whatsapp.net', 'Hello from Zaileys!');
-
-  // Send a message to a group
-  // await client.sendMessage('120363042790483887@g.us', 'Hello group!');
-
-  await client.logout();
-}
-
-main();
 ```
 
 ## Features
@@ -83,5 +68,3 @@ This project is licensed under the [MIT License](LICENSE) - see the [LICENSE](LI
 ## Acknowledgements
 
 -   [Baileys](https://github.com/WhiskeySockets/Baileys) - The WhatsApp Web API library this project is based on.
--   [ অন্যান্য অবদানকারীদের নাম ] - এখানে অন্যান্য অবদানকারীদের নাম যোগ করুন
-[List other contributors here] - Add other contributors' names here

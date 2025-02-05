@@ -132,23 +132,23 @@ wa.on("connection", (ctx) => {
 ```ts
 wa.on("message", (ctx) => {
   if (ctx.text == "ping") {
-    ctx.sendText("Hello! " + ctx.senderName);
+    wa.sendText("Hello! " + ctx.senderName);
   }
 
   // text from reply message
   if (ctx.reply?.text == "ping") {
-    ctx.sendText("Pong from reply!");
+    wa.sendText("Pong from reply!");
   }
 
   // text from nested reply message
   // you can retrieve reply messages of any depth
   if (ctx.reply?.reply?.reply?.text == "ping") {
-    ctx.sendText("Pong from nested reply!");
+    wa.sendText("Pong from nested reply!");
   }
 
   // text with footer message (doesn't work on whatsapp desktop)
   if (ctx.text == "pong") {
-    ctx.sendText("Ping!", { footer: "Footer message" });
+    wa.sendText("Ping!", { footer: "Footer message" });
   }
 });
 ```
@@ -162,17 +162,17 @@ wa.on("message", (ctx) => {
 ```ts
 wa.on("message", (ctx) => {
   if (ctx.text == "ping") {
-    ctx.sendReply("Pong!");
+    wa.sendReply("Pong!");
   }
 
   // reply with footer message (doesn't work on whatsapp desktop)
   if (ctx.text == "pong") {
-    ctx.sendReply("Ping!", { footer: "Footer message" });
+    wa.sendReply("Ping!", { footer: "Footer message" });
   }
 
   // reply with fake verified badge
   if (ctx.text == "fake") {
-    ctx.sendReply("Fake Verified!", { fakeVerified: "whatsapp" });
+    wa.sendReply("Fake Verified!", { fakeVerified: "whatsapp" });
   }
 });
 ```
@@ -190,11 +190,11 @@ wa.on("message", async (ctx) => {
   if (ctx.chatType == "sticker") {
     const sticker = await ctx.media?.buffer!();
 
-    ctx.sendSticker(sticker);
+    wa.sendSticker(sticker);
   }
 
   if (ctx.text == "sticker") {
-    ctx.sendSticker("https://gtihub.com/zeative.png");
+    wa.sendSticker("https://gtihub.com/zeative.png");
   }
 });
 ```
@@ -210,17 +210,17 @@ wa.on("message", async (ctx) => {
   if (ctx.chatType == "image") {
     const image = await ctx.media?.buffer!();
 
-    ctx.sendImage(image);
+    wa.sendImage(image);
   }
 
   if (ctx.text == "image") {
-    ctx.sendImage("https://gtihub.com/zeative.png");
+    wa.sendImage("https://gtihub.com/zeative.png");
   }
 
   if (ctx.text == "mypp") {
     const picture = await ctx.senderImage();
 
-    ctx.sendImage(picture);
+    wa.sendImage(picture);
   }
 });
 ```
@@ -236,11 +236,11 @@ wa.on("message", async (ctx) => {
   if (ctx.chatType == "video") {
     const video = await ctx.media?.buffer!();
 
-    ctx.sendVideo(video);
+    wa.sendVideo(video);
   }
 
   if (ctx.text == "video") {
-    ctx.sendVideo("https://gtihub.com/zeative.png");
+    wa.sendVideo("https://gtihub.com/zeative.png");
   }
 });
 ```
@@ -256,11 +256,11 @@ wa.on("message", async (ctx) => {
   if (ctx.chatType == "audio") {
     const audio = await ctx.media?.buffer!();
 
-    ctx.sendAudio(audio);
+    wa.sendAudio(audio);
   }
 
   if (ctx.text == "audio") {
-    ctx.sendAudio("https://gtihub.com/zeative.png");
+    wa.sendAudio("https://gtihub.com/zeative.png");
   }
 });
 ```
@@ -277,7 +277,7 @@ wa.on("message", async (ctx) => {
   // for example set prefix to "/"
   // and user text "/test"
   if (ctx.command == "test") {
-    ctx.sendText("From command message!");
+    wa.sendText("From command message!");
   }
 });
 ```
@@ -292,7 +292,7 @@ wa.on("message", async (ctx) => {
 ```ts
 wa.on("message", async (ctx) => {
   if (ctx.text == "mentions") {
-    ctx.sendText("Here user mentioned: @0 @18002428478");
+    wa.sendText("Here user mentioned: @0 @18002428478");
     // example output: "Here user mentioned: @WhatsApp @ChatGPT"
 
     // if `autoMentions` is inactive or `false`
@@ -331,15 +331,15 @@ wa.on("message", async (ctx) => {
   const isBannedUsers = ctx.citation?.isBannedUsers;
 
   if (isAuthors && ctx.text == "test1") {
-    ctx.sendText("Message for my author: kejaa");
+    wa.sendText("Message for my author: kejaa");
   }
 
   if (isMyPrivateGroups && ctx.text == "test2") {
-    ctx.sendText("Message for my private group!");
+    wa.sendText("Message for my private group!");
   }
 
   if (isBannedUsers && ctx.text) {
-    ctx.sendText("Your number is banned!");
+    wa.sendText("Your number is banned!");
   }
 });
 ```

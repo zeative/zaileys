@@ -7,11 +7,9 @@
 <div align='center'>
 
 [![NPM Version](https://img.shields.io/npm/v/zaileys.svg)](https://www.npmjs.com/package/zaileys)
-[![GitHub Downloads (all assets, all releases)](https://img.shields.io/github/downloads/zeative/zaileys/total)](https://www.npmjs.com/package/zaileys)
-[![NPM Downloads](https://img.shields.io/npm/dw/%40zeative%2Fzaileys?label=npm&color=%23CB3837)](https://www.npmjs.com/package/zaileys)
+[![NPM Downloads](https://img.shields.io/npm/dw/zaileys?label=npm&color=%23CB3837)](https://www.npmjs.com/package/zaileys)
 [![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/zeative/zaileys)](https://www.npmjs.com/package/zaileys)
 [![GitHub License](https://img.shields.io/github/license/zeative/zaileys)](https://github.com/zeative/zaileys)
-<br>
 [![GitHub Repo stars](https://img.shields.io/github/stars/zeative/zaileys)](https://github.com/zeative/zaileys)
 [![GitHub forks](https://img.shields.io/github/forks/zeative/zaileys)](https://github.com/zeative/zaileys)
 

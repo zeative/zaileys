@@ -1,5 +1,5 @@
 <div align='center'>
-  <img alt="Zaileys - Simplify Typescript/Javascript WhatsApp NodeJS API" border='4' src="https://socialify.git.ci/zeative/zaileys/image?description=1&amp;descriptionEditable=Zaileys%20is%20a%20simplified%20version%20of%20the%20Baileys%20package%20%0Awhich%20is%20easier%20and%20faster.&amp;font=KoHo&amp;forks=1&amp;issues=1&amp;language=1&amp;name=1&amp;owner=1&amp;pattern=Circuit%20Board&amp;pulls=1&amp;stargazers=1&amp;theme=Auto">
+  <img alt="Zaileys - Simplify Typescript/Javascript WhatsApp NodeJS API" src="https://socialify.git.ci/zeative/zaileys/image?description=1&amp;descriptionEditable=Zaileys%20is%20a%20simplified%20version%20of%20the%20Baileys%20package%20%0Awhich%20is%20easier%20and%20faster.&amp;font=KoHo&amp;forks=1&amp;issues=1&amp;language=1&amp;name=1&amp;owner=1&amp;pattern=Circuit%20Board&amp;pulls=1&amp;stargazers=1&amp;theme=Auto">
 </div>
 
 <h1 align="center">Zaileys - Simplify Typescript/Javascript WhatsApp NodeJS API</h1>
@@ -329,7 +329,7 @@ wa.on("message", async (ctx) => {
   const isAuthors = ctx.citation?.isAuthors;
   const isMyPrivateGroups = ctx.citation?.isMyPrivateGroups;
   const isBannedUsers = ctx.citation?.isBannedUsers;
-  
+
   if (isAuthors && ctx.text == "test1") {
     ctx.sendText("Message for my author: kejaa");
   }

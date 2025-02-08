@@ -7,3 +7,5 @@ yarn*
 docs*
 tsconfig*
 typedoc*
+tsup*
+.github

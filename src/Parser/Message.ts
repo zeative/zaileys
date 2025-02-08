@@ -25,7 +25,6 @@ export class MessageParser {
   }
 
   async handle<T>(payload?: proto.IWebMessageInfo): Promise<MessageBaseContent<T> | undefined> {
-    console.log(JSON.stringify(this.message, null, 2));
     const data = removeKeys(payload || this.message, ["senderKeyDistributionMessage", "messageContextInfo"]);
     if (data?.messageStubType || !Object.keys(data?.message).length) return;
 

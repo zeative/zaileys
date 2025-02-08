@@ -226,8 +226,8 @@ export class Client extends EventEmitter {
         type: "confirm",
       });
 
-      if (isRetry) return await this.deleteSession();
-      process.exit(0);
+      if (!isRetry) process.exit(0);
+      await this.deleteSession();
     }
   }
 
@@ -260,7 +260,7 @@ export class Client extends EventEmitter {
     try {
       if (payload?.footer) {
         let builder = generateWAMessageFromContent(
-          this?.temporaryMessage?.roomId!,
+          this.temporaryMessage?.roomId!,
           {
             interactiveMessage: {
               contextInfo: { mentionedJid: this.generateMentions(this.parseMention) },

@@ -281,7 +281,7 @@ export class Client extends EventEmitter {
         );
         await this.socket.relayMessage(builder.key.remoteJid!, builder.message!, { messageId: builder.key.id! });
       } else {
-        await this.socket.sendMessage(payload?.senderId || this?.temporaryMessage?.roomId!, { text });
+        await this.socket.sendMessage(payload?.senderId || this?.temporaryMessage?.roomId!, { text, mentions: this.generateMentions(this.parseMention) });
       }
     } catch (error) {
       throw error;
@@ -312,7 +312,7 @@ export class Client extends EventEmitter {
       } else {
         await this.socket.sendMessage(
           payload?.senderId || this?.temporaryMessage?.roomId!,
-          { text },
+          { text, mentions: this.generateMentions(this.parseMention) },
           { quoted: { ...this?.temporaryMessage?.message()!, key: this.generateFakeVerified(this?.temporaryMessage?.message()!.key!, payload?.fakeVerified!) } }
         );
       }
@@ -327,7 +327,7 @@ export class Client extends EventEmitter {
 
       this.socket.sendMessage(
         this?.temporaryMessage?.roomId!,
-        { ...imager },
+        { ...imager, mentions: this.generateMentions(this.parseMention) },
         {
           ...(payload?.asReply && { quoted: this?.temporaryMessage?.message() }),
         }
@@ -343,7 +343,7 @@ export class Client extends EventEmitter {
 
       this.socket.sendMessage(
         this?.temporaryMessage?.roomId!,
-        { ...videor },
+        { ...videor, mentions: this.generateMentions(this.parseMention) },
         {
           ...(payload?.asReply && { quoted: this?.temporaryMessage?.message() }),
         }
@@ -359,7 +359,7 @@ export class Client extends EventEmitter {
 
       this.socket.sendMessage(
         payload?.senderId || this?.temporaryMessage?.roomId!,
-        { ...audior },
+        { ...audior, mentions: this.generateMentions(this.parseMention) },
         {
           ...(payload?.asReply && { quoted: this?.temporaryMessage?.message() }),
         }
@@ -375,7 +375,7 @@ export class Client extends EventEmitter {
 
       this.socket.sendMessage(
         this?.temporaryMessage?.roomId!,
-        { ...stickerr },
+        { ...stickerr, mentions: this.generateMentions(this.parseMention) },
         {
           ...(payload?.asReply && { quoted: this?.temporaryMessage?.message() }),
         }

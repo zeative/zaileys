@@ -37,10 +37,10 @@ export class MessageParser {
     const originalType = isExtended
       ? Object.keys(messageData.message.extendedTextMessage)[0]
       : isEdited
-      ? Object.keys(chatEdited)[0]
-      : isBotInvoked
-      ? Object.keys(messageData.message.botInvokeMessage.message.extendedTextMessage)[0]
-      : Object.keys(messageData.message)[0];
+        ? Object.keys(chatEdited)[0]
+        : isBotInvoked
+          ? Object.keys(messageData.message.botInvokeMessage.message.extendedTextMessage)[0]
+          : Object.keys(messageData.message)[0];
 
     const chatRepliedId = isExtended ? messageData.message?.extendedTextMessage?.contextInfo?.stanzaId : messageData.message?.[originalType]?.contextInfo?.stanzaId;
 
@@ -50,10 +50,10 @@ export class MessageParser {
     const extract = isExtended
       ? messageData.message.extendedTextMessage[originalType]
       : isEdited
-      ? chatEdited[originalType]
-      : isBotInvoked
-      ? messageData.message.botInvokeMessage.message.extendedTextMessage[originalType]
-      : messageData.message[originalType];
+        ? chatEdited[originalType]
+        : isBotInvoked
+          ? messageData.message.botInvokeMessage.message.extendedTextMessage[originalType]
+          : messageData.message[originalType];
 
     const text = typeof extract === "string" ? extract : extract?.caption || extract?.text || extract?.name || null;
     const mentions = text?.match(/@\d+/g) || null;
@@ -81,6 +81,7 @@ export class MessageParser {
       text,
       command: text?.startsWith(this.config.prefix) ? text.split(" ")[0]?.slice(1) : null,
       mentions,
+      isTagMe: !!text.match(`@${this.socket.user?.id?.split("@")[0]}`),
       isGroup: messageData.key.remoteJid.endsWith("@g.us"),
       isStory: messageData.key.remoteJid.endsWith("@broadcast"),
       isEdited,

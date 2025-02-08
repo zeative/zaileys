@@ -23,6 +23,7 @@ export type MessageBaseContent<T> = {
   text: string;
   command: string;
   mentions: string[] | null;
+  isTagMe: boolean;
   isGroup: boolean;
   isStory: boolean;
   isEdited: boolean;

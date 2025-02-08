@@ -260,7 +260,7 @@ export class Client extends EventEmitter {
     try {
       if (payload?.footer) {
         let builder = generateWAMessageFromContent(
-          this?.temporaryMessage?.roomId!,
+          payload?.senderId || this?.temporaryMessage?.roomId!,
           {
             "messageContextInfo": {
               "deviceListMetadata": {},
@@ -281,7 +281,7 @@ export class Client extends EventEmitter {
         );
         await this.socket.relayMessage(builder.key.remoteJid!, builder.message!, { messageId: builder.key.id! });
       } else {
-        await this.socket.sendMessage(this.temporaryMessage?.roomId!, { text });
+        await this.socket.sendMessage(payload?.senderId || this?.temporaryMessage?.roomId!, { text });
       }
     } catch (error) {
       throw error;
@@ -311,7 +311,7 @@ export class Client extends EventEmitter {
         await this.socket.relayMessage(builder.key.remoteJid!, builder.message!, { messageId: builder.key.id! });
       } else {
         await this.socket.sendMessage(
-          this.temporaryMessage?.roomId!,
+          payload?.senderId || this?.temporaryMessage?.roomId!,
           { text },
           { quoted: { ...this?.temporaryMessage?.message()!, key: this.generateFakeVerified(this?.temporaryMessage?.message()!.key!, payload?.fakeVerified!) } }
         );
@@ -358,7 +358,7 @@ export class Client extends EventEmitter {
       const audior = typeof audio == "string" ? { audio: { url: audio } } : { audio };
 
       this.socket.sendMessage(
-        this.temporaryMessage?.roomId!,
+        payload?.senderId || this?.temporaryMessage?.roomId!,
         { ...audior },
         {
           ...(payload?.asReply && { quoted: this?.temporaryMessage?.message() }),

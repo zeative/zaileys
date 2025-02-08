@@ -4,9 +4,11 @@ export type FakeVerifiedEnum = keyof typeof VERIFIED_PLATFORM;
 
 export type SendActionType = {
   asReply?: boolean;
+  senderId?: string;
 };
 
 export type ReplyActionType = {
   footer?: string;
   fakeVerified?: FakeVerifiedEnum;
+  senderId?: string;
 };

@@ -60,6 +60,7 @@ export class MessageParser {
 
     const structure: MessageBaseContent<T> = {
       fromMe: messageData.key.fromMe,
+      channelId: '',
       chatId: messageData.key.id,
       roomId: messageData.key.remoteJid,
       roomImage: async () => (await this.socket.profilePictureUrl(messageData.key.remoteJid, "image").catch(() => null)) as string | null,
@@ -81,7 +82,7 @@ export class MessageParser {
       text,
       command: text?.startsWith(this.config.prefix) ? text.split(" ")[0]?.slice(1) : null,
       mentions,
-      isTagMe: !!text?.match(`@${this.socket.user?.id?.split("@")[0]}`),
+      isTagMe: !!text?.match(`@${this.socket.user?.id?.split(":")[0]}`),
       isGroup: messageData.key.remoteJid.endsWith("@g.us"),
       isStory: messageData.key.remoteJid.endsWith("@broadcast"),
       isEdited,
@@ -95,6 +96,8 @@ export class MessageParser {
       key: () => messageData.key,
       message: () => this.message,
     };
+
+    structure.channelId = `${structure.roomId?.split("@")[0]}-${structure.senderId?.split("@")[0]}`
 
     if (structure.media) {
       structure.media = {

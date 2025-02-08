@@ -10,6 +10,7 @@ export type ExtractCitationType<T> = { [K in keyof T as `is${Capitalize<K & stri
 export type MessageBaseContent<T> = {
   fromMe: boolean;
   chatId: string;
+  channelId: string;
   roomId: string;
   roomImage: () => Promise<string | null>;
   senderId: string;

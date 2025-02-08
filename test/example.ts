@@ -26,6 +26,7 @@ wa.on("connection", (ctx) => {
 });
 
 wa.on("message", async (ctx) => {
+  console.log("🚀 ~ wa.on ~ ctx:", ctx)
   if (!ctx.citation!.isAuthors) return;
 
   if (ctx.text == "ping") {

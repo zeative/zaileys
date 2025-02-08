@@ -81,7 +81,7 @@ export class MessageParser {
       text,
       command: text?.startsWith(this.config.prefix) ? text.split(" ")[0]?.slice(1) : null,
       mentions,
-      isTagMe: !!text.match(`@${this.socket.user?.id?.split("@")[0]}`),
+      isTagMe: !!text?.match(`@${this.socket.user?.id?.split("@")[0]}`),
       isGroup: messageData.key.remoteJid.endsWith("@g.us"),
       isStory: messageData.key.remoteJid.endsWith("@broadcast"),
       isEdited,

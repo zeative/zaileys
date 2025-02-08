@@ -26,14 +26,14 @@ wa.on("connection", (ctx) => {
 });
 
 wa.on("message", async (ctx) => {
-  if (!ctx.citation!.isMyGroups) return;
+  if (!ctx.citation!.isAuthors) return;
 
   if (ctx.text == "ping") {
-    wa.sendText(`Pong 🏓`, { footer: "njaii" });
+    wa.sendText(`Pong 🏓`);
   }
 
   if (ctx.command == "command") {
-    wa.sendText(`This is command message with prefix => *${PREFIX}*`);
+    wa.sendText(`This is command message with prefix => *${PREFIX}*`, { footer: 'hahah' });
   }
 
   if (ctx.text == "reply") {
@@ -41,7 +41,7 @@ wa.on("message", async (ctx) => {
   }
 
   if (ctx.command == "tags") {
-    wa.sendReply(ctx.text.slice(6), { fakeVerified: 'chatgpt'});
+    wa.sendReply(ctx.text.slice(6), { fakeVerified: 'chatgpt' });
   }
 
   if (ctx.command == "image") {

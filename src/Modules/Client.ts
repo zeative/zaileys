@@ -54,7 +54,7 @@ export class Client extends EventEmitter {
       setInterval(() => {
         this?.store?.writeToFile(this.config.authPath + "/memory.json");
       }, 10_000);
-    } catch {}
+    } catch { }
 
     const configKeys = Object.keys(this.config).length;
     if (configKeys) this.initialize();
@@ -117,7 +117,7 @@ export class Client extends EventEmitter {
             const code = await this.socket.requestPairingCode(this.config.phoneNumber.toString());
             this.spinner.info("This is your OTP code: " + code.replace(/(.{4})/, "$1-"));
           }
-        } catch {}
+        } catch { }
       }, 5000);
     }
 
@@ -253,15 +253,19 @@ export class Client extends EventEmitter {
   }
 
   protected generateFakeVerified(key: proto.IMessageKey, platform: FakeVerifiedEnum) {
-    return { ...key, participant: VERIFIED_PLATFORM[platform] };
+    return { ...key, participant: VERIFIED_PLATFORM[platform] || key.participant };
   }
 
   async sendText(text: string, payload?: ReplyActionType) {
     try {
       if (payload?.footer) {
         let builder = generateWAMessageFromContent(
-          this.temporaryMessage?.roomId!,
+          this?.temporaryMessage?.roomId!,
           {
+            "messageContextInfo": {
+              "deviceListMetadata": {},
+              "deviceListMetadataVersion": 2
+            },
             interactiveMessage: {
               contextInfo: { mentionedJid: this.generateMentions(this.parseMention) },
               body: {
@@ -288,7 +292,7 @@ export class Client extends EventEmitter {
     try {
       if (payload?.footer) {
         let builder = generateWAMessageFromContent(
-          this.temporaryMessage?.roomId!,
+          this?.temporaryMessage?.roomId!,
           {
             interactiveMessage: {
               contextInfo: { mentionedJid: this.generateMentions(this.parseMention) },

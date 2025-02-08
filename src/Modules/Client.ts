@@ -5,6 +5,7 @@ import makeWASocket, {
   DisconnectReason,
   generateWAMessageFromContent,
   jidNormalizedUser,
+  makeCacheableSignalKeyStore,
   makeInMemoryStore,
   proto,
   useMultiFileAuthState,
@@ -34,7 +35,7 @@ export class Client extends EventEmitter {
   private logger = pino({ level: "silent", enabled: false }) as never;
   protected temporaryMessage: MessageBaseContent<any> | null;
   protected parseMention: string[];
-  private spinner = ora(); // Inisialisasi spinner
+  private spinner = ora();
 
   constructor(config: ClientConfig) {
     super();
@@ -80,7 +81,10 @@ export class Client extends EventEmitter {
       logger: this.logger,
       printQRInTerminal: this.config.authType == "qr",
       markOnlineOnConnect: this.config.autoOnline,
-      auth: this.authState.load,
+      auth: {
+        creds: this.authState.load.creds,
+        keys: makeCacheableSignalKeyStore(this.authState.load.keys, this.logger)
+      },
       version: [2, 3000, 1017531287],
       syncFullHistory: true,
       msgRetryCounterCache: new NodeCache(),

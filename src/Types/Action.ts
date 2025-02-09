@@ -12,3 +12,18 @@ export type ReplyActionType = {
   fakeVerified?: FakeVerifiedEnum;
   senderId?: string;
 };
+
+export type MessageImageMediaType = {
+  image: string | Buffer
+}
+
+export type MessageVideoMediaType = {
+  video: string | Buffer
+}
+
+export type MessageActionType = {
+  roomId: string;
+  asReply?: boolean;
+  footer?: string;
+  fakeVerified?: FakeVerifiedEnum;
+} & MessageImageMediaType | MessageVideoMediaType

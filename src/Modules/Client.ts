@@ -1,14 +1,13 @@
 import { Boom } from "@hapi/boom";
 import makeWASocket, {
+  addTransactionCapability,
   AuthenticationState,
   Browsers,
   DisconnectReason,
-  generateWAMessageFromContent,
   jidNormalizedUser,
-  makeCacheableSignalKeyStore,
   makeInMemoryStore,
   proto,
-  useMultiFileAuthState,
+  useMultiFileAuthState
 } from "@whiskeysockets/baileys";
 import { parsePhoneNumber } from "awesome-phonenumber";
 import chalk from "chalk";
@@ -20,9 +19,8 @@ import NodeCache from "node-cache";
 import ora from "ora";
 import pino from "pino";
 import { MessageParser } from "../Parser/Message";
-import { FakeVerifiedEnum, ReplyActionType, SendActionType } from "../Types/Action";
+import { FakeVerifiedEnum, MessageActionType } from "../Types/Action";
 import { ClientConfig, ClientEvents } from "../Types/General";
-import { MessageBaseContent } from "../Types/Message";
 import { VERIFIED_PLATFORM } from "./Config";
 
 export class Client extends EventEmitter {
@@ -33,9 +31,9 @@ export class Client extends EventEmitter {
   private store: ReturnType<typeof makeInMemoryStore>;
   private groupCache = new NodeCache({ stdTTL: 5 * 60, useClones: false });
   private logger = pino({ level: "silent", enabled: false }) as never;
-  protected temporaryMessage: MessageBaseContent<any> | null;
-  protected parseMention: string[];
   private spinner = ora();
+
+  protected parseMention: string[];
 
   constructor(config: ClientConfig) {
     super();
@@ -83,10 +81,13 @@ export class Client extends EventEmitter {
       markOnlineOnConnect: this.config.autoOnline,
       auth: {
         creds: this.authState.load.creds,
-        keys: makeCacheableSignalKeyStore(this.authState.load.keys, this.logger)
+        keys: addTransactionCapability(this.authState.load.keys, this.logger, {
+          maxCommitRetries: 10,
+          delayBetweenTriesMs: 250,
+        })
       },
       version: [2, 3000, 1017531287],
-      syncFullHistory: true,
+      syncFullHistory: false,
       msgRetryCounterCache: new NodeCache(),
       browser: Browsers.ubuntu(this.config.authType == "qr" ? "Zaileys Library" : "Firefox"),
       cachedGroupMetadata: async (jid) => this.groupCache.get(jid),
@@ -167,6 +168,7 @@ export class Client extends EventEmitter {
         if (this.store && this.store.contacts) this.store.contacts[id] = { ...(this.store.contacts?.[id] || {}), ...(contact || {}) };
       }
     });
+
     this.socket.ev.on("contacts.upsert", (update) => {
       for (let contact of update) {
         let id = jidNormalizedUser(contact.id);
@@ -177,18 +179,16 @@ export class Client extends EventEmitter {
     this.socket?.ev.on("messages.upsert", async (upsert) => {
       const messages = upsert.messages;
 
-      for (const msg of messages) {
-        if (this.config.ignoreMe && msg.key.fromMe) continue;
+      for (const message of messages) {
+        if (this.config.ignoreMe && message.key.fromMe) continue;
 
-        const provider = new MessageParser({ message: msg, socket: this.socket, config: this.config, store: this.store });
+        const provider = new MessageParser({ message, socket: this.socket, config: this.config, store: this.store });
         const handle = await provider.handle();
 
         if (handle) {
           if (this.config.autoRead) {
             await this.socket.readMessages([handle.key()]);
           }
-
-          this.temporaryMessage = handle;
 
           if (this.config.autoMentions) {
             this.parseMention = handle.mentions!;
@@ -235,11 +235,11 @@ export class Client extends EventEmitter {
     }
   }
 
-  on<K extends keyof ClientEvents<typeof this.config.citation>>(event: K, listener: ClientEvents<typeof this.config.citation>[K]): this {
+  on<K extends keyof ClientEvents<null>>(event: K, listener: ClientEvents<null>[K]): this {
     return super.on(event, listener);
   }
 
-  emit<K extends keyof ClientEvents<typeof this.config.citation>>(event: K, ...args: Parameters<ClientEvents<typeof this.config.citation>[K]>): boolean {
+  emit<K extends keyof ClientEvents<null>>(event: K, ...args: Parameters<ClientEvents<null>[K]>): boolean {
     return super.emit(event, ...args);
   }
 
@@ -260,132 +260,141 @@ export class Client extends EventEmitter {
     return { ...key, participant: VERIFIED_PLATFORM[platform] || key.participant };
   }
 
-  async sendText(text: string, payload?: ReplyActionType) {
-    try {
-      if (payload?.footer) {
-        let builder = generateWAMessageFromContent(
-          payload?.senderId || this?.temporaryMessage?.roomId!,
-          {
-            "messageContextInfo": {
-              "deviceListMetadata": {},
-              "deviceListMetadataVersion": 2
-            },
-            interactiveMessage: {
-              contextInfo: { mentionedJid: this.generateMentions(this.parseMention) },
-              body: {
-                text,
-              },
-              footer: {
-                text: payload?.footer!,
-              },
-              nativeFlowMessage: {},
-            },
-          },
-          { userJid: this?.temporaryMessage?.roomId! }
-        );
-        await this.socket.relayMessage(builder.key.remoteJid!, builder.message!, { messageId: builder.key.id! });
-      } else {
-        await this.socket.sendMessage(payload?.senderId || this?.temporaryMessage?.roomId!, { text, mentions: this.generateMentions(this.parseMention) });
-      }
-    } catch (error) {
-      throw error;
-    }
+  async sendMessage(text: string, config: MessageActionType) {
+
   }
 
-  async sendReply(text: string, payload?: ReplyActionType) {
-    try {
-      if (payload?.footer) {
-        let builder = generateWAMessageFromContent(
-          this?.temporaryMessage?.roomId!,
-          {
-            interactiveMessage: {
-              contextInfo: { mentionedJid: this.generateMentions(this.parseMention) },
-              body: {
-                text,
-              },
-              footer: {
-                text: payload?.footer!,
-              },
-              nativeFlowMessage: {},
-            },
-          },
-          { quoted: { ...this.temporaryMessage?.message()!, key: this.generateFakeVerified(this?.temporaryMessage?.message()!.key!, payload.fakeVerified!) }, userJid: this?.temporaryMessage?.roomId! }
-        );
+  // async sendText(text: string, payload?: ReplyActionType) {
+  //   try {
+  //     if (payload?.footer) {
+  //       let builder = generateWAMessageFromContent(
+  //         payload?.senderId || this?.temporaryMessage?.roomId!,
+  //         {
+  //           "messageContextInfo": {
+  //             "deviceListMetadata": {},
+  //             "deviceListMetadataVersion": 2
+  //           },
+  //           interactiveMessage: {
+  //             contextInfo: { mentionedJid: this.generateMentions(this.parseMention) },
+  //             body: {
+  //               text,
+  //             },
+  //             footer: {
+  //               text: payload?.footer!,
+  //             },
+  //             nativeFlowMessage: {},
+  //           },
+  //         },
+  //         { userJid: this?.temporaryMessage?.roomId! }
+  //       );
+  //       await this.socket.relayMessage(builder.key.remoteJid!, builder.message!, { messageId: builder.key.id! });
+  //     } else {
+  //       await this.socket.sendMessage(payload?.senderId || this?.temporaryMessage?.roomId!, { text, mentions: this.generateMentions(this.parseMention) });
+  //     }
+  //   } catch (error) {
+  //     throw error;
+  //   }
+  // }
 
-        await this.socket.relayMessage(builder.key.remoteJid!, builder.message!, { messageId: builder.key.id! });
-      } else {
-        await this.socket.sendMessage(
-          payload?.senderId || this?.temporaryMessage?.roomId!,
-          { text, mentions: this.generateMentions(this.parseMention) },
-          { quoted: { ...this?.temporaryMessage?.message()!, key: this.generateFakeVerified(this?.temporaryMessage?.message()!.key!, payload?.fakeVerified!) } }
-        );
-      }
-    } catch (error) {
-      throw error;
-    }
-  }
+  // async sendReply(text: string, payload?: ReplyActionType) {
+  //   let object: proto.WebMessageInfo | undefined;
 
-  async sendImage(image: string | Buffer, payload?: SendActionType) {
-    try {
-      const imager = typeof image == "string" ? { image: { url: image } } : { image };
+  //   try {
+  //     if (payload?.footer) {
+  //       let builder = generateWAMessageFromContent(
+  //         this?.temporaryMessage?.roomId!,
+  //         {
+  //           interactiveMessage: {
+  //             contextInfo: { mentionedJid: this.generateMentions(this.parseMention) },
+  //             body: {
+  //               text,
+  //             },
+  //             footer: {
+  //               text: payload?.footer!,
+  //             },
+  //             nativeFlowMessage: {},
+  //           },
+  //         },
+  //         { quoted: { ...this.temporaryMessage?.message()!, key: this.generateFakeVerified(this?.temporaryMessage?.message()!.key!, payload.fakeVerified!) }, userJid: this?.temporaryMessage?.roomId! }
+  //       );
 
-      this.socket.sendMessage(
-        this?.temporaryMessage?.roomId!,
-        { ...imager, mentions: this.generateMentions(this.parseMention) },
-        {
-          ...(payload?.asReply && { quoted: this?.temporaryMessage?.message() }),
-        }
-      );
-    } catch (error) {
-      throw error;
-    }
-  }
+  //       await this.socket.relayMessage(builder.key.remoteJid!, builder.message!, { messageId: builder.key.id! });
+  //       object = builder;
+  //     } else {
+  //       object = await this.socket.sendMessage(
+  //         payload?.senderId || this?.temporaryMessage?.roomId!,
+  //         { text, mentions: this.generateMentions(this.parseMention) },
+  //         { quoted: { ...this?.temporaryMessage?.message()!, key: this.generateFakeVerified(this?.temporaryMessage?.message()!.key!, payload?.fakeVerified!) } }
+  //       );
+  //     }
 
-  async sendVideo(video: string | Buffer, payload?: SendActionType) {
-    try {
-      const videor = typeof video == "string" ? { video: { url: video } } : { video };
+  //     return await this.messageParser(object!);
+  //   } catch (error) {
+  //     throw error;
+  //   }
+  // }
 
-      this.socket.sendMessage(
-        this?.temporaryMessage?.roomId!,
-        { ...videor, mentions: this.generateMentions(this.parseMention) },
-        {
-          ...(payload?.asReply && { quoted: this?.temporaryMessage?.message() }),
-        }
-      );
-    } catch (error) {
-      throw error;
-    }
-  }
+  // async sendImage(image: string | Buffer, payload?: SendActionType) {
+  //   try {
+  //     const imager = typeof image == "string" ? { image: { url: image } } : { image };
 
-  async sendAudio(audio: string | Buffer, payload?: SendActionType) {
-    try {
-      const audior = typeof audio == "string" ? { audio: { url: audio } } : { audio };
+  //     this.socket.sendMessage(
+  //       this?.temporaryMessage?.roomId!,
+  //       { ...imager, mentions: this.generateMentions(this.parseMention) },
+  //       {
+  //         ...(payload?.asReply && { quoted: this?.temporaryMessage?.message() }),
+  //       }
+  //     );
+  //   } catch (error) {
+  //     throw error;
+  //   }
+  // }
 
-      this.socket.sendMessage(
-        payload?.senderId || this?.temporaryMessage?.roomId!,
-        { ...audior, mentions: this.generateMentions(this.parseMention) },
-        {
-          ...(payload?.asReply && { quoted: this?.temporaryMessage?.message() }),
-        }
-      );
-    } catch (error) {
-      throw error;
-    }
-  }
+  // async sendVideo(video: string | Buffer, payload?: SendActionType) {
+  //   try {
+  //     const videor = typeof video == "string" ? { video: { url: video } } : { video };
 
-  async sendSticker(sticker: string | Buffer, payload?: SendActionType) {
-    try {
-      const stickerr = typeof sticker == "string" ? { sticker: { url: sticker } } : { sticker };
+  //     this.socket.sendMessage(
+  //       this?.temporaryMessage?.roomId!,
+  //       { ...videor, mentions: this.generateMentions(this.parseMention) },
+  //       {
+  //         ...(payload?.asReply && { quoted: this?.temporaryMessage?.message() }),
+  //       }
+  //     );
+  //   } catch (error) {
+  //     throw error;
+  //   }
+  // }
 
-      this.socket.sendMessage(
-        this?.temporaryMessage?.roomId!,
-        { ...stickerr, mentions: this.generateMentions(this.parseMention) },
-        {
-          ...(payload?.asReply && { quoted: this?.temporaryMessage?.message() }),
-        }
-      );
-    } catch (error) {
-      throw error;
-    }
-  }
+  // async sendAudio(audio: string | Buffer, payload?: SendActionType) {
+  //   try {
+  //     const audior = typeof audio == "string" ? { audio: { url: audio } } : { audio };
+
+  //     this.socket.sendMessage(
+  //       payload?.senderId || this?.temporaryMessage?.roomId!,
+  //       { ...audior, mentions: this.generateMentions(this.parseMention) },
+  //       {
+  //         ...(payload?.asReply && { quoted: this?.temporaryMessage?.message() }),
+  //       }
+  //     );
+  //   } catch (error) {
+  //     throw error;
+  //   }
+  // }
+
+  // async sendSticker(sticker: string | Buffer, payload?: SendActionType) {
+  //   try {
+  //     const stickerr = typeof sticker == "string" ? { sticker: { url: sticker } } : { sticker };
+
+  //     this.socket.sendMessage(
+  //       this?.temporaryMessage?.roomId!,
+  //       { ...stickerr, mentions: this.generateMentions(this.parseMention) },
+  //       {
+  //         ...(payload?.asReply && { quoted: this?.temporaryMessage?.message() }),
+  //       }
+  //     );
+  //   } catch (error) {
+  //     throw error;
+  //   }
+  // }
 }

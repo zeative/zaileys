@@ -34,11 +34,11 @@
    - [Messages & Events](#messages--events)
 
 5. [Configuration & Options](#-configuration--options)
-6. [CLI & Scripts](#-cli--scripts)
-7. [Examples](#-examples)
-8. [🐞 Issues & Feedback](#-issues--feedback)
-9. [❤️ Funding & Support](#-funding--support)
-10. [📄 License](#-license)
+6. [Examples](#-examples)
+7. [🐞 Issues & Feedback](#-issues--feedback)
+8. [❤️ Funding & Support](#-funding--support)
+9. [📄 License](#-license)
+10. [🙏 Acknowledgements](#-acknowledgements)
 
 ---
 
@@ -83,6 +83,10 @@ Ensure you are running Node.js **>= 18** as specified in `package.json`.
 Basic usage of Zaileys based on [`test/example.ts`](https://github.com/zeative/zaileys/blob/main/test/example.ts):
 
 ```ts
+// cjs
+// const Client = require("zaileys");
+
+// esm
 import Client from "zaileys";
 
 // Configure the client
@@ -105,7 +109,7 @@ const wa = new Client({
     // your own keys; will generate ctx.citation.is<Key> booleans
     author: async () => {
       // const res = await fetch(...)
-      [628123456789];
+      return [628123456789];
     },
     myGroup: () => [120099],
     vipUsers: () => [628123456789],
@@ -142,11 +146,11 @@ wa.on("calls", (ctx) => {
 
 ### Client
 
-The heart of Zaileys. Use `new Client(options)` to instantiate. It emits events (`qr`, `open`, `close`, `messages`, etc.) and exposes methods (`text`, `reply`, `location`, and more).
+The heart of Zaileys. Use `new Client(options)` to instantiate. It emits events (`messages`, `calls`, `connection`, etc.) and exposes methods (`text`, `reply`, `location`, and more).
 
 ### Sessions & Authentication
 
-Zaileys persists authentication credentials in your specified `sessionPath`. Re-running your bot will reuse credentials—no QR scan or pairing code required each time.
+Zaileys persists authentication credentials in your specified `session`. Re-running your bot will reuse credentials—no QR scan or pairing code required each time.
 
 ### Messages & Events
 
@@ -175,7 +179,7 @@ Results in:
 Use them in handlers:
 
 ```ts
-wa.on("messages", async (ctx) => {
+wa.on("messages", (ctx) => {
   if (!ctx.citation?.isAuthorAsync) return;
   if (ctx.citation.isVipList) {
     // VIP logic
@@ -197,9 +201,47 @@ Refer to [`test/example.ts`](https://github.com/zeative/zaileys/blob/main/test/e
 
 ---
 
+## 📢 Event Handling
+
+```js
+// Connection updates
+wa.on("connection", (ctx) => {});
+
+// Message events
+wa.on("messages", (ctx) => {});
+
+// Call events
+wa.on("calls", (ctx) => {});
+```
+
+---
+
+## 👾 Worker Actions
+
+### Sending Messages
+
+```js
+const roomId = ctx.roomId;
+const quoted = ctx.message;
+
+// sending text message
+wa.text("Hallo test", { roomId });
+
+// sending reply message
+wa.text("Test reply", { roomId, quoted });
+
+// sending text message as forwarded
+wa.text("Test forwarded", { roomId, asForwarded: true });
+
+// sending reply message as verified number
+wa.text("Test verified reply", { roomId, quoted, verifiedReply: "whatsapp" });
+```
+
+---
+
 ## 🐞 Issues & Feedback
 
-If you encounter any problems or have feature requests, please open an issue:
+If you encounter any problems or\ have feature requests, please open an issue:
 
 [https://github.com/zeative/zaileys/issues](https://github.com/zeative/zaileys/issues)
 
@@ -220,5 +262,9 @@ If you find Zaileys useful, consider supporting development:
 Distributed under the **MIT License**. See [`LICENSE`](https://github.com/zeative/zaileys/blob/main/LICENSE) for details.
 
 ---
+
+## 🙏 Acknowledgements
+
+This project stands on the shoulders of the original [Baileys](https://github.com/WhiskeySockets/Baileys) library by Whiskey Sockets. Thank you for your incredible work and inspiration!"
 
 > Happy coding! 🚀

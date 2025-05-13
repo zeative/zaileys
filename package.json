@@ -1,0 +1,66 @@
+{
+  "name": "zaileys",
+  "version": "0.29.20",
+  "description": "Zaileys - Simplify Typescript/Javascript WhatsApp NodeJS API",
+  "main": "dist/index.cjs",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsup",
+    "dev": "npx tsx watch test/example.ts",
+    "clean": "rm -rf dist session"
+  },
+  "keywords": [
+    "zaileys",
+    "whatsapp",
+    "wa-simplify",
+    "bot-zaileys",
+    "whatsapp",
+    "js-whatsapp",
+    "whatsapp-chat",
+    "whatsapp-api",
+    "whatsapp-web",
+    "whatsapp-group",
+    "automation",
+    "multi-device"
+  ],
+  "homepage": "https://github.com/zeative/zaileys",
+  "funding": "https://saweria.co/zaadevofc",
+  "repository": {
+    "url": "git+ssh://git@github.com/zeative/zaileys.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zeative/zaileys/issues"
+  },
+  "author": {
+    "name": "zaadevofc",
+    "email": "zaadevofc@gmail.com",
+    "url": "https://github.com/zeative"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/figlet": "^1.7.0",
+    "tsup": "^8.4.0",
+    "tsx": "^4.19.4",
+    "typescript": "^5.0.0",
+    "zod": "^3.24.4"
+  },
+  "dependencies": {
+    "baileys": "^6.7.16",
+    "better-sqlite3": "^11.10.0",
+    "events": "^3.3.0",
+    "figlet": "^1.8.1",
+    "jimp": "^1.6.0",
+    "kysely": "^0.28.2",
+    "libsignal": "^2.0.1",
+    "mysql2": "^3.14.1",
+    "node-cache": "^5.1.2",
+    "ora": "^8.2.0",
+    "pg": "^8.15.6",
+    "pino": "^9.6.0",
+    "qrcode-terminal": "^0.12.0"
+  }
+}

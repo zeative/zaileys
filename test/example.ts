@@ -3,7 +3,7 @@ import Client from "../src";
 // the configuration below is the default
 const wa = new Client({
   prefix: "/", // for command message, example '/'
-  phoneNumber: 6287833764462, // fill bot phone number if auth type is 'pairing'
+  phoneNumber: 6288, // fill bot phone number if auth type is 'pairing'
   authType: "pairing", // auth type 'pairing' or 'qr'
   ignoreMe: true, // ignore messages from bot (bot phone number)
   showLogs: true, // show logs of any chats
@@ -48,7 +48,7 @@ wa.on("messages", async (ctx) => {
   }
 
   if (ctx.text == "p4") {
-    wa.contact({ fullname: "Kejaa", whatsAppNumber: 6285136635787 }, { roomId: ctx.roomId, quoted: ctx.message });
+    wa.contact({ fullname: "Kejaa", whatsAppNumber: 6286 }, { roomId: ctx.roomId, quoted: ctx.message });
   }
 
   if (ctx.text == "p5") {

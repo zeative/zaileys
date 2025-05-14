@@ -63,18 +63,14 @@ export const ContactWorkerBaseType = z.object({
   avatar: z.string().url().optional(),
 });
 
-export const ReactionWorkerOptionsType = TextWorkerOptionsType.pick({ roomId: true }).merge(
-  z.object({
-    message: z.function().returns(z.record(z.string(), z.any())),
-  })
-);
+export const ReactionWorkerOptionsType = z.object({
+  message: z.function().returns(z.record(z.string(), z.any())),
+});
 export const ReactionWorkerBaseType = z.string();
 
-export const PinWorkerOptionsType = TextWorkerOptionsType.pick({ roomId: true }).merge(
-  z.object({
-    message: z.function().returns(z.record(z.string(), z.any())),
-  })
-);
+export const PinWorkerOptionsType = z.object({
+  message: z.function().returns(z.record(z.string(), z.any())),
+});
 export const PinWorkerBaseType = z.object({
   action: z.enum(["pin", "unpin"]),
   expired: z.enum(["24h", "7d", "30d"]),
@@ -87,14 +83,11 @@ export const PollWorkerBaseType = z.object({
   multipleAnswers: z.boolean().optional(),
 });
 
-export const EditWorkerOptionsType = TextWorkerOptionsType.pick({ roomId: true }).merge(
-  z.object({
-    message: z.function().returns(z.record(z.string(), z.any())),
-  })
-);
+export const EditWorkerOptionsType = z.object({
+  message: z.function().returns(z.record(z.string(), z.any())),
+});
 export const EditWorkerBaseType = z.string();
 
-export const DeleteWorkerOptionsType = TextWorkerOptionsType.pick({ roomId: true });
 export const DeleteWorkerBaseType = z.object({
   message: z.function().returns(z.record(z.string(), z.any())),
 });

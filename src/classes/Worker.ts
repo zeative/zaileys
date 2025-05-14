@@ -6,7 +6,6 @@ import {
   ContactWorkerBaseType,
   ContactWorkerOptionsType,
   DeleteWorkerBaseType,
-  DeleteWorkerOptionsType,
   EditWorkerBaseType,
   EditWorkerOptionsType,
   LocationWorkerBaseType,
@@ -29,9 +28,11 @@ import {
 } from "../types/worker/general";
 import Client from "./Client";
 import Parser from "./Parser";
-
 export default class Worker {
-  constructor(private wa: { client: Client; db: Client["db"]; socket: Client["socket"] }) {}
+  private parser: Parser;
+  constructor(private wa: { client: Client; db: Client["db"]; socket: Client["socket"] }) {
+    this.parser = new Parser(this.wa.socket!, this.wa.client, this.wa.db!);
+  }
 
   private async sendMessage(jid: string, content: AnyMessageContent, options?: MiscMessageGenerationOptions) {
     let mentions = [] as string[];
@@ -43,7 +44,7 @@ export default class Worker {
       this.wa.socket?.sendPresenceUpdate("composing", jid);
     }
 
-    if (this.wa.client.options?.autoPresence && (content as any)?.audio) {
+    if (this.wa.client.options?.autoPresence && ((content as any)?.audio || (content as any)?.audioNote)) {
       this.wa.socket?.sendPresenceUpdate("recording", jid);
     }
 
@@ -54,12 +55,10 @@ export default class Worker {
       let message = obj?.quoted();
       message.key.participant = MessagesVerifiedPlatformType[obj?.verifiedReply as never] || message.key.participant;
       const worker = await this.wa.socket?.sendMessage(jid, { ...obj, mentions, ...asForwarded }, { quoted: message, ...options });
-      const beautify = await new Parser(this.wa.socket!, this.wa.client, this.wa.db!).messages(worker!);
-      return beautify;
+      return await this.parser.messages(worker!);
     } else {
       const worker = await this.wa.socket?.sendMessage(jid, { ...obj, mentions, ...asForwarded }, options);
-      const beautify = await new Parser(this.wa.socket!, this.wa.client, this.wa.db!).messages(worker!);
-      return beautify;
+      return await this.parser.messages(worker!);
     }
   }
 
@@ -164,7 +163,7 @@ export default class Worker {
     emoticon = ReactionWorkerBaseType.parse(emoticon);
     options = ReactionWorkerOptionsType.parse(options);
 
-    return await this.sendMessage(options.roomId, {
+    return await this.sendMessage(options.message()?.key?.remoteJid!, {
       react: {
         text: emoticon,
         key: options.message()?.key,
@@ -183,7 +182,7 @@ export default class Worker {
       "30d": 2592000,
     };
 
-    return await this.sendMessage(options.roomId, {
+    return await this.sendMessage(options.message()?.key?.remoteJid!, {
       pin: {
         type: pin.action == "pin" ? 1 : 0,
         time: exp[pin.expired],
@@ -212,20 +211,18 @@ export default class Worker {
     text = EditWorkerBaseType.parse(text);
     options = EditWorkerOptionsType.parse(options);
 
-    return await this.sendMessage(options.roomId, {
+    return await this.sendMessage(options.message()?.key?.remoteJid!, {
       text,
       edit: options.message()?.key,
       ...options,
     });
   }
 
-  async delete(del: z.infer<typeof DeleteWorkerBaseType>, options: z.infer<typeof DeleteWorkerOptionsType>) {
+  async delete(del: z.infer<typeof DeleteWorkerBaseType>) {
     del = DeleteWorkerBaseType.parse(del);
-    options = DeleteWorkerOptionsType.parse(options);
 
-    return await this.sendMessage(options.roomId, {
+    return await this.sendMessage(del.message()?.key?.remoteJid!, {
       delete: del.message()?.key,
-      ...options,
     });
   }
 

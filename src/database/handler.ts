@@ -1,4 +1,3 @@
-import { BaileysEventEmitter } from "baileys";
 import Database from "better-sqlite3";
 import { mkdirSync, writeFileSync } from "fs";
 import { Kysely, MysqlDialect, PostgresDialect, SqliteDialect } from "kysely";
@@ -7,6 +6,8 @@ import path from "path";
 import { Pool } from "pg";
 import { URL } from "url";
 import { z } from "zod";
+import Client from "../classes/Client";
+import Parser from "../classes/Parser";
 import { BufferJSON, fromObject, initAuthCreds } from "../helpers/adapter";
 import { AuthAdapterHandlerType, AuthenticationCreds, SignalDataTypeMap } from "../types/adapter/general";
 import { AdapterDatabaseType } from "../types/classes/client";
@@ -207,10 +208,22 @@ export const AuthAdapterHandler = async (db: Kysely<DB>, session: string): AuthA
   };
 };
 
-export const StoreAdapterHandler = async (db: Kysely<DB>, session: string) => {
+export const StoreAdapterHandler = async (client: Client, db: Kysely<DB>, session: string) => {
   return {
-    bind: (event: BaileysEventEmitter) => {
-      event.on("messaging-history.set", async (update) => {
+    bind: (socket: Client["socket"]) => {
+      const parser = new Parser(socket!, client, db);
+
+      socket?.ev.on("connection.update", async (update) => {
+        await parser.connection(update);
+      });
+
+      socket?.ev.on("call", async (callers) => {
+        for (const caller of callers) {
+          await parser.calls(caller);
+        }
+      });
+
+      socket?.ev.on("messaging-history.set", async (update) => {
         const { chats, contacts, messages } = update;
 
         for (const chat of chats) {
@@ -240,10 +253,11 @@ export const StoreAdapterHandler = async (db: Kysely<DB>, session: string) => {
         }
       });
 
-      event.on("messages.upsert", async ({ messages }) => {
+      socket?.ev.on("messages.upsert", async ({ messages }) => {
         for (const message of messages) {
           if (!message.message) return;
           if (message.message?.protocolMessage) return;
+          await parser.messages(message);
           await db
             .insertInto("messages")
             .values({ session, id: message.key.id!, value: JSON.stringify(message) })
@@ -252,7 +266,7 @@ export const StoreAdapterHandler = async (db: Kysely<DB>, session: string) => {
         }
       });
 
-      event.on("chats.upsert", async (chats) => {
+      socket?.ev.on("chats.upsert", async (chats) => {
         for (const chat of chats) {
           await db
             .insertInto("chats")
@@ -262,7 +276,7 @@ export const StoreAdapterHandler = async (db: Kysely<DB>, session: string) => {
         }
       });
 
-      event.on("contacts.upsert", async (contacts) => {
+      socket?.ev.on("contacts.upsert", async (contacts) => {
         for (const contact of contacts) {
           await db
             .insertInto("contacts")
@@ -270,6 +284,16 @@ export const StoreAdapterHandler = async (db: Kysely<DB>, session: string) => {
             .onConflict((oc) => oc.columns(["session", "id"]).doUpdateSet({ value: JSON.stringify(contact) }))
             .execute();
         }
+      });
+
+      socket?.ev.on("groups.update", async ([event]) => {
+        const metadata = await socket?.groupMetadata(event.id!);
+        client.cache.set(event.id!, metadata);
+      });
+
+      socket?.ev.on("group-participants.update", async (event) => {
+        const metadata = await socket?.groupMetadata(event.id);
+        client.cache.set(event.id, metadata);
       });
     },
   };

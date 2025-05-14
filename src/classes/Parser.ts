@@ -31,6 +31,7 @@ export default class Parser {
       console.log(lastDisconnect?.error?.message);
 
       if (code === 401 || code === 405 || code === 500) {
+        console.error('Invalid session, please delete manually')
         return;
       }
 
@@ -138,8 +139,8 @@ export default class Parser {
     }
 
     const media =
-      (message?.message?.protocolMessage?.editedMessage?.[contentType! as never] || (message?.message![contentType!] as any))?.message?.documentMessage ||
-      (message?.message![contentType!] as any);
+      (message?.message?.protocolMessage?.editedMessage?.[contentType! as never] || (message?.message?.[contentType!] as any))?.message?.documentMessage ||
+      (message?.message?.[contentType!] as any);
     if (payload.chatType != "text") {
       payload.media = {
         ...removeKeys(media, [
@@ -163,7 +164,7 @@ export default class Parser {
         ]),
         buffer: async () => await downloadMediaMessage(message, "buffer", {}),
         stream: async () => await downloadMediaMessage(message, "stream", {}),
-      };
+      } as never;
     }
 
     const repliedId = (message?.message?.[contentType as never] as any)?.contextInfo?.stanzaId;
@@ -198,6 +199,10 @@ export default class Parser {
     payload.isEphemeral = findWord(toString(messaged?.contextInfo), "ephemeralSettingTimestamp")!;
     payload.isForwarded = findWord(toString(messaged?.contextInfo), "forwardingScore")!;
     payload.isViewOnce = !!messaged?.viewOnce;
+
+    if (payload.isPrefix) {
+      payload.text = payload.text!.replace(new RegExp(`^${this.client.options?.prefix}`), "");
+    }
 
     payload.message = () => oriMessage;
 

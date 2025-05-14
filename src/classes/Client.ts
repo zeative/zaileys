@@ -1,4 +1,4 @@
-import makeWASocket, { Browsers, makeCacheableSignalKeyStore } from "baileys";
+import makeWASocket, { Browsers, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } from "baileys";
 import { EventEmitter } from "events";
 import figlet from "figlet";
 import { Kysely } from "kysely";
@@ -8,9 +8,9 @@ import pino from "pino";
 import { z } from "zod";
 import { AuthAdapterHandler, ConnectDB, StoreAdapterHandler } from "../database/handler";
 import { DB } from "../database/schema";
+import { toJson } from "../helpers/utils";
 import { ClientClassesType } from "../types/classes/client";
 import { EventCallbackType, EventEnumType } from "../types/classes/event";
-import Parser from "./Parser";
 import Worker from "./Worker";
 
 const displayBanner = (text: string = "ZAILEYS"): Promise<string> => {
@@ -24,12 +24,13 @@ const displayBanner = (text: string = "ZAILEYS"): Promise<string> => {
 };
 
 export class Client {
-  options: z.infer<typeof ClientClassesType> | undefined;
+  options: z.infer<typeof ClientClassesType> = {} as never;
+  cache: NodeCache = new NodeCache({ stdTTL: 5 * 60, useClones: false });
+
   private chatId: string = "zaileys-chats";
   private logger: pino.Logger = pino({ level: "silent", enabled: false });
   private db: Kysely<DB> | undefined;
   private socket: ReturnType<typeof makeWASocket> | undefined;
-  private groupCache: NodeCache = new NodeCache({ stdTTL: 5 * 60, useClones: false });
   private events: EventEmitter = new EventEmitter();
   private spinners: Map<string, Ora> = new Map();
   private worker: Worker | undefined;
@@ -61,21 +62,30 @@ export class Client {
     this.stopSpinner("auth", true, "Auth adapter ready");
 
     this.startSpinner("store", "Setting up store adapter...");
-    const store = await StoreAdapterHandler(this.db, this.chatId);
+    const store = await StoreAdapterHandler(this, this.db, this.chatId);
     this.stopSpinner("store", true, "Store adapter ready");
 
+    const { version } = await fetchLatestBaileysVersion();
+
     this.socket = makeWASocket({
+      version,
       logger: this.logger,
       markOnlineOnConnect: this.options.autoOnline,
       syncFullHistory: false,
       defaultQueryTimeoutMs: undefined,
       msgRetryCounterCache: new NodeCache(),
-      cachedGroupMetadata: async (jid: string) => this.groupCache.get(jid),
+      mediaCache: new NodeCache({ stdTTL: 60 }),
+      userDevicesCache: new NodeCache(),
+      cachedGroupMetadata: async (jid: string) => this.cache.get(jid),
       printQRInTerminal: this.options.authType === "qr",
-      browser: Browsers.ubuntu(this.options.authType === "qr" ? "Zaileys Library" : "Firefox"),
+      browser: Browsers.ubuntu(this.options.authType === "qr" ? "Zaileys Library" : "Chrome"),
       auth: {
         creds: state.creds,
         keys: makeCacheableSignalKeyStore(state.keys, this.logger),
+      },
+      getMessage: async (key) => {
+        const message = await this.db?.selectFrom("messages").select("value").where("id", "=", key.id!).executeTakeFirst();
+        return toJson(message?.value!);
       },
     });
 
@@ -101,25 +111,9 @@ export class Client {
       }, 5000);
     }
 
-    this.socket?.ev.on("creds.update", saveCreds);
-    store.bind(this.socket?.ev);
     this.worker = new Worker({ client: this, db: this.db!, socket: this.socket });
-
-    this.socket.ev.on("connection.update", async (update) => {
-      await new Parser(this.socket!, this, this.db!).connection(update);
-    });
-
-    this.socket.ev.on("messages.upsert", async ({ messages }) => {
-      for (const message of messages) {
-        await new Parser(this.socket!, this, this.db!).messages(message);
-      }
-    });
-
-    this.socket.ev.on("call", async (callers) => {
-      for (const caller of callers) {
-        await new Parser(this.socket!, this, this.db!).calls(caller);
-      }
-    });
+    this.socket?.ev.on("creds.update", saveCreds);
+    store.bind(this.socket);
   }
 
   startSpinner(key: string, message: string): Ora {

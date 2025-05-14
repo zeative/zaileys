@@ -1,5 +1,5 @@
+import { Readable } from "stream";
 import { z } from "zod";
-import { CitationType } from "../classes/client";
 
 export const MessagesMediaType = {
   text: "text",
@@ -174,8 +174,8 @@ export const MessagesParserBaseType = z.object({
   citation: z.record(z.string(), z.boolean()).nullable(),
   media: z
     .object({
-      buffer: z.function().returns(z.unknown()),
-      stream: z.function().returns(z.unknown()),
+      buffer: z.function().returns(z.instanceof(Buffer)),
+      stream: z.function().returns(z.instanceof(Readable)),
     })
     .passthrough()
     .nullable(),

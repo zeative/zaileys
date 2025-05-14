@@ -24,21 +24,27 @@
 
 ## 📋 Table of Contents
 
-1. [Features](#-features)
-2. [Installation](#-installation)
-3. [Quick Start](#-quick-start)
-4. [Core Concepts](#-core-concepts)
-
+1. [🚀 Features](#🚀-features)
+2. [💻 Installation](#💻-installation)
+3. [⚡ Quick Start](#⚡-quick-start)
+4. [🔍 Core Concepts](#🔍-core-concepts)
    - [Client](#client)
    - [Sessions & Authentication](#sessions--authentication)
    - [Messages & Events](#messages--events)
-
-5. [Configuration & Options](#-configuration--options)
-6. [Examples](#-examples)
-7. [🐞 Issues & Feedback](#-issues--feedback)
-8. [❤️ Funding & Support](#-funding--support)
-9. [📄 License](#-license)
-10. [🙏 Acknowledgements](#-acknowledgements)
+   - [Citation Concept](#citation-concept)
+5. [⚙️ Configuration & Options](#⚙️-configuration--options)
+6. [📁 Examples](#📁-examples)
+7. [📢 Event Handling](#📢-event-handling)
+8. [👾 Worker Actions](#👾-worker-actions)
+   - [Sending Messages](#sending-messages)
+   - [Sending Media](#sending-media)
+   - [Presence Update](#presence-update)
+   - [Get Profile](#get-profile)
+   - [Reject Call](#reject-call)
+9. [🐞 Issues & Feedback](#🐞-issues--feedback)
+10. [❤️ Funding & Support](#❤️-funding--support)
+11. [📄 License](#📄-license)
+12. [🙏 Acknowledgements](#🙏-acknowledgements)
 
 ---
 
@@ -89,7 +95,7 @@ Basic usage of Zaileys based on [`test/example.ts`](https://github.com/zeative/z
 // esm
 import Client from "zaileys";
 
-// Configure the client
+// the configuration below is the default
 const wa = new Client({
   prefix: "/", // command prefix
   phoneNumber: 628123456789, // bot phone number for pairing
@@ -222,27 +228,120 @@ wa.on("calls", (ctx) => {});
 
 ```js
 const roomId = ctx.roomId;
-const quoted = ctx.message;
+const message = ctx.message;
 
 // sending text message
 wa.text("Hallo test", { roomId });
 
 // sending reply message
-wa.text("Test reply", { roomId, quoted });
+wa.text("Test reply", { roomId, quoted: message });
 
 // sending text message as forwarded
 wa.text("Test forwarded", { roomId, asForwarded: true });
 
 // sending reply message as verified number
-wa.text("Test verified reply", { roomId, quoted, verifiedReply: "whatsapp" });
+wa.text("Test verified reply", { roomId, quoted: message, verifiedReply: "whatsapp" });
+
+// also combine verified number and forwarded
+wa.text("Test verified reply", { roomId, quoted: message, verifiedReply: "meta", asForwarded: true });
+
+// sending view once message
+// support: image, video, audio
+wa.text({ image: "https://github.com/zaadevofc.png", text: "Test view once" }, { roomId, asViewOnce: true });
+
+// sending reaction message
+// empty string for removing reaction
+wa.reaction("🐞", { message });
+
+// editing message
+const msg1 = await wa.text("Test edit", { roomId });
+await wa.edit("Editing success", { message: msg1?.message });
+
+// deleting message
+const msg2 = await wa.text("Test delete", { roomId });
+await wa.delete("Deleting success", { message: msg2?.message });
+
+// sending location message
+wa.location({ latitude: 24.121231, longitude: 55.1121221, ...other }, { roomId });
+
+// sending contact message
+wa.contact({ fullname: "Kejaa", whatsAppNumber: 628123456789, ...other }, { roomId });
+
+// sending polling message
+wa.poll({ name: "Are you love me?", answers: ["yes", "maybe", "no"] }, { roomId });
+```
+
+---
+
+### Sending Media
+
+```js
+// sending image message
+wa.text({ image: "https://github.com/zaadevofc.png", text: "Test image message" }, { roomId });
+// buffer
+wa.text({ image: fs.readFileSync("example/file.png"), text: "Test image message" }, { roomId });
+
+// sending sticker message
+wa.text({ sticker: "https://github.com/zaadevofc.png" }, { roomId });
+
+// sending gif message
+wa.text({ gif: "https://qu.ax/nTFwh.mp4" }, { roomId });
+
+// sending video message
+wa.text({ video: "https://qu.ax/nTFwh.mp4", text: "Test video message" }, { roomId });
+
+// sending video note message
+wa.text({ videoNote: "https://qu.ax/nTFwh.mp4" }, { roomId });
+
+// sending audio message
+// use .ogg format for better device support
+wa.text({ audio: "https://qu.ax/oeSCG.ogg" }, { roomId });
+
+// sending voice note message
+// use .ogg format for better device support
+wa.text({ audioNote: "https://qu.ax/oeSCG.ogg" }, { roomId });
+```
+
+---
+
+### Presence Update
+
+```js
+// available presence types:
+// typing | recording | online | offline | paused
+wa.presence("typing", { roomId });
+```
+
+---
+
+### Get Profile
+
+```js
+// get user profile
+wa.profile("6281223456789@s.whatsapp.net");
+
+// get group profile
+wa.profile("1209999@g.us");
+```
+
+---
+
+### Reject Call
+
+```js
+wa.on("calls", (ctx) => {
+  wa.rejectCall({ callId: ctx.callId, callerId: ctx.callerId });
+
+  // for simplify
+  wa.rejectCall(ctx);
+});
 ```
 
 ---
 
 ## 🐞 Issues & Feedback
 
-If you encounter any problems or\ have feature requests, please open an issue:
-
+If you encounter any problems or have feature requests, please open an issue:
 [https://github.com/zeative/zaileys/issues](https://github.com/zeative/zaileys/issues)
 
 ---

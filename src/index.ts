@@ -1,2 +1,1 @@
-import Client from "./classes/Client";
-export default Client;
+export { Client } from "./classes/Client";

@@ -1,4 +1,4 @@
-import Client from "../src";
+import { Client } from "../src";
 
 const wa = new Client({
   prefix: "/",
@@ -42,18 +42,18 @@ wa.on("messages", async (ctx) => {
     if (ctx.text == "contact") {
       wa.contact(
         {
-          fullname: 'zaadevofc',
-          nickname: 'Kejaa',
-          role: 'Fullstack Developer',
-          homeAddress: 'Home Address',
-          workAddress: 'Work Address',
-          organization: 'Zeative Media',
+          fullname: "zaadevofc",
+          nickname: "Kejaa",
+          role: "Fullstack Developer",
+          homeAddress: "Home Address",
+          workAddress: "Work Address",
+          organization: "Zeative Media",
           whatsAppNumber: 628123456789,
           callNumber: 628123456789,
           voiceNumber: 628123456789,
-          email: 'zaadevofc@gmail.com',
-          website: 'https://instagram.com/zaadevofc',
-          avatar: 'https://github.com/zaadevofc.png',
+          email: "zaadevofc@gmail.com",
+          website: "https://instagram.com/zaadevofc",
+          avatar: "https://github.com/zaadevofc.png",
         },
         { roomId }
       );

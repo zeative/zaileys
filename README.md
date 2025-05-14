@@ -80,10 +80,10 @@ Basic usage of Zaileys based on [`test/example.ts`](https://github.com/zeative/z
 
 ```ts
 // cjs
-// const Client = require("zaileys");
+// const { Client } = require("zaileys");
 
 // esm
-import Client from "zaileys";
+import { Client } from "zaileys";
 
 // the configuration below is the default
 const wa = new Client({

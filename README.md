@@ -20,7 +20,6 @@
 
 > **Zaileys** is a simplified, high-performance wrapper around the Baileys library for building WhatsApp bots and integrations with TypeScript/JavaScript. Designed for simplicity, speed, and scalability—perfect for beginners and pros alike.
 
----
 
 ## 📋 Table of Contents
 
@@ -46,7 +45,6 @@
 11. [📄 License](#📄-license)
 12. [🙏 Acknowledgements](#🙏-acknowledgements)
 
----
 
 ## 🚀 Features
 
@@ -57,7 +55,6 @@
 - 📟 **Live QRs**: Automatically generate and display WhatsApp QR codes in terminal.
 - 🛠️ **TypeScript First**: Full type definitions (`.d.ts`) and zero-config TS support.
 
----
 
 ## 💻 Installation
 
@@ -82,7 +79,6 @@ deno add npm:zaileys
 
 Ensure you are running Node.js **>= 18** as specified in `package.json`.
 
----
 
 ## ⚡ Quick Start
 
@@ -146,21 +142,35 @@ wa.on("calls", (ctx) => {
 });
 ```
 
----
+### Simplify Version
+
+```js
+// auth with pairing code
+const wa = new Client({
+  phoneNumber: 628123456789,
+  authType: "pairing",
+});
+
+// auth with qr
+const wa = new Client({
+  authType: "qr",
+});
+
+wa.on("messages", (ctx) => {
+  wa.reply('hello')
+})
+```
+
+## 📁 Examples
+
+Refer to [`test/example.ts`](https://github.com/zeative/zaileys/blob/main/test/example.ts) for complete example usage.
+
 
 ## 🔍 Core Concepts
-
-### Client
-
-The heart of Zaileys. Use `new Client(options)` to instantiate. It emits events (`messages`, `calls`, `connection`, etc.) and exposes methods (`text`, `reply`, `location`, and more).
 
 ### Sessions & Authentication
 
 Zaileys persists authentication credentials in your specified `session`. Re-running your bot will reuse credentials—no QR scan or pairing code required each time.
-
-### Messages & Events
-
-All WhatsApp activity is exposed via events. Listen on `messages`, `calls`, `connection`, and more to build reactive bots.
 
 #### Citation Concept
 
@@ -193,20 +203,6 @@ wa.on("messages", (ctx) => {
 });
 ```
 
----
-
-## ⚙️ Configuration & Options
-
-Pass low-level Baileys options via `baileysConfig` in your client options for advanced scenarios.
-
----
-
-## 📁 Examples
-
-Refer to [`test/example.ts`](https://github.com/zeative/zaileys/blob/main/test/example.ts) for complete example usage.
-
----
-
 ## 📢 Event Handling
 
 ```js
@@ -219,8 +215,6 @@ wa.on("messages", (ctx) => {});
 // Call events
 wa.on("calls", (ctx) => {});
 ```
-
----
 
 ## 👾 Worker Actions
 
@@ -255,11 +249,11 @@ wa.reaction("🐞", { message });
 
 // editing message
 const msg1 = await wa.text("Test edit", { roomId });
-await wa.edit("Editing success", { message: msg1?.message });
+wa.edit("Editing success", { message: msg1?.message });
 
 // deleting message
 const msg2 = await wa.text("Test delete", { roomId });
-await wa.delete("Deleting success", { message: msg2?.message });
+wa.delete("Deleting success", { message: msg2?.message });
 
 // sending location message
 wa.location({ latitude: 24.121231, longitude: 55.1121221, ...other }, { roomId });
@@ -270,8 +264,6 @@ wa.contact({ fullname: "Kejaa", whatsAppNumber: 628123456789, ...other }, { room
 // sending polling message
 wa.poll({ name: "Are you love me?", answers: ["yes", "maybe", "no"] }, { roomId });
 ```
-
----
 
 ### Sending Media
 
@@ -302,8 +294,6 @@ wa.text({ audio: "https://qu.ax/oeSCG.ogg" }, { roomId });
 wa.text({ audioNote: "https://qu.ax/oeSCG.ogg" }, { roomId });
 ```
 
----
-
 ### Presence Update
 
 ```js
@@ -311,8 +301,6 @@ wa.text({ audioNote: "https://qu.ax/oeSCG.ogg" }, { roomId });
 // typing | recording | online | offline | paused
 wa.presence("typing", { roomId });
 ```
-
----
 
 ### Get Profile
 
@@ -323,8 +311,6 @@ wa.profile("6281223456789@s.whatsapp.net");
 // get group profile
 wa.profile("1209999@g.us");
 ```
-
----
 
 ### Reject Call
 
@@ -337,30 +323,21 @@ wa.on("calls", (ctx) => {
 });
 ```
 
----
-
 ## 🐞 Issues & Feedback
 
 If you encounter any problems or have feature requests, please open an issue:
 [https://github.com/zeative/zaileys/issues](https://github.com/zeative/zaileys/issues)
 
----
-
 ## ❤️ Funding & Support
 
 If you find Zaileys useful, consider supporting development:
 
-- [Buy me a coffee ☕](https://trakteer.id/zaadevofc)
+- [Buy me a coffee ☕](https://saweria.co/zaadevofc)
 - ⭐ Star the repo on GitHub
-- Spread the word
-
----
 
 ## 📄 License
 
 Distributed under the **MIT License**. See [`LICENSE`](https://github.com/zeative/zaileys/blob/main/LICENSE) for details.
-
----
 
 ## 🙏 Acknowledgements
 

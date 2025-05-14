@@ -1,43 +1,70 @@
 import Client from "../src";
 
-// the configuration below is the default
 const wa = new Client({
-  prefix: "/", // command prefix
-  phoneNumber: 628123456789, // bot phone number for pairing
-  authType: "pairing", // authentication method: 'pairing' | 'qr'
-  ignoreMe: true, // ignore messages sent by the bot
-  showLogs: true, // enable message logs
-  autoMentions: true, // automatically user mentions
-  autoOnline: true, // automatically set status to online
-  autoRead: true, // automatically mark messages as read
-  autoPresence: true, // manage presence updates 'typing' or 'recording'
-  autoRejectCall: true, // automatically reject incoming calls
-  database: {
-    type: "sqlite", // database type: 'sqlite' | 'postgresql' | 'mysql'
-    connection: { url: "./session/zaileys.db" },
-  },
+  prefix: "/",
+  phoneNumber: 628123456789,
+  authType: "pairing",
   citation: {
-    // your own keys; will generate ctx.citation.is<Key> booleans
-    author: async () => {
-      // const res = await fetch(...)
-      return [628123456789];
-    },
-    myGroup: () => [120099],
-    vipUsers: () => [628123456789],
+    author: () => [628123456789],
   },
-});
-
-wa.on("connection", (ctx) => {
-  //
 });
 
 wa.on("messages", async (ctx) => {
   if (!ctx.citation?.isAuthor) return;
   const roomId = ctx.roomId;
-  const message = ctx.message();
-  console.log("🚀 ~ example.ts:35 ~ wa.on ~ ctx:", ctx);
-});
+  const message = ctx.message;
 
-wa.on("calls", (ctx) => {
-  wa.rejectCall(ctx);
+  if (ctx.isPrefix) {
+    // text ===>>> /image
+    if (ctx.text == "image") {
+      wa.text({ image: "https://github.com/zaadevofc.png" }, { roomId });
+    }
+
+    // text ===>>> /text
+    if (ctx.text == "text") {
+      wa.text("Holaaa", { roomId });
+    }
+
+    // text ===>>> /location
+    if (ctx.text == "location") {
+      wa.location(
+        {
+          title: "Location Message",
+          footer: "Location Footer",
+          latitude: 24.121231,
+          longitude: 55.1121221,
+        },
+        { roomId }
+      );
+    }
+
+    // text ===>>> /contact
+    if (ctx.text == "contact") {
+      wa.contact(
+        {
+          fullname: 'zaadevofc',
+          nickname: 'Kejaa',
+          role: 'Fullstack Developer',
+          homeAddress: 'Home Address',
+          workAddress: 'Work Address',
+          organization: 'Zeative Media',
+          whatsAppNumber: 628123456789,
+          callNumber: 628123456789,
+          voiceNumber: 628123456789,
+          email: 'zaadevofc@gmail.com',
+          website: 'https://instagram.com/zaadevofc',
+          avatar: 'https://github.com/zaadevofc.png',
+        },
+        { roomId }
+      );
+    }
+  }
+
+  if (ctx.text == "reply") {
+    wa.text("Holaaa", { roomId, quoted: message });
+  }
+
+  if (ctx.text == "combine") {
+    wa.text("Verified message with forwarded", { roomId, quoted: message, verifiedReply: "whatsapp", asForwarded: true });
+  }
 });

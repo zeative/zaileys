@@ -20,31 +20,27 @@
 
 > **Zaileys** is a simplified, high-performance wrapper around the Baileys library for building WhatsApp bots and integrations with TypeScript/JavaScript. Designed for simplicity, speed, and scalability—perfect for beginners and pros alike.
 
-
 ## 📋 Table of Contents
 
 1. [🚀 Features](#🚀-features)
 2. [💻 Installation](#💻-installation)
 3. [⚡ Quick Start](#⚡-quick-start)
+   - [Simplify Version](#simplify-version)
 4. [🔍 Core Concepts](#🔍-core-concepts)
-   - [Client](#client)
    - [Sessions & Authentication](#sessions--authentication)
-   - [Messages & Events](#messages--events)
    - [Citation Concept](#citation-concept)
-5. [⚙️ Configuration & Options](#⚙️-configuration--options)
-6. [📁 Examples](#📁-examples)
-7. [📢 Event Handling](#📢-event-handling)
-8. [👾 Worker Actions](#👾-worker-actions)
+5. [📁 Examples](#📁-examples)
+6. [📢 Event Handling](#📢-event-handling)
+7. [👾 Worker Actions](#👾-worker-actions)
    - [Sending Messages](#sending-messages)
    - [Sending Media](#sending-media)
    - [Presence Update](#presence-update)
    - [Get Profile](#get-profile)
    - [Reject Call](#reject-call)
-9. [🐞 Issues & Feedback](#🐞-issues--feedback)
-10. [❤️ Funding & Support](#❤️-funding--support)
-11. [📄 License](#📄-license)
-12. [🙏 Acknowledgements](#🙏-acknowledgements)
-
+8. [🐞 Issues & Feedback](#🐞-issues--feedback)
+9. [❤️ Funding & Support](#❤️-funding--support)
+10. [📄 License](#📄-license)
+11. [🙏 Acknowledgements](#🙏-acknowledgements)
 
 ## 🚀 Features
 
@@ -54,7 +50,6 @@
 - ~~📈 **Built-in Logging**: Integrated with Pino for structured logs.~~
 - 📟 **Live QRs**: Automatically generate and display WhatsApp QR codes in terminal.
 - 🛠️ **TypeScript First**: Full type definitions (`.d.ts`) and zero-config TS support.
-
 
 ## 💻 Installation
 
@@ -78,7 +73,6 @@ deno add npm:zaileys
 > - Supports both **CommonJS (CJS)** and **ECMAScript Modules (ESM)**.
 
 Ensure you are running Node.js **>= 18** as specified in `package.json`.
-
 
 ## ⚡ Quick Start
 
@@ -157,20 +151,33 @@ const wa = new Client({
 });
 
 wa.on("messages", (ctx) => {
-  wa.reply('hello')
-})
+  wa.reply("hello");
+});
 ```
 
 ## 📁 Examples
 
 Refer to [`test/example.ts`](https://github.com/zeative/zaileys/blob/main/test/example.ts) for complete example usage.
 
-
 ## 🔍 Core Concepts
 
 ### Sessions & Authentication
 
-Zaileys persists authentication credentials in your specified `session`. Re-running your bot will reuse credentials—no QR scan or pairing code required each time.
+Zaileys persists authentication credentials and session data in a configurable database (`sqlite`, `postgresql`, or `mysql`), ensuring seamless reconnection without repeated QR scans or pairing codes. This database-driven approach enhances flexibility by:
+
+- **Unified Storage**: Store session data and authentication credentials in a single, structured database, enabling easy backup, migration, and scalability.
+- **Flexible Data Management**: Query and manage session data directly via SQL, allowing custom integrations and advanced use cases.
+
+Configure the database in the `Client` options:
+
+```js
+const wa = new Client({
+  database: {
+    type: "sqlite", // or 'postgresql' | 'mysql'
+    connection: { url: "./session/zaileys.db" }, // sqlite file path
+  },
+});
+```
 
 #### Citation Concept
 

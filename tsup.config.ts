@@ -12,6 +12,7 @@ export default defineConfig({
   treeshake: true,
   legacyOutput: false,
   shims: true,
+  noExternal: ["libsignal", "ora"],
   outExtension({ format }) {
     return {
       js: format === "cjs" ? ".cjs" : ".mjs",

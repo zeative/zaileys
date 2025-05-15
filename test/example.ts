@@ -2,7 +2,7 @@ import { Client } from "../src";
 
 const wa = new Client({
   prefix: "/",
-  phoneNumber: 628123456789,
+  phoneNumber: 6287833764462,
   authType: "pairing",
   citation: {
     author: () => [628123456789],

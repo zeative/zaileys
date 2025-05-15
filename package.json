@@ -1,6 +1,6 @@
 {
   "name": "zaileys",
-  "version": "1.1.12",
+  "version": "1.1.13",
   "description": "Zaileys - Simplify Typescript/Javascript WhatsApp NodeJS API",
   "type": "module",
   "main": "./dist/index.cjs",
@@ -62,7 +62,6 @@
     "zod": "^3.24.4"
   },
   "dependencies": {
-    "@privacyresearch/libsignal-protocol-typescript": "^0.0.16",
     "baileys": "^6.7.16",
     "better-sqlite3": "^11.10.0",
     "events": "^3.3.0",

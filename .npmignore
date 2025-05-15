@@ -4,6 +4,7 @@ src
 test
 db
 session
+sample
 
 .git*
 .npm*

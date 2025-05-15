@@ -11,6 +11,7 @@ export default defineConfig({
   sourcemap: false,
   treeshake: true,
   legacyOutput: false,
+  shims: true,
   outExtension({ format }) {
     return {
       js: format === "cjs" ? ".cjs" : ".mjs",

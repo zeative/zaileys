@@ -1,4 +1,4 @@
-import makeWASocket, { Browsers, fetchLatestBaileysVersion, makeCacheableSignalKeyStore } from "baileys";
+import { Browsers, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, makeWASocket } from "baileys";
 import { EventEmitter } from "events";
 import figlet from "figlet";
 import { Kysely } from "kysely";
@@ -54,7 +54,7 @@ export class Client {
     this.options = await ClientClassesType.parseAsync(this.props);
 
     this.startSpinner("db", "Initializing database...");
-    this.db = ConnectDB(this.options.database.type, this.options.database.connection.url);
+    this.db = await ConnectDB(this.options.database.type, this.options.database.connection.url);
     this.stopSpinner("db", true, "Database initialized");
 
     this.startSpinner("auth", "Setting up auth adapter...");
@@ -77,7 +77,7 @@ export class Client {
       mediaCache: new NodeCache({ stdTTL: 60 }),
       userDevicesCache: new NodeCache(),
       cachedGroupMetadata: async (jid: string) => this.cache.get(jid),
-      printQRInTerminal: this.options.authType === "qr",
+      printQRInTerminal: false,
       browser: Browsers.ubuntu(this.options.authType === "qr" ? "Zaileys Library" : "Chrome"),
       auth: {
         creds: state.creds,

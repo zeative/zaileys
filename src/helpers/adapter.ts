@@ -1,4 +1,4 @@
-import { randomBytes, randomUUID } from "crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { curve as Curve } from "libsignal";
 import { AppDataSync, Fingerprint, KeyPair, valueReplacer, valueReviver } from "../types/adapter/general";
 

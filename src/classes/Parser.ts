@@ -6,19 +6,20 @@ import { extractUrls, findWord, getMentions, normalizeText, removeKeys, toJson, 
 import { CallsParserBaseType } from "../types/parser/calls";
 import { MessagesMediaType, MessagesParserType } from "../types/parser/messages";
 import Client from "./Client";
+import QRCode from "qrcode";
 
 export default class Parser {
   maxReplies = 0;
   constructor(private socket: WASocket, private client: Client, private db: Kysely<DB>) {}
 
   async connection(update: Partial<ConnectionState>) {
-    const { connection, lastDisconnect, qr } = update;
-
     this.client.startSpinner("connection", "Connecting to WhatsApp...");
+    const { connection, lastDisconnect, qr } = update;
     this.client.emit("connection", { status: "connecting" });
 
     if (this.client.options?.authType === "qr" && qr) {
       this.client.stopSpinner("connection", false);
+      console.log(await QRCode.toString(qr, { type: "terminal", small: true }));
       this.client.startSpinner("qr", "Waiting for QR code scan...");
       this.socket?.ev.on("connection.update", () => this.client.stopSpinner("qr", false));
       return;
@@ -27,11 +28,11 @@ export default class Parser {
     if (connection === "close") {
       this.client.failSpinner("connection", "Connection closed");
       const code = (lastDisconnect?.error as any)?.output?.statusCode;
-      const isReconnect = code !== DisconnectReason.loggedOut;
+      const isReconnect = code === DisconnectReason.loggedOut;
       console.log(lastDisconnect?.error?.message);
 
       if (code === 401 || code === 405 || code === 500) {
-        console.error('Invalid session, please delete manually')
+        console.error("Invalid session, please delete manually");
         return;
       }
 

@@ -77,6 +77,8 @@ pnpm add zaileys
 
 ## ⚡ Quick Start
 
+For a complete example, see [`/test/example.ts`](https://github.com/zeative/zaileys/blob/main/test/example.ts).
+
 ```ts
 import { Client } from "zaileys";
 
@@ -114,7 +116,7 @@ const wa = new Client({
 });
 
 wa.on("messages", (ctx) => {
-  wa.reply("Hello!");
+  wa.text("Hello", { roomId: ctx.roomId });
 });
 ```
 

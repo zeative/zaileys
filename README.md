@@ -1,59 +1,64 @@
-<div align='center'>
-  <img alt="Zaileys - Simplify Typescript/Javascript WhatsApp NodeJS API" src="https://socialify.git.ci/zeative/zaileys/image?description=1&amp;descriptionEditable=Zaileys%20is%20a%20simplified%20version%20of%20the%20Baileys%20package%20%0Awhich%20is%20easier%20and%20faster.&amp;font=KoHo&amp;forks=1&amp;issues=1&amp;language=1&amp;name=1&amp;owner=1&amp;pattern=Circuit%20Board&amp;pulls=1&amp;stargazers=1&amp;theme=Auto">
+<div align="center">
+  <img alt="Zaileys - Simplified WhatsApp Node.js API" src="https://socialify.git.ci/zeative/zaileys/image?description=1&descriptionEditable=Zaileys%20is%20a%20simplified%20version%20of%20the%20Baileys%20package%20%0Awhich%20is%20easier%20and%20faster.&font=KoHo&forks=1&issues=1&language=1&name=1&owner=1&pattern=Circuit%20Board&pulls=1&stargazers=1&theme=Auto">
 </div>
 
-<h1 align="center">Zaileys - Simplify Typescript/Javascript WhatsApp NodeJS API</h1>
+<h1 align="center">Zaileys - Simplified WhatsApp Node.js API</h1>
 
-<div align='center'>
-
-[![NPM Version](https://img.shields.io/npm/v/zaileys.svg)](https://www.npmjs.com/package/zaileys)
-[![NPM Downloads](https://img.shields.io/npm/dw/zaileys?label=npm&color=%23CB3837)](https://www.npmjs.com/package/zaileys)
-[![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/zeative/zaileys)](https://www.npmjs.com/package/zaileys)
-[![GitHub License](https://img.shields.io/github/license/zeative/zaileys)](https://github.com/zeative/zaileys)
-[![GitHub Repo stars](https://img.shields.io/github/stars/zeative/zaileys)](https://github.com/zeative/zaileys)
-[![GitHub forks](https://img.shields.io/github/forks/zeative/zaileys)](https://github.com/zeative/zaileys)
-
+<div align="center">
+  <a href="https://www.npmjs.com/package/zaileys">
+    <img src="https://img.shields.io/npm/v/zaileys.svg" alt="NPM Version">
+  </a>
+  <a href="https://www.npmjs.com/package/zaileys">
+    <img src="https://img.shields.io/npm/dw/zaileys?label=npm&color=%23CB3837" alt="NPM Downloads">
+  </a>
+  <a href="https://github.com/zeative/zaileys">
+    <img src="https://img.shields.io/github/languages/code-size/zeative/zaileys" alt="GitHub Code Size">
+  </a>
+  <a href="https://github.com/zeative/zaileys">
+    <img src="https://img.shields.io/github/license/zeative/zaileys" alt="GitHub License">
+  </a>
+  <a href="https://github.com/zeative/zaileys">
+    <img src="https://img.shields.io/github/stars/zeative/zaileys" alt="GitHub Stars">
+  </a>
+  <a href="https://github.com/zeative/zaileys">
+    <img src="https://img.shields.io/github/forks/zeative/zaileys" alt="GitHub Forks">
+  </a>
 </div>
 
 > [!NOTE]
-> Join whatsapp community for latest info [WhatsApp Channel](https://whatsapp.com/channel/0029VazENbmInlqHIWzgn33h)
+> Join our [WhatsApp Channel](https://whatsapp.com/channel/0029VazENbmInlqHIWzgn33h) for updates and support.
 
-> **Zaileys** is a simplified, high-performance wrapper around the Baileys library for building WhatsApp bots and integrations with TypeScript/JavaScript. Designed for simplicity, speed, and scalability—perfect for beginners and pros alike.
+**Zaileys** is a lightweight, high-performance wrapper around the Baileys library for building WhatsApp bots and integrations using TypeScript or ESM JavaScript. Designed for simplicity, speed, and scalability.
+
+> [!WARNING]
+> Pairing code authentication is currently experiencing issues and is not supported. Use QR code authentication instead.
 
 ## 📋 Table of Contents
 
-1. [🚀 Features](#🚀-features)
-2. [💻 Installation](#💻-installation)
-3. [⚡ Quick Start](#⚡-quick-start)
+1. [🚀 Features](#features)
+2. [💻 Installation](#installation)
+3. [⚡ Quick Start](#quick-start)
    - [Simplify Version](#simplify-version)
-4. [🔍 Core Concepts](#🔍-core-concepts)
-   - [Sessions & Authentication](#sessions--authentication)
-   - [Citation Concept](#citation-concept)
-5. [📁 Examples](#📁-examples)
-6. [📢 Event Handling](#📢-event-handling)
-7. [👾 Worker Actions](#👾-worker-actions)
-   - [Sending Messages](#sending-messages)
-   - [Sending Media](#sending-media)
-   - [Presence Update](#presence-update)
-   - [Get Profile](#get-profile)
-   - [Reject Call](#reject-call)
-8. [🐞 Issues & Feedback](#🐞-issues--feedback)
-9. [❤️ Funding & Support](#❤️-funding--support)
-10. [📄 License](#📄-license)
-11. [🙏 Acknowledgements](#🙏-acknowledgements)
+4. [🔍 Core Concepts](#core-concepts)
+5. [📢 Event Handling](#event-handling)
+6. [👾 Worker Actions](#worker-actions)
+7. [🐞 Issues & Feedback](#issues--feedback)
+8. [❤️ Support](#support)
+9. [📄 License](#license)
+10. [🙏 Acknowledgements](#acknowledgements)
 
 ## 🚀 Features
 
-- 🎯 **Simplified API**: Minimal boilerplate—get up and running in minutes.
+- 🎯 **Simplified API**: Minimal setup for rapid development.
 - 🔒 **Secure Multi-Device**: Full multi-device support via Baileys.
-- ⚙️ **Modular & Extensible**: Plug-and-play middleware, transports, and storage layers.
-- ~~📈 **Built-in Logging**: Integrated with Pino for structured logs.~~
-- 📟 **Live QRs**: Automatically generate and display WhatsApp QR codes in terminal.
-- 🛠️ **TypeScript First**: Full type definitions (`.d.ts`) and zero-config TS support.
+- ⚙️ **Modular Design**: Extensible with middleware and storage layers.
+- 📟 **QR Code Authentication**: Seamless QR-based login in terminal.
+- 🛠️ **TypeScript/ESM Only**: Full type definitions and ESM support.
+- 💾 **Database-Driven**: SQLite, PostgreSQL, or MySQL for session storage.
 
 ## 💻 Installation
 
-Install with your preferred package manager:
+Install via your preferred package manager:
 
 ```bash
 npm install zaileys
@@ -61,293 +66,205 @@ npm install zaileys
 yarn add zaileys
 # or
 pnpm add zaileys
-
-# just install, don't run with these runtime
-bun add zaileys
-deno add npm:zaileys
 ```
 
-> ❗ **Compatibility Notice**
+> [!IMPORTANT]
 >
-> - Zaileys does **not** support **Deno** and **Bun** runtimes at runtime due to `better-sqlite3` incompatibility. You may install dependencies with these runtimes, but execution requires **Node.js**.
-> - Supports both **CommonJS (CJS)** and **ECMAScript Modules (ESM)**.
-
-Ensure you are running Node.js **>= 18** as specified in `package.json`.
+> - Requires **Node.js >= 18**.
+> - Only supports **ESM** and **TypeScript** (no CommonJS).
+> - QR code authentication only (pairing code not supported).
+> - Deno and Bun are not supported at runtime due to `better-sqlite3` incompatibility.
 
 ## ⚡ Quick Start
 
-Basic usage of Zaileys based on [`test/example.ts`](https://github.com/zeative/zaileys/blob/main/test/example.ts):
-
 ```ts
-// cjs
-// const { Client } = require("zaileys");
-
-// esm
 import { Client } from "zaileys";
 
-// the configuration below is the default
 const wa = new Client({
-  prefix: "/", // command prefix
-  phoneNumber: 628123456789, // bot phone number for pairing
-  authType: "pairing", // authentication method: 'pairing' | 'qr'
-  ignoreMe: true, // ignore messages sent by the bot
-  showLogs: true, // enable message logs
-  autoMentions: true, // automatically user mentions
-  autoOnline: true, // automatically set status to online
-  autoRead: true, // automatically mark messages as read
-  autoPresence: true, // manage presence updates 'typing' or 'recording'
-  autoRejectCall: true, // automatically reject incoming calls
+  prefix: "/", // Command prefix
+  ignoreMe: true, // Ignore bot's own messages
+  autoRead: true, // Auto-mark messages as read
+  autoOnline: true, // Auto-set status to online
+  autoPresence: true, // Auto-manage presence (typing/recording)
+  autoRejectCall: true, // Auto-reject incoming calls
   database: {
-    type: "sqlite", // database type: 'sqlite' | 'postgresql' | 'mysql'
+    type: "sqlite",
     connection: { url: "./session/zaileys.db" },
   },
-  citation: {
-    // your own keys; will generate ctx.citation.is<Key> booleans
-    author: async () => {
-      // const res = await fetch(...)
-      return [628123456789];
-    },
-    myGroup: () => [120099],
-    vipUsers: () => [628123456789],
-  },
 });
 
-// Connection updates
-wa.on("connection", (ctx) => {
-  //
-});
-
-// Message events
 wa.on("messages", async (ctx) => {
-  // Example: checking generated flags
-  if (!ctx.citation?.isAuthor) return;
-  if (ctx.citation.isVipUsers) {
-    // VIP handling
-  }
-
   if (ctx.text === "test") {
-    wa.text("Helloo", { roomId: ctx.roomId });
+    await wa.text("Hello!", { roomId: ctx.roomId });
   }
 });
 
-// Call events
-wa.on("calls", (ctx) => {
-  //
+wa.on("connection", (ctx) => {
+  console.log("Connection status:", ctx.status);
 });
 ```
 
 ### Simplify Version
 
-```js
-// auth with pairing code
-const wa = new Client({
-  phoneNumber: 628123456789,
-  authType: "pairing",
-});
+```ts
+import { Client } from "zaileys";
 
-// auth with qr
 const wa = new Client({
   authType: "qr",
 });
 
 wa.on("messages", (ctx) => {
-  wa.reply("hello");
+  wa.reply("Hello!");
 });
 ```
-
-## 📁 Examples
-
-Refer to [`test/example.ts`](https://github.com/zeative/zaileys/blob/main/test/example.ts) for complete example usage.
 
 ## 🔍 Core Concepts
 
 ### Sessions & Authentication
 
-Zaileys persists authentication credentials and session data in a configurable database (`sqlite`, `postgresql`, or `mysql`), ensuring seamless reconnection without repeated QR scans or pairing codes. This database-driven approach enhances flexibility by:
+Zaileys uses QR code authentication and stores session data in a database (SQLite, PostgreSQL, or MySQL) for seamless reconnections without repeated QR scans.
 
-- **Unified Storage**: Store session data and authentication credentials in a single, structured database, enabling easy backup, migration, and scalability.
-- **Flexible Data Management**: Query and manage session data directly via SQL, allowing custom integrations and advanced use cases.
+```ts
+import { Client } from "zaileys";
 
-Configure the database in the `Client` options:
-
-```js
 const wa = new Client({
   database: {
-    type: "sqlite", // or 'postgresql' | 'mysql'
-    connection: { url: "./session/zaileys.db" }, // sqlite file path
+    type: "sqlite",
+    connection: { url: "./session/zaileys.db" },
   },
 });
 ```
 
-#### Citation Concept
+### Citation Mechanism
 
-Zaileys provides a flexible **citation** mechanism. Define any metadata provider functions under the `citation` option. Each key will automatically generate a boolean on `ctx.citation`, prefixed with `is` and formatted in camelCase.
-
-Providers can be **async** or **sync**, and Zaileys will await Promises:
+Define custom metadata providers in the `citation` option. Each key generates a boolean on `ctx.citation` (e.g., `isKeyName`).
 
 ```ts
-citation: {
-  // async provider
-  authorAsync: async () => await fetchAuthorizedAuthors(),
-  // sync provider
-  vipList: () => [1234567890]
-}
-```
+const wa = new Client({
+  citation: {
+    admins: async () => [628123456789],
+    vips: () => [628123456789],
+  },
+});
 
-Results in:
-
-- `ctx.citation.isAuthorAsync`
-- `ctx.citation.isVipList`
-
-Use them in handlers:
-
-```ts
 wa.on("messages", (ctx) => {
-  if (!ctx.citation?.isAuthorAsync) return;
-  if (ctx.citation.isVipList) {
-    // VIP logic
+  if (ctx.citation?.isAdmins) {
+    wa.text("Admin access granted", { roomId: ctx.roomId });
   }
 });
 ```
 
 ## 📢 Event Handling
 
-```js
-// Connection updates
-wa.on("connection", (ctx) => {});
+```ts
+wa.on("connection", (ctx) => {
+  console.log("Connection:", ctx.status);
+});
 
-// Message events
-wa.on("messages", (ctx) => {});
+wa.on("messages", (ctx) => {
+  console.log("Message:", ctx.text);
+});
 
-// Call events
-wa.on("calls", (ctx) => {});
+wa.on("calls", (ctx) => {
+  wa.rejectCall(ctx);
+});
 ```
 
 ## 👾 Worker Actions
 
 ### Sending Messages
 
-```js
+```ts
 const roomId = ctx.roomId;
 const message = ctx.message;
 
-// sending text message
-wa.text("Hallo test", { roomId });
-
-// sending reply message
-wa.text("Test reply", { roomId, quoted: message });
-
-// sending text message as forwarded
-wa.text("Test forwarded", { roomId, asForwarded: true });
-
-// sending reply message as verified number
-wa.text("Test verified reply", { roomId, quoted: message, verifiedReply: "whatsapp" });
-
-// also combine verified number and forwarded
-wa.text("Test verified reply", { roomId, quoted: message, verifiedReply: "meta", asForwarded: true });
-
-// sending view once message
-// support: image, video, audio
-wa.text({ image: "https://github.com/zaadevofc.png", text: "Test view once" }, { roomId, asViewOnce: true });
-
-// sending reaction message
-// empty string for removing reaction
-wa.reaction("🐞", { message });
-
-// editing message
-const msg1 = await wa.text("Test edit", { roomId });
-wa.edit("Editing success", { message: msg1?.message });
-
-// deleting message
-const msg2 = await wa.text("Test delete", { roomId });
-wa.delete("Deleting success", { message: msg2?.message });
-
-// sending location message
-wa.location({ latitude: 24.121231, longitude: 55.1121221, ...other }, { roomId });
-
-// sending contact message
-wa.contact({ fullname: "Kejaa", whatsAppNumber: 628123456789, ...other }, { roomId });
-
-// sending polling message
-wa.poll({ name: "Are you love me?", answers: ["yes", "maybe", "no"] }, { roomId });
+wa.text("Hello", { roomId });
+wa.text("Reply", { roomId, quoted: message });
+wa.text("Forwarded", { roomId, asForwarded: true });
+wa.text("Verified reply", { roomId, quoted: message, verifiedReply: "whatsapp" });
+wa.text({ image: "https://example.com/image.png", text: "View once" }, { roomId, asViewOnce: true });
+wa.reaction("👍", { message });
+wa.edit("Edited", { message: await wa.text("Original", { roomId })?.message });
+wa.delete("Deleted", { message: await wa.text("To delete", { roomId })?.message });
+wa.location({ latitude: 24.121231, longitude: 55.1121221 }, { roomId });
+wa.contact({ fullname: "Kejaa", whatsAppNumber: 628123456789 }, { roomId });
+wa.poll({ name: "Do you love me?", answers: ["Yes", "Maybe", "No"] }, { roomId });
 ```
 
 ### Sending Media
 
-```js
-// sending image message
-wa.text({ image: "https://github.com/zaadevofc.png", text: "Test image message" }, { roomId });
-// buffer
-wa.text({ image: fs.readFileSync("example/file.png"), text: "Test image message" }, { roomId });
+Supports URLs and local files (via Buffer).
 
-// sending sticker message
-wa.text({ sticker: "https://github.com/zaadevofc.png" }, { roomId });
+```ts
+import fs from "fs";
 
-// sending gif message
-wa.text({ gif: "https://qu.ax/nTFwh.mp4" }, { roomId });
+// Image (URL or file)
+wa.text({ image: "https://example.com/image.png", text: "Image" }, { roomId });
+wa.text({ image: fs.readFileSync("example/image.png"), text: "Image" }, { roomId });
 
-// sending video message
-wa.text({ video: "https://qu.ax/nTFwh.mp4", text: "Test video message" }, { roomId });
+// Sticker
+wa.text({ sticker: "https://example.com/sticker.png" }, { roomId });
+wa.text({ sticker: fs.readFileSync("example/sticker.png") }, { roomId });
 
-// sending video note message
-wa.text({ videoNote: "https://qu.ax/nTFwh.mp4" }, { roomId });
+// GIF
+wa.text({ gif: "https://example.com/video.mp4" }, { roomId });
+wa.text({ gif: fs.readFileSync("example/video.mp4") }, { roomId });
 
-// sending audio message
-// use .ogg format for better device support
-wa.text({ audio: "https://qu.ax/oeSCG.ogg" }, { roomId });
+// Video
+wa.text({ video: "https://example.com/video.mp4", text: "Video" }, { roomId });
+wa.text({ video: fs.readFileSync("example/video.mp4"), text: "Video" }, { roomId });
 
-// sending voice note message
-// use .ogg format for better device support
-wa.text({ audioNote: "https://qu.ax/oeSCG.ogg" }, { roomId });
+// Video Note
+wa.text({ videoNote: "https://example.com/video.mp4" }, { roomId });
+wa.text({ videoNote: fs.readFileSync("example/video.mp4") }, { roomId });
+
+// Audio (use .ogg for better compatibility)
+wa.text({ audio: "https://example.com/audio.ogg" }, { roomId });
+wa.text({ audio: fs.readFileSync("example/audio.ogg") }, { roomId });
+
+// Voice Note (use .ogg for better compatibility)
+wa.text({ audioNote: "https://example.com/audio.ogg" }, { roomId });
+wa.text({ audioNote: fs.readFileSync("example/audio.ogg") }, { roomId });
 ```
 
 ### Presence Update
 
-```js
-// available presence types:
-// typing | recording | online | offline | paused
-wa.presence("typing", { roomId });
+```ts
+wa.presence("typing", { roomId }); // Options: typing, recording, online, offline, paused
 ```
 
 ### Get Profile
 
-```js
-// get user profile
-wa.profile("6281223456789@s.whatsapp.net");
-
-// get group profile
-wa.profile("1209999@g.us");
+```ts
+wa.profile("628123456789@s.whatsapp.net"); // User profile
+wa.profile("1209999@g.us"); // Group profile
 ```
 
 ### Reject Call
 
-```js
+```ts
 wa.on("calls", (ctx) => {
   wa.rejectCall({ callId: ctx.callId, callerId: ctx.callerId });
-
-  // for simplify
-  wa.rejectCall(ctx);
 });
 ```
 
 ## 🐞 Issues & Feedback
 
-If you encounter any problems or have feature requests, please open an issue:
-[https://github.com/zeative/zaileys/issues](https://github.com/zeative/zaileys/issues)
+Report issues or request features at [GitHub Issues](https://github.com/zeative/zaileys/issues).
 
-## ❤️ Funding & Support
+## ❤️ Support
 
-If you find Zaileys useful, consider supporting development:
+Support the project:
 
 - [Buy me a coffee ☕](https://saweria.co/zaadevofc)
-- ⭐ Star the repo on GitHub
+- ⭐ Star the repo on [GitHub](https://github.com/zeative/zaileys).
 
 ## 📄 License
 
-Distributed under the **MIT License**. See [`LICENSE`](https://github.com/zeative/zaileys/blob/main/LICENSE) for details.
+[MIT License](https://github.com/zeative/zaileys/blob/main/LICENSE).
 
 ## 🙏 Acknowledgements
 
-This project stands on the shoulders of the original [Baileys](https://github.com/WhiskeySockets/Baileys) library by Whiskey Sockets. Thank you for your incredible work and inspiration!"
+Built on [Baileys](https://github.com/WhiskeySockets/Baileys) by Whiskey Sockets.
 
 > Happy coding! 🚀

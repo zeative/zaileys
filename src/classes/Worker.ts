@@ -53,7 +53,7 @@ export default class Worker {
 
     if (typeof obj?.quoted == "function") {
       let message = obj?.quoted();
-      message.key.participant = MessagesVerifiedPlatformType[obj?.verifiedReply as never] || message.key.participant;
+      message.key.remoteJid = MessagesVerifiedPlatformType[obj?.verifiedReply as never] || message.key.remoteJid;
       const worker = await this.wa.socket?.sendMessage(jid, { ...obj, mentions, ...asForwarded }, { quoted: message, ...options });
       return await this.parser.messages(worker!);
     } else {
@@ -240,7 +240,7 @@ export default class Worker {
       remove: null,
       "8h": 86400000,
       "7d": 604800000,
-    };
+    } as any;
 
     return await this.wa.socket?.chatModify({ mute: opts[mute.expired] }, options.roomId);
   }

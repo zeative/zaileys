@@ -1,12 +1,12 @@
 import { ConnectionState, DisconnectReason, downloadMediaMessage, getContentType, getDevice, jidNormalizedUser, proto, WACallEvent, WASocket } from "baileys";
 import { Kysely } from "kysely";
+import QRCode from "qrcode";
 import { z } from "zod";
 import { DB } from "../database/schema";
 import { extractUrls, findWord, getMentions, normalizeText, removeKeys, toJson, toString } from "../helpers/utils";
 import { CallsParserBaseType } from "../types/parser/calls";
 import { MessagesMediaType, MessagesParserType } from "../types/parser/messages";
 import Client from "./Client";
-import QRCode from "qrcode";
 
 export default class Parser {
   maxReplies = 0;
@@ -19,6 +19,7 @@ export default class Parser {
 
     if (this.client.options?.authType === "qr" && qr) {
       this.client.stopSpinner("connection", false);
+      console.log();
       console.log(await QRCode.toString(qr, { type: "terminal", small: true }));
       this.client.startSpinner("qr", "Waiting for QR code scan...");
       this.socket?.ev.on("connection.update", () => this.client.stopSpinner("qr", false));
@@ -28,7 +29,7 @@ export default class Parser {
     if (connection === "close") {
       this.client.failSpinner("connection", "Connection closed");
       const code = (lastDisconnect?.error as any)?.output?.statusCode;
-      const isReconnect = code === DisconnectReason.loggedOut;
+      const isReconnect = code === DisconnectReason.restartRequired;
       console.log(lastDisconnect?.error?.message);
 
       if (code === 401 || code === 405 || code === 500) {
@@ -36,7 +37,7 @@ export default class Parser {
         return;
       }
 
-      if (isReconnect && this.client.options) {
+      if (isReconnect) {
         await this.client.initialize();
       }
     } else if (connection === "open") {
@@ -140,7 +141,7 @@ export default class Parser {
     }
 
     const media =
-      (message?.message?.protocolMessage?.editedMessage?.[contentType! as never] || (message?.message?.[contentType!] as any))?.message?.documentMessage ||
+      ((message?.message?.protocolMessage?.editedMessage?.[contentType! as never] as any) || message?.message?.[contentType!])?.message?.documentMessage ||
       (message?.message?.[contentType!] as any);
     if (payload.chatType != "text") {
       payload.media = {

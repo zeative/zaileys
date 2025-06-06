@@ -94,7 +94,7 @@ export class Client {
 
       const result = await this.socket.onWhatsApp(this.options.phoneNumber.toString() + "@s.whatsapp.net");
       if (!result![0].exists) {
-        this.failSpinner("pairing", "Phone is not registered in WhatsApp");
+        this.failSpinner("pairing", "Phone is not registered on WhatsApp");
         process.exit(1);
       }
 

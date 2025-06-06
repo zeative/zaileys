@@ -1,3 +1,33 @@
+import { AppDataSync, Fingerprint } from "../types/adapter/general";
+
+export const allocate = (str: string) => {
+  let p = str.length;
+
+  if (!p) {
+    return new Uint8Array(1);
+  }
+
+  let n = 0;
+
+  while (--p % 4 > 1 && str.charAt(p) === "=") {
+    ++n;
+  }
+
+  return new Uint8Array(Math.ceil(str.length * 3) / 4 - n).fill(0);
+};
+
+export const parseTimestamp = (timestamp: string | number | Long) => {
+  if (typeof timestamp === "string") {
+    return parseInt(timestamp, 10);
+  }
+
+  if (typeof timestamp === "number") {
+    return timestamp;
+  }
+
+  return timestamp;
+};
+
 export const toJson = (object = "") => {
   try {
     return JSON.parse(object);
@@ -60,4 +90,27 @@ export const removeKeys = <T extends Record<string, any>, K extends keyof any>(o
       .filter(([key]) => !keysToRemove.includes(key as K))
       .map(([key, value]) => [key, typeof value === "object" ? removeKeys(value, keysToRemove) : value])
   ) as Partial<T>;
+};
+
+export const fromObject = (args: AppDataSync) => {
+  const f: Fingerprint = {
+    ...args.fingerprint,
+    deviceIndexes: Array.isArray(args.fingerprint.deviceIndexes) ? args.fingerprint.deviceIndexes : [],
+  };
+
+  const message = {
+    keyData: Array.isArray(args.keyData) ? args.keyData : new Uint8Array(),
+    fingerprint: {
+      rawId: f.rawId || 0,
+      currentIndex: f.rawId || 0,
+      deviceIndexes: f.deviceIndexes,
+    },
+    timestamp: parseTimestamp(args.timestamp),
+  };
+
+  if (typeof args.keyData === "string") {
+    message.keyData = allocate(args.keyData);
+  }
+
+  return message;
 };

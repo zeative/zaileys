@@ -1,11 +1,11 @@
-import { Client } from "../src";
+import { Client } from "../dist";
 
 const wa = new Client({
   prefix: "/",
-  phoneNumber: 6287833764462,
-  authType: "pairing",
+  // phoneNumber: 6287833764462,
+  authType: "qr",
   citation: {
-    author: () => [628123456789],
+    author: () => [6285136635787],
   },
 });
 
@@ -17,7 +17,8 @@ wa.on("messages", async (ctx) => {
   if (ctx.isPrefix) {
     // text ===>>> /image
     if (ctx.text == "image") {
-      wa.text({ image: "https://github.com/zaadevofc.png" }, { roomId });
+      await wa.text({ image: "https://github.com/zaadevofc.png" }, { roomId });
+      await wa.text({ sticker: "https://github.com/zaadevofc.png" }, { roomId });
     }
 
     // text ===>>> /text
@@ -66,5 +67,9 @@ wa.on("messages", async (ctx) => {
 
   if (ctx.text == "combine") {
     wa.text("Verified message with forwarded", { roomId, quoted: message, verifiedReply: "whatsapp", asForwarded: true });
+  }
+
+  if (ctx.text == "combine") {
+    wa.text("Verified message with forwarded", { roomId, quoted: message, verifiedReply: "whatsapp" });
   }
 });

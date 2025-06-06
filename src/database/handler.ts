@@ -1,3 +1,4 @@
+import { BufferJSON, initAuthCreds } from "baileys";
 import Database from "better-sqlite3";
 import { mkdirSync, writeFileSync } from "fs";
 import { Kysely, MysqlDialect, PostgresDialect, SqliteDialect } from "kysely";
@@ -8,7 +9,7 @@ import { URL } from "url";
 import { z } from "zod";
 import Client from "../classes/Client";
 import Parser from "../classes/Parser";
-import { BufferJSON, fromObject, initAuthCreds } from "../helpers/adapter";
+import { fromObject } from "../helpers/utils";
 import { AuthAdapterHandlerType, AuthenticationCreds, SignalDataTypeMap } from "../types/adapter/general";
 import { AdapterDatabaseType } from "../types/classes/client";
 import type { DB } from "./schema";

@@ -35,6 +35,7 @@ export const ClientClassesBaseType = z.object({
   autoRead: z.boolean().optional().default(true),
   autoPresence: z.boolean().optional().default(true),
   autoRejectCall: z.boolean().optional().default(true),
+  loadLLMSchemas: z.boolean().optional().default(false),
   database: AdapterDatabaseType,
   citation: CitationType,
 });

@@ -54,11 +54,11 @@ export class Client {
     this.options = await ClientClassesType.parseAsync(this.props);
 
     this.startSpinner("db", "Initializing database...");
-    this.db = await ConnectDB(this.options.database.type, this.options.database.connection.url);
+    this.db = await ConnectDB(this.options);
     this.stopSpinner("db", true, "Database initialized");
 
     this.startSpinner("auth", "Setting up auth adapter...");
-    const { state, saveCreds } = await AuthAdapterHandler(this.db, this.chatId);
+    const { state, saveCreds } = await AuthAdapterHandler(this.db, this.chatId, this.options);
     this.stopSpinner("auth", true, "Auth adapter ready");
 
     this.startSpinner("store", "Setting up store adapter...");

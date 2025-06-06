@@ -14,9 +14,11 @@ import { AuthAdapterHandlerType, AuthenticationCreds, SignalDataTypeMap } from "
 import { AdapterDatabaseType } from "../types/classes/client";
 import type { DB } from "./schema";
 
-export const ConnectDB = (type: z.infer<typeof AdapterDatabaseType>["type"], url: string): Kysely<DB> => {
+export const ConnectDB = (opts: Client["options"]): Kysely<DB> => {
+  const { type, connection } = opts.database;
+
   if (type === "sqlite") {
-    const filepath = url || "./db/zaileys.db";
+    const filepath = connection.url || "./db/zaileys.db";
     const resolvedPath = path.resolve(filepath);
 
     mkdirSync(path.dirname(resolvedPath), { recursive: true });
@@ -29,7 +31,7 @@ export const ConnectDB = (type: z.infer<typeof AdapterDatabaseType>["type"], url
     });
   }
 
-  const conn = new URL(url);
+  const conn = new URL(connection.url);
   const protocol = conn.protocol.replace(":", "");
 
   if (type === "mysql") {
@@ -63,59 +65,98 @@ export const ConnectDB = (type: z.infer<typeof AdapterDatabaseType>["type"], url
   throw new Error(`Unsupported database protocol: ${protocol}`);
 };
 
-export const MigrateDB = async (db: Kysely<DB>) => {
-  await db.schema
-    .createTable("auth")
-    .ifNotExists()
-    .addColumn("session", "varchar(50)", (col) => col.notNull())
-    .addColumn("id", "varchar(80)", (col) => col.notNull())
-    .addColumn("value", "text", (col) => col.defaultTo(null))
-    .addUniqueConstraint("auth_session_id_unique", ["session", "id"])
-    .execute();
+export const MigrateDB = async (db: Kysely<DB>, opts: Client["options"]) => {
+  await db.transaction().execute(async (trx) => {
+    await trx.schema
+      .createTable("auth")
+      .ifNotExists()
+      .addColumn("session", "char(36)", (col) => col.notNull())
+      .addColumn("id", "char(36)", (col) => col.notNull().primaryKey())
+      .addColumn("value", "text")
+      .addUniqueConstraint("auth_session_id_unique", ["session", "id"])
+      .execute();
 
-  await db.schema
-    .createTable("chats")
-    .ifNotExists()
-    .addColumn("session", "varchar(50)", (col) => col.notNull())
-    .addColumn("id", "varchar(80)", (col) => col.notNull())
-    .addColumn("value", "text", (col) => col.defaultTo(null))
-    .addUniqueConstraint("chats_session_id_unique", ["session", "id"])
-    .execute();
+    await trx.schema
+      .createTable("chats")
+      .ifNotExists()
+      .addColumn("session", "char(36)", (col) => col.notNull())
+      .addColumn("id", "char(36)", (col) => col.notNull().primaryKey())
+      .addColumn("value", "text")
+      .addUniqueConstraint("chats_session_id_unique", ["session", "id"])
+      .execute();
 
-  await db.schema
-    .createTable("contacts")
-    .ifNotExists()
-    .addColumn("session", "varchar(50)", (col) => col.notNull())
-    .addColumn("id", "varchar(80)", (col) => col.notNull())
-    .addColumn("value", "text", (col) => col.defaultTo(null))
-    .addUniqueConstraint("contacts_session_id_unique", ["session", "id"])
-    .execute();
+    await trx.schema
+      .createTable("contacts")
+      .ifNotExists()
+      .addColumn("session", "char(36)", (col) => col.notNull())
+      .addColumn("id", "char(36)", (col) => col.notNull().primaryKey())
+      .addColumn("value", "text")
+      .addUniqueConstraint("contacts_session_id_unique", ["session", "id"])
+      .execute();
 
-  await db.schema
-    .createTable("messages")
-    .ifNotExists()
-    .addColumn("session", "varchar(50)", (col) => col.notNull())
-    .addColumn("id", "varchar(80)", (col) => col.notNull())
-    .addColumn("value", "text", (col) => col.defaultTo(null))
-    .addUniqueConstraint("messages_session_id_unique", ["session", "id"])
-    .execute();
+    await trx.schema
+      .createTable("messages")
+      .ifNotExists()
+      .addColumn("session", "char(36)", (col) => col.notNull())
+      .addColumn("id", "char(36)", (col) => col.notNull().primaryKey())
+      .addColumn("value", "text")
+      .addUniqueConstraint("messages_session_id_unique", ["session", "id"])
+      .execute();
 
-  await db.schema.createIndex("auth_session_idx").ifNotExists().on("auth").column("session").execute();
-  await db.schema.createIndex("auth_id_idx").ifNotExists().on("auth").column("id").execute();
-  await db.schema.createIndex("chats_session_idx").ifNotExists().on("chats").column("session").execute();
-  await db.schema.createIndex("chats_id_idx").ifNotExists().on("chats").column("id").execute();
-  await db.schema.createIndex("contacts_session_idx").ifNotExists().on("contacts").column("session").execute();
-  await db.schema.createIndex("contacts_id_idx").ifNotExists().on("contacts").column("id").execute();
-  await db.schema.createIndex("messages_session_idx").ifNotExists().on("messages").column("session").execute();
-  await db.schema.createIndex("messages_id_idx").ifNotExists().on("messages").column("id").execute();
+    if (opts.loadLLMSchemas) {
+      await trx.schema
+        .createTable("llm_messages")
+        .ifNotExists()
+        .addColumn("uniqueId", "char(36)", (col) => col.notNull().primaryKey())
+        .addColumn("channelId", "char(36)")
+        .addColumn("model", "char(36)")
+        .addColumn("role", "varchar(20)", (col) => col.notNull())
+        .addColumn("content", "text", (col) => col.notNull())
+        .addColumn("additional", "text")
+        .addUniqueConstraint("llm_messages_id_unique", ["uniqueId"])
+        .execute();
+
+      await trx.schema
+        .createTable("llm_personalization")
+        .ifNotExists()
+        .addColumn("uniqueId", "char(36)", (col) => col.notNull().primaryKey())
+        .addColumn("senderId", "char(36)")
+        .addColumn("content", "text", (col) => col.notNull())
+        .addUniqueConstraint("llm_personalization_id_unique", ["uniqueId"])
+        .execute();
+
+      await trx.schema
+        .createTable("llm_rag")
+        .ifNotExists()
+        .addColumn("metadata.id", "char(36)", (col) => col.notNull().primaryKey())
+        .addColumn("pageContent", "text", (col) => col.notNull())
+        .addUniqueConstraint("llm_rag_id_unique", ["metadata.id"])
+        .execute();
+    }
+
+    await Promise.all([
+      trx.schema.createIndex("auth_session_id_idx").ifNotExists().on("auth").columns(["session", "id"]).execute(),
+      trx.schema.createIndex("chats_session_id_idx").ifNotExists().on("chats").columns(["session", "id"]).execute(),
+      trx.schema.createIndex("contacts_session_id_idx").ifNotExists().on("contacts").columns(["session", "id"]).execute(),
+      trx.schema.createIndex("messages_session_id_idx").ifNotExists().on("messages").columns(["session", "id"]).execute(),
+      trx.schema.createIndex("llm_messages_uniqueId_idx").ifNotExists().on("llm_messages").column("uniqueId").execute(),
+      trx.schema.createIndex("llm_messages_channelId_idx").ifNotExists().on("llm_messages").column("channelId").execute(),
+      trx.schema.createIndex("llm_messages_model_idx").ifNotExists().on("llm_messages").column("model").execute(),
+      trx.schema.createIndex("llm_messages_role_idx").ifNotExists().on("llm_messages").column("role").execute(),
+      trx.schema.createIndex("llm_personalization_uniqueId_idx").ifNotExists().on("llm_personalization").column("uniqueId").execute(),
+      trx.schema.createIndex("llm_personalization_senderId_idx").ifNotExists().on("llm_personalization").column("senderId").execute(),
+      trx.schema.createIndex("llm_rag_id_idx").ifNotExists().on("llm_rag").column("metadata.id").execute(),
+      trx.schema.createIndex("llm_rag_pageContent_idx").ifNotExists().on("llm_rag").column("pageContent").execute(),
+    ]);
+  });
 };
 
-export const AuthAdapterHandler = async (db: Kysely<DB>, session: string): AuthAdapterHandlerType => {
+export const AuthAdapterHandler = async (db: Kysely<DB>, session: string, opts: Client["options"]): AuthAdapterHandlerType => {
   const TABLE_NAME = "auth";
   const RETRY_DELAY = 200;
   const MAX_RETRIES = 10;
 
-  await MigrateDB(db);
+  await MigrateDB(db, opts);
 
   const retry = async <T>(fn: () => Promise<T>): Promise<T> => {
     for (let x = 0; x < MAX_RETRIES; x++) {

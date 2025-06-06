@@ -145,6 +145,7 @@ export const MessagesDeviceEnumType = z.enum(["unknown", "android", "ios", "desk
 export const MessagesParserBaseType = z.object({
   chatId: z.string(),
   channelId: z.string(),
+  uniqueId: z.string(),
   receiverId: z.string(),
   receiverName: z.string(),
   roomId: z.string(),

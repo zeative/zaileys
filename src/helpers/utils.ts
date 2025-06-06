@@ -28,6 +28,11 @@ export const parseTimestamp = (timestamp: string | number | Long) => {
   return timestamp;
 };
 
+export const randomChar = (length: number) => {
+  const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  return Array.from({ length }, () => chars[Math.floor(Math.random() * chars.length)]).join("");
+};
+
 export const toJson = (object = "") => {
   try {
     return JSON.parse(object);

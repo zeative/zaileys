@@ -13,12 +13,13 @@ export default class Parser {
   constructor(private socket: WASocket, private client: Client, private db: Kysely<DB>) {}
 
   async connection(update: Partial<ConnectionState>) {
+      this.client.stopSpinner("connection", false);
     this.client.startSpinner("connection", "Connecting to WhatsApp...");
     const { connection, lastDisconnect, qr } = update;
     this.client.emit("connection", { status: "connecting" });
 
     if (this.client.options?.authType === "qr" && qr) {
-      this.client.stopSpinner("connection", false);
+      this.client.stopSpinner("reconnect", false);
       console.log();
       console.log(await QRCode.toString(qr, { type: "terminal", small: true }));
       this.client.startSpinner("qr", "Waiting for QR code scan...");
@@ -27,17 +28,17 @@ export default class Parser {
     }
 
     if (connection === "close") {
-      this.client.failSpinner("connection", "Connection closed");
       const code = (lastDisconnect?.error as any)?.output?.statusCode;
-      const isReconnect = code === DisconnectReason.restartRequired;
-      console.log(lastDisconnect?.error?.message);
+      const isReconnect = code === DisconnectReason.restartRequired || code === DisconnectReason.connectionLost;
+      this.client.failSpinner("connection", `[Connection Closed] [${code}]\n${lastDisconnect?.error?.message}\n`);
 
       if (code === 401 || code === 405 || code === 500) {
         console.error("Invalid session, please delete manually");
         return;
       }
 
-      if (isReconnect) {
+      if (isReconnect && connection == "close") {
+        await this.client.startSpinner("reconnect", "Automatically restarting...");
         await this.client.initialize();
       }
     } else if (connection === "open") {
@@ -88,6 +89,7 @@ export default class Parser {
 
     payload.chatId = message?.message?.protocolMessage?.key?.id || message?.key?.id!;
     payload.channelId = "";
+    payload.uniqueId = "";
 
     payload.receiverId = jidNormalizedUser(this.socket.user?.id);
     payload.receiverName = (this.socket.user?.name || this.socket.user?.verifiedName)!;
@@ -131,6 +133,7 @@ export default class Parser {
     payload.replied = null;
 
     payload.channelId = payload.roomId.split("@")[0]! + "-" + payload.senderId.split("@")[0]!;
+    payload.uniqueId = payload.channelId + "-" + payload.chatId;
 
     const citation = this.client.options?.citation;
     if (Object.keys(citation!).length) {

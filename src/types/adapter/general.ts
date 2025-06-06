@@ -1,10 +1,13 @@
+import { z } from "zod";
+import { llmMessagesTable } from "../../database/schema";
+
 type Awaitable<T> = T | Promise<T>;
 
 export type AuthAdapterHandlerType = Promise<{
   state: AuthenticationState;
   saveCreds: () => Promise<void>;
   clear: () => Promise<void>;
-  removeCreds: () => Promise<void>
+  removeCreds: () => Promise<void>;
 }>;
 
 type Contact = {

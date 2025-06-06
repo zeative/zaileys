@@ -442,7 +442,7 @@ export default class Worker {
   }
 
   async getRAGs(keyword: string) {
-    if (!this.wa.client.options?.loadLLMSchemas) throw new Error("LLM schemas not loaded");
+    if (!this.wa.client.options?.loadLLMSchemas) throw new Error("LLM schemas are not loaded. Please enable loadLLMSchemas in Client options.");
 
     const key = keyword.toLowerCase().trim();
     const cached = this.caching.get<z.infer<typeof llmRAGTable>[]>(key);

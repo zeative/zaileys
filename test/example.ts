@@ -2,11 +2,10 @@ import { Client } from "../src";
 
 const wa = new Client({
   prefix: "/",
-  // phoneNumber: 6287833764462,
   authType: "qr",
   loadLLMSchemas: true,
   citation: {
-    author: () => [6285136635787],
+    author: () => [628123456789],
   },
 });
 

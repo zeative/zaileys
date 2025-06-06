@@ -19,7 +19,6 @@ export default class Parser {
     this.client.emit("connection", { status: "connecting" });
 
     if (this.client.options?.authType === "qr" && qr) {
-      this.client.stopSpinner("reconnect", false);
       console.log();
       console.log(await QRCode.toString(qr, { type: "terminal", small: true }));
       this.client.startSpinner("qr", "Waiting for QR code scan...");
@@ -38,7 +37,6 @@ export default class Parser {
       }
 
       if (isReconnect && connection == "close") {
-        await this.client.startSpinner("reconnect", "Automatically restarting...");
         await this.client.initialize();
       }
     } else if (connection === "open") {

@@ -3,7 +3,7 @@ import { createPartFromUri, createUserContent, GoogleGenAI } from "@google/genai
 import { Client } from "../src";
 // import { Client } from "zaileys";
 
-const agent = new GoogleGenAI({ apiKey: "AIzaSyCE8ml8-tcfXVChsfYiqR-Z1W1ovHZSIh8" });
+const agent = new GoogleGenAI({ apiKey: "YOUR_GEMINI_APIKEY" });
 
 const wa = new Client({
   authType: "qr", // has issue with pairing code, just use qr only

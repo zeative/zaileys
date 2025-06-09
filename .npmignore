@@ -2,10 +2,11 @@ node_modules
 .zaileys
 src
 test
+example
 db
 session
 sample
-
+.env
 .git*
 .npm*
 bun*

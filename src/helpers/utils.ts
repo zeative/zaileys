@@ -1,4 +1,5 @@
 import { AppDataSync, Fingerprint } from "../types/adapter/general";
+import os from "node:os";
 
 export const allocate = (str: string) => {
   let p = str.length;
@@ -14,6 +15,18 @@ export const allocate = (str: string) => {
   }
 
   return new Uint8Array(Math.ceil(str.length * 3) / 4 - n).fill(0);
+};
+
+export const getLocalIP = () => {
+  const interfaces = os.networkInterfaces();
+  for (const iface of Object.values(interfaces)) {
+    for (const addr of iface!) {
+      if (addr.family === "IPv4" && !addr.internal) {
+        return addr.address;
+      }
+    }
+  }
+  return "localhost";
 };
 
 export const parseTimestamp = (timestamp: string | number | Long) => {

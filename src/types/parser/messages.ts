@@ -159,6 +159,7 @@ export const MessagesParserBaseType = z.object({
   text: z.string().nullable(),
   links: z.string().array(),
   isPrefix: z.boolean(),
+  isSpam: z.boolean(),
   isFromMe: z.boolean(),
   isTagMe: z.boolean(),
   isGroup: z.boolean(),

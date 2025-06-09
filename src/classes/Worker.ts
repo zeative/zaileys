@@ -1,9 +1,10 @@
-import { AnyMessageContent, jidNormalizedUser, MiscMessageGenerationOptions } from "baileys";
+import { AnyMessageContent, BinaryNode, generateWAMessage, getWAUploadToServer, jidNormalizedUser, MiscMessageGenerationOptions } from "baileys";
 import * as levenshtein from "fast-levenshtein";
 import { sql } from "kysely";
 import NodeCache from "node-cache";
 import { z } from "zod";
 import { extractJids, toJson } from "../helpers/utils";
+import { chatsAdapter } from "../types/adapter/chats";
 import { addRAGType, llmMessagesTable, llmPersonalizationTable, llmRAGTable, llmsAdapter } from "../types/adapter/llms";
 import { MessagesVerifiedPlatformType } from "../types/parser/messages";
 import {
@@ -55,67 +56,78 @@ export default class Worker {
       this.wa.socket?.sendPresenceUpdate("recording", jid);
     }
 
+    const uploadToServer = async (stream: string, opts: any) => await this.wa?.socket?.waUploadToServer(stream, opts)!;
+
     const obj = content as any;
-    const asForwarded = { contextInfo: { isForwarded: !!obj?.asForwarded } };
+    const nodes = [] as BinaryNode[];
+
+    const asForwarded = { contextInfo: { isForwarded: !!obj?.asForwarded, mentionedJid: mentions } };
+    const asAI = jid.match("@s.whatsapp.net") && !!obj?.asAI;
+
+    if (asAI) {
+      nodes.push({
+        attrs: {
+          biz_bot: "1",
+        },
+        tag: "bot",
+      });
+    }
 
     if (typeof obj?.quoted == "function") {
       let message = obj?.quoted();
       message.key.remoteJid = MessagesVerifiedPlatformType[obj?.verifiedReply as never] || message.key.remoteJid;
-      const worker = await this.wa.socket?.sendMessage(jid, { ...obj, mentions, ...asForwarded }, { quoted: message, ...options });
-      return await this.parser.messages(worker!);
-    } else {
-      const worker = await this.wa.socket?.sendMessage(jid, { ...obj, mentions, ...asForwarded }, options);
-      return await this.parser.messages(worker!);
+      options = { ...options, quoted: message };
     }
+
+    const generate = await generateWAMessage(
+      jid,
+      { ...obj, ...asForwarded },
+      {
+        userJid: jid,
+        upload: uploadToServer,
+        ...options,
+      }
+    );
+
+    await this.wa.socket?.relayMessage(jid, generate.message!, {
+      additionalNodes: nodes,
+    });
+
+    return await this.parser.messages(generate, true, true);
   }
 
-  async text(text: z.infer<typeof TextWorkerBaseType>, options: z.infer<typeof TextWorkerOptionsType>) {
-    text = TextWorkerBaseType.parse(text);
-    options = TextWorkerOptionsType.parse(options);
+  async text(input: z.infer<typeof TextWorkerBaseType>, options: z.infer<typeof TextWorkerOptionsType>) {
+    const text = TextWorkerBaseType.parse(input);
+    const opts = TextWorkerOptionsType.parse(options);
 
-    if (typeof text == "string") {
-      return await this.sendMessage(options.roomId, { text, ...options });
+    if (typeof text === "string") {
+      return await this.sendMessage(opts.roomId, { text, ...opts });
     }
 
-    if (typeof text == "object") {
-      const key = Object.keys(text);
-      const obj = text as any;
+    interface MediaMessage {
+      caption?: string;
+      viewOnce?: boolean;
+      [key: string]: any;
+    }
 
-      if (key.includes("image")) {
-        const media = typeof obj.image == "string" ? { url: obj.image } : obj.image;
-        return await this.sendMessage(options.roomId, { caption: obj?.text, image: media, viewOnce: !!options.asViewOnce, ...options });
-      }
+    const message: any = { caption: (text as any)?.text, viewOnce: !!opts.asViewOnce, ...opts };
+    const mediaTypes: Record<string, (media: any) => MediaMessage> = {
+      image: (media) => ({ image: typeof media === "string" ? { url: media } : media }),
+      video: (media) => ({ video: typeof media === "string" ? { url: media } : media, ptv: false }),
+      videoNote: (media) => ({ video: typeof media === "string" ? { url: media } : media, ptv: true }),
+      gif: (media) => ({ video: typeof media === "string" ? { url: media } : media, gifPlayback: true }),
+      audio: (media) => ({ audio: typeof media === "string" ? { url: media } : media }),
+      audioNote: (media) => ({ audio: typeof media === "string" ? { url: media } : media, ptt: true }),
+      sticker: (media) => ({ sticker: typeof media === "string" ? { url: media } : media }),
+    };
 
-      if (key.includes("video")) {
-        const media = typeof obj.video == "string" ? { url: obj.video } : obj.video;
-        return await this.sendMessage(options.roomId, { caption: obj?.text, video: media, ptv: false, viewOnce: !!options.asViewOnce, ...options });
-      }
-
-      if (key.includes("videoNote")) {
-        const media = typeof obj.videoNote == "string" ? { url: obj.videoNote } : obj.videoNote;
-        return await this.sendMessage(options.roomId, { caption: obj?.text, video: media, ptv: true, ...options });
-      }
-
-      if (key.includes("gif")) {
-        const media = typeof obj.gif == "string" ? { url: obj.gif } : obj.gif;
-        return await this.sendMessage(options.roomId, { caption: obj?.text, video: media, gifPlayback: true, viewOnce: !!options.asViewOnce, ...options });
-      }
-
-      if (key.includes("audio")) {
-        const media = typeof obj.audio == "string" ? { url: obj.audio } : obj.audio;
-        return await this.sendMessage(options.roomId, { caption: obj?.text, audio: media, viewOnce: !!options.asViewOnce, ...options });
-      }
-
-      if (key.includes("audioNote")) {
-        const media = typeof obj.audioNote == "string" ? { url: obj.audioNote } : obj.audioNote;
-        return await this.sendMessage(options.roomId, { caption: obj?.text, audio: media, ptt: true, viewOnce: !!options.asViewOnce, ...options });
-      }
-
-      if (key.includes("sticker")) {
-        const media = typeof obj.sticker == "string" ? { url: obj.sticker } : obj.sticker;
-        return await this.sendMessage(options.roomId, { caption: obj?.text, sticker: media, ...options });
+    for (const [key, handler] of Object.entries(mediaTypes)) {
+      if (key in text) {
+        return await this.sendMessage(opts.roomId, { ...message, ...handler((text as any)[key]) });
       }
     }
+
+    throw new Error("Invalid media type");
   }
 
   async location(loc: z.infer<typeof LocationWorkerBaseType>, options: z.infer<typeof LocationWorkerOptionsType>) {
@@ -469,6 +481,12 @@ export default class Worker {
     return allDocs || [];
   }
 
+  async getMessage(chatId: string) {
+    const result = await this.wa.db?.selectFrom("messages").selectAll().where("id", "=", chatId).executeTakeFirst();
+    if (!result) return null;
+    return result ? await this.parser.messages(toJson(result.value!), true, true) : null;
+  }
+
   llms: llmsAdapter = {
     addCompletion: this.addCompletion.bind(this),
     deleteCompletion: this.deleteCompletion.bind(this),
@@ -488,5 +506,9 @@ export default class Worker {
     clearRAGs: this.clearRAGs.bind(this),
     getRAG: this.getRAG.bind(this),
     getRAGs: this.getRAGs.bind(this),
+  };
+
+  chats: chatsAdapter = {
+    getMessage: this.getMessage.bind(this),
   };
 }

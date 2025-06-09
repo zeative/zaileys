@@ -1,6 +1,6 @@
 {
   "name": "zaileys",
-  "version": "1.1.29",
+  "version": "1.1.30",
   "description": "Zaileys - Simplified WhatsApp Node.js API",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -14,7 +14,7 @@
   },
   "scripts": {
     "build": "tsup",
-    "dev": "tsx watch test/example.ts",
+    "dev": "tsx watch examples/citation.ts",
     "clean": "rm -rf dist session"
   },
   "keywords": [
@@ -61,11 +61,14 @@
     "zod": "^3.24.4"
   },
   "dependencies": {
+    "@hono/node-server": "^1.14.4",
     "baileys": "^6.7.18",
     "better-sqlite3": "^11.10.0",
+    "bottleneck": "^2.19.5",
     "events": "^3.3.0",
     "fast-levenshtein": "^3.0.0",
     "figlet": "^1.8.1",
+    "hono": "^4.7.11",
     "jimp": "^0.16.1",
     "kysely": "^0.28.2",
     "mysql2": "^3.14.1",

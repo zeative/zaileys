@@ -13,6 +13,7 @@ import { fromObject } from "../helpers/utils";
 import { AuthAdapterHandlerType, AuthenticationCreds, SignalDataTypeMap } from "../types/adapter/general";
 import { AdapterDatabaseType } from "../types/classes/client";
 import type { DB } from "./schema";
+import { sendWebhooks } from "../adapter/webhooks";
 
 export const ConnectDB = (opts: Client["options"]): Kysely<DB> => {
   const { type, connection } = opts.database;
@@ -132,6 +133,17 @@ export const MigrateDB = async (db: Kysely<DB>, opts: Client["options"]) => {
         .addColumn("pageContent", "text", (col) => col.notNull())
         .addUniqueConstraint("llm_rag_id_unique", ["metadata.id"])
         .execute();
+
+      await Promise.all([
+        trx.schema.createIndex("llm_messages_uniqueId_idx").ifNotExists().on("llm_messages").column("uniqueId").execute(),
+        trx.schema.createIndex("llm_messages_channelId_idx").ifNotExists().on("llm_messages").column("channelId").execute(),
+        trx.schema.createIndex("llm_messages_model_idx").ifNotExists().on("llm_messages").column("model").execute(),
+        trx.schema.createIndex("llm_messages_role_idx").ifNotExists().on("llm_messages").column("role").execute(),
+        trx.schema.createIndex("llm_personalization_uniqueId_idx").ifNotExists().on("llm_personalization").column("uniqueId").execute(),
+        trx.schema.createIndex("llm_personalization_senderId_idx").ifNotExists().on("llm_personalization").column("senderId").execute(),
+        trx.schema.createIndex("llm_rag_id_idx").ifNotExists().on("llm_rag").column("metadata.id").execute(),
+        trx.schema.createIndex("llm_rag_pageContent_idx").ifNotExists().on("llm_rag").column("pageContent").execute(),
+      ]);
     }
 
     await Promise.all([
@@ -139,14 +151,6 @@ export const MigrateDB = async (db: Kysely<DB>, opts: Client["options"]) => {
       trx.schema.createIndex("chats_session_id_idx").ifNotExists().on("chats").columns(["session", "id"]).execute(),
       trx.schema.createIndex("contacts_session_id_idx").ifNotExists().on("contacts").columns(["session", "id"]).execute(),
       trx.schema.createIndex("messages_session_id_idx").ifNotExists().on("messages").columns(["session", "id"]).execute(),
-      trx.schema.createIndex("llm_messages_uniqueId_idx").ifNotExists().on("llm_messages").column("uniqueId").execute(),
-      trx.schema.createIndex("llm_messages_channelId_idx").ifNotExists().on("llm_messages").column("channelId").execute(),
-      trx.schema.createIndex("llm_messages_model_idx").ifNotExists().on("llm_messages").column("model").execute(),
-      trx.schema.createIndex("llm_messages_role_idx").ifNotExists().on("llm_messages").column("role").execute(),
-      trx.schema.createIndex("llm_personalization_uniqueId_idx").ifNotExists().on("llm_personalization").column("uniqueId").execute(),
-      trx.schema.createIndex("llm_personalization_senderId_idx").ifNotExists().on("llm_personalization").column("senderId").execute(),
-      trx.schema.createIndex("llm_rag_id_idx").ifNotExists().on("llm_rag").column("metadata.id").execute(),
-      trx.schema.createIndex("llm_rag_pageContent_idx").ifNotExists().on("llm_rag").column("pageContent").execute(),
     ]);
   });
 };
@@ -261,7 +265,10 @@ export const StoreAdapterHandler = async (client: Client, db: Kysely<DB>, sessio
 
       socket?.ev.on("call", async (callers) => {
         for (const caller of callers) {
-          await parser.calls(caller);
+          const data = await parser.calls(caller);
+          if (client.options.ignoreMe && data) {
+            await sendWebhooks(client.options.webhooks?.url!, data);
+          }
         }
       });
 
@@ -299,7 +306,12 @@ export const StoreAdapterHandler = async (client: Client, db: Kysely<DB>, sessio
         for (const message of messages) {
           if (!message.message) return;
           if (message.message?.protocolMessage) return;
-          await parser.messages(message);
+
+          const data = await parser.messages(message);
+          if (client.options.ignoreMe && data) {
+            await sendWebhooks(client.options.webhooks?.url!, data);
+          }
+
           await db
             .insertInto("messages")
             .values({ session, id: message.key.id!, value: JSON.stringify(message) })
@@ -336,6 +348,10 @@ export const StoreAdapterHandler = async (client: Client, db: Kysely<DB>, sessio
       socket?.ev.on("group-participants.update", async (event) => {
         const metadata = await socket?.groupMetadata(event.id);
         client.cache.set(event.id, metadata);
+      });
+
+      socket?.ev.on("idle-webhooks" as any, async (data) => {
+        await parser.webhooks(data);
       });
     },
   };

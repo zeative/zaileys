@@ -26,6 +26,15 @@ export const CitationType = z
     return transform;
   });
 
+const LimiterType = z.object({
+  durationMs: z.number(),
+  maxMessages: z.number()
+}).optional();
+
+const WebhooksType = z.object({
+  url: z.string()
+}).optional();
+
 export const ClientClassesBaseType = z.object({
   prefix: z.string().optional(),
   ignoreMe: z.boolean().optional().default(true),
@@ -36,6 +45,8 @@ export const ClientClassesBaseType = z.object({
   autoPresence: z.boolean().optional().default(true),
   autoRejectCall: z.boolean().optional().default(true),
   loadLLMSchemas: z.boolean().optional().default(false),
+  webhooks: WebhooksType,
+  limiter: LimiterType,
   database: AdapterDatabaseType,
   citation: CitationType,
 });

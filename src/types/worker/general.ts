@@ -5,36 +5,20 @@ export const MediaInputWorkerType = z.union([z.string().url(), z.instanceof(Buff
 
 export const TextWorkerBaseType = z.union([
   z.string(),
-  z.object({
-    image: MediaInputWorkerType,
-    text: z.string().optional(),
-  }),
-  z.object({
-    video: MediaInputWorkerType,
-    text: z.string().optional(),
-  }),
-  z.object({
-    videoNote: MediaInputWorkerType,
-  }),
-  z.object({
-    gif: MediaInputWorkerType,
-    text: z.string().optional(),
-  }),
-  z.object({
-    audio: MediaInputWorkerType,
-  }),
-  z.object({
-    audioNote: MediaInputWorkerType,
-  }),
-  z.object({
-    sticker: MediaInputWorkerType,
-  }),
+  z.object({ image: MediaInputWorkerType, text: z.string().optional() }).strict(),
+  z.object({ video: MediaInputWorkerType, text: z.string().optional() }).strict(),
+  z.object({ videoNote: MediaInputWorkerType }).strict(),
+  z.object({ gif: MediaInputWorkerType, text: z.string().optional() }).strict(),
+  z.object({ audio: MediaInputWorkerType }).strict(),
+  z.object({ audioNote: MediaInputWorkerType }).strict(),
+  z.object({ sticker: MediaInputWorkerType }).strict(),
 ]);
 
 export const TextWorkerOptionsType = z.object({
   roomId: z.string(),
   asForwarded: z.boolean().optional(),
   asViewOnce: z.boolean().optional(),
+  asAI: z.boolean().optional(),
   verifiedReply: z.enum(["whatsapp", "meta", "chatgpt", "copilot", "instagram", "tiktok"]).optional(),
   quoted: z.function().returns(z.record(z.string(), z.any())).optional(),
 });

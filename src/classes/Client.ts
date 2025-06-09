@@ -12,6 +12,7 @@ import { toJson } from "../helpers/utils";
 import { ClientClassesType } from "../types/classes/client";
 import { EventCallbackType, EventEnumType } from "../types/classes/event";
 import Worker from "./Worker";
+import { startWebhooks } from "../adapter/webhooks";
 
 const displayBanner = (text: string = "ZAILEYS"): Promise<string> => {
   return new Promise((resolve) => {
@@ -114,6 +115,9 @@ export class Client {
     this.worker = new Worker({ client: this, db: this.db!, socket: this.socket });
     this.socket?.ev.on("creds.update", saveCreds);
     store.bind(this.socket);
+
+    this.startSpinner("webhooks", "Starting webhooks server...");
+    startWebhooks(this, this.socket);
   }
 
   startSpinner(key: string, message: string): Ora {

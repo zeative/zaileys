@@ -3,17 +3,22 @@ import { Kysely } from "kysely";
 import QRCode from "qrcode";
 import { z } from "zod";
 import { DB } from "../database/schema";
-import { extractUrls, findWord, getMentions, normalizeText, removeKeys, toJson, toString } from "../helpers/utils";
+import { extractUrls, findWord, getMentions, normalizeText, randomChar, removeKeys, toJson, toString } from "../helpers/utils";
 import { CallsParserBaseType } from "../types/parser/calls";
 import { MessagesMediaType, MessagesParserType } from "../types/parser/messages";
 import Client from "./Client";
+import Bottleneck from "bottleneck";
+import { limiter } from "../adapter/limiter";
+import { WebhooksParserBaseType } from "../types/parser/webhooks";
+import { Context } from "hono";
+import { BlankEnv, BlankInput } from "hono/types";
 
 export default class Parser {
-  maxReplies = 0;
+  private maxReplies = 0;
+
   constructor(private socket: WASocket, private client: Client, private db: Kysely<DB>) {}
 
   async connection(update: Partial<ConnectionState>) {
-      this.client.stopSpinner("connection", false);
     this.client.startSpinner("connection", "Connecting to WhatsApp...");
     const { connection, lastDisconnect, qr } = update;
     this.client.emit("connection", { status: "connecting" });
@@ -43,9 +48,11 @@ export default class Parser {
       this.client.stopSpinner("connection", true, "Connected to WhatsApp\n");
       this.client.emit("connection", { status: "open" });
     }
+
+    this.client.stopSpinner("connection", false);
   }
 
-  async messages(message: proto.IWebMessageInfo, isReplied?: boolean) {
+  async messages(message: proto.IWebMessageInfo, isReplied?: boolean, isExtract?: boolean) {
     if (
       message?.messageStubType ||
       message?.messageStubParameters?.length ||
@@ -55,7 +62,8 @@ export default class Parser {
       !message?.message
     )
       return null;
-    if (this.client.options?.ignoreMe && message?.key?.fromMe && message?.key?.remoteJid != "status@broadcast" && !message?.participant) return null;
+    if (this.client.options?.ignoreMe && message?.key?.fromMe && !this.maxReplies && !isExtract && message?.key?.remoteJid != "status@broadcast" && !message?.participant)
+      return null;
 
     if (this.client.options?.autoRead) {
       await this.socket.readMessages([message?.key]);
@@ -112,6 +120,7 @@ export default class Parser {
     payload.links = [];
 
     payload.isPrefix = false;
+    payload.isSpam = false;
     payload.isFromMe = message?.key?.fromMe!;
     payload.isTagMe = false;
     payload.isGroup = payload.roomId.includes("@g.us")!;
@@ -125,6 +134,16 @@ export default class Parser {
     payload.isBroadcast = !!message?.broadcast;
     payload.isEphemeral = false;
     payload.isForwarded = false;
+
+    if (!isReplied && !isExtract) {
+      const limiting = await limiter(payload.roomId, this.client.options.limiter?.maxMessages!, this.client.options.limiter?.durationMs!);
+      payload.isSpam = limiting;
+    }
+
+    if (payload.isFromMe) {
+      payload.senderId = payload.receiverId;
+      payload.senderName = payload.receiverName;
+    }
 
     payload.citation = null;
     payload.media = null;
@@ -187,6 +206,8 @@ export default class Parser {
       } else {
         payload.replied = (await this.messages(replied, true)) as never;
       }
+
+      this.maxReplies = 0;
     }
 
     const text = typeof media == "string" ? media : media?.text || media?.caption || media?.name || media?.displayName || "";
@@ -233,5 +254,38 @@ export default class Parser {
     payload.isGroup = !!caller.isGroup;
 
     this.client.emit("calls", payload);
+  }
+
+  async webhooks(c: Context<BlankEnv, "/webhooks", BlankInput>) {
+    let raw;
+    const method = c.req.method;
+    const query = c.req.query();
+    const type = c.req.header("content-type") || "";
+    const data = { query, json: null, form: null, raw: null } as any;
+
+    if (method != "GET") {
+      if (type.includes("application/json")) {
+        data.json = await c.req.json().catch(() => null);
+        raw = await c.req.text();
+      } else if (type.includes("application/x-www-form-urlencoded") || type.includes("multipart/form-data")) {
+        data.form = await c.req.parseBody().catch(() => null);
+        raw = await c.req.text();
+      } else {
+        raw = await c.req.text().catch(() => null);
+        data.raw = raw;
+      }
+    }
+
+    const payload: z.infer<typeof WebhooksParserBaseType> = {} as never;
+
+    payload.id = randomChar(20);
+    payload.method = method as never;
+    payload.host = c.req.header("host");
+    payload.referer = c.req.header("referer");
+    payload.date = c.req.header("date") || new Date().toISOString();
+    payload.size = Number(c.req.header("content-length") || Buffer.byteLength(raw || "", "utf8"));
+    payload.data = data;
+
+    this.client.emit("webhooks", payload);
   }
 }

@@ -30,7 +30,7 @@ wa.on("messages", async (ctx) => {
   });
 
   const output = model.choices[0]?.message?.content || "";
-  const ai = await wa.text(output, { roomId });
+  const ai = await wa.text(output, { roomId, asAI: true });
 
   await wa.llms.addCompletion({ channelId, uniqueId, role: "user", content: text || "" });
   await wa.llms.addCompletion({ channelId, uniqueId: ai?.uniqueId || "", role: "assistant", content: output });

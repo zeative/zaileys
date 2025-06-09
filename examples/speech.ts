@@ -32,5 +32,5 @@ wa.on("messages", async (ctx) => {
     })
     .then((x) => x.candidates?.[0].content?.parts?.[0].text || "");
 
-  await wa.text(speech, { roomId: ctx.roomId });
+  await wa.text(speech, { roomId: ctx.roomId, asAI: true });
 });

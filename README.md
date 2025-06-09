@@ -1,4 +1,4 @@
-# Zaileys - Simplified WhatsApp Node.js API
+<h1 align="center">Zaileys - Simplified WhatsApp Node.js API</h1>
 
 <div align="center">
   <img alt="Zaileys - Simplified WhatsApp Node.js API" src="https://socialify.git.ci/zeative/zaileys/image?description=1&descriptionEditable=Zaileys%20is%20a%20simplified%20version%20of%20the%20Baileys%20package%20%0Awhich%20is%20easier%20and%20faster.&font=KoHo&forks=1&issues=1&language=1&name=1&owner=1&pattern=Circuit%20Board&pulls=1&stargazers=1&theme=Auto">
@@ -11,6 +11,7 @@
   <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/forks/zeative/zaileys" alt="GitHub Forks"></a>
 </div>
 
+#
 **Zaileys** is a lightweight, user-friendly wrapper around the [Baileys](https://github.com/WhiskeySockets/Baileys) library, designed to simplify building WhatsApp bots and integrations with TypeScript or ESM JavaScript. It offers a streamlined API, robust multi-device support, and seamless database integration for session management.
 
 > **Note**: Stay updated and get support by joining our [WhatsApp Channel](https://whatsapp.com/channel/0029VazENbmInlqHIWzgn33h).
@@ -252,7 +253,7 @@ Schemas output of `ctx` type:
   "isForwarded": "boolean",
   "citation": "object",
   "media": {
-    ...,
+    ...
     "buffer": "function",
     "stream": "function"
   },
@@ -305,10 +306,10 @@ wa.text("Reply", { roomId, quoted: message });
 /* sending forwarded  */
 wa.text("Forwarded", { roomId, asForwarded: true });
 
-/* fake verified (just reply message only!)  */
+/* fake verified (just work on reply message only!)  */
 wa.text("Verified reply", { roomId, quoted: message, verifiedReply: "whatsapp" });
 
-/* mark as ai (just private message only!)  */
+/* mark as ai (just work on private message only!)  */
 wa.text("Mark AI Message!", { roomId, asAI: true });
 
 /* sending view once */

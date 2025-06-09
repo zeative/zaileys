@@ -7,10 +7,10 @@ export const TextWorkerBaseType = z.union([
   z.string(),
   z.object({ image: MediaInputWorkerType, text: z.string().optional() }).strict(),
   z.object({ video: MediaInputWorkerType, text: z.string().optional() }).strict(),
-  z.object({ videoNote: MediaInputWorkerType }).strict(),
+  z.object({ note: MediaInputWorkerType }).strict(),
   z.object({ gif: MediaInputWorkerType, text: z.string().optional() }).strict(),
   z.object({ audio: MediaInputWorkerType }).strict(),
-  z.object({ audioNote: MediaInputWorkerType }).strict(),
+  z.object({ voice: MediaInputWorkerType }).strict(),
   z.object({ sticker: MediaInputWorkerType }).strict(),
 ]);
 

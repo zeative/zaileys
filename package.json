@@ -1,6 +1,6 @@
 {
   "name": "zaileys",
-  "version": "1.1.30",
+  "version": "1.1.31",
   "description": "Zaileys - Simplified WhatsApp Node.js API",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",
@@ -14,7 +14,7 @@
   },
   "scripts": {
     "build": "tsup",
-    "dev": "tsx watch examples/citation.ts",
+    "dev": "tsx watch examples/speech.ts",
     "clean": "rm -rf dist session"
   },
   "keywords": [

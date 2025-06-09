@@ -114,10 +114,10 @@ export default class Worker {
     const mediaTypes: Record<string, (media: any) => MediaMessage> = {
       image: (media) => ({ image: typeof media === "string" ? { url: media } : media }),
       video: (media) => ({ video: typeof media === "string" ? { url: media } : media, ptv: false }),
-      videoNote: (media) => ({ video: typeof media === "string" ? { url: media } : media, ptv: true }),
+      note: (media) => ({ video: typeof media === "string" ? { url: media } : media, ptv: true }),
       gif: (media) => ({ video: typeof media === "string" ? { url: media } : media, gifPlayback: true }),
       audio: (media) => ({ audio: typeof media === "string" ? { url: media } : media }),
-      audioNote: (media) => ({ audio: typeof media === "string" ? { url: media } : media, ptt: true }),
+      voice: (media) => ({ audio: typeof media === "string" ? { url: media } : media, ptt: true }),
       sticker: (media) => ({ sticker: typeof media === "string" ? { url: media } : media }),
     };
 

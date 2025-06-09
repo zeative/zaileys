@@ -330,7 +330,7 @@ export default class Worker {
     return await this.wa.socket?.sendPresenceUpdate(opts[action] as never, options.roomId);
   }
 
-  async addCompletion(props: z.infer<typeof llmMessagesTable>) {
+  private async addCompletion(props: z.infer<typeof llmMessagesTable>) {
     if (!this.wa.client.options?.loadLLMSchemas) throw new Error("LLM schemas are not loaded. Please enable loadLLMSchemas in Client options.");
     props = llmMessagesTable.parse(props);
     const result = await this.wa.db?.insertInto("llm_messages").values(props).executeTakeFirst();
@@ -338,14 +338,14 @@ export default class Worker {
     return props;
   }
 
-  async deleteCompletion(uniqueId: string) {
+  private async deleteCompletion(uniqueId: string) {
     if (!this.wa.client.options?.loadLLMSchemas) throw new Error("LLM schemas are not loaded. Please enable loadLLMSchemas in Client options.");
     const result = await this.wa.db?.deleteFrom("llm_messages").where("uniqueId", "=", uniqueId).executeTakeFirst();
     if (!result) throw new Error("Failed to delete completion");
     return true;
   }
 
-  async updateCompletion(uniqueId: string, props: Partial<z.infer<typeof llmMessagesTable>>) {
+  private async updateCompletion(uniqueId: string, props: Partial<z.infer<typeof llmMessagesTable>>) {
     if (!this.wa.client.options?.loadLLMSchemas) throw new Error("LLM schemas are not loaded. Please enable loadLLMSchemas in Client options.");
     const validatedProps = llmMessagesTable.partial().parse(props);
     const result = await this.wa.db?.updateTable("llm_messages").set(validatedProps).where("uniqueId", "=", uniqueId).returningAll().executeTakeFirst();
@@ -353,26 +353,26 @@ export default class Worker {
     return llmMessagesTable.parse(result);
   }
 
-  async clearCompletions(channelId: string) {
+  private async clearCompletions(channelId: string) {
     if (!this.wa.client.options?.loadLLMSchemas) throw new Error("LLM schemas are not loaded. Please enable loadLLMSchemas in Client options.");
     const result = await this.wa.db?.deleteFrom("llm_messages").where("channelId", "=", channelId).executeTakeFirst();
     if (!result) throw new Error("Failed to clear completions");
     return true;
   }
 
-  async getCompletion(uniqueId: string) {
+  private async getCompletion(uniqueId: string) {
     if (!this.wa.client.options?.loadLLMSchemas) throw new Error("LLM schemas are not loaded. Please enable loadLLMSchemas in Client options.");
     const result = await this.wa.db?.selectFrom("llm_messages").selectAll().where("uniqueId", "=", uniqueId).executeTakeFirst();
     return result ? llmMessagesTable.parse(result) : null;
   }
 
-  async getCompletions(channelId: string) {
+  private async getCompletions(channelId: string) {
     if (!this.wa.client.options?.loadLLMSchemas) throw new Error("LLM schemas are not loaded. Please enable loadLLMSchemas in Client options.");
     const results = await this.wa.db?.selectFrom("llm_messages").selectAll().where("channelId", "=", channelId).execute();
     return results?.map((result) => llmMessagesTable.parse(result)) || [];
   }
 
-  async addPersonalization(props: z.infer<typeof llmPersonalizationTable>) {
+  private async addPersonalization(props: z.infer<typeof llmPersonalizationTable>) {
     if (!this.wa.client.options?.loadLLMSchemas) throw new Error("LLM schemas are not loaded. Please enable loadLLMSchemas in Client options.");
     props = llmPersonalizationTable.parse(props);
     const result = await this.wa.db?.insertInto("llm_personalization").values(props).executeTakeFirst();
@@ -380,27 +380,27 @@ export default class Worker {
     return props;
   }
 
-  async deletePersonalization(uniqueId: string) {
+  private async deletePersonalization(uniqueId: string) {
     if (!this.wa.client.options?.loadLLMSchemas) throw new Error("LLM schemas are not loaded. Please enable loadLLMSchemas in Client options.");
     const result = await this.wa.db?.deleteFrom("llm_personalization").where("uniqueId", "=", uniqueId).executeTakeFirst();
     if (!result) throw new Error("Failed to delete completion");
     return true;
   }
 
-  async clearPersonalization(senderId: string) {
+  private async clearPersonalization(senderId: string) {
     if (!this.wa.client.options?.loadLLMSchemas) throw new Error("LLM schemas are not loaded. Please enable loadLLMSchemas in Client options.");
     const result = await this.wa.db?.deleteFrom("llm_personalization").where("senderId", "=", senderId).executeTakeFirst();
     if (!result) throw new Error("Failed to clear completions");
     return true;
   }
 
-  async getPersonalization(senderId: string) {
+  private async getPersonalization(senderId: string) {
     if (!this.wa.client.options?.loadLLMSchemas) throw new Error("LLM schemas are not loaded. Please enable loadLLMSchemas in Client options.");
     const results = await this.wa.db?.selectFrom("llm_personalization").selectAll().where("senderId", "=", senderId).execute();
     return results?.map((result) => llmPersonalizationTable.parse(result)) || [];
   }
 
-  async addRAG(props: z.infer<typeof addRAGType>) {
+  private async addRAG(props: z.infer<typeof addRAGType>) {
     if (!this.wa.client.options?.loadLLMSchemas) throw new Error("LLM schemas are not loaded. Please enable loadLLMSchemas in Client options.");
     props = llmRAGTable.parse(props);
     const result = await this.wa.db
@@ -414,7 +414,7 @@ export default class Worker {
     return props as any;
   }
 
-  async deleteRAG(id: string) {
+  private async deleteRAG(id: string) {
     if (!this.wa.client.options?.loadLLMSchemas) throw new Error("LLM schemas are not loaded. Please enable loadLLMSchemas in Client options.");
     const result = await this.wa.db
       ?.deleteFrom("llm_rag")
@@ -424,7 +424,7 @@ export default class Worker {
     return true;
   }
 
-  async updateRAG(id: string) {
+  private async updateRAG(id: string) {
     if (!this.wa.client.options?.loadLLMSchemas) throw new Error("LLM schemas are not loaded. Please enable loadLLMSchemas in Client options.");
     const result = await this.wa.db
       ?.updateTable("llm_rag")
@@ -436,14 +436,14 @@ export default class Worker {
     return llmRAGTable.parse(result);
   }
 
-  async clearRAGs() {
+  private async clearRAGs() {
     if (!this.wa.client.options?.loadLLMSchemas) throw new Error("LLM schemas are not loaded. Please enable loadLLMSchemas in Client options.");
     const result = await this.wa.db?.deleteFrom("llm_rag").executeTakeFirst();
     if (!result) throw new Error("Failed to clear RAGs");
     return true;
   }
 
-  async getRAG(id: string) {
+  private async getRAG(id: string) {
     if (!this.wa.client.options?.loadLLMSchemas) throw new Error("LLM schemas are not loaded. Please enable loadLLMSchemas in Client options.");
     const result = await this.wa.db
       ?.selectFrom("llm_rag")
@@ -453,7 +453,7 @@ export default class Worker {
     return result ? llmRAGTable.parse(result) : null;
   }
 
-  async getRAGs(keyword: string) {
+  private async getRAGs(keyword: string) {
     if (!this.wa.client.options?.loadLLMSchemas) throw new Error("LLM schemas are not loaded. Please enable loadLLMSchemas in Client options.");
 
     const key = keyword.toLowerCase().trim();
@@ -481,7 +481,7 @@ export default class Worker {
     return allDocs || [];
   }
 
-  async getMessage(chatId: string) {
+  private async getMessage(chatId: string) {
     const result = await this.wa.db?.selectFrom("messages").selectAll().where("id", "=", chatId).executeTakeFirst();
     if (!result) return null;
     return result ? await this.parser.messages(toJson(result.value!), true, true) : null;

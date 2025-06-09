@@ -23,16 +23,14 @@ wa.on("messages", async (ctx) => {
   const speech = await agent.models
     .generateContent({
       model: "gemini-2.0-flash-001",
-      contents: createUserContent([{ text: "Please transcribe this audio:" }, createPartFromUri(uploaded.uri!, uploaded.mimeType!)]),
+      contents: createUserContent([
+        {
+          text: "Transcribe it internally, but do not output the transcription. Simply respond to the message as if you were replying naturally in a conversation. Be direct, contextual, and human-like—no need to mention the transcription process or analyze the speaker’s intent.",
+        },
+        createPartFromUri(uploaded.uri!, uploaded.mimeType!),
+      ]),
     })
     .then((x) => x.candidates?.[0].content?.parts?.[0].text || "");
 
-  const answer = await agent.models
-    .generateContent({
-      model: "gemini-2.0-flash-001",
-      contents: speech,
-    })
-    .then((x) => x.candidates?.[0].content?.parts?.[0].text || "");
-
-  await wa.text(answer, { roomId: ctx.roomId });
+  await wa.text(speech, { roomId: ctx.roomId });
 });

@@ -2,7 +2,7 @@ node_modules
 .zaileys
 src
 test
-example
+examples
 db
 session
 sample

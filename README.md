@@ -81,6 +81,7 @@ import { Client } from "zaileys";
 
 // default configuration
 const wa = new Client({
+  authType: "qr",
   prefix: "/",
   ignoreMe: true,
   showLogs: true,

@@ -1,0 +1,75 @@
+{
+  "name": "zaileys",
+  "version": "0.0.1",
+  "description": "Zaileys - Simplified WhatsApp Node.js API",
+  "main": "./dist/cjs/index.cjs",
+  "module": "./dist/esm/index.mjs",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    "require": "./dist/cjs/index.cjs",
+    "import": "./dist/esm/index.mjs"
+  },
+  "keywords": [
+    "zaileys",
+    "whatsapp",
+    "wa-simplify",
+    "bot-zaileys",
+    "js-whatsapp",
+    "whatsapp-chat",
+    "whatsapp-api",
+    "whatsapp-web",
+    "whatsapp-group",
+    "automation",
+    "multi-device"
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/zeative/zaileys",
+  "funding": "https://saweria.co/zaadevofc",
+  "repository": {
+    "url": "git+ssh://git@github.com/zeative/zaileys.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zeative/zaileys/issues"
+  },
+  "author": {
+    "name": "zaadevofc",
+    "email": "zaadevofc@gmail.com",
+    "url": "https://github.com/zeative"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsx watch examples/test.ts",
+    "clean": "rm -rf dist sessions",
+    "changelog": "conventional-changelog -p angular -i CHANGELOG.md -s -r 0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "audio-decode": "^2.2.3",
+    "baileys": "github:zeative/zproto",
+    "bottleneck": "^2.19.5",
+    "chalk": "^4.1.2",
+    "figlet": "1.8.1",
+    "jimp": "^1.6.0",
+    "lodash": "^4.17.21",
+    "lowdb": "1.0.0",
+    "nanospinner": "^1.2.2",
+    "node-cache": "^5.1.2",
+    "pino": "^9.7.0",
+    "qrcode": "^1.5.4",
+    "zod": "^4.0.17"
+  },
+  "devDependencies": {
+    "@types/figlet": "^1.7.0",
+    "@types/lodash": "^4.17.20",
+    "conventional-changelog-cli": "^5.0.0",
+    "terser": "^5.43.1",
+    "tsup": "^8.5.0",
+    "typescript": "5.8.3"
+  },
+  "trustedDependencies": [
+    "baileys",
+    "protobufjs"
+  ]
+}

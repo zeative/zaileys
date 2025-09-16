@@ -1,4 +1,6 @@
+import { delay } from "baileys";
 import { Client } from "../src";
+import * as fs from "fs";
 
 const wa = new Client({
   authType: "pairing",
@@ -11,9 +13,13 @@ const wa = new Client({
   },
 });
 
-wa.on("messages", (ctx) => {
-  console.log("ctx :", ctx);
+wa.on("messages", async (ctx) => {
   if (!ctx.citation?.isMy) return;
 
-  // wa.reply("Halo bozzz, aku siap membantu mu!");
+  const tes = await wa.reply("galloo");
+
+  await delay(3000);
+
+  const efi = await wa.delete({ message: tes?.message });
+  console.log("efi: ", efi);
 });

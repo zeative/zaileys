@@ -98,7 +98,7 @@ export class Client {
 
     await store.bind(this);
     await listener.bind(this, db);
-    await this.relay.bind(this);
+    await this.relay.bind(this, db);
 
     this.spinner.start("Connecting to WhatsApp...");
     this.startConnectionTimeout();

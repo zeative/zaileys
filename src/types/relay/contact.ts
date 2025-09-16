@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { AdsReplyType } from "../general";
 
 export const RelayContactEnumType = z.enum(["text", "reply", "forward"]);
 

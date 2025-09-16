@@ -85,6 +85,9 @@ export class Relay {
 
     if (typeof params == "object") {
       const obj = { ...extend, ...params.options };
+      if (params.externalAdReply) {
+        obj.contextInfo = { externalAdReply: params.externalAdReply };
+      }
 
       if (this.client.socket) {
         if (params.text != "$$media$$") {
@@ -128,6 +131,10 @@ export class Relay {
     if (typeof params == "object") {
       const obj = { ...extend, ...params.options };
 
+      if (params.externalAdReply) {
+        obj.contextInfo = { externalAdReply: params.externalAdReply };
+      }
+
       if (this.client.socket) {
         if (params.text != "$$media$$") {
           obj.text = params?.text;
@@ -167,6 +174,10 @@ export class Relay {
 
     if (typeof params == "object") {
       const obj = { ...extend, ...params.options };
+
+      if (params.externalAdReply) {
+        obj.contextInfo = { externalAdReply: params.externalAdReply };
+      }
 
       if (params.isForwardMany) {
         extend.contextInfo.forwardingScore = 999999;
@@ -247,18 +258,24 @@ export class Relay {
       caption: params.text,
       mimetype: params.mimetype,
       fileName: params.fileName,
+      contextInfo: { externalAdReply: params.externalAdReply },
     };
 
     this[enumType]({ text: "$$media$$", roomId: params.roomId, options });
   }
 
-  async image(type: ExtractZod<typeof RelayImageEnumType>, props: ExtractZod<typeof RelayDocumentType>) {
+  async image(type: ExtractZod<typeof RelayImageEnumType>, props: ExtractZod<typeof RelayImageType>) {
     await this.initial();
 
     const enumType = RelayImageEnumType.parse(type);
     const params = RelayImageType.parse(props);
 
-    const options: AnyMessageContent = { image: typeof params.image === "string" ? { url: params.image } : params.image, caption: params.text, viewOnce: params.viewOnce };
+    const options: AnyMessageContent = {
+      image: typeof params.image === "string" ? { url: params.image } : params.image,
+      caption: params.text,
+      viewOnce: params.viewOnce,
+      contextInfo: { externalAdReply: params.externalAdReply },
+    };
 
     this[enumType]({ text: "$$media$$", roomId: params.roomId, options });
   }
@@ -280,7 +297,11 @@ export class Relay {
     const enumType = RelayVideoEnumType.parse(type);
     const params = RelayVideoType.parse(props);
 
-    const options: AnyMessageContent = { video: typeof params.video === "string" ? { url: params.video } : params.video, caption: params.text, viewOnce: params.viewOnce };
+    const options: AnyMessageContent = {
+      video: typeof params.video === "string" ? { url: params.video } : params.video,
+      caption: params.text,
+      viewOnce: params.viewOnce,
+    };
 
     this[enumType]({ text: "$$media$$", roomId: params.roomId, options });
   }
@@ -289,7 +310,11 @@ export class Relay {
     const enumType = RelayAudioEnumType.parse(type);
     const params = RelayAudioType.parse(props);
 
-    const options: AnyMessageContent = { audio: typeof params.audio === "string" ? { url: params.audio } : params.audio, viewOnce: params.viewOnce };
+    const options: AnyMessageContent = {
+      audio: typeof params.audio === "string" ? { url: params.audio } : params.audio,
+      viewOnce: params.viewOnce,
+      contextInfo: { externalAdReply: params.externalAdReply },
+    };
 
     this[enumType]({ text: "$$media$$", roomId: params.roomId, options });
   }
@@ -303,6 +328,7 @@ export class Relay {
       ptt: true,
       viewOnce: params.viewOnce,
       mimetype: "audio/ogg; codecs=opus",
+      contextInfo: { externalAdReply: params.externalAdReply },
     };
 
     this[enumType]({ text: "$$media$$", roomId: params.roomId, options });
@@ -346,12 +372,13 @@ export class Relay {
         address: params.footer,
         name: params.title,
       },
+      contextInfo: { externalAdReply: params.externalAdReply },
     };
 
     this[enumType]({ text: "$$media$$", roomId: params.roomId, options });
   }
 
-  async contact(type: ExtractZod<typeof RelayContactEnumType>, props: ExtractZod<typeof RelayContactType>) {
+  async contacts(type: ExtractZod<typeof RelayContactEnumType>, props: ExtractZod<typeof RelayContactType>) {
     await this.initial();
 
     const enumType = RelayContactEnumType.parse(type);

@@ -16,5 +16,13 @@ wa.on("messages", async (ctx) => {
   console.log("ctx: ", ctx);
   if (!ctx.citation?.isMy) return;
 
-  wa.pin({ action: "pin", expired: "24h", message: ctx.message });
+  wa.forward({
+    text: "test",
+    externalAdReply: {
+      title: "test",
+      body: "test",
+      thumbnailUrl: "https://github.com/zeative.png",
+      sourceUrl: "https://github.com/zeative.png",
+    },
+  })
 });

@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { defaultBoolean } from "../general";
+import { AdsReplyType, defaultBoolean } from "../general";
 import { AnyMessageContent } from "baileys";
 
 export const RelayForwardType = z.string().or(
@@ -8,5 +8,6 @@ export const RelayForwardType = z.string().or(
     isForwardMany: defaultBoolean(false),
     roomId: z.string().optional(),
     options: z.custom<AnyMessageContent>().optional(),
+    externalAdReply: AdsReplyType.optional(),
   })
 );

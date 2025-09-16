@@ -53,7 +53,6 @@
   "dependencies": {
     "audio-decode": "^2.2.3",
     "baileys": "github:zeative/zproto",
-    "bottleneck": "^2.19.5",
     "chalk": "^4.1.2",
     "figlet": "1.8.1",
     "jimp": "^1.6.0",

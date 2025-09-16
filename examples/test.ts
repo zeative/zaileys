@@ -12,12 +12,14 @@ const wa = new Client({
 });
 
 wa.on("messages", (ctx) => {
-  if (!ctx.citation?.isMy) return;
   console.log("ctx :", ctx);
+  if (!ctx.citation?.isMy) return;
 });
 
-// wa.on('calls', () => {
-// })
 
-// wa.on('webhooks', () => {
-// })
+
+
+
+
+
+

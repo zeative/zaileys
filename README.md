@@ -153,16 +153,18 @@ wa.on("messages", (ctx) => {
 
 ### Rate Limiting
 
-Detect and prevent spam with the built-in limiter. See [limiter.ts](https://github.com/zeative/zaileys/blob/main/examples/limiter.ts).
+Detect and prevent spam with the built-in limiter. See [limiter-example.ts](https://github.com/zeative/zaileys/blob/main/examples/limiter-example.ts).
+
+The limiter uses a custom implementation without external libraries, relying on NodeCache for efficient state storage.
 
 ```ts
 const wa = new Client({
   authType: "qr",
 
-  // max 10 messages on 10 seconds
+  // max 10 messages per 60 seconds
   limiter: {
-    durationMs: 10000,
-    maxMessages: 5,
+    durationMs: 60000,
+    maxMessages: 10,
   },
 });
 
@@ -174,6 +176,18 @@ wa.on("messages", (ctx) => {
 
   wa.text("Hello!", { roomId: ctx.roomId });
 });
+```
+
+You can also manually check rate limiting using the limiter module:
+
+```ts
+import { LimiterHandler } from "zaileys";
+
+// Check if a user is spamming (5 messages per 10 seconds)
+const isSpam = await LimiterHandler("user-id-123", 5, 10000);
+if (isSpam) {
+  console.log("Message detected as spam");
+}
 ```
 
 ### Webhooks

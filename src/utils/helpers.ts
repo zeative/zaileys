@@ -33,7 +33,6 @@ export const tryAgain = async <T>(fn: () => Promise<T>) => {
     try {
       return await (fn)();
     } catch (e) {
-      console.log("e :", e);
       await new Promise((r) => setTimeout(r, RETRY_DELAY));
     }
   }

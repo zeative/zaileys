@@ -22,7 +22,7 @@ export const AuthHandler = async (db: JsonDBInterface) => {
             if (type === "app-state-sync-key" && value) {
               value = fromObject(value as Record<string, unknown>);
             }
-            // Only include non-null values
+            
             if (value !== null && value !== undefined) {
               data[id] = value as SignalDataTypeMap[T];
             }

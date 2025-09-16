@@ -13,16 +13,19 @@ export const MessagesExtractor = async (client: Client & { db: JsonDBInterface }
   const CLONE = message;
 
   const extract = async (obj: proto.IWebMessageInfo, isReplied?: boolean, isExtract?: boolean) => {
+    
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let msg: any = toJson(obj);
 
-    // if (msg) {
-    //   console.log(JSON.stringify(msg, null, 2))
-    // }
-
-    if (!msg.message || !msg?.key?.id) return null;
-    if (msg?.messageStubType || !!msg?.messageStubParameters || msg?.message?.botInvokeMessage || msg.message?.protocolMessage?.peerDataOperationRequestResponseMessage) return null;
-    if (msg?.key?.fromMe && !msg?.participant && msg?.key?.remoteJid != "status@broadcast" && client.props?.ignoreMe && !MAX_REPLIES && !isExtract) return null;
+    if (!msg.message || !msg?.key?.id) {
+      return null;
+    }
+    if (msg?.messageStubType || !!msg?.messageStubParameters || msg?.message?.botInvokeMessage || msg.message?.protocolMessage?.peerDataOperationRequestResponseMessage) {
+      return null;
+    }
+    if (msg?.key?.fromMe && !msg?.participant && msg?.key?.remoteJid != "status@broadcast" && client.props?.ignoreMe && !MAX_REPLIES && !isExtract) {
+      return null;
+    }
 
     const pinId = msg?.message?.pinInChatMessage?.key?.id;
     const isPinned = msg?.message?.pinInChatMessage?.type == 1;
@@ -91,6 +94,7 @@ export const MessagesExtractor = async (client: Client & { db: JsonDBInterface }
 
       payload.senderName = msg?.pushName || msg?.verifiedBizName || (toJson(senderName) as { name?: string })?.name || payload.receiverName;
     }
+    
     payload.senderDevice = getDevice(payload.chatId);
 
     if (payload.senderId == payload.receiverId) {
@@ -121,9 +125,10 @@ export const MessagesExtractor = async (client: Client & { db: JsonDBInterface }
     payload.isBroadcast = !!message?.broadcast;
     payload.isEphemeral = false;
     payload.isForwarded = false;
+    
 
     if (!isReplied && !isExtract) {
-      const limiter = await LimiterHandler(payload.roomId, client.props.limiter?.maxMessages ?? 0, client.props.limiter?.durationMs ?? 0);
+      const limiter = await LimiterHandler(payload.roomId, client.props.limiter?.maxMessages || 0, client.props.limiter?.durationMs || 0);
       payload.isSpam = limiter;
     }
 
@@ -148,7 +153,6 @@ export const MessagesExtractor = async (client: Client & { db: JsonDBInterface }
         if (citationEntry && Array.isArray(citationEntry)) {
           const senderId = payload.senderId.split("@")[0];
           const roomId = payload.roomId.split("@")[0];
-          // Add type assertion to fix indexing error
           const citationRecord = citation as Record<string, number[]>;
           payload.citation[slug] = 
             (senderId ? (citationRecord[key] || []).includes(Number(senderId)) : false) || 

@@ -9,7 +9,7 @@ import { defaultBoolean, ExtractZod } from "../general";
 
 export const PluginsType = z.array(z.object({
   necessary: z.string(),
-  // Add other properties as needed based on actual plugin structure
+  
 }).passthrough()).optional();
 
 export const LimiterType = z

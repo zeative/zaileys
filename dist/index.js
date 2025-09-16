@@ -15,7 +15,6 @@ var zod = require('zod');
 var figlet = require('figlet');
 var QRCode = require('qrcode');
 var _ = require('lodash');
-var Bottleneck = require('bottleneck');
 
 function _interopDefault (e) { return e && e.__esModule ? e : { default: e }; }
 
@@ -30,7 +29,6 @@ var z3__default = /*#__PURE__*/_interopDefault(z3);
 var figlet__default = /*#__PURE__*/_interopDefault(figlet);
 var QRCode__default = /*#__PURE__*/_interopDefault(QRCode);
 var ___default = /*#__PURE__*/_interopDefault(_);
-var Bottleneck__default = /*#__PURE__*/_interopDefault(Bottleneck);
 
 // src/classes/Client.ts
 var sendError = (text) => new Error(chalk__default.default.red(text));
@@ -65,7 +63,6 @@ var tryAgain = async (fn) => {
     try {
       return await fn();
     } catch (e) {
-      console.log("e :", e);
       await new Promise((r) => setTimeout(r, RETRY_DELAY));
     }
   }
@@ -614,7 +611,6 @@ var defaultBoolean = (state) => z3.z.boolean().default(state).optional();
 // src/types/classes/Client.ts
 var PluginsType = z3__default.default.array(z3__default.default.object({
   necessary: z3__default.default.string()
-  // Add other properties as needed based on actual plugin structure
 }).passthrough()).optional();
 var LimiterType = z3__default.default.object({
   durationMs: z3__default.default.number(),
@@ -676,29 +672,31 @@ var CallsExtractor = async (client, caller) => {
   payload.isGroup = !!caller.isGroup;
   return payload;
 };
-var cache = new NodeCache2__default.default({ stdTTL: 3600, checkperiod: 600 });
+var limiterCache = new NodeCache2__default.default({ stdTTL: 60 * 60 });
 var LimiterHandler = async (key, max, ms) => {
-  const limiter = new Bottleneck__default.default({
-    maxConcurrent: 1,
-    minTime: 0,
-    reservoir: max,
-    reservoirRefreshAmount: max,
-    reservoirRefreshInterval: ms
-  });
-  const now = Date.now();
-  const user = toJson(cache.get(key) || { count: 0, last: 0 });
-  if (now - user.last > ms) user.count = 0;
-  user.count += 1;
-  user.last = now;
-  cache.set(key, user);
   try {
-    return await limiter.schedule(async () => {
-      if (user.count > max) {
-        cache.set(key, { ...user, blacklisted: now + ms });
-        return true;
-      }
+    if (max <= 0) {
       return false;
-    });
+    }
+    const state = limiterCache.get(key);
+    const now = Date.now();
+    if (!state || now - state.firstRequestTime > ms) {
+      const newState2 = {
+        count: 1,
+        firstRequestTime: now
+      };
+      limiterCache.set(key, newState2, Math.ceil(ms / 1e3) + 10);
+      return false;
+    }
+    const newState = {
+      count: state.count + 1,
+      firstRequestTime: state.firstRequestTime
+    };
+    limiterCache.set(key, newState, Math.ceil((ms - (now - state.firstRequestTime)) / 1e3) + 10);
+    if (newState.count > max) {
+      return true;
+    }
+    return false;
   } catch (err) {
     console.error("Error detecting spam:", err);
     return false;
@@ -711,9 +709,15 @@ var MessagesExtractor = async (client, message) => {
   const CLONE = message;
   const extract = async (obj, isReplied, isExtract) => {
     let msg = toJson(obj);
-    if (!msg.message || !msg?.key?.id) return null;
-    if (msg?.messageStubType || !!msg?.messageStubParameters || msg?.message?.botInvokeMessage || msg.message?.protocolMessage?.peerDataOperationRequestResponseMessage) return null;
-    if (msg?.key?.fromMe && !msg?.participant && msg?.key?.remoteJid != "status@broadcast" && client.props?.ignoreMe && !MAX_REPLIES && true) return null;
+    if (!msg.message || !msg?.key?.id) {
+      return null;
+    }
+    if (msg?.messageStubType || !!msg?.messageStubParameters || msg?.message?.botInvokeMessage || msg.message?.protocolMessage?.peerDataOperationRequestResponseMessage) {
+      return null;
+    }
+    if (msg?.key?.fromMe && !msg?.participant && msg?.key?.remoteJid != "status@broadcast" && client.props?.ignoreMe && !MAX_REPLIES && true) {
+      return null;
+    }
     const pinId = msg?.message?.pinInChatMessage?.key?.id;
     const isPinned = msg?.message?.pinInChatMessage?.type == 1;
     const isUnPinned = msg?.message?.pinInChatMessage?.type == 2;
@@ -790,7 +794,7 @@ var MessagesExtractor = async (client, message) => {
     payload.isEphemeral = false;
     payload.isForwarded = false;
     if (!isReplied && true) {
-      const limiter = await LimiterHandler(payload.roomId, client.props.limiter?.maxMessages ?? 0, client.props.limiter?.durationMs ?? 0);
+      const limiter = await LimiterHandler(payload.roomId, client.props.limiter?.maxMessages || 0, client.props.limiter?.durationMs || 0);
       payload.isSpam = limiter;
     }
     if (payload.isFromMe) {
@@ -896,11 +900,17 @@ var Listener = class {
     this.client.socket?.ev.on("creds.update", () => {
     });
     if (this.client.socket?.ws) {
-      const originalEmit = this.client.socket.ws.emit.bind(this.client.socket.ws);
+      const originalEmit = this.client.socket.ws.emit.bind(
+        this.client.socket.ws
+      );
       this.client.socket.ws.emit = (event, ...args) => {
         if (event === "error" && args[0]) {
           const errorMessage = args[0].message || args[0]?.toString();
-          if (errorMessage.includes("Closing open session in favor of incoming prekey bundle") || errorMessage.includes("Closing stale open session for new outgoing prekey bundle") || errorMessage.includes("Closing session: SessionEntry")) {
+          if (errorMessage.includes(
+            "Closing open session in favor of incoming prekey bundle"
+          ) || errorMessage.includes(
+            "Closing stale open session for new outgoing prekey bundle"
+          ) || errorMessage.includes("Closing session: SessionEntry")) {
             this.handleSessionClosing();
           }
         }
@@ -923,21 +933,29 @@ ${await QRCode__default.default.toString(qr, { type: "terminal", small: true })}
       return;
     }
     if (connection === "close") {
-      const code = toJson(lastDisconnect?.error)?.output?.statusCode;
+      const code = toJson(
+        lastDisconnect?.error
+      )?.output?.statusCode;
       const errorMessage = lastDisconnect?.error?.message || "";
       const isReconnect = typeof code === "number" && code !== makeWASocket.DisconnectReason.loggedOut;
-      if (errorMessage.includes("Closing open session in favor of incoming prekey bundle") || errorMessage.includes("Closing stale open session for new outgoing prekey bundle") || errorMessage.includes("Closing session: SessionEntry")) {
+      if (errorMessage.includes(
+        "Closing open session in favor of incoming prekey bundle"
+      ) || errorMessage.includes(
+        "Closing stale open session for new outgoing prekey bundle"
+      ) || errorMessage.includes("Closing session: SessionEntry")) {
         this.client.spinner.start("Processing session changes...");
         await new Promise((resolve) => setTimeout(resolve, 2e3));
         this.client.spinner.success("Session processing completed");
         return;
       }
-      this.client.spinner.error(`[Connection Closed] [${code}]
-${errorMessage} 
-`);
+      this.client.spinner.error(
+        `[Connection Closed] [${code}] ${errorMessage}`
+      );
       if (code === 401 || code === 405 || code === 500) {
         this.client.spinner.error("Invalid session, please delete manually");
-        this.client.spinner.error(`Session "${this.client.props.session}" has not valid, please delete it`);
+        this.client.spinner.error(
+          `Session "${this.client.props.session}" has not valid, please delete it`
+        );
         return;
       }
       if (isReconnect) {
@@ -1069,8 +1087,10 @@ var Client = class {
     this.initialize();
     return new Proxy(this, {
       get(target, prop) {
-        if (typeof prop === "string" && prop in target) return target[prop];
-        if (typeof prop === "string") return target.relay[prop];
+        if (typeof prop === "string" && (prop in target || ["on", "emit"].includes(prop)))
+          return target[prop];
+        if (typeof prop === "string")
+          return target.relay[prop];
         return void 0;
       }
     });

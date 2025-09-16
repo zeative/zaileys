@@ -46,7 +46,7 @@ export class Relay {
     const quoted = this.message?.message();
 
     if (this.client.props?.fakeReply?.provider) {
-      // Add type assertion to fix indexing error
+      
       const provider = this.client.props.fakeReply.provider as keyof typeof MessagesVerifiedPlatformType;
       if (quoted && quoted.key) {
         quoted.key.remoteJid =

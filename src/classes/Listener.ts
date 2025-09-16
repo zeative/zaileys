@@ -1,4 +1,10 @@
-import { ConnectionState, DisconnectReason, jidNormalizedUser, proto, WACallEvent } from "baileys";
+import {
+  ConnectionState,
+  DisconnectReason,
+  jidNormalizedUser,
+  proto,
+  WACallEvent,
+} from "baileys";
 import chalk from "chalk";
 import QRCode from "qrcode";
 import { CallsExtractor } from "../extractor/calls";
@@ -29,22 +35,29 @@ export class Listener {
       }
     });
 
-    // Listen for session-related events
+    
     this.client.socket?.ev.on("creds.update", () => {
-      // Check if we're in the middle of session processing
-      // Note: We can't directly access spinner.text, so we'll use a different approach
-      // to track session processing state
+      
+      
+      
     });
 
-    // Monitor for session closing events in the underlying socket
+    
     if (this.client.socket?.ws) {
-      const originalEmit = this.client.socket.ws.emit.bind(this.client.socket.ws);
+      const originalEmit = this.client.socket.ws.emit.bind(
+        this.client.socket.ws
+      );
       this.client.socket.ws.emit = (event: string, ...args: unknown[]) => {
         if (event === "error" && args[0]) {
-          const errorMessage = (args[0] as Error).message || args[0]?.toString();
+          const errorMessage =
+            (args[0] as Error).message || args[0]?.toString();
           if (
-            errorMessage.includes("Closing open session in favor of incoming prekey bundle") ||
-            errorMessage.includes("Closing stale open session for new outgoing prekey bundle") ||
+            errorMessage.includes(
+              "Closing open session in favor of incoming prekey bundle"
+            ) ||
+            errorMessage.includes(
+              "Closing stale open session for new outgoing prekey bundle"
+            ) ||
             errorMessage.includes("Closing session: SessionEntry")
           ) {
             this.handleSessionClosing();
@@ -56,12 +69,12 @@ export class Listener {
   }
 
   private async handleSessionClosing() {
-    // Since we can't check spinner.text, we'll just process the session changes
+    
     this.client.spinner.start("Processing session changes...");
+
     
-    // Wait for session processing to complete
     await new Promise((resolve) => setTimeout(resolve, 3000));
-    
+
     this.client.spinner.success("Session processing completed");
   }
 
@@ -70,40 +83,53 @@ export class Listener {
     this.client.emit("connection", { status: "connecting" });
 
     if (this.client.props.authType === "qr" && qr) {
-      this.client.spinner.info(`Please scan the QR\n\n${await QRCode.toString(qr, { type: "terminal", small: true })}`);
+      this.client.spinner.info(`Please scan the QR
+
+${await QRCode.toString(qr, { type: "terminal", small: true })}`);
       return;
     }
 
     if (connection === "close") {
-      const code = toJson<{ output?: { statusCode?: number } }>(lastDisconnect?.error)?.output?.statusCode;
+      const code = toJson<{ output?: { statusCode?: number } }>(
+        lastDisconnect?.error
+      )?.output?.statusCode;
       const errorMessage = lastDisconnect?.error?.message || "";
-      const isReconnect = typeof code === "number" && code !== DisconnectReason.loggedOut;
+      const isReconnect =
+        typeof code === "number" && code !== DisconnectReason.loggedOut;
 
-      // Handle session closing scenarios with spinner
+      
       if (
-        errorMessage.includes("Closing open session in favor of incoming prekey bundle") ||
-        errorMessage.includes("Closing stale open session for new outgoing prekey bundle") ||
+        errorMessage.includes(
+          "Closing open session in favor of incoming prekey bundle"
+        ) ||
+        errorMessage.includes(
+          "Closing stale open session for new outgoing prekey bundle"
+        ) ||
         errorMessage.includes("Closing session: SessionEntry")
       ) {
         this.client.spinner.start("Processing session changes...");
 
-        // Wait for session processing to complete
+        
         await new Promise((resolve) => setTimeout(resolve, 2000));
 
         this.client.spinner.success("Session processing completed");
         return;
       }
 
-      this.client.spinner.error(`[Connection Closed] [${code}]\n${errorMessage} \n`);
+      this.client.spinner.error(
+        `[Connection Closed] [${code}] ${errorMessage}`
+      );
 
       if (code === 401 || code === 405 || code === 500) {
         this.client.spinner.error("Invalid session, please delete manually");
-        this.client.spinner.error(`Session "${this.client.props.session}" has not valid, please delete it`);
+        this.client.spinner.error(
+          `Session "${this.client.props.session}" has not valid, please delete it`
+        );
         return;
       }
 
       if (isReconnect) {
-        // Use auto-reload mechanism instead of direct initialize
+        
         this.client.spinner.warn("Connection lost. Attempting auto-reload...");
         const clientRecord = this.client as unknown as Record<string, unknown>;
         if (typeof clientRecord.autoReload === "function") {
@@ -113,14 +139,16 @@ export class Listener {
     } else if (connection === "open") {
       if (this.client.socket?.user) {
         const id = jidNormalizedUser(this.client.socket.user.id).split("@")[0];
-        const name = this.client.socket.user.name || this.client.socket.user.verifiedName;
+        const name =
+          this.client.socket.user.name || this.client.socket.user.verifiedName;
 
-        // Reset retry count on successful connection
+        
         const clientRecord = this.client as unknown as Record<string, unknown>;
         if (typeof clientRecord.resetRetryCount === "function") {
           clientRecord.resetRetryCount();
         }
-        this.client.spinner.success(`Connected as ${chalk.green(name || id)}\n`);
+        this.client.spinner.success(`Connected as ${chalk.green(name || id)}
+`);
         this.client.emit("connection", { status: "open" });
       }
     }
@@ -134,6 +162,7 @@ export class Listener {
     }
 
     const extract = await MessagesExtractor(this.client, message);
+    
     if (extract) {
       this.client.emit("messages", extract);
     }

@@ -5,7 +5,7 @@ import FileSync from "lowdb/adapters/FileSync";
 import { dirname } from "path";
 import { toJson, toString } from "../utils/helpers";
 
-// Type definitions for lowdb
+
 interface Store {
   read: (id: string) => Promise<unknown>;
   write: (obj: Record<string, unknown>) => Promise<void>;
@@ -31,7 +31,7 @@ export interface JsonDBInterface {
   delete(): Promise<void>;
 }
 
-/* eslint-disable @typescript-eslint/no-unused-vars */
+
 
 const CHUNK_SIZE = 1000;
 
@@ -65,13 +65,13 @@ export class JsonDB implements JsonDBInterface {
           return JSON.parse(sub);
         }
       } catch (_error: unknown) { 
-        // Ignore error and continue
+        
       }
       try {
         const wrapped = `[${s.replace(/}\s*{/g, "},{")}]`;
         return JSON.parse(wrapped);
       } catch (_error: unknown) { 
-        // Ignore error and continue
+        
       }
       try {
         const lines = s.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
@@ -80,7 +80,7 @@ export class JsonDB implements JsonDBInterface {
         }).filter(Boolean);
         if (parsed.length) return parsed;
       } catch (_error: unknown) { 
-        // Ignore error and continue
+        
       }
     }
     return null;
@@ -108,10 +108,10 @@ export class JsonDB implements JsonDBInterface {
         } else {
           const corrupt = `${full}.corrupt.${Date.now()}`;
           try { renameSync(full, corrupt); } catch (_renameErr: unknown) { 
-            // Ignore error and continue
+            
           }
           try { writeFileSync(full, "[]", "utf8"); } catch (_writeFileErr: unknown) { 
-              // Ignore error and continue
+              
             }
         }
       }
@@ -139,7 +139,7 @@ export class JsonDB implements JsonDBInterface {
           } catch (_renameErr: unknown) {
             try { db.write(); } catch (_writeErr: unknown) {
               try { writeFileSync(file, JSON.stringify(chunk), "utf8"); } catch (_writeFileErr: unknown) { 
-                // Ignore error and continue
+                
               }
             }
           }

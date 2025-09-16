@@ -2,7 +2,7 @@ import makeWASocket, {
   delay,
   fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
-  type AuthenticationCreds
+  type AuthenticationCreds,
 } from "baileys";
 import EventEmitter from "events";
 import { createSpinner } from "nanospinner";
@@ -42,8 +42,13 @@ export class Client {
 
     return new Proxy(this, {
       get(target, prop) {
-        if (typeof prop === "string" && prop in target) return (target as unknown as Record<string, unknown>)[prop];
-        if (typeof prop === "string") return (target.relay as unknown as Record<string, unknown>)[prop];
+        if (
+          typeof prop === "string" &&
+          (prop in target || ["on", "emit"].includes(prop))
+        )
+          return (target as unknown as Record<string, unknown>)[prop];
+        if (typeof prop === "string")
+          return (target.relay as unknown as Record<string, unknown>)[prop];
         return undefined;
       },
     });
@@ -122,12 +127,12 @@ export class Client {
   }
 
   private startConnectionTimeout() {
-    // Clear existing timeout
+    
     if (this.connectionTimeout) {
       clearTimeout(this.connectionTimeout);
     }
 
-    // Set 30 second timeout for connection
+    
     this.connectionTimeout = setTimeout(() => {
       this.handleConnectionTimeout();
     }, 60000);
@@ -150,21 +155,21 @@ export class Client {
 
   private async autoReload() {
     try {
-      // Clear existing timeout
+      
       if (this.connectionTimeout) {
         clearTimeout(this.connectionTimeout);
       }
 
-      // Close existing socket if exists
+      
       if (this.socket) {
         this.socket.end?.(undefined);
         this.socket = undefined;
       }
 
-      // Wait a bit before retrying
+      
       await delay(2000);
 
-      // Reinitialize connection
+      
       await this.initialize();
     } catch (error: unknown) {
       this.spinner.error(`Auto-reload failed: ${(error as Error).message}`);

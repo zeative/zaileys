@@ -15,7 +15,7 @@ export const parseTimestamp = (timestamp: string | number | Long) => {
   return timestamp;
 };
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+
 export const fromObject = (args: Record<string, any>) => {
   const fingerprint = args.fingerprint as Record<string, unknown> || {};
   const f = {

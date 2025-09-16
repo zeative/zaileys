@@ -162,3 +162,4 @@ export class Client {
 }
 
 export default Client;
+export interface Client extends Relay {}

@@ -25,7 +25,7 @@ export const CitationType = z
 
 export const FakeReplyType = z
   .object({
-    provider: z.enum(Object.keys(MessagesVerifiedPlatformType)),
+    provider: z.enum(["whatsapp", "meta", "chatgpt", "copilot", "instagram", "tiktok"]),
   })
   .optional();
 

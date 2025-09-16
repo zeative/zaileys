@@ -14,12 +14,7 @@ const wa = new Client({
 wa.on("messages", (ctx) => {
   console.log("ctx :", ctx);
   if (!ctx.citation?.isMy) return;
+
+  wa.reply('{ text: "hallo" } @' + ctx.mentions.join(''));
+  wa.text('{ text: "hallo" } @' + ctx.mentions.join(''));
 });
-
-
-
-
-
-
-
-

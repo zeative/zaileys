@@ -11,8 +11,9 @@ import _ from "lodash";
 export class Listener {
   client!: Client & { db: JsonDBInterface };
 
-  async bind(client: Client & { db: JsonDBInterface }) {
+  async bind(client: Client, db: JsonDBInterface) {
     this.client = client;
+    this.client.db = db;
 
     this.client.socket?.ev.on("connection.update", async (update) => {
       await this.connection(update);

@@ -1,9 +1,9 @@
-import { downloadMediaMessage, getContentType, jidNormalizedUser, proto } from "baileys";
+import { downloadMediaMessage, getContentType, getDevice, jidNormalizedUser, proto } from "baileys";
 import _ from "lodash";
 import { MessagesMediaType } from "../types/extractor/messages";
 import { ExtractZod } from "../types/general";
 import { LimiterHandler } from "../modules/limiter";
-import { extractUrls, findWord, getMentions, getDevice, normalizeText, toJson, toString } from "../utils/helpers";
+import { extractUrls, findWord, getMentions, normalizeText, toJson, toString } from "../utils/helpers";
 import { Client } from "../classes/Client";
 import { JsonDBInterface } from "../plugins/JsonDB";
 import { ExtractorMessagesType } from "../types/extractor/messages";
@@ -89,7 +89,6 @@ export const MessagesExtractor = async (client: Client & { db: JsonDBInterface }
     if (client.db) {
       const senderName = await client.db.store("chats").read(payload.senderId);
       payload.senderLid = payload.senderLid || (toJson(senderName) as { lidJid?: string })?.lidJid || "";
-
       payload.senderName = msg?.pushName || msg?.verifiedBizName || (toJson(senderName) as { name?: string })?.name || payload.receiverName;
     }
 

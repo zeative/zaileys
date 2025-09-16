@@ -61,25 +61,8 @@ export const extractJids = (text = "") => {
 
 export const extractUrls = (text = "") => {
   if (!text) return [];
-  const regex = /(?:https?:\/\/)?[^\s<>"']+[^<>"']+/g;
+  const regex = /https?:\/\/(?:[-\w.])+(?:\.[a-zA-Z]{2,})+(?:\/[^\s<>"']*)?/g;
   return _.castArray(text.match(regex) || []);
-};
-
-export const getDevice = (chatId: string) => {
-  if (!chatId) return "unknown";
-  const device = _.get(_.split(_.get(_.split(chatId, ":"), 1, ""), "@"), 0);
-  switch (device) {
-    case "1":
-      return "android";
-    case "2":
-      return "ios";
-    case "3":
-      return "desktop";
-    case "4":
-      return "web";
-    default:
-      return "unknown";
-  }
 };
 
 export const getMentions = (text = "") => {

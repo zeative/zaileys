@@ -21,6 +21,8 @@ import { RelayReactionType } from "../types/relay/reaction";
 import { RelayLocationEnumType, RelayLocationType } from "../types/relay/location";
 import { RelayContactEnumType, RelayContactType } from "../types/relay/contact";
 import { RelayPollEnumType, RelayPollType } from "../types/relay/poll";
+import { RelayDocumentEnumType, RelayDocumentType } from "../types/relay/document";
+import { RelayPinType } from "../types/relay/pin";
 
 type RelayInitialType = {
   isAudio?: boolean;
@@ -234,7 +236,23 @@ export class Relay {
 
   // MEDIA RELAY
 
-  async image(type: ExtractZod<typeof RelayImageEnumType>, props: ExtractZod<typeof RelayImageType>) {
+  async document(type: ExtractZod<typeof RelayDocumentEnumType>, props: ExtractZod<typeof RelayDocumentType>) {
+    await this.initial();
+
+    const enumType = RelayDocumentEnumType.parse(type);
+    const params = RelayDocumentType.parse(props);
+
+    const options: AnyMessageContent = {
+      document: typeof params.document === "string" ? { url: params.document } : params.document,
+      caption: params.text,
+      mimetype: params.mimetype,
+      fileName: params.fileName,
+    };
+
+    this[enumType]({ text: "$$media$$", roomId: params.roomId, options });
+  }
+
+  async image(type: ExtractZod<typeof RelayImageEnumType>, props: ExtractZod<typeof RelayDocumentType>) {
     await this.initial();
 
     const enumType = RelayImageEnumType.parse(type);
@@ -280,7 +298,12 @@ export class Relay {
     const enumType = RelayAudioEnumType.parse(type);
     const params = RelayAudioType.parse(props);
 
-    const options: AnyMessageContent = { audio: typeof params.audio === "string" ? { url: params.audio } : params.audio, ptt: true, viewOnce: params.viewOnce };
+    const options: AnyMessageContent = {
+      audio: typeof params.audio === "string" ? { url: params.audio } : params.audio,
+      ptt: true,
+      viewOnce: params.viewOnce,
+      mimetype: "audio/ogg; codecs=opus",
+    };
 
     this[enumType]({ text: "$$media$$", roomId: params.roomId, options });
   }
@@ -334,29 +357,23 @@ export class Relay {
     const enumType = RelayContactEnumType.parse(type);
     const params = RelayContactType.parse(props);
 
-    const contacts = [
-      "BEGIN:VCARD",
-      "VERSION:3.0",
-      `N:;${params.fullname};;;`,
-      `FN:${params.fullname}`,
-      params.nickname ? `NICKNAME:${params.nickname}` : "",
-      params.organization || params.role ? `ORG:${params.organization ?? ""};` : "",
-      params.role ? `TITLE:${params.role}` : "",
-      `TEL;TYPE=CELL,VOICE;waid=${params.whatsAppNumber}:+${params.whatsAppNumber}`,
-      params.callNumber ? `TEL;TYPE=WORK,VOICE:+${params.callNumber}` : "",
-      params.voiceNumber ? `TEL;TYPE=VOICE:+${params.voiceNumber}` : "",
-      params.email ? `EMAIL;TYPE=INTERNET:${params.email}` : "",
-      params.website ? `URL;TYPE=WORK:${params.website}` : "",
-      params.homeAddress ? `ADR;TYPE=HOME:;;${params.homeAddress};;;;` : "",
-      params.workAddress ? `ADR;TYPE=WORK:;;${params.workAddress};;;;` : "",
-      params.avatar ? `PHOTO;VALUE=URI;TYPE=JPEG:${params.avatar}` : "",
-      "END:VCARD",
-    ].join("\n");
+    const contacts = params.contacts.map((x) => {
+      const vcard = [
+        "BEGIN:VCARD",
+        "VERSION:3.0",
+        `FN:${x.fullname}`,
+        `ORG:${x.organization || ""}`,
+        `TEL;type=CELL;type=VOICE;waid=${x.whatsAppNumber}:${x.whatsAppNumber}`,
+        "END:VCARD",
+      ].join("\n");
+
+      return { displayName: x.fullname, vcard };
+    });
 
     const options: AnyMessageContent = {
       contacts: {
-        displayName: params.fullname,
-        contacts: [{ vcard: contacts }],
+        displayName: params?.title,
+        contacts,
       },
     };
 
@@ -370,7 +387,7 @@ export class Relay {
     const params = RelayPollType.parse(props);
     const options = {} as any;
 
-    if (params.type == "create") {
+    if (params.action == "create") {
       options.poll = {
         name: params.name,
         values: params.answers,
@@ -387,5 +404,28 @@ export class Relay {
     // }
 
     this[enumType]({ text: "$$media$$", roomId: params.roomId, options });
+  }
+
+  // MODIFY RELAY
+
+  async pin(props: ExtractZod<typeof RelayPinType>) {
+    await this.initial({ disabledPresence: true });
+
+    const params = RelayPinType.parse(props);
+    const message = params.message();
+
+    const exp = {
+      "24h": 86400,
+      "7d": 604800,
+      "30d": 2592000,
+    };
+
+    await this.client.socket.sendMessage(message?.key?.remoteJid, {
+      pin: {
+        type: params.action == "pin" ? 1 : 0,
+        time: exp[params.expired],
+        key: message?.key,
+      },
+    } as any);
   }
 }

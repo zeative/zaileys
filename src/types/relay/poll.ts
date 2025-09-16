@@ -4,7 +4,7 @@ import { defaultBoolean } from "../general";
 export const RelayPollEnumType = z.enum(["text", "reply", "forward"]);
 
 export const RelayPollCreateType = z.object({
-  type: z.literal("create"),
+  action: z.literal("create"),
   name: z.string(),
   answers: z.string().array(),
   isMultiple: defaultBoolean(false),
@@ -12,10 +12,10 @@ export const RelayPollCreateType = z.object({
 });
 
 export const RelayPollResultType = z.object({
-  type: z.literal("result"),
+  action: z.literal("result"),
   name: z.string(),
   votes: z.tuple([z.string(), z.number()]).array(),
   roomId: z.string().optional(),
 });
 
-export const RelayPollType = z.discriminatedUnion("type", [RelayPollCreateType]);
+export const RelayPollType = z.discriminatedUnion("action", [RelayPollCreateType]);

@@ -1,4 +1,5 @@
 import { Client } from "../src";
+import { readFileSync } from "fs";
 
 const wa = new Client({
   authType: "pairing",
@@ -12,15 +13,8 @@ const wa = new Client({
 });
 
 wa.on("messages", async (ctx) => {
-  console.log('ctx: ', ctx);
+  console.log("ctx: ", ctx);
   if (!ctx.citation?.isMy) return;
 
-  wa.poll("reply", {
-    type: "create",
-    name: "Text poll",
-    answers: [
-      "Option 1",
-      "Option 2",
-    ],
-  });
+  wa.pin({ action: "pin", expired: "24h", message: ctx.message });
 });

@@ -1,4 +1,3 @@
-import { Readable } from "stream";
 import { z } from "zod";
 
 export const MessagesMediaType = {
@@ -134,7 +133,13 @@ export const MessagesEnumType = z.enum([
   "encEventUpdate",
 ]);
 
-export const MessagesDeviceEnumType = z.enum(["unknown", "android", "ios", "desktop", "web"]);
+export const MessagesDeviceEnumType = z.enum([
+  "unknown",
+  "android",
+  "ios",
+  "desktop",
+  "web",
+]);
 
 export const ExtractorMessagesType = z.object({
   chatId: z.string(),
@@ -171,16 +176,16 @@ export const ExtractorMessagesType = z.object({
   citation: z.record(z.string(), z.boolean()).nullable(),
   media: z
     .object({
-      buffer: z.function().output(z.instanceof(Buffer)),
-      stream: z.function().output(z.instanceof(Readable)),
+      buffer: z.function(),
+      stream: z.function(),
     })
     .loose()
     .nullable(),
   message: z.function({
     input: [],
-    output: z.record(z.string(), z.any())
+    output: z.record(z.string(), z.any()),
   }),
   get replied() {
-    return ExtractorMessagesType.nullable()
-  }
+    return ExtractorMessagesType.nullable();
+  },
 });

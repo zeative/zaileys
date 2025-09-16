@@ -1,16 +1,16 @@
 import { Client } from "../classes";
-import { JsonDB } from "../plugins";
+import { JsonDB, JsonDBInterface } from "../plugins";
 import { AuthHandler } from "./auth";
 import { PluginsHandler } from "./plugins";
 
-export const CredsHandler = async (props: Client['props']) => {
-  const db = PluginsHandler('database', props) || new JsonDB()
-  await db.initialize(props.session)
-  return await AuthHandler(db)
-}
+export const CredsHandler = async (props: Client["props"]) => {
+  const db = PluginsHandler("database", props) || new JsonDB();
+  await (db as JsonDBInterface).initialize(props.session || "default");
+  return await AuthHandler(db as JsonDBInterface);
+};
 
-export const DatabaseHandler = async (props: Client['props']) => {
-  const db = PluginsHandler('database', props) || new JsonDB()
-  await db.initialize(props.session)
-  return db
-}
+export const DatabaseHandler = async (props: Client["props"]) => {
+  const db = PluginsHandler("database", props) || new JsonDB();
+  await (db as JsonDBInterface).initialize(props.session || "default");
+  return db as JsonDBInterface;
+};

@@ -1,14 +1,15 @@
 import makeWASocket, {
-  Browsers,
   delay,
   fetchLatestBaileysVersion,
   makeCacheableSignalKeyStore,
+  type AuthenticationCreds
 } from "baileys";
 import EventEmitter from "events";
 import { createSpinner } from "nanospinner";
 import NodeCache from "node-cache";
 import pino from "pino";
 import { CredsHandler } from "../modules/database";
+import { JsonDBInterface } from "../plugins/JsonDB";
 import {
   ClientOptionsType,
   EventCallbackType,
@@ -22,10 +23,11 @@ import { Relay } from "./Relay";
 
 export class Client {
   public props: ExtractZod<typeof ClientOptionsType>;
+  public db!: JsonDBInterface;
 
   private logger: pino.Logger = pino({ level: "silent", enabled: false });
   private events: EventEmitter = new EventEmitter();
-  private relay: Relay;
+  private relay!: Relay;
   private retryCount: number = 0;
   private maxRetries: number = 10;
   private connectionTimeout: NodeJS.Timeout | undefined;
@@ -40,8 +42,9 @@ export class Client {
 
     return new Proxy(this, {
       get(target, prop) {
-        if (prop in target) return target[prop];
-        return target.relay[prop];
+        if (typeof prop === "string" && prop in target) return (target as unknown as Record<string, unknown>)[prop];
+        if (typeof prop === "string") return (target.relay as unknown as Record<string, unknown>)[prop];
+        return undefined;
       },
     });
   }
@@ -69,12 +72,13 @@ export class Client {
       userDevicesCache: new NodeCache(),
       cachedGroupMetadata: async (jid: string) => this.cache.get(jid),
       auth: {
-        creds: state.creds,
+        creds: state.creds as AuthenticationCreds,
         keys: makeCacheableSignalKeyStore(state.keys, this.logger),
       },
       getMessage: async (key) => {
+        if (!key?.id) return undefined;
         const message = await db.store("messages").read(key.id);
-        return message;
+        return message || undefined;
       },
     });
 
@@ -126,16 +130,20 @@ export class Client {
     // Set 30 second timeout for connection
     this.connectionTimeout = setTimeout(() => {
       this.handleConnectionTimeout();
-    },60000);
+    }, 60000);
   }
 
   private handleConnectionTimeout() {
     if (this.retryCount < this.maxRetries) {
       this.retryCount++;
-      this.spinner.warn(`Connection timeout. Retrying... (${this.retryCount}/${this.maxRetries})`);
+      this.spinner.warn(
+        `Connection timeout. Retrying... (${this.retryCount}/${this.maxRetries})`
+      );
       this.autoReload();
     } else {
-      this.spinner.error(`Max retries reached (${this.maxRetries}). Connection failed.`);
+      this.spinner.error(
+        `Max retries reached (${this.maxRetries}). Connection failed.`
+      );
       process.exit(1);
     }
   }
@@ -149,7 +157,7 @@ export class Client {
 
       // Close existing socket if exists
       if (this.socket) {
-        this.socket.end();
+        this.socket.end?.(undefined);
         this.socket = undefined;
       }
 
@@ -158,8 +166,8 @@ export class Client {
 
       // Reinitialize connection
       await this.initialize();
-    } catch (error) {
-      this.spinner.error(`Auto-reload failed: ${error.message}`);
+    } catch (error: unknown) {
+      this.spinner.error(`Auto-reload failed: ${(error as Error).message}`);
       this.handleConnectionTimeout();
     }
   }
@@ -186,5 +194,4 @@ export class Client {
   }
 }
 
-export interface Client extends Relay {}
 export default Client;

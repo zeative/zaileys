@@ -6,7 +6,7 @@ export default defineConfig({
   dts: true,
   splitting: false,
   clean: true,
-  minify: "terser",
+  minify: false, // Disable minification to reduce memory usage
   outDir: "dist",
   sourcemap: false,
   treeshake: true,
@@ -17,4 +17,11 @@ export default defineConfig({
       js: format === "cjs" ? ".js" : ".mjs",
     };
   },
+  // Reduce memory consumption
+  tsconfig: "./tsconfig.json",
+  define: {
+    "process.env.NODE_ENV": JSON.stringify(process.env.NODE_ENV || "production")
+  },
+  // Skip bundling type-only imports to reduce memory usage
+  noExternal: []
 });

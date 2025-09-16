@@ -1,27 +1,36 @@
 import z from "zod/v4";
-import { defaultBoolean, ExtractZod } from "../general";
 import { ExtractorCallsType } from "../extractor/calls";
 import { ExtractorConnectionType } from "../extractor/connection";
-import { ExtractorMessagesType, MessagesVerifiedPlatformType } from "../extractor/messages";
-import _ from 'lodash';
+import {
+  ExtractorMessagesType,
+  MessagesVerifiedPlatformType,
+} from "../extractor/messages";
+import { defaultBoolean, ExtractZod } from "../general";
 
-export const PluginsType = z.any().array().transform(x => {
-  return x?.filter((p, i, arr) => i === arr.findIndex(q => q.necessary === p.necessary));
-}).optional()
+export const PluginsType = z.array(z.object({
+  necessary: z.string(),
+  // Add other properties as needed based on actual plugin structure
+}).passthrough()).optional();
 
-export const LimiterType = z.object({
-  durationMs: z.number(),
-  maxMessages: z.number()
-}).optional();
+export const LimiterType = z
+  .object({
+    durationMs: z.number(),
+    maxMessages: z.number(),
+  })
+  .optional();
 
-export const CitationType = z.partialRecord(z.string(), z.number().array()).optional()
+export const CitationType = z
+  .partialRecord(z.string(), z.number().array())
+  .optional();
 
-export const FakeReplyType = z.object({
-  provider: z.enum(Object.keys(MessagesVerifiedPlatformType))
-}).optional()
+export const FakeReplyType = z
+  .object({
+    provider: z.enum(Object.keys(MessagesVerifiedPlatformType)),
+  })
+  .optional();
 
 export const ClientBaseType = z.object({
-  session: z.string().default('zaileys-sessions').optional(),
+  session: z.string().default("zaileys-sessions").optional(),
   prefix: z.string().optional(),
   ignoreMe: defaultBoolean(true),
   showLogs: defaultBoolean(true),
@@ -34,7 +43,7 @@ export const ClientBaseType = z.object({
   limiter: LimiterType,
   citation: CitationType,
   fakeReply: FakeReplyType,
-})
+});
 
 export const ClientAuthPairingType = z.object({
   authType: z.literal("pairing"),
@@ -42,16 +51,20 @@ export const ClientAuthPairingType = z.object({
 });
 
 export const ClientAuthQRType = z.object({
-  authType: z.literal("qr")
+  authType: z.literal("qr"),
 });
 
-export const ClientOptionsType = z
-  .discriminatedUnion("authType", [
-    ClientAuthPairingType.extend(ClientBaseType.shape),
-    ClientAuthQRType.extend(ClientBaseType.shape),
-  ]);
+export const ClientOptionsType = z.discriminatedUnion("authType", [
+  ClientAuthPairingType.extend(ClientBaseType.shape),
+  ClientAuthQRType.extend(ClientBaseType.shape),
+]);
 
-export const EventEnumType = z.enum(["connection", "messages", "calls", "webhooks"]);
+export const EventEnumType = z.enum([
+  "connection",
+  "messages",
+  "calls",
+  "webhooks",
+]);
 
 export type EventCallbackType = {
   connection: (ctx: ExtractZod<typeof ExtractorConnectionType>) => void;

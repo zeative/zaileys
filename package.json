@@ -38,12 +38,17 @@
   },
   "scripts": {
     "build": "tsup",
+    "build:mem": "node --max-old-space-size=4096 node_modules/tsup/dist/cli-default.js",
+    "build:split": "tsup --config tsup.config.js",
+    "build:script": "node scripts/build.js",
     "dev": "tsx watch examples/test.ts",
     "clean": "rm -rf dist sessions",
-    "changelog": "conventional-changelog -p angular -i CHANGELOG.md -s -r 0"
+    "changelog": "conventional-changelog -p angular -i CHANGELOG.md -s -r 0",
+    "lint": "eslint src/ --ext .ts",
+    "lint:fix": "eslint src/ --ext .ts --fix"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "dependencies": {
     "audio-decode": "^2.2.3",
@@ -63,10 +68,16 @@
   "devDependencies": {
     "@types/figlet": "^1.7.0",
     "@types/lodash": "^4.17.20",
+    "@types/lowdb": "^1.0.9",
+    "@types/qrcode": "^1.5.5",
+    "@typescript-eslint/eslint-plugin": "^8.40.0",
+    "@typescript-eslint/parser": "^8.40.0",
     "conventional-changelog-cli": "^5.0.0",
+    "eslint": "^9.34.0",
     "terser": "^5.43.1",
     "tsup": "^8.5.0",
-    "typescript": "5.8.3"
+    "typescript": "5.8.3",
+    "typescript-eslint": "^8.43.0"
   },
   "trustedDependencies": [
     "baileys",

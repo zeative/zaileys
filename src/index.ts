@@ -1,5 +1,4 @@
-export * from './classes'
-export * from './plugins'
+export * from "./classes";
+export * from "./plugins";
 
-
-process.setMaxListeners(100);
+export * from "./types/classes/Client";

@@ -1,3 +1,5 @@
+import Long from "long";
+
 export const allocate = (str: string) => {
   let n = 0;
   let p = str.length;
@@ -13,20 +15,22 @@ export const parseTimestamp = (timestamp: string | number | Long) => {
   return timestamp;
 };
 
-export const fromObject = (args: any) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const fromObject = (args: Record<string, any>) => {
+  const fingerprint = args.fingerprint as Record<string, unknown> || {};
   const f = {
-    ...args.fingerprint,
-    deviceIndexes: Array.isArray(args.fingerprint.deviceIndexes) ? args.fingerprint.deviceIndexes : [],
+    ...fingerprint,
+    deviceIndexes: Array.isArray(fingerprint.deviceIndexes) ? fingerprint.deviceIndexes : [],
   };
 
   const message = {
     keyData: Array.isArray(args.keyData) ? args.keyData : new Uint8Array(),
     fingerprint: {
-      rawId: f.rawId || 0,
-      currentIndex: f.rawId || 0,
+      rawId: (fingerprint.rawId as number) || 0,
+      currentIndex: (fingerprint.rawId as number) || 0,
       deviceIndexes: f.deviceIndexes,
     },
-    timestamp: parseTimestamp(args.timestamp),
+    timestamp: parseTimestamp(args.timestamp as string | number | Long),
   };
 
   if (typeof args.keyData === "string") {

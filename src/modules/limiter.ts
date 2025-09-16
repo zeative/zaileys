@@ -4,6 +4,12 @@ import { toJson } from "../utils/helpers";
 
 const cache = new NodeCache({ stdTTL: 3600, checkperiod: 600 });
 
+type UserRateLimit = {
+  count: number;
+  last: number;
+  blacklisted?: number;
+};
+
 export const LimiterHandler = async (key: string, max: number, ms: number) => {
   const limiter = new Bottleneck({
     maxConcurrent: 1,
@@ -14,9 +20,9 @@ export const LimiterHandler = async (key: string, max: number, ms: number) => {
   });
 
   const now = Date.now();
-  const user = toJson(cache.get(key) || { count: 0, last: 0 });
+  const user: UserRateLimit = toJson(cache.get(key) || { count: 0, last: 0 }) as UserRateLimit;
 
-  if (now - user.last > ms) (user.count = 0)
+  if (now - user.last > ms) user.count = 0;
 
   user.count += 1;
   user.last = now;
@@ -28,7 +34,7 @@ export const LimiterHandler = async (key: string, max: number, ms: number) => {
         cache.set(key, { ...user, blacklisted: now + ms });
         return true;
       }
-      return await false;
+      return false;
     });
   } catch (err) {
     console.error("Error detecting spam:", err);

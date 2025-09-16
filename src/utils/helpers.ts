@@ -1,14 +1,14 @@
 import { sendError } from "./error";
 
-export const toJson = (object) => {
+export const toJson = <T = unknown>(object: unknown): T => {
   try {
-    return JSON.parse(object);
+    return JSON.parse(object as string) as T;
   } catch {
-    return JSON.parse(JSON.stringify(object) || '{}');
+    return JSON.parse(JSON.stringify(object) || "{}") as T;
   }
 };
 
-export const toString = (object) => {
+export const toString = (object: unknown) => {
   try {
     return JSON.stringify(object);
   } catch {
@@ -16,16 +16,16 @@ export const toString = (object) => {
   }
 };
 
-export const shuffleString = (str) => {
-  const arr = [...str]
+export const shuffleString = (str: string) => {
+  const arr = [...str];
   for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]]
+    [arr[i], arr[j]] = [arr[j], arr[i]];
   }
-  return arr.join('')
-}
+  return arr.join("");
+};
 
-export const tryAgain = async (fn) => {
+export const tryAgain = async <T>(fn: () => Promise<T>) => {
   const RETRY_DELAY = 200;
   const MAX_RETRIES = 10;
 
@@ -33,7 +33,7 @@ export const tryAgain = async (fn) => {
     try {
       return await (fn)();
     } catch (e) {
-      console.log('e :', e);
+      console.log("e :", e);
       await new Promise((r) => setTimeout(r, RETRY_DELAY));
     }
   }
@@ -63,6 +63,23 @@ export const extractUrls = (text = "") => {
   if (!text) return [];
   const regex = /(?:https?:\/\/)?[^\s<>"']+\.[^\s<>"']+/g;
   return text.match(regex) || [];
+};
+
+export const getDevice = (chatId: string) => {
+  if (!chatId) return "unknown";
+  const device = chatId?.split(":")[1]?.split("@")[0];
+  switch (device) {
+    case "1":
+      return "android";
+    case "2":
+      return "ios";
+    case "3":
+      return "desktop";
+    case "4":
+      return "web";
+    default:
+      return "unknown";
+  }
 };
 
 export const getMentions = (text = "") => {

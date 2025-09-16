@@ -16,4 +16,4 @@ export const CallsExtractor = async (client: Client, caller: WACallEvent) => {
   payload.isGroup = !!caller.isGroup;
 
   return payload;
-}
+};

@@ -1,3 +1,3 @@
 export class Limiter {
-  readonly necessary = 'limiter'
+  readonly necessary = "limiter";
 }

@@ -1,16 +1,18 @@
 import z from "zod/v4";
 import { ExtractorCallsType } from "../extractor/calls";
 import { ExtractorConnectionType } from "../extractor/connection";
-import {
-  ExtractorMessagesType,
-  MessagesVerifiedPlatformType,
-} from "../extractor/messages";
+import { ExtractorMessagesType } from "../extractor/messages";
 import { defaultBoolean, ExtractZod } from "../general";
 
-export const PluginsType = z.array(z.object({
-  necessary: z.string(),
-  
-}).passthrough()).optional();
+export const PluginsType = z
+  .array(
+    z
+      .object({
+        necessary: z.string(),
+      })
+      .passthrough()
+  )
+  .optional();
 
 export const LimiterType = z
   .object({
@@ -19,9 +21,7 @@ export const LimiterType = z
   })
   .optional();
 
-export const CitationType = z
-  .partialRecord(z.string(), z.number().array())
-  .optional();
+export const CitationType = z.partialRecord(z.string(), z.number().array()).optional();
 
 export const FakeReplyType = z
   .object({
@@ -54,17 +54,9 @@ export const ClientAuthQRType = z.object({
   authType: z.literal("qr"),
 });
 
-export const ClientOptionsType = z.discriminatedUnion("authType", [
-  ClientAuthPairingType.extend(ClientBaseType.shape),
-  ClientAuthQRType.extend(ClientBaseType.shape),
-]);
+export const ClientOptionsType = z.discriminatedUnion("authType", [ClientAuthPairingType.extend(ClientBaseType.shape), ClientAuthQRType.extend(ClientBaseType.shape)]);
 
-export const EventEnumType = z.enum([
-  "connection",
-  "messages",
-  "calls",
-  "webhooks",
-]);
+export const EventEnumType = z.enum(["connection", "messages", "calls", "webhooks"]);
 
 export type EventCallbackType = {
   connection: (ctx: ExtractZod<typeof ExtractorConnectionType>) => void;

@@ -1,6 +1,4 @@
-import { delay } from "baileys";
 import { Client } from "../src";
-import * as fs from "fs";
 
 const wa = new Client({
   authType: "pairing",
@@ -14,12 +12,15 @@ const wa = new Client({
 });
 
 wa.on("messages", async (ctx) => {
+  console.log('ctx: ', ctx);
   if (!ctx.citation?.isMy) return;
 
-  const tes = await wa.reply("galloo");
-
-  await delay(3000);
-
-  const efi = await wa.delete({ message: tes?.message });
-  console.log("efi: ", efi);
+  wa.poll("reply", {
+    type: "create",
+    name: "Text poll",
+    answers: [
+      "Option 1",
+      "Option 2",
+    ],
+  });
 });

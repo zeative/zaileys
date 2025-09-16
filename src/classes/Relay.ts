@@ -17,6 +17,10 @@ import { MessagesExtractor } from "../extractor/messages";
 import { RelayDeleteType } from "../types/relay/delete";
 import { RelayRejectType } from "../types/relay/reject";
 import { RelayPresenceType } from "../types/relay/presence";
+import { RelayReactionType } from "../types/relay/reaction";
+import { RelayLocationEnumType, RelayLocationType } from "../types/relay/location";
+import { RelayContactEnumType, RelayContactType } from "../types/relay/contact";
+import { RelayPollEnumType, RelayPollType } from "../types/relay/poll";
 
 type RelayInitialType = {
   isAudio?: boolean;
@@ -203,6 +207,8 @@ export class Relay {
   }
 
   async presence(props: ExtractZod<typeof RelayPresenceType>) {
+    await this.initial({ disabledPresence: true });
+
     const params = RelayPresenceType.parse(props);
     const opts = {
       typing: "composing",
@@ -213,6 +219,17 @@ export class Relay {
     } as const;
 
     return await this.client.socket.sendPresenceUpdate(opts[params], this.message.roomId);
+  }
+
+  async reaction(props: ExtractZod<typeof RelayReactionType>) {
+    await this.initial({ disabledPresence: true });
+
+    const params = RelayReactionType.parse(props);
+    const message = typeof params == "string" ? this.message.message() : params.message();
+    const text = typeof params == "string" ? params : params.emoticon;
+
+    const res = await this.client.socket.sendMessage(message?.key?.remoteJid!, { react: { text, key: message?.key } });
+    return await MessagesExtractor(this.ctx, res);
   }
 
   // MEDIA RELAY
@@ -286,6 +303,88 @@ export class Relay {
     const params = RelayVideoType.parse(props);
 
     const options: AnyMessageContent = { video: typeof params.video === "string" ? { url: params.video } : params.video, gifPlayback: true };
+
+    this[enumType]({ text: "$$media$$", roomId: params.roomId, options });
+  }
+
+  // FEATURED RELAY
+
+  async location(type: ExtractZod<typeof RelayLocationEnumType>, props: ExtractZod<typeof RelayLocationType>) {
+    await this.initial();
+
+    const enumType = RelayLocationEnumType.parse(type);
+    const params = RelayLocationType.parse(props);
+
+    const options: AnyMessageContent = {
+      location: {
+        degreesLatitude: params.latitude,
+        degreesLongitude: params.longitude,
+        url: params.title,
+        address: params.footer,
+        name: params.title,
+      },
+    };
+
+    this[enumType]({ text: "$$media$$", roomId: params.roomId, options });
+  }
+
+  async contact(type: ExtractZod<typeof RelayContactEnumType>, props: ExtractZod<typeof RelayContactType>) {
+    await this.initial();
+
+    const enumType = RelayContactEnumType.parse(type);
+    const params = RelayContactType.parse(props);
+
+    const contacts = [
+      "BEGIN:VCARD",
+      "VERSION:3.0",
+      `N:;${params.fullname};;;`,
+      `FN:${params.fullname}`,
+      params.nickname ? `NICKNAME:${params.nickname}` : "",
+      params.organization || params.role ? `ORG:${params.organization ?? ""};` : "",
+      params.role ? `TITLE:${params.role}` : "",
+      `TEL;TYPE=CELL,VOICE;waid=${params.whatsAppNumber}:+${params.whatsAppNumber}`,
+      params.callNumber ? `TEL;TYPE=WORK,VOICE:+${params.callNumber}` : "",
+      params.voiceNumber ? `TEL;TYPE=VOICE:+${params.voiceNumber}` : "",
+      params.email ? `EMAIL;TYPE=INTERNET:${params.email}` : "",
+      params.website ? `URL;TYPE=WORK:${params.website}` : "",
+      params.homeAddress ? `ADR;TYPE=HOME:;;${params.homeAddress};;;;` : "",
+      params.workAddress ? `ADR;TYPE=WORK:;;${params.workAddress};;;;` : "",
+      params.avatar ? `PHOTO;VALUE=URI;TYPE=JPEG:${params.avatar}` : "",
+      "END:VCARD",
+    ].join("\n");
+
+    const options: AnyMessageContent = {
+      contacts: {
+        displayName: params.fullname,
+        contacts: [{ vcard: contacts }],
+      },
+    };
+
+    this[enumType]({ text: "$$media$$", roomId: params.roomId, options });
+  }
+
+  async poll(type: ExtractZod<typeof RelayPollEnumType>, props: ExtractZod<typeof RelayPollType>) {
+    await this.initial();
+
+    const enumType = RelayPollEnumType.parse(type);
+    const params = RelayPollType.parse(props);
+    const options = {} as any;
+
+    if (params.type == "create") {
+      options.poll = {
+        name: params.name,
+        values: params.answers,
+        selectableCount: !!params.isMultiple ? 1 : 0,
+        toAnnouncementGroup: true,
+      };
+    }
+
+    // if (params.type == "result") {
+    //   options.pollResult = {
+    //     name: params.name,
+    //     votes: params.votes,
+    //   };
+    // }
 
     this[enumType]({ text: "$$media$$", roomId: params.roomId, options });
   }

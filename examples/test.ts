@@ -12,8 +12,8 @@ const wa = new Client({
 });
 
 wa.on("messages", (ctx) => {
-  console.log("ctx :", ctx);
   if (!ctx.citation?.isMy) return;
+  console.log("ctx :", ctx);
 });
 
 

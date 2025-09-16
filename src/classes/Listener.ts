@@ -1,10 +1,4 @@
-import {
-  ConnectionState,
-  DisconnectReason,
-  jidNormalizedUser,
-  proto,
-  WACallEvent,
-} from "baileys";
+import { ConnectionState, delay, DisconnectReason, jidNormalizedUser, proto, WACallEvent } from "baileys";
 import chalk from "chalk";
 import QRCode from "qrcode";
 import { CallsExtractor } from "../extractor/calls";
@@ -12,6 +6,7 @@ import { MessagesExtractor } from "../extractor/messages";
 import { toJson } from "../utils/helpers";
 import { Client } from "./Client";
 import { JsonDBInterface } from "../plugins/JsonDB";
+import _ from "lodash";
 
 export class Listener {
   client!: Client & { db: JsonDBInterface };
@@ -35,30 +30,17 @@ export class Listener {
       }
     });
 
-    
-    this.client.socket?.ev.on("creds.update", () => {
-      
-      
-      
-    });
+    this.client.socket?.ev.on("creds.update", () => {});
 
-    
     if (this.client.socket?.ws) {
-      const originalEmit = this.client.socket.ws.emit.bind(
-        this.client.socket.ws
-      );
+      const originalEmit = this.client.socket.ws.emit.bind(this.client.socket.ws);
       this.client.socket.ws.emit = (event: string, ...args: unknown[]) => {
         if (event === "error" && args[0]) {
-          const errorMessage =
-            (args[0] as Error).message || args[0]?.toString();
+          const errorMessage = (args[0] as Error).message || args[0]?.toString();
           if (
-            errorMessage.includes(
-              "Closing open session in favor of incoming prekey bundle"
-            ) ||
-            errorMessage.includes(
-              "Closing stale open session for new outgoing prekey bundle"
-            ) ||
-            errorMessage.includes("Closing session: SessionEntry")
+            _.includes(errorMessage, "Closing open session in favor of incoming prekey bundle") ||
+            _.includes(errorMessage, "Closing stale open session for new outgoing prekey bundle") ||
+            _.includes(errorMessage, "Closing session: SessionEntry")
           ) {
             this.handleSessionClosing();
           }
@@ -69,12 +51,8 @@ export class Listener {
   }
 
   private async handleSessionClosing() {
-    
     this.client.spinner.start("Processing session changes...");
-
-    
-    await new Promise((resolve) => setTimeout(resolve, 3000));
-
+    await delay(3000);
     this.client.spinner.success("Session processing completed");
   }
 
@@ -83,53 +61,37 @@ export class Listener {
     this.client.emit("connection", { status: "connecting" });
 
     if (this.client.props.authType === "qr" && qr) {
-      this.client.spinner.info(`Please scan the QR
-
-${await QRCode.toString(qr, { type: "terminal", small: true })}`);
+      this.client.spinner.info(`Please scan the QR\n\n${await QRCode.toString(qr, { type: "terminal", small: true })}`);
       return;
     }
 
     if (connection === "close") {
-      const code = toJson<{ output?: { statusCode?: number } }>(
-        lastDisconnect?.error
-      )?.output?.statusCode;
+      const code = toJson<{ output?: { statusCode?: number } }>(lastDisconnect?.error)?.output?.statusCode;
       const errorMessage = lastDisconnect?.error?.message || "";
-      const isReconnect =
-        typeof code === "number" && code !== DisconnectReason.loggedOut;
+      const isReconnect = typeof code === "number" && code !== DisconnectReason.loggedOut;
 
-      
       if (
-        errorMessage.includes(
-          "Closing open session in favor of incoming prekey bundle"
-        ) ||
-        errorMessage.includes(
-          "Closing stale open session for new outgoing prekey bundle"
-        ) ||
-        errorMessage.includes("Closing session: SessionEntry")
+        _.includes(errorMessage, "Closing open session in favor of incoming prekey bundle") ||
+        _.includes(errorMessage, "Closing stale open session for new outgoing prekey bundle") ||
+        _.includes(errorMessage, "Closing session: SessionEntry")
       ) {
         this.client.spinner.start("Processing session changes...");
 
-        
         await new Promise((resolve) => setTimeout(resolve, 2000));
 
         this.client.spinner.success("Session processing completed");
         return;
       }
 
-      this.client.spinner.error(
-        `[Connection Closed] [${code}] ${errorMessage}`
-      );
+      this.client.spinner.error(`[Connection Closed] [${code}] ${errorMessage}`);
 
       if (code === 401 || code === 405 || code === 500) {
         this.client.spinner.error("Invalid session, please delete manually");
-        this.client.spinner.error(
-          `Session "${this.client.props.session}" has not valid, please delete it`
-        );
+        this.client.spinner.error(`Session "${this.client.props.session}" has not valid, please delete it`);
         return;
       }
 
       if (isReconnect) {
-        
         this.client.spinner.warn("Connection lost. Attempting auto-reload...");
         const clientRecord = this.client as unknown as Record<string, unknown>;
         if (typeof clientRecord.autoReload === "function") {
@@ -139,16 +101,13 @@ ${await QRCode.toString(qr, { type: "terminal", small: true })}`);
     } else if (connection === "open") {
       if (this.client.socket?.user) {
         const id = jidNormalizedUser(this.client.socket.user.id).split("@")[0];
-        const name =
-          this.client.socket.user.name || this.client.socket.user.verifiedName;
+        const name = this.client.socket.user.name || this.client.socket.user.verifiedName;
 
-        
         const clientRecord = this.client as unknown as Record<string, unknown>;
         if (typeof clientRecord.resetRetryCount === "function") {
           clientRecord.resetRetryCount();
         }
-        this.client.spinner.success(`Connected as ${chalk.green(name || id)}
-`);
+        this.client.spinner.success(`Connected as ${chalk.green(name || id)}`);
         this.client.emit("connection", { status: "open" });
       }
     }
@@ -162,7 +121,7 @@ ${await QRCode.toString(qr, { type: "terminal", small: true })}`);
     }
 
     const extract = await MessagesExtractor(this.client, message);
-    
+
     if (extract) {
       this.client.emit("messages", extract);
     }

@@ -4,6 +4,7 @@ import lowdb from "lowdb";
 import FileSync from "lowdb/adapters/FileSync";
 import { dirname } from "path";
 import { toJson, toString } from "../utils/helpers";
+import _ from "lodash";
 
 
 interface Store {
@@ -30,7 +31,6 @@ export interface JsonDBInterface {
   clear(): Promise<void>;
   delete(): Promise<void>;
 }
-
 
 
 const CHUNK_SIZE = 1000;
@@ -65,31 +65,31 @@ export class JsonDB implements JsonDBInterface {
           return JSON.parse(sub);
         }
       } catch (_error: unknown) { 
-        
+        // Ignore error
       }
       try {
         const wrapped = `[${s.replace(/}\s*{/g, "},{")}]`;
         return JSON.parse(wrapped);
       } catch (_error: unknown) { 
-        
+        // Ignore error
       }
       try {
-        const lines = s.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-        const parsed = lines.map(l => {
-          try { return JSON.parse(l); } catch (_error: unknown) { return null; }
-        }).filter(Boolean);
+        const lines = _.filter(_.map(s.split(/\\r?\\n/), l => l.trim()), Boolean);
+        const parsedResults = _.map(lines, l => {
+          try { return JSON.parse(l as string); } catch (_error: unknown) { return null; }
+        });
+        const parsed = _.filter(parsedResults, (item): item is Record<string, unknown> => item !== null);
+
         if (parsed.length) return parsed;
       } catch (_error: unknown) { 
-        
+        // Ignore error
       }
     }
     return null;
   }
 
   private async chunks(key: string): Promise<Record<string, unknown>[]> {
-    const files = readdirSync(this.storeDir)
-      .filter(f => f.startsWith(`${key}-`) && f.endsWith(".json"))
-      .sort();
+    const files = _.filter(readdirSync(this.storeDir), f => _.startsWith(f, `${key}-`) && _.endsWith(f, ".json")).sort();
     const result: Record<string, unknown>[] = [];
     for (const file of files) {
       const full = `${this.storeDir}/${file}`;
@@ -108,10 +108,10 @@ export class JsonDB implements JsonDBInterface {
         } else {
           const corrupt = `${full}.corrupt.${Date.now()}`;
           try { renameSync(full, corrupt); } catch (_renameErr: unknown) { 
-            
+            // Ignore error
           }
           try { writeFileSync(full, "[]", "utf8"); } catch (_writeFileErr: unknown) { 
-              
+              // Ignore error
             }
         }
       }
@@ -120,9 +120,8 @@ export class JsonDB implements JsonDBInterface {
   }
 
   private async writeChunks(key: string, items: Record<string, unknown>[]) {
-    readdirSync(this.storeDir)
-      .filter(f => f.startsWith(`${key}-`) && f.endsWith(".json"))
-      .forEach(f => unlinkSync(`${this.storeDir}/${f}`));
+    _.forEach(_.filter(readdirSync(this.storeDir), f => _.startsWith(f, `${key}-`) && _.endsWith(f, ".json")), 
+      f => unlinkSync(`${this.storeDir}/${f}`));
     let index = 0;
     for (let i = 0; i < items.length; i += CHUNK_SIZE) {
       const chunk = items.slice(i, i + CHUNK_SIZE);
@@ -139,7 +138,7 @@ export class JsonDB implements JsonDBInterface {
           } catch (_renameErr: unknown) {
             try { db.write(); } catch (_writeErr: unknown) {
               try { writeFileSync(file, JSON.stringify(chunk), "utf8"); } catch (_writeFileErr: unknown) { 
-                
+                // Ignore error
               }
             }
           }
@@ -155,7 +154,7 @@ export class JsonDB implements JsonDBInterface {
     return {
       read: async (id: string) => {
         const list = await this.chunks(key);
-        const row = list.find(i => i.id === id);
+        const row = _.find(list, i => i.id === id);
         return row ? JSON.parse(row.value as string) : null;
       },
       write: async (obj: Record<string, unknown>) => {
@@ -174,7 +173,7 @@ export class JsonDB implements JsonDBInterface {
     const replacer = JSON.stringify(value, BufferJSON.replacer);
     const dbValue = this.db.value();
     const data = (Array.isArray(dbValue) ? dbValue : []) as Record<string, unknown>[];
-    const idx = data.findIndex((i: Record<string, unknown>) => i.id === id);
+    const idx = _.findIndex(data, (i: Record<string, unknown>) => i.id === id);
     if (idx !== -1) {
       data[idx].value = replacer;
     } else {
@@ -186,7 +185,7 @@ export class JsonDB implements JsonDBInterface {
   async read(id: string) {
     const dbValue = this.db.value();
     const data = (Array.isArray(dbValue) ? dbValue : []) as Record<string, unknown>[];
-    const row = data.find((i: Record<string, unknown>) => i.id === id);
+    const row = _.find(data, (i: Record<string, unknown>) => i.id === id);
     if (!row || !row.value) return null;
     const creds = typeof row.value === "object" ? toString(row.value) : row.value as string;
     return JSON.parse(creds, BufferJSON.reviver);
@@ -195,14 +194,14 @@ export class JsonDB implements JsonDBInterface {
   async remove(id: string) {
     const dbValue = this.db.value();
     const data = (Array.isArray(dbValue) ? dbValue : []) as Record<string, unknown>[];
-    const filtered = data.filter((i: Record<string, unknown>) => i.id !== id);
+    const filtered = _.filter(data, (i: Record<string, unknown>) => i.id !== id);
     this.db.setState(filtered).write();
   }
 
   async clear() {
     const dbValue = this.db.value();
     const data = (Array.isArray(dbValue) ? dbValue : []) as Record<string, unknown>[];
-    const filtered = data.filter((i: Record<string, unknown>) => i.id === "creds");
+    const filtered = _.filter(data, (i: Record<string, unknown>) => i.id === "creds");
     this.db.setState(filtered).write();
   }
 

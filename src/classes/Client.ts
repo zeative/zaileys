@@ -20,6 +20,7 @@ import { displayBanner } from "../utils/banner";
 import { shuffleString } from "../utils/helpers";
 import { Listener } from "./Listener";
 import { Relay } from "./Relay";
+import _ from "lodash";
 
 export class Client {
   public props: ExtractZod<typeof ClientOptionsType>;
@@ -44,7 +45,7 @@ export class Client {
       get(target, prop) {
         if (
           typeof prop === "string" &&
-          (prop in target || ["on", "emit"].includes(prop))
+          (prop in target || _.includes(["on", "emit"], prop))
         )
           return (target as unknown as Record<string, unknown>)[prop];
         if (typeof prop === "string")

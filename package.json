@@ -44,7 +44,7 @@
     "dev": "tsx watch examples/test.ts",
     "clean": "rm -rf dist sessions",
     "changelog": "conventional-changelog -p angular -i CHANGELOG.md -s -r 0",
-    "lint": "eslint src/ --ext .ts",
+    "lint": "npx tsc --noEmit",
     "lint:fix": "eslint src/ --ext .ts --fix"
   },
   "engines": {

@@ -16,7 +16,7 @@ export const parseTimestamp = (timestamp: string | number | Long) => {
 };
 
 
-export const fromObject = (args: Record<string, any>) => {
+export const fromObject = (args: Record<string, unknown>) => {
   const fingerprint = args.fingerprint as Record<string, unknown> || {};
   const f = {
     ...fingerprint,

@@ -14,10 +14,4 @@ const wa = new Client({
 wa.on("messages", async (ctx) => {
   console.log("ctx: ", ctx);
   if (!ctx.citation?.isMy) return;
-
-  wa.button("reply", {
-    type: "simple",
-    text: "Test",
-    buttons: [{ id: "343", text: "Test 123" }]
-  });
 });

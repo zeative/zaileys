@@ -489,4 +489,9 @@ export class Relay {
 
     this[enumType]({ text: "$$media$$", roomId: params.roomId, options });
   }
+
+  // GROUP RELAY
+
+  
+
 }

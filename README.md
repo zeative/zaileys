@@ -26,11 +26,12 @@
 - [Installation](#-installation)
 - [Example Projects](#-example-projects)
 - [Connecting Methods](#-connecting-methods)
-  - [QR Code](#--qr-code)
-  - [Pairing Code](#--pairing-code)
+  - [QR Code](#-qr-code)
+  - [Pairing Code](#-pairing-code)
 - [Quick Start](#-quick-start)
 - [Core Concepts](#-core-concepts)
-  - [Citation](#--citation)
+  - [Citation](#-citation)
+  - [Limiter](#-limiter)
 - [Issues & Feedback](#-issues---feedback)
 
 ### 💠 Features
@@ -83,7 +84,7 @@ Explore the `examples` for practical use cases:
 > [!TIP]
 > You can connect to WhatsApp using either a QR code or a pairing code.
 
-#### - QR Code
+#### `QR Code`
 
 ```js
 const wa = new Client({
@@ -91,7 +92,7 @@ const wa = new Client({
 });
 ```
 
-#### - Pairing Code
+#### `Pairing Code`
 
 ```js
 const wa = new Client({
@@ -116,7 +117,7 @@ wa.on("messages", (ctx) => {
 
 ### 💠 Core Concepts
 
-#### - Citation
+#### `Citation`
 
 Define custom metadata providers for dynamic boolean flags in ctx.citation. See citation.ts.
 
@@ -137,7 +138,7 @@ wa.on("messages", (ctx) => {
 })
 ```
 
-#### - Limiter
+#### `Limiter`
 
 Detect and prevent spam with the built-in limiter. See limiter.ts.
 

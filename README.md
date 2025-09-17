@@ -43,7 +43,7 @@
     - [Delete Message](#delete-message)
     - [Reaction Message](#reaction-message)
     - [Presence](#presence)
-    - [Reject](#reject)
+    - [Reject Call](#reject-call)
   - [Media](#media)
     - [Document Message](#document-message)
     - [Image Message](#image-message)
@@ -51,6 +51,7 @@
     - [Video Message](#video-message)
     - [Audio Message](#audio-message)
     - [Voice Message](#voice-message)
+    - [View Once Message](#view-once-message)
     - [Note Message](#note-message)
     - [Gif Message](#gif-message)
     - [Location Message](#location-message)
@@ -319,6 +320,102 @@ wa.on("calls", (ctx) => {
   wa.reject(ctx);
   // or
   wa.reject({ callId: ctx.callId, callerId: ctx.callerId });
+})
+```
+
+### `Media`
+
+#### *Document Message*
+
+```js
+wa.document("text", {
+  document: "https://github.com/zaadevofc.png",
+  mimetype: "image/png",
+  fileName: "zaadevofc logo.png",
+  text: "Here your logo",
+})
+
+// others method: text | reply | forward
+// example as reply
+wa.document("reply" { ... })
+```
+
+#### *Image Message*
+
+```js
+wa.image("text", {
+  image: "https://github.com/zaadevofc.png",
+  text: "Here your logo",
+})
+```
+
+#### *Sticker Message*
+
+```js
+wa.sticker("text", {
+  sticker: "https://example.com/file.webp"
+})
+```
+
+#### *Video Message*
+
+```js
+wa.video("text", {
+  video: "https://example.com/file.mp4",
+  text: "Here your logo",
+})
+```
+
+#### *Audio Message*
+
+```js
+wa.audio("text", {
+  audio: "https://example.com/file.mp3",
+  text: "Here your logo",
+})
+```
+
+#### *Voice Message*
+
+```js
+wa.voice("text", {
+  audio: "https://example.com/file.ogg"
+})
+```
+
+#### *View Once Message*
+
+```js
+wa.image("text", {
+  image: "https://github.com/zaadevofc.png",
+  text: "Here your logo",
+  viewOnce: true
+})
+
+wa.video("text", {
+  ...,
+  viewOnce: true
+})
+
+wa.voice("text", {
+  ...,
+  viewOnce: true
+})
+```
+
+#### *Note Message*
+
+```js
+wa.note("text", {
+  video: "https://example.com/file.mp4"
+})
+```
+
+#### *Gif Message*
+
+```js
+wa.gif("text", {
+  video: "https://example.com/file.mp4"
 })
 ```
 

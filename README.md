@@ -128,7 +128,7 @@ Explore the `examples` for practical use cases:
 > [!TIP]
 > You can connect to WhatsApp using either a QR code or a pairing code.
 
-#### `QR Code`
+### `QR Code`
 
 ```js
 const wa = new Client({
@@ -136,7 +136,7 @@ const wa = new Client({
 });
 ```
 
-#### `Pairing Code`
+### `Pairing Code`
 
 ```js
 const wa = new Client({
@@ -161,9 +161,9 @@ wa.on("messages", (ctx) => {
 
 ### 💠 Core Concepts
 
-#### `Citation`
+### `Citation`
 
-Define custom metadata providers for dynamic boolean flags in ctx.citation. See `citation.ts`.
+Define custom metadata providers for dynamic boolean flags in `ctx.citation`. See `citation.ts`.
 
 ```js
 const wa = new Client({
@@ -182,7 +182,7 @@ wa.on("messages", (ctx) => {
 })
 ```
 
-#### `Limiter`
+### `Limiter`
 
 Detect and prevent spam with the built-in limiter. See limiter.ts.
 
@@ -203,7 +203,7 @@ wa.on("messages", (ctx) => {
 })
 ```
 
-#### `Fake Reply`
+### `Fake Reply`
 
 Make it look like the number verified by manipulation.
 
@@ -235,6 +235,41 @@ wa.on("messages", (ctx) => {});
 
 /* Handle incoming calls */
 wa.on("calls", (ctx) => {});
+```
+
+### 💠 Relay Handling
+
+### `General`
+
+#### Text Message
+
+```js
+wa.text("Hello World!")
+// or
+wa.text({ text: "Hello World!" })
+
+/* custom roomId */
+wa.text({ text: "Hello World!", roomId: "12345@xxx" })
+```
+
+auto mentions user/group (works for both):
+
+```js
+wa.text("Hello @628123456789 @0")
+```
+
+external ads preview (works for both):
+
+```js
+wa.text({
+  text: "Test ads text",
+  externalAdReply: {
+    title: "Test ads title",
+    body: "Test ads body",
+    thumbnailUrl: "https://github.com/zaadevofc.png",
+    mediaUrl: "https://github.com/zaadevofc.png",
+  },
+})
 ```
 
 ### 💠 Issues & Feedback

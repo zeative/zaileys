@@ -32,6 +32,10 @@ import { RelayGroupLinksType } from "../types/relay/group/links";
 import { RelayGroupInviteType } from "../types/relay/group/invite";
 import { RelayGroupRequestsApproveType, RelayGroupRequestsListType, RelayGroupRequestsRejectType } from "../types/relay/group/requests";
 import { RelayGroupMetadataType } from "../types/relay/group/metadata";
+import { RelayPrivacyUpdateType } from "../types/relay/privacy/update";
+import { RelayProfileBioType } from "../types/relay/profile/bio";
+import { RelayProfileUpdateType } from "../types/relay/profile/update";
+import { RelayProfileCheckType } from "../types/relay/profile/check";
 
 type RelayInitialType = {
   isAudio?: boolean;
@@ -503,7 +507,6 @@ export class Relay {
 
   group() {
     const client = this.ctx;
-    const message = this.message;
 
     const create = async (props: ExtractZod<typeof RelayGroupCreateType>) => {
       const params = RelayGroupCreateType.parse(props);
@@ -511,8 +514,8 @@ export class Relay {
       try {
         return await client.socket.groupCreate(params.title, params.members);
       } catch (error) {
-        this.client.spinner.error("Failed create group. Make sure members has valid number.\n\n" + error);
-        return false;
+        client.spinner.error("Failed create group. Make sure members has valid number.\n\n" + error);
+        return null;
       }
     };
 
@@ -528,8 +531,8 @@ export class Relay {
       try {
         return await client.socket.groupParticipantsUpdate(params.roomId, params.members, opts[params.action]);
       } catch (error) {
-        this.client.spinner.error("Failed update user. Make sure this number is in the group and as admin.\n\n" + error);
-        return false;
+        client.spinner.error("Failed update user. Make sure this number is in the group and as admin.\n\n" + error);
+        return null;
       }
     };
 
@@ -543,8 +546,8 @@ export class Relay {
       try {
         return await client.socket[opts[props.action]](params.roomId, props.text);
       } catch (error) {
-        this.client.spinner.error("Failed update group. Make sure this number is in the group and as admin.\n\n" + error);
-        return false;
+        client.spinner.error("Failed update group. Make sure this number is in the group and as admin.\n\n" + error);
+        return null;
       }
     };
 
@@ -560,8 +563,8 @@ export class Relay {
       try {
         return await client.socket.groupSettingUpdate(params.roomId, opts[params.action]);
       } catch (error) {
-        this.client.spinner.error("Failed settings group. Make sure this number is in the group and as admin.\n\n" + error);
-        return false;
+        client.spinner.error("Failed settings group. Make sure this number is in the group and as admin.\n\n" + error);
+        return null;
       }
     };
 
@@ -571,8 +574,8 @@ export class Relay {
       try {
         return await client.socket.groupLeave(params.roomId);
       } catch (error) {
-        this.client.spinner.error("Failed leave group. Make sure this number is in the group.\n\n" + error);
-        return false;
+        client.spinner.error("Failed leave group. Make sure this number is in the group.\n\n" + error);
+        return null;
       }
     };
 
@@ -587,8 +590,8 @@ export class Relay {
         const code = await client.socket[opts[params.action]](params.roomId);
         return `https://chat.whatsapp.com/` + code;
       } catch (error) {
-        this.client.spinner.error("Failed get group link. Make sure this number is in the group and as admin.\n\n" + error);
-        return false;
+        client.spinner.error("Failed get group link. Make sure this number is in the group and as admin.\n\n" + error);
+        return null;
       }
     };
 
@@ -603,8 +606,8 @@ export class Relay {
         const code = params.url.split("https://chat.whatsapp.com/");
         return await client.socket[opts[params.action]](code[1]);
       } catch (error) {
-        this.client.spinner.error("Failed get group link. Make sure this number is in the group and as admin.\n\n" + error);
-        return false;
+        client.spinner.error("Failed get group link. Make sure this number is in the group and as admin.\n\n" + error);
+        return null;
       }
     };
 
@@ -612,11 +615,11 @@ export class Relay {
       const params = RelayGroupMetadataType.parse(props);
 
       try {
-        const meta = await this.client.socket.groupMetadata(params.roomId);
+        const meta = await client.socket.groupMetadata(params.roomId);
         return meta;
       } catch (error) {
-        this.client.spinner.error("Failed get group metadata. Make sure this number is in the group and as admin.\n\n" + error);
-        return false;
+        client.spinner.error("Failed get group metadata. Make sure this number is in the group and as admin.\n\n" + error);
+        return null;
       }
     };
 
@@ -645,6 +648,164 @@ export class Relay {
       invite,
       metadata,
       requests,
+    };
+  }
+
+  // PRIVACY RELAY
+
+  privacy() {
+    const client = this.ctx;
+
+    const update = async (props: ExtractZod<typeof RelayPrivacyUpdateType>) => {
+      const params = RelayPrivacyUpdateType.parse(props);
+
+      try {
+        if (params.action == "control") {
+          return await client.socket.updateBlockStatus(params.senderId, params.type);
+        }
+
+        if (params.action == "lastSeen") {
+          return await client.socket.updateLastSeenPrivacy(params.type);
+        }
+
+        if (params.action == "online") {
+          return await client.socket.updateOnlinePrivacy(params.type);
+        }
+
+        if (params.action == "avatar") {
+          return await client.socket.updateProfilePicturePrivacy(params.type);
+        }
+
+        if (params.action == "story") {
+          return await client.socket.updateStatusPrivacy(params.type);
+        }
+
+        if (params.action == "read") {
+          return await client.socket.updateReadReceiptsPrivacy(params.type);
+        }
+
+        if (params.action == "groupsAdd") {
+          return await client.socket.updateGroupsAddPrivacy(params.type);
+        }
+
+        if (params.action == "ephemeral") {
+          const opts = { remove: 0, "24h": 86_400, "7d": 604_800, "90d": 7_776_000 } as const;
+          return await client.socket.updateDefaultDisappearingMode(opts[params.type]);
+        }
+      } catch (error) {
+        client.spinner.error("Failed update privacy, please try again.\n\n" + error);
+        return null;
+      }
+    };
+
+    const fetch = {
+      settings: async () => {
+        return await client.socket.fetchPrivacySettings(true);
+      },
+      blocklists: async () => {
+        return await client.socket.fetchBlocklist();
+      },
+    };
+
+    return {
+      update,
+      fetch,
+    };
+  }
+
+  // PROFILE RELAY
+
+  profile() {
+    const client = this.ctx;
+
+    const bio = async (props: ExtractZod<typeof RelayProfileBioType>) => {
+      const params = RelayProfileBioType.parse(props);
+
+      try {
+        return await client.socket.fetchStatus(params.senderId);
+      } catch (error) {
+        client.spinner.error("Failed fetch profile bio. Make sure senderId is valid.\n\n" + error);
+        return null;
+      }
+    };
+
+    const avatar = async (props: ExtractZod<typeof RelayProfileBioType>) => {
+      const params = RelayProfileBioType.parse(props);
+
+      try {
+        return await client.socket.profilePictureUrl(params.senderId);
+      } catch (error) {
+        client.spinner.error("Failed fetch profile avatar. Make sure senderId is valid.\n\n" + error);
+        return null;
+      }
+    };
+
+    const business = async (props: ExtractZod<typeof RelayProfileBioType>) => {
+      const params = RelayProfileBioType.parse(props);
+
+      try {
+        return await client.socket.getBusinessProfile(params.senderId);
+      } catch (error) {
+        client.spinner.error("Failed fetch profile business. Make sure senderId is valid.\n\n" + error);
+        return null;
+      }
+    };
+
+    const update = async (props: ExtractZod<typeof RelayProfileUpdateType>) => {
+      const params = RelayProfileUpdateType.parse(props);
+
+      try {
+        if (params.type == "name") {
+          return await client.socket.updateProfileName(params.text);
+        }
+
+        if (params.type == "bio") {
+          return await client.socket.updateProfileStatus(params.text);
+        }
+
+        if (params.type == "avatar") {
+          if (params.avatar == "remove") {
+            return await client.socket.removeProfilePicture(params.roomId);
+          }
+
+          const avatar = typeof params.avatar == "string" ? { url: params.avatar } : params.avatar;
+          return await client.socket.updateProfilePicture(params.roomId, avatar);
+        }
+      } catch (error) {
+        client.spinner.error("Failed update profile. Make sure senderId is valid.\n\n" + error);
+        return null;
+      }
+    };
+
+    const check = async (props: ExtractZod<typeof RelayProfileCheckType>) => {
+      const params = RelayProfileCheckType.parse(props);
+
+      try {
+        const [wa] = await client.socket.onWhatsApp(params.senderId);
+        if (!wa) return { isOnWhatsApp: false };
+
+        const pic = await avatar({ senderId: wa.jid });
+        const status = await bio({ senderId: wa.jid });
+        const obj = {
+          isOnWhatsApp: true,
+          avatar: pic,
+          bio: status,
+          ...wa,
+        };
+
+        return obj;
+      } catch (error) {
+        client.spinner.error("Failed check profile. Make sure senderId is valid.\n\n" + error);
+        return null;
+      }
+    };
+
+    return {
+      bio,
+      avatar,
+      business,
+      update,
+      check,
     };
   }
 }

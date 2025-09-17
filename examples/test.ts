@@ -17,6 +17,6 @@ wa.on("messages", async (ctx) => {
 
   // wa.text('sdkjhs')
 
-  const s = await wa.group().metadata({ roomId: ctx.roomId });
+  const s = await wa.profile().check({ senderId: ctx.senderId });
   console.log("s: ", s);
 });

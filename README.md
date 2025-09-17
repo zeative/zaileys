@@ -3,12 +3,13 @@
 
   <h1 align="center">Zaileys - Simplified WhatsApp Node.js API</h1>
 
-  <a href="https://www.npmjs.com/package/zaileys"><img src="https://img.shields.io/npm/v/zaileys.svg" alt="NPM Version"></a>
-  <a href="https://www.npmjs.com/package/zaileys"><img src="https://img.shields.io/npm/dw/zaileys?label=npm&color=%23CB3837" alt="NPM Downloads"></a>
-  <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/languages/code-size/zeative/zaileys" alt="GitHub Code Size"></a>
-  <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/license/zeative/zaileys" alt="GitHub License"></a>
-  <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/stars/zeative/zaileys" alt="GitHub Stars"></a>
-  <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/forks/zeative/zaileys" alt="GitHub Forks"></a>
+<a href="https://www.npmjs.com/package/zaileys"><img src="https://img.shields.io/npm/v/zaileys.svg" alt="NPM Version"></a>
+<a href="https://www.npmjs.com/package/zaileys"><img src="https://img.shields.io/npm/dw/zaileys?label=npm&color=%23CB3837" alt="NPM Downloads"></a>
+<a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/languages/code-size/zeative/zaileys" alt="GitHub Code Size"></a>
+<a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/license/zeative/zaileys" alt="GitHub License"></a>
+<a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/stars/zeative/zaileys" alt="GitHub Stars"></a>
+<a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/forks/zeative/zaileys" alt="GitHub Forks"></a>
+
 </div>
 
 **Zaileys** is a lightweight, user-friendly wrapper around the [Baileys](https://github.com/WhiskeySockets/Baileys) library, designed to simplify building WhatsApp bots and integrations with TypeScript or ESM JavaScript. It offers a streamlined API, robust multi-device support, and seamless database integration for session management.
@@ -24,8 +25,13 @@
 - [Features](#-features)
 - [Installation](#-installation)
 - [Example Projects](#-example-projects)
+- [Connecting Methods](#-connecting-methods)
+  - [QR Code](#--qr-code)
+  - [Pairing Code](#--pairing-code)
+- [Quick Start](#-quick-start)
+- [Core Concepts](#-core-concepts)
+  - [Citation](#--citation)
 - [Issues & Feedback](#-issues---feedback)
-
 
 ### 💠 Features
 
@@ -54,6 +60,14 @@ bun add zaileys
 deno add npm:zaileys
 ```
 
+Then import your code using:
+
+```js
+import { Client } from "zaileys";
+// or
+const { Client } = require("zaileys");
+```
+
 ### 💠 Example Projects
 
 Explore the `examples` for practical use cases:
@@ -73,8 +87,8 @@ Explore the `examples` for practical use cases:
 
 ```js
 const wa = new Client({
-  authType: "qr"
-})
+  authType: "qr",
+});
 ```
 
 #### - Pairing Code
@@ -82,15 +96,71 @@ const wa = new Client({
 ```js
 const wa = new Client({
   authType: "pairing",
-  phoneNumber: 6281234567890
+  phoneNumber: 628123456789,
+});
+```
+
+### 💠 Quick Start
+
+here is minimal example of how to run:
+
+```js
+const wa = new Client({ authType: "qr" });
+
+wa.on("messages", (ctx) => {
+  if (ctx.text == "ping") {
+    wa.text("pong");
+  }
+});
+```
+
+### 💠 Core Concepts
+
+#### - Citation
+
+Define custom metadata providers for dynamic boolean flags in ctx.citation. See citation.ts.
+
+```js
+const wa = new Client({
+  ...,
+  citation: {
+    admins: [628123456789]
+  }
+})
+
+wa.on("messages", (ctx) => {
+  // from 'admins' to 'isAdmins'
+  // from 'test' to 'isTest'
+  if (ctx.citation?.isAdmins) {
+    wa.text("Admin access granted")
+  }
+})
+```
+
+#### - Limiter
+
+Detect and prevent spam with the built-in limiter. See limiter.ts.
+
+```js
+const wa = new Client({
+  ...,
+  // max 5 messages on 10 seconds
+  limiter: {
+    durationMs: 10000,
+    maxMessages: 5
+  }
+})
+
+wa.on("messages", (ctx) => {
+  if (ctx.isSpam) {
+    wa.text("You're spamming!!");
+  }
 })
 ```
 
 ### 💠 Issues & Feedback
 
-**If you encounter any problems or have feature requests, please open an issue:
-[https://github.com/zeative/zaileys/issues](https://github.com/zeative/zaileys/issues)**
-
+**If you encounter any problems or have feature requests, please open an [issue](https://github.com/zeative/zaileys/issues)**
 
 - [Buy me a coffee ☕](https://saweria.co/zaadevofc)
 - ⭐ Star the repo on GitHub

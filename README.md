@@ -11,6 +11,8 @@
   <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/forks/zeative/zaileys" alt="GitHub Forks"></a>
 </div>
 
+#
+
 **Zaileys** is a lightweight, user-friendly wrapper around the [Baileys](https://github.com/WhiskeySockets/Baileys) library, designed to simplify building WhatsApp bots and integrations with TypeScript or ESM JavaScript. It offers a streamlined API, robust multi-device support, and seamless database integration for session management.
 
 > [!TIP]
@@ -18,3 +20,63 @@
 
 > [!IMPORTANT]
 > There is no assurance that you won’t get blocked when using this approach. WhatsApp does not permit bots or unofficial clients, so use it at your own risk.
+
+### 💠 Table of Contents
+
+- [Features](#💠-features)
+- [Installation](#💠-installation)
+- [Example Projects](#💠-example-projects)
+- [Issues & Feedback](#💠-issues-&-feedback)
+
+
+### 💠 Features
+
+- 🎯 **Simplified API**: Minimal boilerplate—get up and running in minutes.
+- 🔒 **Secure Multi-Device**: Full multi-device support via Baileys.
+- ⚙️ **Modular & Extensible**: Plug-and-play middleware, transports, and storage layers.
+- 📟 **Multi auth (QR and Pairing Code)**: Automatically generate and display WhatsApp QR codes and pairing codes in terminal.
+- 🛠️ **TypeScript First**: Full type definitions and zero-config TS support.
+- ~~📈 **Built-in Logging**: Integrated with Pino for structured logs.~~
+
+### 💠 Installation
+
+> [!WARNING]
+> Ensure you are running [Node.js](https://nodejs.org/) **>= 20** as specified in `package.json`.
+
+Install with your preferred package manager:
+
+```bash
+npm install zaileys
+# or
+yarn add zaileys
+# or
+pnpm add zaileys
+# or
+bun add zaileys
+deno add npm:zaileys
+```
+
+### 💠 Example Projects
+
+Explore the `examples` for practical use cases:
+
+- [Simple Setup](https://github.com/zeative/zaileys/blob/main/examples/simple.ts): A minimal setup for quick prototyping.
+- [Citation Example](https://github.com/zeative/zaileys/blob/main/examples/citation.ts): Demonstrates custom metadata with the citation mechanism.
+- [Rate Limiting Example](https://github.com/zeative/zaileys/blob/main/examples/limiter.ts): Shows how to implement spam detection.
+- [AI Integration with Groq](https://github.com/zeative/zaileys/blob/main/examples/llms.ts): Integrates AI capabilities using Groq.
+- [Webhooks Integration](https://github.com/zeative/zaileys/blob/main/examples/webhooks.ts): Handles webhook-based interactions.
+- [Voice Note with AI](https://github.com/zeative/zaileys/blob/main/examples/speech.ts): Interacts with AI using voice notes.
+
+
+### 💠 Issues & Feedback
+
+**If you encounter any problems or have feature requests, please open an issue:
+[https://github.com/zeative/zaileys/issues](https://github.com/zeative/zaileys/issues)**
+
+
+- [Buy me a coffee ☕](https://saweria.co/zaadevofc)
+- ⭐ Star the repo on GitHub
+
+### 💠 License
+
+Distributed under the **MIT License**. See [`LICENSE`](https://github.com/zeative/zaileys/blob/main/LICENSE) for details.

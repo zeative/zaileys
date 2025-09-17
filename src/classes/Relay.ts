@@ -5,7 +5,7 @@ import { RelayTextType } from "../types/relay/text";
 import { Client } from "./Client";
 import { RelayReplyType } from "../types/relay/reply";
 import { z } from "zod/v4";
-import { extractJids } from "../utils/helpers";
+import { extractJids, toString } from "../utils/helpers";
 import { RelayForwardType } from "../types/relay/forward";
 import { RelayImageEnumType, RelayImageType } from "../types/relay/image";
 import { RelayVideoEnumType, RelayVideoType } from "../types/relay/video";
@@ -22,7 +22,7 @@ import { RelayLocationEnumType, RelayLocationType } from "../types/relay/locatio
 import { RelayContactEnumType, RelayContactType } from "../types/relay/contact";
 import { RelayPollEnumType, RelayPollType } from "../types/relay/poll";
 import { RelayDocumentEnumType, RelayDocumentType } from "../types/relay/document";
-import { RelayPinType } from "../types/relay/pin";
+import { RelayButtonEnumType, RelayButtonType } from "../types/relay/button";
 
 type RelayInitialType = {
   isAudio?: boolean;
@@ -176,7 +176,7 @@ export class Relay {
       const obj = { ...extend, ...params.options };
 
       if (params.externalAdReply) {
-        obj.contextInfo = { externalAdReply: params.externalAdReply };
+        obj.contextInfo.externalAdReply = params.externalAdReply;
       }
 
       if (params.isForwardMany) {
@@ -274,7 +274,7 @@ export class Relay {
       image: typeof params.image === "string" ? { url: params.image } : params.image,
       caption: params.text,
       viewOnce: params.viewOnce,
-      contextInfo: { externalAdReply: params.externalAdReply },
+      contextInfo: { externalAdReply: params.externalAdReply, isQuestion: true },
     };
 
     this[enumType]({ text: "$$media$$", roomId: params.roomId, options });
@@ -433,26 +433,60 @@ export class Relay {
     this[enumType]({ text: "$$media$$", roomId: params.roomId, options });
   }
 
-  // MODIFY RELAY
+  async button(type: ExtractZod<typeof RelayButtonEnumType>, props: ExtractZod<typeof RelayButtonType>) {
+    await this.initial();
 
-  async pin(props: ExtractZod<typeof RelayPinType>) {
-    await this.initial({ disabledPresence: true });
-
-    const params = RelayPinType.parse(props);
-    const message = params.message();
-
-    const exp = {
-      "24h": 86400,
-      "7d": 604800,
-      "30d": 2592000,
+    const enumType = RelayButtonEnumType.parse(type);
+    const params = RelayButtonType.parse(props);
+    const options: AnyMessageContent = {
+      text: params.text,
+      footer: params.footer,
     };
 
-    await this.client.socket.sendMessage(message?.key?.remoteJid, {
-      pin: {
-        type: params.action == "pin" ? 1 : 0,
-        time: exp[params.expired],
-        key: message?.key,
-      },
-    } as any);
+    if (params.type == "simple") {
+      options.buttons = params.buttons.map((x) => ({ buttonId: x.id, buttonText: { displayText: x.text } }));
+    }
+
+    if (params.type == "interactive") {
+      options.interactiveButtons = params.buttons.map((x) => {
+        let schema = { name: x.type } as any;
+
+        if (x.type == "quick_reply") {
+          schema.buttonParamsJson = toString({
+            id: x.id,
+            display_text: x.text,
+          });
+        }
+
+        if (x.type == "cta_url") {
+          schema.buttonParamsJson = toString({
+            id: x.id,
+            display_text: x.text,
+            url: x.url,
+            merchant_url: x.url,
+          });
+        }
+
+        if (x.type == "cta_copy") {
+          schema.buttonParamsJson = toString({
+            id: x.id,
+            display_text: x.text,
+            copy_code: x.copy,
+          });
+        }
+
+        if (x.type == "cta_call") {
+          schema.buttonParamsJson = toString({
+            id: x.id,
+            display_text: x.text,
+            phone_number: x.phoneNumber,
+          });
+        }
+
+        return schema;
+      });
+    }
+
+    this[enumType]({ text: "$$media$$", roomId: params.roomId, options });
   }
 }

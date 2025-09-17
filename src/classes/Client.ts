@@ -70,7 +70,7 @@ export class Client {
       getMessage: async (key) => {
         if (!key?.id) return undefined;
         const message = await db.store("messages").read(key.id);
-        return message || undefined;
+        return message;
       },
     });
 

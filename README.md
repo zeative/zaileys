@@ -21,10 +21,10 @@
 
 ### 💠 Table of Contents
 
-- [Features](#💠-features)
-- [Installation](#💠-installation)
-- [Example Projects](#💠-example-projects)
-- [Issues & Feedback](#💠-issues-&-feedback)
+- [Features](#-features)
+- [Installation](#-installation)
+- [Example Projects](#-example-projects)
+- [Issues & Feedback](#-issues-&-feedback)
 
 
 ### 💠 Features

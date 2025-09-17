@@ -24,7 +24,7 @@
 - [Features](#-features)
 - [Installation](#-installation)
 - [Example Projects](#-example-projects)
-- [Issues & Feedback](#-issues-&-feedback)
+- [Issues & Feedback](#-issues---feedback)
 
 
 ### 💠 Features
@@ -32,7 +32,7 @@
 - 🎯 **Simplified API**: Minimal boilerplate—get up and running in minutes.
 - 🔒 **Secure Multi-Device**: Full multi-device support via Baileys.
 - ⚙️ **Modular & Extensible**: Plug-and-play middleware, transports, and storage layers.
-- 📟 **Multi auth (QR and Pairing Code)**: Automatically generate and display WhatsApp QR codes and pairing codes in terminal.
+- 📟 **Multi Auth (QR and Pairing Code)**: Connect to whatsapp with QR code or Pairing Code.
 - 🛠️ **TypeScript First**: Full type definitions and zero-config TS support.
 - ~~📈 **Built-in Logging**: Integrated with Pino for structured logs.~~
 
@@ -64,6 +64,27 @@ Explore the `examples` for practical use cases:
 - [AI Integration with Groq](https://github.com/zeative/zaileys/blob/main/examples/llms.ts): Integrates AI capabilities using Groq.
 - [Voice Note with AI](https://github.com/zeative/zaileys/blob/main/examples/speech.ts): Interacts with AI using voice notes.
 
+### 💠 Connecting Methods
+
+> [!TIP]
+> You can connect to WhatsApp using either a QR code or a pairing code.
+
+#### - QR Code
+
+```js
+const wa = new Client({
+  authType: "qr"
+})
+```
+
+#### - Pairing Code
+
+```js
+const wa = new Client({
+  authType: "pairing",
+  phoneNumber: 6281234567890
+})
+```
 
 ### 💠 Issues & Feedback
 

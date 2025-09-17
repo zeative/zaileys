@@ -14,4 +14,9 @@ const wa = new Client({
 wa.on("messages", async (ctx) => {
   console.log("ctx: ", ctx);
   if (!ctx.citation?.isMy) return;
+
+  // wa.text('sdkjhs')
+
+  const s = await wa.group().metadata({ roomId: ctx.roomId });
+  console.log("s: ", s);
 });

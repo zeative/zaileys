@@ -23,6 +23,15 @@ import { RelayContactEnumType, RelayContactType } from "../types/relay/contact";
 import { RelayPollEnumType, RelayPollType } from "../types/relay/poll";
 import { RelayDocumentEnumType, RelayDocumentType } from "../types/relay/document";
 import { RelayButtonEnumType, RelayButtonType } from "../types/relay/button";
+import { RelayGroupCreateType } from "../types/relay/group/create";
+import { RelayGroupActionType } from "../types/relay/group/action";
+import { RelayGroupUpdateType } from "../types/relay/group/update";
+import { RelayGroupSettingsType } from "../types/relay/group/settings";
+import { RelayGroupLeaveType } from "../types/relay/group/leave";
+import { RelayGroupLinksType } from "../types/relay/group/links";
+import { RelayGroupInviteType } from "../types/relay/group/invite";
+import { RelayGroupRequestsApproveType, RelayGroupRequestsListType, RelayGroupRequestsRejectType } from "../types/relay/group/requests";
+import { RelayGroupMetadataType } from "../types/relay/group/metadata";
 
 type RelayInitialType = {
   isAudio?: boolean;
@@ -492,6 +501,150 @@ export class Relay {
 
   // GROUP RELAY
 
-  
+  group() {
+    const client = this.ctx;
+    const message = this.message;
 
+    const create = async (props: ExtractZod<typeof RelayGroupCreateType>) => {
+      const params = RelayGroupCreateType.parse(props);
+
+      try {
+        return await client.socket.groupCreate(params.title, params.members);
+      } catch (error) {
+        this.client.spinner.error("Failed create group. Make sure members has valid number.\n\n" + error);
+        return false;
+      }
+    };
+
+    const action = async (props: ExtractZod<typeof RelayGroupActionType>) => {
+      const params = RelayGroupActionType.parse(props);
+      const opts = {
+        add: "add",
+        kick: "remove",
+        promote: "promote",
+        demote: "demote",
+      } as const;
+
+      try {
+        return await client.socket.groupParticipantsUpdate(params.roomId, params.members, opts[params.action]);
+      } catch (error) {
+        this.client.spinner.error("Failed update user. Make sure this number is in the group and as admin.\n\n" + error);
+        return false;
+      }
+    };
+
+    const update = async (props: ExtractZod<typeof RelayGroupUpdateType>) => {
+      const params = RelayGroupUpdateType.parse(props);
+      const opts = {
+        subject: "groupUpdateSubject",
+        description: "groupUpdateDescription",
+      } as const;
+
+      try {
+        return await client.socket[opts[props.action]](params.roomId, props.text);
+      } catch (error) {
+        this.client.spinner.error("Failed update group. Make sure this number is in the group and as admin.\n\n" + error);
+        return false;
+      }
+    };
+
+    const settings = async (props: ExtractZod<typeof RelayGroupSettingsType>) => {
+      const params = RelayGroupSettingsType.parse(props);
+      const opts = {
+        open: "not_announcement",
+        close: "announcement",
+        lock: "locked",
+        unlock: "unlocked",
+      } as const;
+
+      try {
+        return await client.socket.groupSettingUpdate(params.roomId, opts[params.action]);
+      } catch (error) {
+        this.client.spinner.error("Failed settings group. Make sure this number is in the group and as admin.\n\n" + error);
+        return false;
+      }
+    };
+
+    const leave = async (props: ExtractZod<typeof RelayGroupLeaveType>) => {
+      const params = RelayGroupLeaveType.parse(props);
+
+      try {
+        return await client.socket.groupLeave(params.roomId);
+      } catch (error) {
+        this.client.spinner.error("Failed leave group. Make sure this number is in the group.\n\n" + error);
+        return false;
+      }
+    };
+
+    const links = async (props: ExtractZod<typeof RelayGroupLinksType>) => {
+      const params = RelayGroupLinksType.parse(props);
+      const opts = {
+        get: "groupInviteCode",
+        revoke: "groupRevokeInvite",
+      } as const;
+
+      try {
+        const code = await client.socket[opts[params.action]](params.roomId);
+        return `https://chat.whatsapp.com/` + code;
+      } catch (error) {
+        this.client.spinner.error("Failed get group link. Make sure this number is in the group and as admin.\n\n" + error);
+        return false;
+      }
+    };
+
+    const invite = async (props: ExtractZod<typeof RelayGroupInviteType>) => {
+      const params = RelayGroupInviteType.parse(props);
+      const opts = {
+        join: "groupAcceptInvite",
+        info: "groupGetInviteInfo",
+      } as const;
+
+      try {
+        const code = params.url.split("https://chat.whatsapp.com/");
+        return await client.socket[opts[params.action]](code[1]);
+      } catch (error) {
+        this.client.spinner.error("Failed get group link. Make sure this number is in the group and as admin.\n\n" + error);
+        return false;
+      }
+    };
+
+    const metadata = async (props: ExtractZod<typeof RelayGroupMetadataType>) => {
+      const params = RelayGroupMetadataType.parse(props);
+
+      try {
+        const meta = await this.client.socket.groupMetadata(params.roomId);
+        return meta;
+      } catch (error) {
+        this.client.spinner.error("Failed get group metadata. Make sure this number is in the group and as admin.\n\n" + error);
+        return false;
+      }
+    };
+
+    const requests = {
+      list: async (props: ExtractZod<typeof RelayGroupRequestsListType>) => {
+        const params = RelayGroupRequestsListType.parse(props);
+        return await client.socket.groupRequestParticipantsList(params.roomId);
+      },
+      approve: async (props: ExtractZod<typeof RelayGroupRequestsApproveType>) => {
+        const params = RelayGroupRequestsApproveType.parse(props);
+        return await client.socket.groupRequestParticipantsUpdate(params.roomId, params.members, "approve");
+      },
+      reject: async (props: ExtractZod<typeof RelayGroupRequestsRejectType>) => {
+        const params = RelayGroupRequestsRejectType.parse(props);
+        return await client.socket.groupRequestParticipantsUpdate(params.roomId, params.members, "reject");
+      },
+    };
+
+    return {
+      create,
+      action,
+      update,
+      settings,
+      leave,
+      links,
+      invite,
+      metadata,
+      requests,
+    };
+  }
 }

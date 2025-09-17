@@ -26,12 +26,14 @@
 - [Installation](#-installation)
 - [Example Projects](#-example-projects)
 - [Connecting Methods](#-connecting-methods)
-  - [QR Code](#-qr-code)
-  - [Pairing Code](#-pairing-code)
+  - [QR Code](#qr-code)
+  - [Pairing Code](#pairing-code)
 - [Quick Start](#-quick-start)
 - [Core Concepts](#-core-concepts)
-  - [Citation](#-citation)
-  - [Limiter](#-limiter)
+  - [Citation](#citation)
+  - [Limiter](#limiter)
+  - [Fake Reply](#fake-reply)
+- [Event Handling](#-event-handling)
 - [Issues & Feedback](#-issues---feedback)
 
 ### 💠 Features
@@ -119,7 +121,7 @@ wa.on("messages", (ctx) => {
 
 #### `Citation`
 
-Define custom metadata providers for dynamic boolean flags in ctx.citation. See citation.ts.
+Define custom metadata providers for dynamic boolean flags in ctx.citation. See `citation.ts`.
 
 ```js
 const wa = new Client({
@@ -157,6 +159,40 @@ wa.on("messages", (ctx) => {
     wa.text("You're spamming!!");
   }
 })
+```
+
+#### `Fake Reply`
+
+Make it look like the number verified by manipulation.
+
+```js
+const wa = new Client({
+  ...,
+  fakeReply: {
+    provider: "whatsapp", // meta | chatgpt | copilot | instagram | tiktok
+  }
+})
+
+wa.on("messages", (ctx) => {
+  if (ctx.text == "test") {
+    wa.reply("Test reply...");
+  }
+})
+```
+
+### 💠 Event Handling
+
+Types of events handled.
+
+```js
+/* Monitor connection status */
+wa.on("connection", () => {})
+
+/* Handle incoming messages */
+wa.on("messages", () => {})
+
+/* Handle incoming calls */
+wa.on("calls", () => {})
 ```
 
 ### 💠 Issues & Feedback

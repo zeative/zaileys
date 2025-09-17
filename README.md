@@ -41,9 +41,9 @@
     - [Forward Message](#forward-message)
     - [Edit Message](#edit-message)
     - [Delete Message](#delete-message)
-    - [Reject Message](#reject-message)
-    - [Presence Message](#presence-message)
     - [Reaction Message](#reaction-message)
+    - [Presence](#presence)
+    - [Reject](#reject)
   - [Media](#media)
     - [Document Message](#document-message)
     - [Image Message](#image-message)
@@ -80,7 +80,7 @@
 
 ### 💠 Features
 
-- 🎯 **Simplified API**: Minimal boilerplate—get up and running in minutes.
+- 🎯 **Simplified API**: Minimal boilerplate get up and running in minutes.
 - 🔒 **Secure Multi-Device**: Full multi-device support via Baileys.
 - ⚙️ **Modular & Extensible**: Plug-and-play middleware, transports, and storage layers.
 - 📟 **Multi Auth (QR and Pairing Code)**: Connect to whatsapp with QR code or Pairing Code.
@@ -241,7 +241,7 @@ wa.on("calls", (ctx) => {});
 
 ### `General`
 
-#### Text Message
+#### *Text Message*
 
 ```js
 wa.text("Hello World!")
@@ -267,8 +267,58 @@ wa.text({
     title: "Test ads title",
     body: "Test ads body",
     thumbnailUrl: "https://github.com/zaadevofc.png",
-    mediaUrl: "https://github.com/zaadevofc.png",
-  },
+    mediaUrl: "https://zpi.my.id",
+  }
+})
+```
+
+#### *Reply Message*
+
+```js
+wa.reply("Test reply message...")
+```
+
+#### *Forward Message*
+
+```js
+wa.forward("Test forward message...")
+```
+
+#### *Edit Message*
+
+```js
+const msg = await wa.text("Test edit message...")
+await wa.edit({ text: "Edit success!", message: msg.message })
+```
+
+#### *Delete Message*
+
+```js
+const msg = await wa.text("Test delete message...")
+await wa.delete({ message: msg.message })
+```
+
+#### *Reaction Message*
+
+```js
+wa.reaction("🎯")
+// or
+wa.reaction({ emoticon: "🎯" });
+```
+
+#### *Presence*
+
+```js
+wa.presence("typing") // online | offline | recording | paused
+```
+
+#### *Reject Call*
+
+```js
+wa.on("calls", (ctx) => {
+  wa.reject(ctx);
+  // or
+  wa.reject({ callId: ctx.callId, callerId: ctx.callerId });
 })
 ```
 

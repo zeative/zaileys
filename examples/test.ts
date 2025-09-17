@@ -19,5 +19,6 @@ wa.on("messages", async (ctx) => {
         mediaUrl: "https://github.com/zaadevofc.png",
       },
     });
+
   }
 });

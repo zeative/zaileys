@@ -401,7 +401,7 @@ export class Relay {
         "VERSION:3.0",
         `FN:${x.fullname}`,
         `ORG:${x.organization || ""}`,
-        `TEL;type=CELL;type=VOICE;waid=${x.whatsAppNumber}:${x.whatsAppNumber}`,
+        `TEL;type=CELL;type=VOICE;waid=${x.phoneNumber}:${x.phoneNumber}`,
         "END:VCARD",
       ].join("\n");
 

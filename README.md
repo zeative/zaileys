@@ -419,6 +419,33 @@ wa.gif("text", {
 })
 ```
 
+#### *Location Message*
+
+```js
+wa.location('text', {
+  latitude: 1115,
+  longitude: -2225,
+  title: "Test location title",
+  footer: "Test location footer",
+})
+```
+
+#### *Contacts Message*
+
+```js
+wa.contacts('text', {
+  title: "Test contacts title",
+  contacts: [
+    {
+      fullname: "zaadevofc",
+      nickname: "kejaa",
+      phoneNumber: 628123456789,
+      website: "https://github.com/zaadevofc",
+    },
+  ],
+})
+```
+
 ### 💠 Issues & Feedback
 
 **If you encounter any problems or have feature requests, please open an [issue](https://github.com/zeative/zaileys/issues)**

@@ -10,7 +10,7 @@ export const RelayContactType = z.object({
       fullname: z.string(),
       nickname: z.string().optional(),
       organization: z.string().optional(),
-      whatsAppNumber: z.number(),
+      phoneNumber: z.number(),
       website: z.url().optional(),
     })
     .array(),

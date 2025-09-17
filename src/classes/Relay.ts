@@ -369,8 +369,6 @@ export class Relay {
     this[enumType]({ text: "$$media$$", roomId: params.roomId, options });
   }
 
-  // FEATURED RELAY
-
   async location(type: ExtractZod<typeof RelayLocationEnumType>, props: ExtractZod<typeof RelayLocationType>) {
     await this.initial();
 

@@ -34,6 +34,48 @@
   - [Limiter](#limiter)
   - [Fake Reply](#fake-reply)
 - [Event Handling](#-event-handling)
+- [Relay Handling](#-relay-handling)
+  - [General](#general)
+    - [Text Message](#text-message)
+    - [Reply Message](#reply-message)
+    - [Forward Message](#forward-message)
+    - [Edit Message](#edit-message)
+    - [Delete Message](#delete-message)
+    - [Reject Message](#reject-message)
+    - [Presence Message](#presence-message)
+    - [Reaction Message](#reaction-message)
+  - [Media](#media)
+    - [Document Message](#document-message)
+    - [Image Message](#image-message)
+    - [Sticker Message](#sticker-message)
+    - [Video Message](#video-message)
+    - [Audio Message](#audio-message)
+    - [Voice Message](#voice-message)
+    - [Note Message](#note-message)
+    - [Gif Message](#gif-message)
+    - [Location Message](#location-message)
+    - [Contacts Message](#contacts-message)
+    - [Poll Message](#poll-message)
+    - [Button Message](#button-message)
+  - [Group Control](#group-control)
+    - [Group Create](#group-create)
+    - [Group Action](#group-action)
+    - [Group Invite](#group-invite)
+    - [Group Update](#group-update)
+    - [Group Settings](#group-settings)
+    - [Group Leave](#group-leave)
+    - [Group Links](#group-links)
+    - [Group Invite](#group-invite)
+    - [Group Metadata](#group-metadata)
+  - [Privacy Control](#privacy-control)
+    - [Privacy Update](#privacy-update)
+    - [Privacy Fetch](#privacy-fetch)
+  - [Profile Control](#profile-control)
+    - [Profile Bio](#profile-bio)
+    - [Profile Avatar](#profile-avatar)
+    - [Profile Business](#profile-business)
+    - [Profile Update](#profile-update)
+    - [Profile Check](#profile-check)
 - [Issues & Feedback](#-issues---feedback)
 
 ### 💠 Features
@@ -186,13 +228,13 @@ Types of events handled.
 
 ```js
 /* Monitor connection status */
-wa.on("connection", () => {})
+wa.on("connection", (ctx) => {});
 
 /* Handle incoming messages */
-wa.on("messages", () => {})
+wa.on("messages", (ctx) => {});
 
 /* Handle incoming calls */
-wa.on("calls", () => {})
+wa.on("calls", (ctx) => {});
 ```
 
 ### 💠 Issues & Feedback
@@ -200,6 +242,8 @@ wa.on("calls", () => {})
 **If you encounter any problems or have feature requests, please open an [issue](https://github.com/zeative/zaileys/issues)**
 
 - [Buy me a coffee ☕](https://saweria.co/zaadevofc)
+- [Ko-Fi](https://ko-fi.com/zaadevofc)
+- [Trakteer](https://trakteer.id/zaadevofc)
 - ⭐ Star the repo on GitHub
 
 ### 💠 License

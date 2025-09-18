@@ -696,6 +696,12 @@ wa.profile().update({
 
 checkout others type: `avatar` | `bio` | `name`
 
+#### *Profile Check*
+
+```js
+wa.profile().check({ senderId: ctx.senderId })
+```
+
 ### 💠 Issues & Feedback
 
 **If you encounter any problems or have feature requests, please open an [issue](https://github.com/zeative/zaileys/issues)**

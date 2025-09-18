@@ -2,12 +2,15 @@
   "name": "zaileys",
   "version": "0.0.1",
   "description": "Zaileys - Simplified WhatsApp Node.js API",
-  "main": "./dist/cjs/index.cjs",
-  "module": "./dist/esm/index.mjs",
-  "types": "./dist/esm/index.d.ts",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
   "exports": {
-    "require": "./dist/cjs/index.cjs",
-    "import": "./dist/esm/index.mjs"
+    ".": {
+      "require": "./dist/index.js",
+      "import": "./dist/index.mjs",
+      "types": "./dist/index.d.ts"
+    }
   },
   "keywords": [
     "zaileys",
@@ -43,7 +46,7 @@
     "build:script": "node scripts/build.js",
     "dev": "tsx watch examples/test.ts",
     "clean": "rm -rf dist sessions",
-    "changelog": "conventional-changelog -p angular -i CHANGELOG.md -s -r 0",
+    "changelog": "conventional-changelog -p angular -i CHANGELOG.md -s",
     "lint": "npx tsc --noEmit",
     "lint:fix": "eslint src/ --ext .ts --fix"
   },

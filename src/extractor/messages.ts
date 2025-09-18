@@ -99,6 +99,7 @@ export const MessagesExtractor = async (client: Client & { db: JsonDBInterface }
     }
 
     payload.roomName = payload.roomName || payload.senderName || _.split(payload.roomId || "", "@")[0];
+    payload.roomName = normalizeText(payload.roomName);
 
     payload.chatType = MessagesMediaType[contentType as never];
     payload.timestamp = Number(msg?.messageTimestamp || 0);
@@ -132,6 +133,9 @@ export const MessagesExtractor = async (client: Client & { db: JsonDBInterface }
       payload.senderId = payload.receiverId;
       payload.senderName = payload.receiverName;
     }
+
+    payload.receiverName = normalizeText(payload.receiverName);
+    payload.senderName = normalizeText(payload.senderName);
 
     payload.citation = null;
     payload.media = null;

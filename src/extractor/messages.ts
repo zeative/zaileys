@@ -9,7 +9,7 @@ import { JsonDBInterface } from "../plugins/JsonDB";
 import { ExtractorMessagesType } from "../types/extractor/messages";
 
 export const MessagesExtractor = async (client: Client & { db: JsonDBInterface }, message: proto.IWebMessageInfo) => {
-  let MAX_REPLIES = 0;
+  let MAX_REPLIES = 3;
   const CLONE = message;
 
   const extract = async (obj: proto.IWebMessageInfo, isReplied?: boolean, isExtract?: boolean) => {

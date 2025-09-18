@@ -1,4 +1,4 @@
-import { Client } from "../dist";
+import { Client } from "../src";
 
 const wa = new Client({
   authType: "pairing",

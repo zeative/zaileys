@@ -3,6 +3,8 @@ node_modules
 sessions
 QWEN*
 
+CHANGELOG.md
+
 .zaileys
 src
 test

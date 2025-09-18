@@ -68,6 +68,7 @@
     - [Group Links](#group-links)
     - [Group Invite](#group-invite)
     - [Group Metadata](#group-metadata)
+    - [Group Requests](#group-requests)
   - [Privacy Control](#privacy-control)
     - [Privacy Update](#privacy-update)
     - [Privacy Fetch](#privacy-fetch)
@@ -590,6 +591,44 @@ wa.group().invite({
 ```
 
 checkout others action: `join` | `info`
+
+#### *Group Metadata*
+
+get group metadata:
+
+```js
+wa.group().metadata({
+  roomId: "123456789@g.us",
+})
+```
+
+#### *Group Requests*
+
+get request join list:
+
+```js
+wa.group().requests.list({
+  roomId: "123456789@g.us",
+})
+```
+
+approve request join:
+
+```js
+wa.group().requests.approve({
+  roomId: "123456789@g.us",
+  members: ["628123456789@s.whatsapp.net"],
+})
+```
+
+reject request join:
+
+```js
+wa.group().requests.reject({
+  roomId: "123456789@g.us",
+  members: ["628123456789@s.whatsapp.net"],
+})
+```
 
 ### 💠 Issues & Feedback
 

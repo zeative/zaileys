@@ -268,7 +268,7 @@ wa.text({
   externalAdReply: {
     title: "Test ads title",
     body: "Test ads body",
-    thumbnailUrl: "https://github.com/zaadevofc.png",
+    thumbnailUrl: "https://github.com/zeative.png",
     mediaUrl: "https://zpi.my.id",
   }
 })
@@ -330,7 +330,7 @@ wa.on("calls", (ctx) => {
 
 ```js
 wa.document("text", {
-  document: "https://github.com/zaadevofc.png",
+  document: "https://github.com/zeative.png",
   mimetype: "image/png",
   fileName: "zaadevofc logo.png",
   text: "Here your logo",
@@ -345,7 +345,7 @@ wa.document("reply" { ... })
 
 ```js
 wa.image("text", {
-  image: "https://github.com/zaadevofc.png",
+  image: "https://github.com/zeative.png",
   text: "Here your logo",
 })
 ```
@@ -388,7 +388,7 @@ wa.voice("text", {
 
 ```js
 wa.image("text", {
-  image: "https://github.com/zaadevofc.png",
+  image: "https://github.com/zeative.png",
   text: "Here your logo",
   viewOnce: true
 })
@@ -629,6 +629,72 @@ wa.group().requests.reject({
   members: ["628123456789@s.whatsapp.net"],
 })
 ```
+
+### `Privacy Control`
+
+#### *Privacy Update*
+
+update profile picture privacy:
+
+```js
+wa.privacy().update({
+  action: "avatar",
+  type: "all"
+})
+```
+
+checkout others type: `avatar` | `groupsAdd` | `lastSeen` | `online` | `read` | `story`
+
+#### *Privacy Fetch*
+
+get blocklists user:
+
+```js
+wa.privacy().fetch.blocklists()
+```
+
+get my settings:
+
+```js
+wa.privacy().fetch.settings()
+```
+
+### `Profile Control`
+
+#### *Profile Bio*
+
+get user bio:
+
+```js
+wa.profile().bio({ senderId: ctx.senderId })
+```
+
+#### *Profile Avatar*
+
+get user/group avatar:
+
+```js
+wa.profile().avatar({ senderId: ctx.senderId })
+```
+
+#### *Profile Business*
+
+get user business:
+
+```js
+wa.profile().business({ senderId: ctx.senderId })
+```
+
+#### *Profile Update*
+
+```js
+wa.profile().update({
+  type: 'avatar',
+  avatar: 'https://github.com/zeative.png',
+})
+```
+
+checkout others type: `avatar` | `bio` | `name`
 
 ### 💠 Issues & Feedback
 

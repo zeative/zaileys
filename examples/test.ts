@@ -21,8 +21,3 @@ wa.on("messages", async (ctx) => {
     });
   }
 });
-
-wa.group().requests.approve({
-  roomId: "123456789@g.us",
-  members: ["628123456789@s.whatsapp.net"],
-})

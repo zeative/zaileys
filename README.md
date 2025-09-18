@@ -478,7 +478,7 @@ wa.button("text", {
       id: "2",
       text: "Test button 2",
     }
-  ]D
+  ]
 })
 ```
 

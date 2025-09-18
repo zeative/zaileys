@@ -675,6 +675,8 @@ get user/group avatar:
 
 ```js
 wa.profile().avatar({ senderId: ctx.senderId })
+// or group
+wa.profile().avatar({ senderId: ctx.roomId })
 ```
 
 #### *Profile Business*

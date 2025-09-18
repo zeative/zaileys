@@ -516,6 +516,81 @@ wa.button("text", {
 })
 ```
 
+### `Group Control`
+
+#### *Group Create*
+
+```js
+wa.group().create({
+  title: "Test New Group",
+  members: ["628123456789@s.whatsapp.net"],
+})
+```
+
+#### *Group Action*
+
+add new member to group:
+
+```js
+wa.group().action({
+  action: "add",
+  roomId: "123456789@g.us",
+  members: ["628123456789@s.whatsapp.net"],
+})
+```
+
+checkout others action: `add` | `kick` | `promote` | `demote`
+
+#### *Group Update*
+
+update group subject:
+
+```js
+wa.group().update({
+  action: "subject",
+  roomId: "123456789@g.us",
+  text: "Test New Group Title",
+})
+```
+
+checkout others action: `subject` | `description`
+
+#### *Group Settings*
+
+setting group only admin can send message:
+
+```js
+wa.group().settings({
+  action: "close",
+  roomId: "123456789@g.us"
+})
+```
+
+checkout others action: `open` | `close` | `lock` | `unlock`
+
+#### *Group Leave*
+
+leave group:
+
+```js
+wa.group().leave({
+  roomId: "123456789@g.us"
+})
+```
+
+#### *Group Invite*
+
+join group chat by url:
+
+```js
+wa.group().invite({
+  url: "https://chat.whatsapp.com/xxxxxx",
+  action: "join",
+})
+```
+
+checkout others action: `join` | `info`
+
 ### 💠 Issues & Feedback
 
 **If you encounter any problems or have feature requests, please open an [issue](https://github.com/zeative/zaileys/issues)**

@@ -21,3 +21,8 @@ wa.on("messages", async (ctx) => {
     });
   }
 });
+
+wa.group().invite({
+  url: "https://chat.whatsapp.com/xxxxxx",
+  action: "join",
+})

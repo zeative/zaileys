@@ -56,7 +56,7 @@
     - [Gif Message](#gif-message)
     - [Location Message](#location-message)
     - [Contacts Message](#contacts-message)
-    - [Poll Message](#poll-message)
+    - [Polling Message](#polling-message)
     - [Button Message](#button-message)
   - [Group Control](#group-control)
     - [Group Create](#group-create)
@@ -415,7 +415,7 @@ wa.note("text", {
 
 ```js
 wa.gif("text", {
-  video: "https://example.com/file.mp4"
+  video: "https://example.com/file.gif"
 })
 ```
 
@@ -443,6 +443,76 @@ wa.contacts('text', {
       website: "https://github.com/zaadevofc",
     },
   ],
+})
+```
+
+#### *Polling Message*
+
+```js
+wa.poll('text', {
+  action: "create",
+  name: "Test poll",
+  answers: [
+    "Option 1",
+    "Option 2",
+  ],
+})
+```
+
+#### *Button Message*
+
+simple button schema:
+
+```js
+wa.button("text", {
+  type: "simple",
+  text: "Test button",
+  footer: "Test button footer",
+  buttons: [
+    {
+      id: "1",
+      text: "Test button 1",
+    },
+    {
+      id: "2",
+      text: "Test button 2",
+    }
+  ]D
+})
+```
+
+interactive button schema:
+
+```js
+wa.button("text", {
+  type: "interactive",
+  text: "Test button",
+  footer: "Test button footer",
+  buttons: [
+    {
+      id: "1",
+      type: "quick_reply",
+      text: "Reply button",
+    },
+    {
+      id: "2",
+      type: "cta_copy",
+      text: "Copy button",
+      copy: "this is form copy",
+    },
+    {
+      id: "3",
+      type: "cta_call",
+      text: "Test Call",
+      phoneNumber: "628123456789",
+    },
+    {
+      id: "4",
+      type: "cta_url",
+      text: "Visit Url",
+      url: "https://github.com/zeative",
+    }
+  ]
 })
 ```
 

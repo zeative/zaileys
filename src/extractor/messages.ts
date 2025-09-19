@@ -10,7 +10,6 @@ import { ExtractorMessagesType } from "../types/extractor/messages";
 
 export const MessagesExtractor = async (client: Client & { db: JsonDBInterface }, message: proto.IWebMessageInfo) => {
   let MAX_REPLIES = 0;
-  let IS_FROM_ME = false;
   const CLONE = message;
 
   const extract = async (obj: proto.IWebMessageInfo, isReplied?: boolean, isExtract?: boolean) => {
@@ -19,10 +18,12 @@ export const MessagesExtractor = async (client: Client & { db: JsonDBInterface }
     if (!msg.message || !msg?.key?.id) {
       return null;
     }
+
     if (msg?.messageStubType || !!msg?.messageStubParameters || msg?.message?.botInvokeMessage || msg.message?.protocolMessage?.peerDataOperationRequestResponseMessage) {
       return null;
     }
-    if (msg?.key?.fromMe && !msg?.participant && msg?.key?.remoteJid != "status@broadcast" && client.props?.ignoreMe && !MAX_REPLIES && !isExtract) {
+
+    if (msg?.key?.fromMe && msg?.key?.remoteJid != "status@broadcast" && client.props?.ignoreMe && !MAX_REPLIES && !isExtract) {
       return null;
     }
 
@@ -84,8 +85,13 @@ export const MessagesExtractor = async (client: Client & { db: JsonDBInterface }
       payload.roomName = ((toJson(roomName) as { name?: string })?.name as string) || "";
     }
 
-    payload.senderLid = (msg?.message?.protocolMessage?.key?.senderLid as string) || (msg?.key?.senderLid as string) || (msg?.key?.participantLid as string) || "";
-    payload.senderId = jidNormalizedUser((msg?.participant as string) || (msg?.key?.participant as string) || (msg?.key?.remoteJid as string));
+    payload.senderLid = msg?.message?.protocolMessage?.key?.senderLid || msg?.key?.senderLid || msg?.key?.participantLid || "";
+    payload.senderId = jidNormalizedUser(msg?.participant || msg?.key?.participant || msg?.key?.remoteJid);
+
+    // const myId = msg?.message[contentType]?.contextInfo?.participant;
+    // if (msg?.key?.fromMe && myId) {
+    //   payload.senderId = myId;
+    // }
 
     if (client.db) {
       const senderName = await client.db.store("chats").read(payload.senderId);
@@ -111,7 +117,7 @@ export const MessagesExtractor = async (client: Client & { db: JsonDBInterface }
 
     payload.isPrefix = false;
     payload.isSpam = false;
-    payload.isFromMe = IS_FROM_ME || message?.key?.fromMe || false;
+    payload.isFromMe = message?.key?.fromMe || false;
     payload.isTagMe = false;
     payload.isGroup = _.includes(payload.roomId, "@g.us")!;
     payload.isStory = _.includes(payload.roomId, "@broadcast")!;
@@ -128,11 +134,6 @@ export const MessagesExtractor = async (client: Client & { db: JsonDBInterface }
     if (!isReplied && !isExtract) {
       const limiter = await LimiterHandler(payload.roomId, client.props.limiter?.maxMessages || 3, client.props.limiter?.durationMs || 5000);
       payload.isSpam = limiter;
-    }
-
-    if (payload.isFromMe) {
-      payload.senderId = payload.receiverId;
-      payload.senderName = payload.receiverName;
     }
 
     payload.receiverName = normalizeText(payload.receiverName);
@@ -195,11 +196,12 @@ export const MessagesExtractor = async (client: Client & { db: JsonDBInterface }
       };
     }
 
-    const repliedId = (toJson(msg?.message?.[contentType]) as any)?.contextInfo?.stanzaId;
+    const repliedContext = (toJson(msg?.message?.[contentType]) as any)?.contextInfo;
+    const repliedId = repliedContext?.stanzaId;
 
-    if (!IS_FROM_ME) {
-      IS_FROM_ME = (toJson(msg?.message?.[contentType]) as any)?.contextInfo?.participant === payload.receiverId;
-    }
+    // if (!IS_FROM_ME) {
+    //   IS_FROM_ME = repliedContext?.participant === payload.receiverId;
+    // }
 
     if (repliedId && MAX_REPLIES < 1 && client.db) {
       MAX_REPLIES++;
@@ -235,6 +237,14 @@ export const MessagesExtractor = async (client: Client & { db: JsonDBInterface }
 
     if (payload.isPrefix) {
       payload.text = _.replace(payload.text!, new RegExp(`^${client.props?.prefix}`), "");
+    }
+
+    if (isReplied && payload?.receiverId != payload?.senderId) {
+      payload.isFromMe = false;
+    }
+
+    if (isReplied && payload?.receiverId == payload?.senderId) {
+      payload.isFromMe = true;
     }
 
     payload.message = () => CLONE;

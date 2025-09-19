@@ -6,7 +6,6 @@ import { dirname } from "path";
 import { toJson, toString } from "../utils/helpers";
 import _ from "lodash";
 
-
 interface Store {
   read: (id: string) => Promise<unknown>;
   write: (obj: Record<string, unknown>) => Promise<void>;
@@ -21,17 +20,6 @@ export interface JsonDBInterface {
   clear(): Promise<void>;
   delete(): Promise<void>;
 }
-
-export interface JsonDBInterface {
-  initialize(session: string): Promise<void>;
-  store(key: string): Store;
-  upsert(id: string, value: unknown): Promise<void>;
-  read(id: string): Promise<unknown>;
-  remove(id: string): Promise<void>;
-  clear(): Promise<void>;
-  delete(): Promise<void>;
-}
-
 
 const CHUNK_SIZE = 1000;
 
@@ -64,24 +52,31 @@ export class JsonDB implements JsonDBInterface {
           const sub = s.slice(a, b + 1);
           return JSON.parse(sub);
         }
-      } catch (_error: unknown) { 
+      } catch (_error: unknown) {
         // Ignore error
       }
       try {
         const wrapped = `[${s.replace(/}\s*{/g, "},{")}]`;
         return JSON.parse(wrapped);
-      } catch (_error: unknown) { 
+      } catch (_error: unknown) {
         // Ignore error
       }
       try {
-        const lines = _.filter(_.map(s.split(/\\r?\\n/), l => l.trim()), Boolean);
-        const parsedResults = _.map(lines, l => {
-          try { return JSON.parse(l as string); } catch (_error: unknown) { return null; }
+        const lines = _.filter(
+          _.map(s.split(/\\r?\\n/), (l) => l.trim()),
+          Boolean
+        );
+        const parsedResults = _.map(lines, (l) => {
+          try {
+            return JSON.parse(l as string);
+          } catch (_error: unknown) {
+            return null;
+          }
         });
         const parsed = _.filter(parsedResults, (item): item is Record<string, unknown> => item !== null);
 
         if (parsed.length) return parsed;
-      } catch (_error: unknown) { 
+      } catch (_error: unknown) {
         // Ignore error
       }
     }
@@ -89,7 +84,7 @@ export class JsonDB implements JsonDBInterface {
   }
 
   private async chunks(key: string): Promise<Record<string, unknown>[]> {
-    const files = _.filter(readdirSync(this.storeDir), f => _.startsWith(f, `${key}-`) && _.endsWith(f, ".json")).sort();
+    const files = _.filter(readdirSync(this.storeDir), (f) => _.startsWith(f, `${key}-`) && _.endsWith(f, ".json")).sort();
     const result: Record<string, unknown>[] = [];
     for (const file of files) {
       const full = `${this.storeDir}/${file}`;
@@ -97,22 +92,30 @@ export class JsonDB implements JsonDBInterface {
       const db = lowdb(adapter) as lowdb.LowdbSync<unknown[]>;
       try {
         db.defaults([]).write();
-        result.push(...toJson(db.value()) as Record<string, unknown>[]);
+        result.push(...(toJson(db.value()) as Record<string, unknown>[]));
       } catch {
         let raw = "";
-        try { raw = readFileSync(full, "utf8"); } catch (_error: unknown) { raw = ""; }
+        try {
+          raw = readFileSync(full, "utf8");
+        } catch (_error: unknown) {
+          raw = "";
+        }
         const recovered = raw ? this.tryRecoverRaw(raw) : null;
         if (recovered) {
           db.setState(Array.isArray(recovered) ? recovered : [recovered]).write();
-          result.push(...toJson(db.value()) as Record<string, unknown>[]);
+          result.push(...(toJson(db.value()) as Record<string, unknown>[]));
         } else {
           const corrupt = `${full}.corrupt.${Date.now()}`;
-          try { renameSync(full, corrupt); } catch (_renameErr: unknown) { 
+          try {
+            renameSync(full, corrupt);
+          } catch (_renameErr: unknown) {
             // Ignore error
           }
-          try { writeFileSync(full, "[]", "utf8"); } catch (_writeFileErr: unknown) { 
-              // Ignore error
-            }
+          try {
+            writeFileSync(full, "[]", "utf8");
+          } catch (_writeFileErr: unknown) {
+            // Ignore error
+          }
         }
       }
     }
@@ -120,8 +123,10 @@ export class JsonDB implements JsonDBInterface {
   }
 
   private async writeChunks(key: string, items: Record<string, unknown>[]) {
-    _.forEach(_.filter(readdirSync(this.storeDir), f => _.startsWith(f, `${key}-`) && _.endsWith(f, ".json")), 
-      f => unlinkSync(`${this.storeDir}/${f}`));
+    _.forEach(
+      _.filter(readdirSync(this.storeDir), (f) => _.startsWith(f, `${key}-`) && _.endsWith(f, ".json")),
+      (f) => unlinkSync(`${this.storeDir}/${f}`)
+    );
     let index = 0;
     for (let i = 0; i < items.length; i += CHUNK_SIZE) {
       const chunk = items.slice(i, i + CHUNK_SIZE);
@@ -136,8 +141,12 @@ export class JsonDB implements JsonDBInterface {
           try {
             renameSync(`${file}.tmp`, file);
           } catch (_renameErr: unknown) {
-            try { db.write(); } catch (_writeErr: unknown) {
-              try { writeFileSync(file, JSON.stringify(chunk), "utf8"); } catch (_writeFileErr: unknown) { 
+            try {
+              db.write();
+            } catch (_writeErr: unknown) {
+              try {
+                writeFileSync(file, JSON.stringify(chunk), "utf8");
+              } catch (_writeFileErr: unknown) {
                 // Ignore error
               }
             }
@@ -154,18 +163,18 @@ export class JsonDB implements JsonDBInterface {
     return {
       read: async (id: string) => {
         const list = await this.chunks(key);
-        const row = _.find(list, i => i.id === id);
+        const row = _.find(list, (i) => i.id === id);
         return row ? JSON.parse(row.value as string) : null;
       },
       write: async (obj: Record<string, unknown>) => {
         const list = await this.chunks(key);
-        const id = (obj.key && typeof obj.key === "object" && "id" in obj.key) ? obj.key.id : obj.id;
+        const id = obj.key && typeof obj.key === "object" && "id" in obj.key ? obj.key.id : obj.id;
         const serialized = JSON.stringify(obj);
-        const idx = list.findIndex(i => i.id === id);
+        const idx = list.findIndex((i) => i.id === id);
         if (idx !== -1) list[idx].value = serialized;
         else list.push({ id, value: serialized });
         await this.writeChunks(key, list);
-      }
+      },
     };
   }
 
@@ -187,7 +196,7 @@ export class JsonDB implements JsonDBInterface {
     const data = (Array.isArray(dbValue) ? dbValue : []) as Record<string, unknown>[];
     const row = _.find(data, (i: Record<string, unknown>) => i.id === id);
     if (!row || !row.value) return null;
-    const creds = typeof row.value === "object" ? toString(row.value) : row.value as string;
+    const creds = typeof row.value === "object" ? toString(row.value) : (row.value as string);
     return JSON.parse(creds, BufferJSON.reviver);
   }
 

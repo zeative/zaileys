@@ -10,13 +10,11 @@ import { ExtractorMessagesType } from "../types/extractor/messages";
 
 export const MessagesExtractor = async (client: Client & { db: JsonDBInterface }, message: proto.IWebMessageInfo) => {
   let MAX_REPLIES = 0;
+  let IS_FROM_ME = false;
   const CLONE = message;
 
   const extract = async (obj: proto.IWebMessageInfo, isReplied?: boolean, isExtract?: boolean) => {
     let msg: Record<string, any> = toJson(obj);
-
-    console.log(JSON.stringify(msg, null, 2))
-
 
     if (!msg.message || !msg?.key?.id) {
       return null;
@@ -113,7 +111,7 @@ export const MessagesExtractor = async (client: Client & { db: JsonDBInterface }
 
     payload.isPrefix = false;
     payload.isSpam = false;
-    payload.isFromMe = message?.key?.fromMe || false;
+    payload.isFromMe = IS_FROM_ME || message?.key?.fromMe || false;
     payload.isTagMe = false;
     payload.isGroup = _.includes(payload.roomId, "@g.us")!;
     payload.isStory = _.includes(payload.roomId, "@broadcast")!;
@@ -197,7 +195,11 @@ export const MessagesExtractor = async (client: Client & { db: JsonDBInterface }
       };
     }
 
-    const repliedId = (toJson(msg?.message?.[contentType]) as { contextInfo?: { stanzaId?: string } })?.contextInfo?.stanzaId;
+    const repliedId = (toJson(msg?.message?.[contentType]) as any)?.contextInfo?.stanzaId;
+
+    if (!IS_FROM_ME) {
+      IS_FROM_ME = (toJson(msg?.message?.[contentType]) as any)?.contextInfo?.participant === payload.receiverId;
+    }
 
     if (repliedId && MAX_REPLIES < 1 && client.db) {
       MAX_REPLIES++;

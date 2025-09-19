@@ -73,3 +73,7 @@ export const getMentions = (text = "") => {
   }
   return _.toArray(ids) as string[];
 };
+
+export const randomize = (arr: string[]) => {
+  return arr[Math.floor(Math.random() * arr.length)];
+};

@@ -65,10 +65,12 @@ export class Relay {
     await delay(0);
 
     if (!props?.disabledPresence) {
-      if (this.client.props?.autoPresence && props?.isAudio) {
-        this.client.socket?.sendPresenceUpdate("recording", this.message?.roomId);
-      } else {
-        this.client.socket?.sendPresenceUpdate("composing", this.message?.roomId);
+      if (this.client.props?.autoPresence) {
+        if (props?.isAudio) {
+          this.client.socket?.sendPresenceUpdate("recording", this.message?.roomId);
+        } else {
+          this.client.socket?.sendPresenceUpdate("composing", this.message?.roomId);
+        }
       }
     }
   }

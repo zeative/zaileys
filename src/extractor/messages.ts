@@ -191,8 +191,8 @@ export const MessagesExtractor = async (client: Client & { db: JsonDBInterface }
           "key",
           "midQualityFileSha256",
         ]),
-        buffer: () => downloadMediaMessage(message, "buffer", {}) as Promise<Buffer>,
-        stream: () => downloadMediaMessage(message, "stream", {}) as Promise<NodeJS.ReadableStream>,
+        buffer: () => downloadMediaMessage(msg as any, "buffer", {}) as Promise<Buffer>,
+        stream: () => downloadMediaMessage(msg as any, "stream", {}) as Promise<NodeJS.ReadableStream>,
       };
     }
 

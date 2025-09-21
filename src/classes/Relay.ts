@@ -94,7 +94,7 @@ export class Relay {
           text: params,
           ...extend,
         });
-        return await MessagesExtractor(this.ctx, res);
+        return await MessagesExtractor(this.ctx, res, true);
       }
     }
 
@@ -110,7 +110,7 @@ export class Relay {
         }
 
         const res = await this.client.socket.sendMessage(params?.roomId || this.message?.roomId, obj);
-        return await MessagesExtractor(this.ctx, res);
+        return await MessagesExtractor(this.ctx, res, true);
       }
     }
   }
@@ -139,7 +139,7 @@ export class Relay {
     if (typeof params == "string") {
       if (this.client.socket) {
         const res = await this.client.socket.sendMessage(this.message?.roomId, { text: params, ...extend }, options);
-        return await MessagesExtractor(this.ctx, res);
+        return await MessagesExtractor(this.ctx, res, true);
       }
     }
 
@@ -156,7 +156,7 @@ export class Relay {
         }
 
         const res = await this.client.socket.sendMessage(params?.roomId || this.message?.roomId, obj, options);
-        return await MessagesExtractor(this.ctx, res);
+        return await MessagesExtractor(this.ctx, res, true);
       }
     }
   }
@@ -183,7 +183,7 @@ export class Relay {
     if (typeof params == "string") {
       if (this.client.socket) {
         const res = await this.client.socket.sendMessage(this.message?.roomId, { text: params, ...extend });
-        return await MessagesExtractor(this.ctx, res);
+        return await MessagesExtractor(this.ctx, res, true);
       }
     }
 
@@ -204,7 +204,7 @@ export class Relay {
         }
 
         const res = await this.client.socket.sendMessage(params?.roomId || this.message?.roomId, obj);
-        return await MessagesExtractor(this.ctx, res);
+        return await MessagesExtractor(this.ctx, res, true);
       }
     }
   }
@@ -216,7 +216,7 @@ export class Relay {
     const message = params.message();
 
     const res = await this.client.socket.sendMessage(message?.key?.remoteJid, { text: params.text, edit: message?.key });
-    return await MessagesExtractor(this.ctx, res);
+    return await MessagesExtractor(this.ctx, res, true);
   }
 
   async delete(props: ExtractZod<typeof RelayDeleteType>) {
@@ -226,7 +226,7 @@ export class Relay {
     const message = params.message();
 
     const res = await this.client.socket.sendMessage(message?.key?.remoteJid, { delete: message?.key });
-    return await MessagesExtractor(this.ctx, res);
+    return await MessagesExtractor(this.ctx, res, true);
   }
 
   async reject(props: ExtractZod<typeof RelayRejectType>) {
@@ -257,7 +257,7 @@ export class Relay {
     const text = typeof params == "string" ? params : params.emoticon;
 
     const res = await this.client.socket.sendMessage(message?.key?.remoteJid!, { react: { text, key: message?.key } });
-    return await MessagesExtractor(this.ctx, res);
+    return await MessagesExtractor(this.ctx, res, true);
   }
 
   // MEDIA RELAY
@@ -287,12 +287,13 @@ export class Relay {
 
     const options: AnyMessageContent = {
       image: typeof params.image === "string" ? { url: params.image } : params.image,
+      jpegThumbnail: params.image as string,
       caption: params.text,
       viewOnce: params.viewOnce,
       contextInfo: { externalAdReply: params.externalAdReply, isQuestion: true },
     };
 
-    this[enumType]({ text: "$$media$$", roomId: params.roomId, options });
+    return this[enumType]({ text: "$$media$$", roomId: params.roomId, options });
   }
 
   async sticker(type: ExtractZod<typeof RelayStickerEnumType>, props: ExtractZod<typeof RelayStickerType>) {
@@ -454,6 +455,7 @@ export class Relay {
     const options: AnyMessageContent = {
       text: params.text,
       footer: params.footer,
+      contextInfo: { externalAdReply: params.externalAdReply },
     };
 
     if (params.type == "simple") {

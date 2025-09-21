@@ -1,11 +1,11 @@
 import { sendError } from "./error";
 import _ from "lodash";
 
-export const toJson = <T = unknown>(object: unknown): T => {
+export const toJson = (object: unknown) => {
   try {
-    return JSON.parse(object as string) as T;
+    return JSON.parse(object as string);
   } catch {
-    return _.attempt(() => JSON.parse(JSON.stringify(object) || "{}")) as T;
+    return _.attempt(() => JSON.parse(JSON.stringify(object) || "{}"));
   }
 };
 
@@ -76,4 +76,8 @@ export const getMentions = (text = "") => {
 
 export const randomize = (arr: string[]) => {
   return arr[Math.floor(Math.random() * arr.length)];
+};
+
+export const delay = (ms: number) => {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 };

@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { AdsReplyType } from "../general";
 
 export const RelayButtonEnumType = z.enum(["text", "reply", "forward"]);
 
@@ -13,6 +14,7 @@ export const RelayButtonSimpleType = z.object({
     })
     .array(),
   roomId: z.string().optional(),
+  externalAdReply: AdsReplyType.optional(),
 });
 
 export const RelayButtonInteractiveReplyType = z.object({
@@ -48,6 +50,7 @@ export const RelayButtonInteractiveType = z.object({
   footer: z.string().optional(),
   buttons: z.discriminatedUnion("type", [RelayButtonInteractiveReplyType, RelayButtonInteractiveUrlType, RelayButtonInteractiveCopyType, RelayButtonInteractiveCallType]).array(),
   roomId: z.string().optional(),
+  externalAdReply: AdsReplyType.optional(),
 });
 
 export const RelayButtonlistType = z.object({
@@ -55,6 +58,7 @@ export const RelayButtonlistType = z.object({
   text: z.string(),
   footer: z.string(),
   roomId: z.string().optional(),
+  externalAdReply: AdsReplyType.optional(),
 });
 
 export const RelayButtonType = z.discriminatedUnion("type", [RelayButtonSimpleType, RelayButtonInteractiveType]);

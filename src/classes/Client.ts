@@ -1,5 +1,5 @@
 import makeWASocket, { delay, fetchLatestBaileysVersion, makeCacheableSignalKeyStore, type AuthenticationCreds } from "baileys";
-import EventEmitter from "events";
+import EventEmitter from "node:events";
 import { createSpinner } from "nanospinner";
 import NodeCache from "node-cache";
 import pino from "pino";

@@ -8,11 +8,11 @@ import { Client } from "../classes/Client";
 import { JsonDBInterface } from "../plugins/JsonDB";
 import { ExtractorMessagesType } from "../types/extractor/messages";
 
-export const MessagesExtractor = async (client: Client & { db: JsonDBInterface }, message: proto.IWebMessageInfo) => {
+export const MessagesExtractor = async (client: Client & { db: JsonDBInterface }, message: proto.IWebMessageInfo, isExtract?: boolean) => {
   let MAX_REPLIES = 0;
   const CLONE = message;
 
-  const extract = async (obj: proto.IWebMessageInfo, isReplied?: boolean, isExtract?: boolean) => {
+  const extract = async (obj: proto.IWebMessageInfo, isReplied?: boolean) => {
     let msg: Record<string, any> = toJson(obj);
 
     if (!msg.message || !msg?.key?.id) {
@@ -191,8 +191,8 @@ export const MessagesExtractor = async (client: Client & { db: JsonDBInterface }
           "key",
           "midQualityFileSha256",
         ]),
-        buffer: () => downloadMediaMessage(message, "buffer", {}) as Promise<Buffer>,
-        stream: () => downloadMediaMessage(message, "stream", {}) as Promise<NodeJS.ReadableStream>,
+        buffer: () => downloadMediaMessage(msg as any, "buffer", {}) as Promise<Buffer>,
+        stream: () => downloadMediaMessage(msg as any, "stream", {}) as Promise<NodeJS.ReadableStream>,
       };
     }
 

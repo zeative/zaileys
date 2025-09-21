@@ -1,6 +1,6 @@
 {
   "name": "zaileys",
-  "version": "1.1.38",
+  "version": "1.1.39",
   "description": "Zaileys - Simplified WhatsApp Node.js API",
   "main": "./dist/index.js",
   "module": "./dist/index.mjs",

@@ -1,8 +1,8 @@
 import { BufferJSON } from "baileys";
-import { existsSync, mkdirSync, readdirSync, unlinkSync, readFileSync, renameSync, writeFileSync } from "fs";
+import { existsSync, mkdirSync, readdirSync, unlinkSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import lowdb from "lowdb";
 import FileSync from "lowdb/adapters/FileSync";
-import { dirname } from "path";
+import { dirname } from "node:path";
 import { toJson, toString } from "../utils/helpers";
 import _ from "lodash";
 

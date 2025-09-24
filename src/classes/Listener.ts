@@ -67,7 +67,7 @@ export class Listener {
     }
 
     if (connection === "close") {
-      const code = toJson<{ output?: { statusCode?: number } }>(lastDisconnect?.error)?.output?.statusCode;
+      const code = toJson(lastDisconnect?.error)?.output?.statusCode;
       const errorMessage = lastDisconnect?.error?.message || "";
       const isReconnect = typeof code === "number" && code !== DisconnectReason.loggedOut;
 

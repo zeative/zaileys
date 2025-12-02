@@ -1,5 +1,13 @@
+import z from "zod";
+import { ClientOptions, ClientOptionsSchema } from "../Types";
+import { parseZod } from "../Lib/zod";
+
 export class Client {
-  anjay() {
-    console.log("anjay");
+  options: ClientOptions;
+
+  constructor(options: ClientOptions) {
+    this.options = parseZod(ClientOptionsSchema, options);
   }
+
+  on(event: string, callback: () => void) {}
 }

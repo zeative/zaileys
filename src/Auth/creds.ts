@@ -12,16 +12,16 @@ export const registerAuthCreds = async (client: Client) => {
   const config = socketConfig(client, state);
   const socket = makeWASocket(config);
 
-  if (client.options.authType === 'pairing' && client.options.phoneNumber && !socket.authState.creds.registered) {
-    console.log('Generating pairing code...');
+  // if (client.options.authType === 'pairing' && client.options.phoneNumber && !socket.authState.creds.registered) {
+  //   console.log('Generating pairing code...');
 
-    await delay(5000);
+  //   await delay(5000);
 
-    if (client.options.authType === 'pairing') {
-      const code = await socket.requestPairingCode(client.options.phoneNumber.toString());
-      console.log(`Pairing code: ${code}`);
-    }
-  }
+  //   if (client.options.authType === 'pairing') {
+  //     const code = await socket.requestPairingCode(client.options.phoneNumber.toString());
+  //     console.log(`Pairing code: ${code}`);
+  //   }
+  // }
 
   socket.ev.on('creds.update', saveCreds);
 

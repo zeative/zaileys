@@ -1,6 +1,17 @@
-import _ from "lodash";
+import _ from 'lodash';
 
-export const getMentions = (text = "") => {
+export const checkLatestLibVersion = async () => {
+  try {
+    const res = await fetch('https://registry.npmjs.org/zaileys');
+    const data = await res.json();
+
+    return data['dist-tags'].latest;
+  } catch (error) {
+    throw error;
+  }
+};
+
+export const getMentions = (text = '') => {
   if (!text) return [];
   const ids = new Set();
   for (const match of text.matchAll(/@(\d+)/g)) {
@@ -9,7 +20,7 @@ export const getMentions = (text = "") => {
   return _.toArray(ids) as string[];
 };
 
-export const extractJids = (text = "") => {
+export const extractJids = (text = '') => {
   if (!text) return [];
   const ids = new Set();
   for (const match of text.matchAll(/@(\d+)/g)) {

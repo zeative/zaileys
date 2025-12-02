@@ -13,12 +13,18 @@
     "r:major": "npm run build && npm version major && npm publish"
   },
   "devDependencies": {
+    "gradient-string": "^3.0.0",
+    "nanospinner": "^1.2.2",
+    "reflect-metadata": "^0.2.2",
     "rolldown": "1.0.0-beta.52",
     "rolldown-plugin-dts": "^0.18.1",
+    "tsyringe": "^4.10.0",
     "typescript": "^5.9.3",
+    "valtio": "^2.2.0",
     "zod": "^4.1.13"
   },
   "dependencies": {
-    "baileys": "7.0.0-rc.9"
+    "baileys": "7.0.0-rc.9",
+    "node-cache": "^5.1.2"
   }
 }

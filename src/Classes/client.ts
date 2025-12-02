@@ -1,13 +1,18 @@
 import z from "zod";
-import { ClientOptions, ClientOptionsSchema } from "../Types";
 import { parseZod } from "../Lib/zod";
+import { ClientOptionsType } from "../Types";
+import { autoDisplayBanner } from "../Config/banner";
+import { store } from "../Modules/store";
 
 export class Client {
-  options: ClientOptions;
-
-  constructor(options: ClientOptions) {
-    this.options = parseZod(ClientOptionsSchema, options);
+  constructor(public options: z.infer<typeof ClientOptionsType>) {
+    this.options = parseZod(ClientOptionsType, options);
+    this.initialize();
   }
 
-  on(event: string, callback: () => void) {}
+  async initialize() {
+    await autoDisplayBanner();
+  }
+
+  on(event: string, callback: (data: any) => void) {}
 }

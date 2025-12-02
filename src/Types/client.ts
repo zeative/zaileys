@@ -1,7 +1,8 @@
-import { z } from "zod";
+import { z } from 'zod';
+import { ExtractorConnectionType } from './connection';
 
 export const ClientBaseType = z.object({
-  session: z.string().default("zaileys").optional(),
+  session: z.string().default('zaileys').optional(),
   prefix: z.string().optional(),
 
   ignoreMe: z.boolean().default(true).optional(),
@@ -17,15 +18,24 @@ export const ClientBaseType = z.object({
 });
 
 export const ClientAuthPairingType = z.object({
-  authType: z.literal("pairing"),
+  authType: z.literal('pairing'),
   phoneNumber: z.number(),
 });
 
 export const ClientAuthQRType = z.object({
-  authType: z.literal("qr"),
+  authType: z.literal('qr'),
 });
 
 export const ClientOptionsType = z.union([
   ClientAuthPairingType.extend(ClientBaseType.shape),
   ClientAuthQRType.extend(ClientBaseType.shape),
 ]);
+
+export const EventEnumType = z.enum(['connection', 'messages', 'calls', 'webhooks']);
+
+export type EventCallbackType = {
+  connection: (ctx: z.infer<typeof ExtractorConnectionType>) => void;
+  messages: (ctx: z.infer<typeof EventEnumType>) => void;
+  calls: (ctx: z.infer<typeof EventEnumType>) => void;
+  webhooks: (ctx: z.infer<typeof EventEnumType>) => void;
+};

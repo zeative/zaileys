@@ -8,6 +8,8 @@ import { AuthStateType } from '../Types/auth';
 const KEY_MAP = new Set(['pre-key', 'session', 'sender-key', 'app-state-sync-key', 'app-state-sync-version']);
 
 export async function useAuthState(folder: string): Promise<AuthStateType> {
+  store.spinner.start('Initializing auth state...');
+
   await fs.mkdir(folder, { recursive: true });
   const credsPath = join(folder, 'creds.json');
   const keyStore: Record<string, any> = {};
@@ -21,6 +23,8 @@ export async function useAuthState(folder: string): Promise<AuthStateType> {
   } catch {
     creds = initAuthCreds();
   }
+
+  store.spinner.update('Loading credentials...');
 
   const saveCreds = () =>
     new Promise<void>((resolve, reject) => {
@@ -54,8 +58,11 @@ export async function useAuthState(folder: string): Promise<AuthStateType> {
         keyStore[`${key}-${id}`] = JSON.parse(raw, BufferJSON.reviver);
       }
     }
+
+    store.spinner.success('Auth initialized');
   } catch (error) {
-    console.error('Failed to read session files', error);
+    store.spinner.error('Failed to open credentials\n');
+    throw error;
   }
 
   return {

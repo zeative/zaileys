@@ -1,10 +1,10 @@
+import makeWASocket from 'baileys';
 import z from 'zod';
 import { registerAuthCreds } from '../Auth';
-import { parseZod } from '../Modules/zod';
-import { ClientOptionsType } from '../Types';
-import { autoDisplayBanner } from '../Utils/banner';
 import { store } from '../Modules/store';
-import makeWASocket from 'baileys';
+import { parseZod } from '../Modules/zod';
+import { ClientOptionsType, EventCallbackType, EventEnumType } from '../Types';
+import { autoDisplayBanner } from '../Utils/banner';
 
 export class Client {
   constructor(public options: z.infer<typeof ClientOptionsType>) {
@@ -19,9 +19,11 @@ export class Client {
     const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
 
     socket.ev.on('connection.update', (ctx) => {
-      console.log(ctx);
+      store.events.emit('connection', ctx);
     });
   }
 
-  on(event: string, callback: (data: any) => void) {}
+  on<T extends z.infer<typeof EventEnumType>>(event: T, handler: EventCallbackType[T]): void {
+    store.events.on(event, handler);
+  }
 }

@@ -1,6 +1,6 @@
 import _ from 'lodash';
 
-export const checkLatestLibVersion = async () => {
+export const getLatestLibVersion = async () => {
   try {
     const res = await fetch('https://registry.npmjs.org/zaileys');
     const data = await res.json();

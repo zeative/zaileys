@@ -5,8 +5,6 @@ import { store } from '../Modules/store';
 import { useAuthState } from './state';
 
 export const registerAuthCreds = async (client: Client) => {
-  store.set('socket', {});
-
   const { state, saveCreds } = await useAuthState(`.session/${client.options.session}`);
 
   const config = socketConfig(client, state);

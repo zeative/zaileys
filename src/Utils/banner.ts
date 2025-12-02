@@ -2,13 +2,13 @@ import figlet from 'figlet';
 import gradient, { cristal } from 'gradient-string';
 import pkg from '../../package.json' assert { type: 'json' };
 import { store } from '../Modules/store';
-import { checkLatestLibVersion } from './validate';
+import { getLatestLibVersion } from './validate';
 
 export const autoDisplayBanner = async () => {
   console.clear();
   store.spinner.start('Checking for updates...');
 
-  const latestVersion = await checkLatestLibVersion();
+  const latestVersion = await getLatestLibVersion();
   const isLatest = pkg.version === latestVersion;
 
   store.spinner.stop();

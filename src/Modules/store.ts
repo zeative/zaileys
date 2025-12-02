@@ -1,5 +1,6 @@
-import { createSpinner } from "nanospinner";
-import pino from "pino";
+import { createSpinner } from 'nanospinner';
+import { EventEmitter } from 'node:stream';
+import pino from 'pino';
 
 export type StoreData = Record<string, any>;
 
@@ -27,8 +28,9 @@ export class NanoStore {
     return this.data.has(key);
   }
 
-  spinner = createSpinner("", { color: "green" });
-  logger = pino({ level: "silent", enabled: false });
+  spinner = createSpinner('', { color: 'green' });
+  logger = pino({ level: 'silent', enabled: false });
+  events = new EventEmitter();
 }
 
 export const store = new NanoStore();

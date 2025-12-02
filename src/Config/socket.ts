@@ -9,6 +9,7 @@ export const socketConfig = (client: Client, state: AuthenticationState): Parame
   return {
     logger: store.logger,
     printQRInTerminal: false,
+    defaultQueryTimeoutMs: undefined,
 
     markOnlineOnConnect: client.options.autoOnline,
     syncFullHistory: client.options.syncFullHistory,

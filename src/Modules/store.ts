@@ -1,4 +1,5 @@
 import { createSpinner } from "nanospinner";
+import pino from "pino";
 
 export type StoreData = Record<string, any>;
 
@@ -27,6 +28,7 @@ export class NanoStore {
   }
 
   spinner = createSpinner("", { color: "green" });
+  logger = pino({ level: "silent", enabled: false });
 }
 
 export const store = new NanoStore();

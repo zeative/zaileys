@@ -7,6 +7,7 @@
     "url": "https://github.com/zeative/zaileys"
   },
   "scripts": {
+    "test": "bun run --watch examples/test.ts",
     "build": "rolldown -c rolldown.config.ts",
     "r:patch": "npm run build && npm version patch && npm publish",
     "r:minor": "npm run build && npm version minor && npm publish",
@@ -14,7 +15,9 @@
   },
   "devDependencies": {
     "gradient-string": "^3.0.0",
+    "lodash": "^4.17.21",
     "nanospinner": "^1.2.2",
+    "pino": "^10.1.0",
     "reflect-metadata": "^0.2.2",
     "rolldown": "1.0.0-beta.52",
     "rolldown-plugin-dts": "^0.18.1",

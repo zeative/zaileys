@@ -1,30 +1,27 @@
-import makeWASocket, { Browsers, makeCacheableSignalKeyStore } from "baileys";
-import NodeCache from "node-cache";
-import { Client } from "../Classes";
+import makeWASocket, { AuthenticationState, isJidBroadcast, makeCacheableSignalKeyStore } from 'baileys';
+import NodeCache from 'node-cache';
+import { Client } from '../Classes';
+import { store } from '../Modules/store';
 
 const cache = new NodeCache();
 
-export const socketConfig = (props: Client, auth: any): Parameters<typeof makeWASocket>[0] => {
-  const browser = props.options.authType == "qr" ? Browsers.ubuntu("Zaileys Browser") : undefined;
-
+export const socketConfig = (client: Client, state: AuthenticationState): Parameters<typeof makeWASocket>[0] => {
   return {
-    logger: undefined,
-    browser,
-
+    logger: store.logger,
     printQRInTerminal: false,
-    defaultQueryTimeoutMs: undefined,
 
-    markOnlineOnConnect: props.options.autoOnline,
-    syncFullHistory: props.options.syncFullHistory,
+    markOnlineOnConnect: client.options.autoOnline,
+    syncFullHistory: client.options.syncFullHistory,
 
     msgRetryCounterCache: new NodeCache(),
     mediaCache: new NodeCache({ stdTTL: 60 }),
 
     cachedGroupMetadata: async (jid: string) => cache.get(jid),
+    shouldIgnoreJid: (jid) => isJidBroadcast(jid),
 
     auth: {
-      creds: auth.creds,
-      keys: makeCacheableSignalKeyStore(auth.keys, undefined),
+      creds: state.creds,
+      keys: makeCacheableSignalKeyStore(state.keys, store.logger),
     },
   };
 };

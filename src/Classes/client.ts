@@ -1,7 +1,8 @@
 import z from "zod";
-import { parseZod } from "../Lib/zod";
+import { registerAuthCreds } from "../Auth";
+import { parseZod } from "../Modules/zod";
 import { ClientOptionsType } from "../Types";
-import { autoDisplayBanner } from "../Config/banner";
+import { autoDisplayBanner } from "../Utils/banner";
 import { store } from "../Modules/store";
 
 export class Client {
@@ -12,6 +13,8 @@ export class Client {
 
   async initialize() {
     await autoDisplayBanner();
+
+    await registerAuthCreds(this);
   }
 
   on(event: string, callback: (data: any) => void) {}

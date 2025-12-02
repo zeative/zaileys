@@ -3,5 +3,5 @@ export type Anjay = {
 };
 
 export const anjay = (props: Anjay) => {
-  console.log("anjay: ", props.text);
+  console.log("anjay tet: ", props.text);
 };

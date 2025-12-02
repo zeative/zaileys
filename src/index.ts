@@ -1,7 +1,12 @@
-export type Anjay = {
-  text: string;
-};
+export * from "./Classes";
+// export * from "./plugins";
 
-export const anjay = (props: Anjay) => {
-  console.log("anjay text: ", props.text);
-};
+// export * from "./utils/helpers";
+
+// export * from "./types/classes/Client";
+
+// export * from "./types/general";
+
+// export * from "./types/extractor/connection";
+// export * from "./types/extractor/messages";
+// export * from "./types/extractor/calls";

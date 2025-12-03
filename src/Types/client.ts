@@ -3,12 +3,6 @@ import { ListenerCallsType } from './calls';
 import { ListenerConnectionType } from './connection';
 import { ListenerMessagesType } from './messages';
 
-export const DatabaseOptionsType = z
-  .object({
-    strategy: z.enum(['json', 'sqlite', 'mongodb']).default('json').optional(),
-  })
-  .optional();
-
 export const ClientBaseType = z.object({
   session: z.string().default('zaileys').optional(),
   prefix: z.string().optional(),
@@ -23,8 +17,6 @@ export const ClientBaseType = z.object({
   autoRead: z.boolean().default(true).optional(),
   autoPresence: z.boolean().default(true).optional(),
   autoRejectCall: z.boolean().default(true).optional(),
-
-  database: DatabaseOptionsType,
 });
 
 export const ClientAuthPairingType = z.object({

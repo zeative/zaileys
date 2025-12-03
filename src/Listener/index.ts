@@ -16,9 +16,11 @@ export class Listener {
 
   async initialize() {
     const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const db = (path: string) => store.lowdb('stores', path);
 
     socket?.ev.on('messages.upsert', async ({ messages }) => {
       for (const message of messages) {
+        await db('messages').set(message.key.id, message);
       }
     });
   }

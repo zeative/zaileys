@@ -17,8 +17,8 @@ export const useAuthState = async (folder: string): Promise<{ state: Authenticat
     await mkdir(folder, { recursive: true });
   }
 
-  const credsDb = createLowdb(`${folder}/auth/creds.json`, BufferJSON);
-  const keysDb = createLowdb(`${folder}/auth/keys.json`, { ...BufferJSON, chunkSize: 512 * 1024 });
+  const credsDb = createLowdb(`${folder}/auth/creds.json`, { BufferJSON });
+  const keysDb = createLowdb(`${folder}/auth/keys.json`, { BufferJSON, size: 512 * 1024 });
 
   await Promise.all([credsDb.read(), keysDb.read()]);
 

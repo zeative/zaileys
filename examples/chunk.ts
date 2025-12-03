@@ -1,11 +1,10 @@
 import { createLowdb } from '../src/Modules/lowdb';
 
-const db = createLowdb('.temp/sdsd.json', { chunkSize: 1024 * 1024 });
-
-await db.read();
+const db = createLowdb('.temp/test.json', { size: 1024 * 1024 });
 
 const bigData = [];
-for (let i = 0; i < 100000; i++) {
+
+for (let i = 0; i < 1; i++) {
   bigData.push({
     id: i,
     name: `User ${i}`,
@@ -15,17 +14,12 @@ for (let i = 0; i < 100000; i++) {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       tags: ['tag1', 'tag2', 'tag3', 'tag4', 'tag5'],
-      settings: {
-        theme: 'dark',
-        notifications: true,
-        language: 'en',
-      },
+      settings: { theme: 'dark', notifications: true, language: 'en' },
     },
   });
 }
 
-// await db.set('largeArray', bigData);
+await db.set('largeArray', bigData);
 
-// await db.write();
-
-console.log(await db.get('largeArray'));
+const result = await db.get('largeArray');
+console.log('🔍 ~  ~ examples/chunk.ts:22 ~ result:', result);

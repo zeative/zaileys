@@ -15,6 +15,7 @@ export class Calls {
     socket.ev.on('call', async (calls) => {
       for (const call of calls) {
         const parsed = await this.parse(call);
+        if (!parsed) continue;
 
         await this.client.middleware.run({ calls: parsed });
         store.events.emit('calls', parsed);

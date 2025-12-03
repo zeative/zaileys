@@ -115,9 +115,7 @@ export class Connection {
       store.events.emit('connection', output);
     });
 
-    socket.ev.on('messaging-history.set', (ctx) => {
-      const { progress } = ctx;
-
+    socket.ev.on('messaging-history.set', ({ progress }) => {
       output.status = 'syncing';
       output.syncProgress = progress;
 
@@ -132,6 +130,7 @@ export class Connection {
         output.syncCompleted = true;
       }
 
+      store.set('connection', output);
       store.events.emit('connection', output);
     });
   }

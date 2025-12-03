@@ -14,5 +14,15 @@ export const registerAuthCreds = async (client: Client) => {
 
   socket.ev.on('creds.update', saveCreds);
 
+  socket.ev.on('groups.update', async ([event]) => {
+    const metadata = await socket.groupMetadata(event.id);
+    store.groupCache.set(event.id, metadata);
+  });
+
+  socket.ev.on('group-participants.update', async (event) => {
+    const metadata = await socket.groupMetadata(event.id);
+    store.groupCache.set(event.id, metadata);
+  });
+
   store.set('socket', socket);
 };

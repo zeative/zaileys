@@ -62,37 +62,47 @@ export const MESSAGE_ENUM_TYPES = z.enum([
 
 export const ListenerMessagesType = z.object({
   chatId: z.string(),
+  chatAddress: z.enum(['pn', 'lid']),
+  chatType: MESSAGE_ENUM_TYPES,
+
   channelId: z.string(),
   uniqueId: z.string(),
+
   receiverId: z.string(),
   receiverName: z.string(),
+
   roomId: z.string(),
   roomName: z.string(),
+
   senderLid: z.string(),
   senderId: z.string(),
   senderName: z.string(),
   senderDevice: DEVICE_ENUM_TYPES,
-  chatType: MESSAGE_ENUM_TYPES,
+
   timestamp: z.number(),
+
   text: z.string().nullable(),
   mentions: z.string().array(),
   links: z.string().array(),
+
   isPrefix: z.boolean(),
   isSpam: z.boolean(),
   isFromMe: z.boolean(),
   isTagMe: z.boolean(),
   isGroup: z.boolean(),
+  isNewsletter: z.boolean(),
   isStory: z.boolean(),
   isViewOnce: z.boolean(),
   isEdited: z.boolean(),
   isDeleted: z.boolean(),
   isPinned: z.boolean(),
   isUnPinned: z.boolean(),
-  isChannel: z.boolean(),
   isBroadcast: z.boolean(),
   isEphemeral: z.boolean(),
   isForwarded: z.boolean(),
+
   citation: z.record(z.string(), z.boolean()).nullable(),
+
   media: z
     .object({
       buffer: z.function(),

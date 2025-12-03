@@ -1,104 +1,124 @@
-import { initAuthCreds, BufferJSON, makeCacheableSignalKeyStore, type AuthenticationState } from 'baileys';
-import fs from 'node:fs/promises';
-import { join } from 'node:path';
-import { atomicWrite } from './decrypt';
+import { Mutex } from 'async-mutex';
+import { AuthenticationCreds, AuthenticationState, BufferJSON, initAuthCreds, proto, SignalDataTypeMap } from 'baileys';
+import { mkdir, readFile, stat, unlink, writeFile } from 'node:fs/promises';
+import { join } from 'path';
 import { store } from '../Modules/store';
-import { AuthStateType } from '../Types/auth';
 
-const KEY_MAP = new Set(['pre-key', 'session', 'sender-key', 'app-state-sync-key', 'app-state-sync-version']);
+const fileLocks = new Map<string, Mutex>();
 
-export async function useAuthState(folder: string): Promise<AuthStateType> {
+const getFileLock = (path: string): Mutex => {
+  let mutex = fileLocks.get(path);
+
+  if (!mutex) {
+    mutex = new Mutex();
+    fileLocks.set(path, mutex);
+  }
+
+  return mutex;
+};
+
+export const useAuthState = async (folder: string): Promise<{ state: AuthenticationState; saveCreds: () => Promise<void> }> => {
   store.spinner.start(' Initializing auth state...');
 
-  await fs.mkdir(folder, { recursive: true });
-  const credsPath = join(folder, 'creds.json');
-  const keyStore: Record<string, any> = {};
+  const writeData = async (data, file: string) => {
+    const filePath = join(folder, fixFileName(file)!);
+    const mutex = getFileLock(filePath);
 
-  let creds: AuthenticationState['creds'];
-  let saveTimeout: NodeJS.Timeout | null = null;
-
-  try {
-    const credsData = await fs.readFile(credsPath, 'utf-8');
-    creds = JSON.parse(credsData, BufferJSON.reviver);
-  } catch {
-    creds = initAuthCreds();
-  }
-
-  store.spinner.update(' Loading credentials...');
-
-  const saveCreds = () =>
-    new Promise<void>((resolve, reject) => {
-      if (saveTimeout) clearTimeout(saveTimeout);
-      saveTimeout = setTimeout(async () => {
-        try {
-          const data = JSON.stringify(creds, BufferJSON.replacer, 2);
-          await atomicWrite(credsPath, Buffer.from(data, 'utf-8'));
-          resolve();
-        } catch (err) {
-          reject(err);
-        }
-      }, 50);
-    });
-
-  try {
-    const files = await fs.readdir(folder);
-
-    for (const file of files) {
-      if (file === 'creds.json' || !file.endsWith('.json')) continue;
-
-      const path = join(folder, file);
-      const stat = await fs.stat(path);
-
-      if (!stat.isFile()) continue;
-
-      const [key, id] = file.slice(0, -5).split('-', 2);
-
-      if (KEY_MAP.has(key) && id) {
-        const raw = await fs.readFile(path, 'utf-8');
-        keyStore[`${key}-${id}`] = JSON.parse(raw, BufferJSON.reviver);
+    return mutex.acquire().then(async (release) => {
+      try {
+        await writeFile(filePath, JSON.stringify(data, BufferJSON.replacer));
+      } finally {
+        release();
       }
-    }
+    });
+  };
 
-    store.spinner.success(' Generate auth successfully');
-  } catch (error) {
-    store.spinner.error(' Failed to open credentials\n');
-    throw error;
+  const readData = async (file: string) => {
+    try {
+      const filePath = join(folder, fixFileName(file)!);
+      const mutex = getFileLock(filePath);
+
+      return await mutex.acquire().then(async (release) => {
+        try {
+          const data = await readFile(filePath, { encoding: 'utf-8' });
+          return JSON.parse(data, BufferJSON.reviver);
+        } finally {
+          release();
+        }
+      });
+    } catch (error) {
+      return null;
+    }
+  };
+
+  const removeData = async (file: string) => {
+    try {
+      const filePath = join(folder, fixFileName(file)!);
+      const mutex = getFileLock(filePath);
+
+      return mutex.acquire().then(async (release) => {
+        try {
+          await unlink(filePath);
+        } catch {
+        } finally {
+          release();
+        }
+      });
+    } catch {}
+  };
+
+  const folderInfo = await stat(folder).catch(() => {});
+
+  if (folderInfo) {
+    if (!folderInfo.isDirectory()) {
+      store.spinner.error(' Failed to open credentials\n');
+      throw `found something that is not a directory at ${folder}, either delete it or specify a different location`;
+    }
+  } else {
+    await mkdir(folder, { recursive: true });
   }
+
+  const fixFileName = (file?: string) => file?.replace(/\//g, '__')?.replace(/:/g, '-');
+
+  const creds: AuthenticationCreds = (await readData('creds.json')) || initAuthCreds();
+
+  store.spinner.success(' Generate auth successfully');
 
   return {
     state: {
       creds,
-      keys: makeCacheableSignalKeyStore(
-        {
-          get: async (type, ids) => {
-            const data: Record<string, any> = {};
-
-            for (const id of ids) {
-              const value = keyStore[`${type}-${id}`];
-              if (value) data[id] = value;
-            }
-
-            return data;
-          },
-          set: async (data) => {
-            const writeTasks: Promise<void>[] = [];
-
-            for (const [type, inner] of Object.entries(data)) {
-              for (const [id, value] of Object.entries(inner)) {
-                const key = `${type}-${id}`;
-                keyStore[key] = value;
-
-                const filePath = join(folder, `${key}.json`);
-                writeTasks.push(atomicWrite(filePath, Buffer.from(JSON.stringify(value, BufferJSON.replacer), 'utf-8')));
+      keys: {
+        get: async (type, ids) => {
+          const data: { [_: string]: SignalDataTypeMap[typeof type] } = {};
+          await Promise.all(
+            ids.map(async (id) => {
+              let value = await readData(`${type}-${id}.json`);
+              if (type === 'app-state-sync-key' && value) {
+                value = proto.Message.AppStateSyncKeyData.fromObject(value);
               }
-            }
 
-            await Promise.all(writeTasks);
-          },
+              data[id] = value;
+            }),
+          );
+
+          return data;
         },
-        store.logger,
-      ),
+        set: async (data) => {
+          const tasks: Promise<void>[] = [];
+          for (const category in data) {
+            for (const id in data[category as keyof SignalDataTypeMap]) {
+              const value = data[category as keyof SignalDataTypeMap]![id];
+              const file = `${category}-${id}.json`;
+              tasks.push(value ? writeData(value, file) : removeData(file));
+            }
+          }
+
+          await Promise.all(tasks);
+        },
+      },
     },
-    saveCreds,
+    saveCreds: async () => {
+      return writeData(creds, 'creds.json');
+    },
   };
-}
+};

@@ -1,4 +1,5 @@
 import { createSpinner } from 'nanospinner';
+import NodeCache from 'node-cache';
 import { EventEmitter } from 'node:stream';
 import pino from 'pino';
 
@@ -30,7 +31,10 @@ export class NanoStore {
 
   spinner = createSpinner('', { color: 'green' });
   logger = pino({ level: 'silent', enabled: false });
+
   events = new EventEmitter();
+
+  groupCache = new NodeCache({ stdTTL: 5 * 60, useClones: false });
 }
 
 export const store = new NanoStore();

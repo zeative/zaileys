@@ -19,6 +19,7 @@
     "figlet": "^1.9.4",
     "gradient-string": "^3.0.0",
     "lodash": "^4.17.21",
+    "lowdb": "^7.0.1",
     "nanospinner": "^1.2.2",
     "node-cache": "^5.1.2",
     "pino": "^10.1.0",

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { ListenerCallsType } from './calls';
 import { ListenerConnectionType } from './connection';
 
 export const ClientBaseType = z.object({
@@ -15,8 +16,6 @@ export const ClientBaseType = z.object({
   autoRead: z.boolean().default(true).optional(),
   autoPresence: z.boolean().default(true).optional(),
   autoRejectCall: z.boolean().default(true).optional(),
-
-  plugins: z.array(z.instanceof(Function)).default([]).optional(),
 });
 
 export const ClientAuthPairingType = z.object({
@@ -33,11 +32,10 @@ export const ClientOptionsType = z.union([
   ClientAuthQRType.extend(ClientBaseType.shape),
 ]);
 
-export const EventEnumType = z.enum(['connection', 'messages', 'calls', 'webhooks']);
+export const EventEnumType = z.enum(['connection', 'messages', 'calls']);
 
 export type EventCallbackType = {
   connection: (ctx: z.infer<typeof ListenerConnectionType>) => void;
   messages: (ctx: z.infer<typeof EventEnumType>) => void;
-  calls: (ctx: z.infer<typeof EventEnumType>) => void;
-  webhooks: (ctx: z.infer<typeof EventEnumType>) => void;
+  calls: (ctx: z.infer<typeof ListenerCallsType>) => void;
 };

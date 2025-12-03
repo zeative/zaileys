@@ -17,6 +17,8 @@ export class Messages {
       for (const message of messages) {
         await this.client.middleware.run(message);
       }
+
+      store.events.emit('calls', ctx);
     });
   }
 }

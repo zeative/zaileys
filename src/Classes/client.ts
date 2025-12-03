@@ -7,7 +7,11 @@ import { ClientOptionsType, EventCallbackType, EventEnumType } from '../Types';
 import { autoDisplayBanner } from '../Utils/banner';
 import { Listener } from '../Listener';
 
+import { Middleware, MiddlewareHandler } from './middleware';
+
 export class Client {
+  middleware = new Middleware<any>();
+
   constructor(public options: z.infer<typeof ClientOptionsType>) {
     this.options = parseZod(ClientOptionsType, options);
     this.initialize();
@@ -22,5 +26,10 @@ export class Client {
 
   on<T extends z.infer<typeof EventEnumType>>(event: T, handler: EventCallbackType[T]): void {
     store.events.on(event, handler);
+  }
+
+  use<T>(handler: MiddlewareHandler<T>) {
+    this.middleware.use(handler);
+    return this;
   }
 }

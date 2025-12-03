@@ -45,11 +45,15 @@ export class Connection {
       await delay(3500);
 
       try {
-        const expired = new Date(Date.now() + 60_000).toLocaleTimeString();
+        output.authTimeout = Date.now() + 60_000;
+
+        const expired = new Date(output.authTimeout).toLocaleTimeString();
         const code = await socket.requestPairingCode(this.client.options.phoneNumber.toString());
 
         store.spinner.warn(` Pairing expired at ${cristal(expired)}`);
         store.spinner.warn(` Pairing code: ${code}`);
+
+        output.code = code;
       } catch {
         await retry();
       }
@@ -65,11 +69,14 @@ export class Connection {
 
       // QR handler
       if (this.client.options.authType === 'qr' && qr) {
-        const expired = new Date(Date.now() + 60_000).toLocaleTimeString();
+        output.authTimeout = Date.now() + 60_000;
+
+        const expired = new Date(output.authTimeout).toLocaleTimeString();
 
         store.spinner.warn(` Please scan the QR code...`);
         store.spinner.warn(` Qr code expired at ${cristal(expired)}`);
 
+        output.qr = qr;
         autoDisplayQRCode(qr);
         return;
       }
@@ -103,6 +110,26 @@ export class Connection {
         } else {
           store.spinner.success(` Connected!`);
         }
+      }
+
+      store.events.emit('connection', output);
+    });
+
+    socket.ev.on('messaging-history.set', (ctx) => {
+      const { progress } = ctx;
+
+      output.status = 'syncing';
+      output.syncProgress = progress;
+
+      store.spinner.start(` Syncing messages history...`);
+
+      if (progress) {
+        store.spinner.update(` Syncing messages history ${progress + '%'}`);
+      }
+
+      if (progress == 100) {
+        store.spinner.success(` Syncing messages history completed!`);
+        output.syncCompleted = true;
       }
 
       store.events.emit('connection', output);

@@ -1,4 +1,6 @@
 import _ from 'lodash';
+import fs from 'node:fs/promises';
+import { store } from '../Modules/store';
 
 export const getLatestLibVersion = async () => {
   try {
@@ -7,6 +9,16 @@ export const getLatestLibVersion = async () => {
 
     return data['dist-tags'].latest;
   } catch (error) {
+    throw error;
+  }
+};
+
+export const removeAuthCreds = async (session: string) => {
+  try {
+    const SESSION_PATH = `.session/${session}/creds.json`;
+    await fs.unlink(SESSION_PATH);
+  } catch (error) {
+    store.spinner.error(`Failed to remove auth creds for session "${session}"!`);
     throw error;
   }
 };

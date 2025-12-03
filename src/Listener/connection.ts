@@ -4,12 +4,12 @@ import z from 'zod';
 import { Client } from '../Classes';
 import { store } from '../Modules/store';
 import { ListenerConnectionType } from '../Types/connection';
-import { toJson } from '../Utils';
+import { removeAuthCreds, toJson } from '../Utils';
 import { autoDisplayQRCode } from '../Utils/banner';
-import fs from 'node:fs/promises';
-import { join } from 'node:path';
 
 export class Connection {
+  private tryReconnecting = 0;
+
   constructor(private client: Client) {
     this.initialize();
   }
@@ -21,6 +21,48 @@ export class Connection {
 
     const output: Partial<z.infer<typeof ListenerConnectionType>> = {};
 
+    // Reload client
+    const reload = async () => {
+      output.status = 'reload';
+      store.spinner.warn(' Connection lost. Attempting auto-reload...');
+
+      await this.client.initialize();
+    };
+
+    // Retry handler
+    const retry = async (error) => {
+      this.tryReconnecting++;
+      await delay(3000);
+
+      if (this.tryReconnecting >= 3) {
+        store.spinner.error(' Failed to generate creds!');
+        throw error;
+      }
+
+      store.spinner.warn(` Invalid session. Attempting auto cleaning creds (${this.tryReconnecting}/3)...`);
+      await delay(3000);
+      await removeAuthCreds(this.client.options.session);
+
+      await reload();
+    };
+
+    // Pairing handler
+    if (this.client.options.authType === 'pairing' && this.client.options.phoneNumber && !socket.authState.creds.registered) {
+      store.spinner.update(' Generating pairing code...');
+
+      await delay(3500);
+
+      try {
+        const expired = new Date(Date.now() + 60_000).toLocaleTimeString();
+        const code = await socket.requestPairingCode(this.client.options.phoneNumber.toString());
+
+        store.spinner.warn(` Pairing expired at ${cristal(expired)}`);
+        store.spinner.warn(` Pairing code: ${code}`);
+      } catch (error) {
+        await retry(error);
+      }
+    }
+
     socket.ev.on('connection.update', async (ctx) => {
       const { connection, lastDisconnect, qr } = ctx;
 
@@ -29,6 +71,7 @@ export class Connection {
 
       output.authType = this.client.options.authType;
 
+      // QR handler
       if (this.client.options.authType === 'qr' && qr) {
         const expired = new Date(Date.now() + 60_000).toLocaleTimeString();
 
@@ -38,13 +81,6 @@ export class Connection {
         autoDisplayQRCode(qr);
         return;
       }
-
-      const reload = async () => {
-        output.status = 'reload';
-        store.spinner.warn(' Connection lost. Attempting auto-reload...');
-
-        await this.client.initialize();
-      };
 
       if (connection === 'close') {
         const code = toJson(lastDisconnect?.error)?.output?.statusCode;
@@ -58,7 +94,7 @@ export class Connection {
           store.spinner.error(' Invalid session, please delete manually!');
           store.spinner.error(` Session "${this.client.options.session}" has not valid, please delete it!\n`);
 
-          throw 'Invalid session';
+          await retry('Invalid session!');
         }
 
         if (isReconnect) {
@@ -67,7 +103,7 @@ export class Connection {
       }
 
       if (connection === 'open') {
-        if (!socket.user) return await this.client.initialize();
+        if (!socket.user) return await this.initialize();
 
         const id = jidNormalizedUser(socket.user.id).split('@')[0];
         const name = socket.user.name || socket.user.verifiedName;

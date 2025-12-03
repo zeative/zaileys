@@ -9,7 +9,6 @@ export const ClientBaseType = z.object({
   showLogs: z.boolean().default(true).optional(),
 
   syncFullHistory: z.boolean().default(true).optional(),
-  autoDeleteSessionOnInvalid: z.boolean().default(false).optional(),
 
   autoMentions: z.boolean().default(true).optional(),
   autoOnline: z.boolean().default(true).optional(),

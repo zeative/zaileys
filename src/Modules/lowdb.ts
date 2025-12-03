@@ -1,336 +1,216 @@
 import { Mutex } from 'async-mutex';
-import { readFile, writeFile, unlink, stat, mkdir, readdir, rmdir } from 'fs/promises';
+import { readFile, writeFile, unlink, mkdir, readdir, rmdir } from 'fs/promises';
 import { join } from 'path';
 
-interface ChunkMetadata {
-  chunkIndex: number;
-  totalChunks: number;
-  chunkSize: number;
-  originalKey: string;
+interface ChunkMeta {
+  t: number;
+  s: number;
+  k: string;
 }
 
-class LowdbMutexManager {
-  private static instance: LowdbMutexManager;
-  private fileLocks = new Map<string, Mutex>();
-  private keyLocks = new Map<string, Mutex>();
+class MutexPool {
+  private static inst: MutexPool;
+  private fLocks = new Map<string, Mutex>();
+  private kLocks = new Map<string, Mutex>();
+  private maxSize = 100;
 
-  private constructor() {}
-
-  public static getInstance(): LowdbMutexManager {
-    if (!LowdbMutexManager.instance) {
-      LowdbMutexManager.instance = new LowdbMutexManager();
-    }
-    return LowdbMutexManager.instance;
+  static get(): MutexPool {
+    return this.inst || (this.inst = new MutexPool());
   }
 
-  public getFileLock(filePath: string): Mutex {
-    let mutex = this.fileLocks.get(filePath);
-    if (!mutex) {
-      mutex = new Mutex();
-      this.fileLocks.set(filePath, mutex);
+  getFile(path: string): Mutex {
+    let m = this.fLocks.get(path);
+    if (!m) {
+      if (this.fLocks.size >= this.maxSize) {
+        const first = this.fLocks.keys().next().value;
+        this.fLocks.delete(first);
+      }
+      m = new Mutex();
+      this.fLocks.set(path, m);
     }
-    return mutex;
+    return m;
   }
 
-  public getKeyLock(key: string): Mutex {
-    let mutex = this.keyLocks.get(key);
-    if (!mutex) {
-      mutex = new Mutex();
-      this.keyLocks.set(key, mutex);
+  getKey(key: string): Mutex {
+    let m = this.kLocks.get(key);
+    if (!m) {
+      if (this.kLocks.size >= this.maxSize) {
+        const first = this.kLocks.keys().next().value;
+        this.kLocks.delete(first);
+      }
+      m = new Mutex();
+      this.kLocks.set(key, m);
     }
-    return mutex;
+    return m;
   }
 }
 
-class Lowdb {
+export class Lowdb {
   private data: Map<string, any>;
-  private dbPath: string;
-  private mutexManager: LowdbMutexManager;
-  private chunkSize: number;
+  private path: string;
+  private pool: MutexPool;
+  private size: number;
+  private chunkDir: string;
+  private replacer: any;
+  private reviver: any;
 
-  constructor(dbPath: string, chunkSize: number = 1024 * 1024) {
-    // 1MB default chunk size
+  constructor(path: string, bufferJSON?: any, size: number = 2 * 1024 * 1024) {
     this.data = new Map();
-    this.dbPath = dbPath;
-    this.mutexManager = LowdbMutexManager.getInstance();
-    this.chunkSize = chunkSize;
+    this.path = path;
+    this.pool = MutexPool.get();
+    this.size = size;
+    this.chunkDir = `${path}.c`;
+    this.replacer = bufferJSON?.replacer || null;
+    this.reviver = bufferJSON?.reviver || null;
   }
 
-  /**
-   * Initialize the database by reading existing data
-   */
-  public async read(): Promise<Map<string, any>> {
-    const fileMutex = this.mutexManager.getFileLock(this.dbPath);
-
-    return await fileMutex.runExclusive(async () => {
+  async read(): Promise<Map<string, any>> {
+    const m = this.pool.getFile(this.path);
+    return m.runExclusive(async () => {
       try {
-        const fileContent = await readFile(this.dbPath, 'utf-8');
-        const parsed = JSON.parse(fileContent);
+        const buf = await readFile(this.path, 'utf-8');
+        const parsed = JSON.parse(buf, this.reviver);
+        this.data.clear();
 
-        // Handle chunked data
-        this.data = new Map();
-        for (const [key, value] of Object.entries(parsed)) {
-          if (this.isChunkMetadata(value)) {
-            // Reconstruct chunked data
-            const reconstructed = await this.reconstructChunkedData(key, value as ChunkMetadata);
-            this.data.set(key, reconstructed);
+        const promises: Promise<void>[] = [];
+        for (const [k, v] of Object.entries(parsed)) {
+          if (this.isMeta(v)) {
+            promises.push(this.loadChunk(k, v as ChunkMeta));
           } else {
-            this.data.set(key, value);
+            this.data.set(k, v);
           }
         }
 
+        await Promise.all(promises);
         return this.data;
-      } catch (error) {
-        // If file doesn't exist or is corrupted, initialize with empty data
-        await mkdir(join(this.dbPath, '..'), { recursive: true });
-        this.data = new Map();
+      } catch {
+        await mkdir(join(this.path, '..'), { recursive: true });
+        this.data.clear();
         return this.data;
       }
     });
   }
 
-  /**
-   * Write all data to the database file with chunking if necessary
-   */
-  public async write(): Promise<void> {
-    const fileMutex = this.mutexManager.getFileLock(this.dbPath);
+  async write(): Promise<void> {
+    const m = this.pool.getFile(this.path);
+    return m.runExclusive(async () => {
+      const obj: Record<string, any> = {};
+      const chunks: Promise<void>[] = [];
 
-    return await fileMutex.runExclusive(async () => {
-      const serializedData: Record<string, any> = {};
-
-      for (const [key, value] of this.data.entries()) {
-        const serializedValue = JSON.stringify(value, this.bufferReplacer);
-
-        // Check if value exceeds chunk size
-        if (serializedValue.length > this.chunkSize) {
-          await this.writeChunkedData(key, value);
+      for (const [k, v] of this.data) {
+        const str = JSON.stringify(v, this.replacer);
+        if (str.length > this.size) {
+          chunks.push(this.saveChunk(k, v));
         } else {
-          serializedData[key] = value;
+          obj[k] = v;
         }
       }
 
-      // Write non-chunked data to file
-      const finalData = { ...serializedData };
-      await writeFile(this.dbPath, JSON.stringify(finalData, null, 2));
+      await Promise.all(chunks);
+      const jsonStr = JSON.stringify(obj, this.replacer, 2);
+      await writeFile(this.path, jsonStr, 'utf-8');
     });
   }
 
-  /**
-   * Set a value in the database
-   */
-  public set<T = any>(key: string, value: T): void {
-    const keyMutex = this.mutexManager.getKeyLock(key);
-    keyMutex.runExclusive(() => {
-      this.data.set(key, value);
-    });
+  async set<T>(key: string, value: T): Promise<void> {
+    this.data.set(key, value);
   }
 
-  /**
-   * Get a value from the database
-   */
-  public get<T = any>(key: string): T | undefined {
-    const keyMutex = this.mutexManager.getKeyLock(key);
-    return keyMutex.runExclusive(() => {
-      return this.data.get(key) as T;
-    });
+  async get<T>(key: string): Promise<T | undefined> {
+    return this.data.get(key);
   }
 
-  /**
-   * Delete a key from the database
-   */
-  public async delete(key: string): Promise<boolean> {
-    const keyMutex = this.mutexManager.getKeyLock(key);
-
-    return await keyMutex.runExclusive(async () => {
-      // If the key was chunked, remove chunk files
-      if (this.data.has(key)) {
-        const value = this.data.get(key);
-        if (this.isChunkMetadata(value)) {
-          await this.removeChunkedData(key, value as ChunkMetadata);
-        }
-        return this.data.delete(key);
-      }
-      return false;
-    });
+  async delete(key: string): Promise<boolean> {
+    const v = this.data.get(key);
+    if (this.isMeta(v)) {
+      await this.delChunk(key, v as ChunkMeta);
+    }
+    return this.data.delete(key);
   }
 
-  /**
-   * Check if a key exists in the database
-   */
-  public has(key: string): boolean {
-    const keyMutex = this.mutexManager.getKeyLock(key);
-    return keyMutex.runExclusive(() => {
-      return this.data.has(key);
-    });
+  has(key: string): boolean {
+    return this.data.has(key);
   }
 
-  /**
-   * Clear all data from the database
-   */
-  public async clear(): Promise<void> {
-    const fileMutex = this.mutexManager.getFileLock(this.dbPath);
-
-    await fileMutex.runExclusive(async () => {
-      // Clean up any chunk files
-      for (const [key, value] of this.data.entries()) {
-        if (this.isChunkMetadata(value)) {
-          await this.removeChunkedData(key, value as ChunkMetadata);
+  async clear(): Promise<void> {
+    const m = this.pool.getFile(this.path);
+    return m.runExclusive(async () => {
+      const dels: Promise<void>[] = [];
+      for (const [k, v] of this.data) {
+        if (this.isMeta(v)) {
+          dels.push(this.delChunk(k, v as ChunkMeta));
         }
       }
+      await Promise.all(dels);
       this.data.clear();
-      await writeFile(this.dbPath, '{}');
+      await writeFile(this.path, '{}', 'utf-8');
     });
   }
 
-  /**
-   * Get all keys in the database
-   */
-  public keys(): string[] {
+  keys(): string[] {
     return Array.from(this.data.keys());
   }
 
-  /**
-   * Get the size of data for a key (in memory)
-   */
-  public sizeOf(key: string): number {
-    const value = this.data.get(key);
-    if (value === undefined) return 0;
-    return JSON.stringify(value, this.bufferReplacer).length;
+  sizeOf(key: string): number {
+    const v = this.data.get(key);
+    return v ? JSON.stringify(v, this.replacer).length : 0;
   }
 
-  /**
-   * Update a value using a callback function
-   */
-  public update<T = any>(key: string, updater: (value: T | undefined) => T): void {
-    const currentValue = this.get<T>(key);
-    const newValue = updater(currentValue);
-    this.set(key, newValue);
+  async update<T>(key: string, fn: (v: T | undefined) => T): Promise<void> {
+    this.data.set(key, fn(this.data.get(key)));
   }
 
-  /**
-   * Push an item to an array value
-   */
-  public push<T = any>(key: string, item: T): void {
-    this.update<T[]>(key, (arr) => {
-      if (!Array.isArray(arr)) arr = [];
+  async push<T>(key: string, item: T): Promise<void> {
+    const arr = this.data.get(key) || [];
+    if (Array.isArray(arr)) {
       arr.push(item);
-      return arr;
-    });
+      this.data.set(key, arr);
+    }
   }
 
-  /**
-   * Remove an item from an array value
-   */
-  public removeItem<T = any>(key: string, item: T): void {
-    this.update<T[]>(key, (arr) => {
-      if (!Array.isArray(arr)) return arr;
-      const index = arr.indexOf(item);
-      if (index > -1) arr.splice(index, 1);
-      return arr;
-    });
-  }
+  private async saveChunk(key: string, value: any): Promise<void> {
+    const str = JSON.stringify(value, this.replacer);
+    const total = Math.ceil(str.length / this.size);
+    await mkdir(this.chunkDir, { recursive: true });
 
-  private async writeChunkedData(key: string, value: any): Promise<void> {
-    const valueStr = JSON.stringify(value, this.bufferReplacer);
-    const totalChunks = Math.ceil(valueStr.length / this.chunkSize);
-
-    const chunkDir = `${this.dbPath}.chunks`;
-    await mkdir(chunkDir, { recursive: true });
-
-    // Write chunks to separate files
-    for (let i = 0; i < totalChunks; i++) {
-      const start = i * this.chunkSize;
-      const end = Math.min(start + this.chunkSize, valueStr.length);
-      const chunk = valueStr.substring(start, end);
-
-      const chunkFile = join(chunkDir, `${key}.chunk.${i}`);
-      await writeFile(chunkFile, chunk);
+    const writes = [];
+    for (let i = 0; i < total; i++) {
+      const s = i * this.size;
+      const chunk = str.substring(s, s + this.size);
+      writes.push(writeFile(join(this.chunkDir, `${key}.${i}`), chunk, 'utf-8'));
     }
 
-    // Store metadata in main database
-    const metadata: ChunkMetadata = {
-      chunkIndex: 0, // indicates this is chunked data
-      totalChunks,
-      chunkSize: this.chunkSize,
-      originalKey: key,
-    };
-
-    this.data.set(key, metadata);
+    await Promise.all(writes);
+    this.data.set(key, { t: total, s: this.size, k: key } as ChunkMeta);
   }
 
-  private async reconstructChunkedData(key: string, metadata: ChunkMetadata): Promise<any> {
-    const { totalChunks } = metadata;
-    const chunkDir = `${this.dbPath}.chunks`;
-    let reconstructed = '';
-
-    for (let i = 0; i < totalChunks; i++) {
-      const chunkFile = join(chunkDir, `${key}.chunk.${i}`);
-      try {
-        const chunk = await readFile(chunkFile, 'utf-8');
-        reconstructed += chunk;
-      } catch (error) {
-        // If chunk file is missing, data is corrupted
-        throw new Error(`Chunk file missing for key: ${key}, chunk: ${i}`);
-      }
+  private async loadChunk(key: string, meta: ChunkMeta): Promise<void> {
+    const reads = [];
+    for (let i = 0; i < meta.t; i++) {
+      reads.push(readFile(join(this.chunkDir, `${key}.${i}`), 'utf-8'));
     }
+
+    const chunks = await Promise.all(reads);
+    const data = JSON.parse(chunks.join(''), this.reviver);
+    this.data.set(key, data);
+  }
+
+  private async delChunk(key: string, meta: ChunkMeta): Promise<void> {
+    const dels = [];
+    for (let i = 0; i < meta.t; i++) {
+      dels.push(unlink(join(this.chunkDir, `${key}.${i}`)).catch(() => {}));
+    }
+    await Promise.all(dels);
 
     try {
-      return JSON.parse(reconstructed, this.bufferReviver);
-    } catch (error) {
-      throw new Error(`Failed to parse reconstructed data for key: ${key}`);
-    }
+      const files = await readdir(this.chunkDir);
+      if (files.length === 0) await rmdir(this.chunkDir);
+    } catch {}
   }
 
-  private async removeChunkedData(key: string, metadata: ChunkMetadata): Promise<void> {
-    const { totalChunks } = metadata;
-    const chunkDir = `${this.dbPath}.chunks`;
-
-    for (let i = 0; i < totalChunks; i++) {
-      const chunkFile = join(chunkDir, `${key}.chunk.${i}`);
-      try {
-        await unlink(chunkFile);
-      } catch (error) {
-        // Ignore error if file doesn't exist
-      }
-    }
-
-    // Remove chunk directory if empty
-    try {
-      const chunkDirStat = await stat(chunkDir);
-      if (chunkDirStat.isDirectory()) {
-        // Check if directory is empty and remove if so
-        const dirContents = await readdir(chunkDir);
-        if (dirContents.length === 0) {
-          await rmdir(chunkDir);
-        }
-      }
-    } catch (error) {
-      // Ignore error if directory doesn't exist
-    }
-  }
-
-  private isChunkMetadata(value: any): value is ChunkMetadata {
-    return value && typeof value === 'object' && 'chunkIndex' in value && 'totalChunks' in value && 'chunkSize' in value && 'originalKey' in value;
-  }
-
-  private bufferReplacer(key: string, value: any): any {
-    if (Buffer.isBuffer(value)) {
-      return { data: Array.from(value), type: 'Buffer' };
-    }
-    return value;
-  }
-
-  private bufferReviver(key: string, value: any): any {
-    if (value && typeof value === 'object' && value.type === 'Buffer' && Array.isArray(value.data)) {
-      return Buffer.from(value.data);
-    }
-    return value;
+  private isMeta(v: any): v is ChunkMeta {
+    return v?.t && v?.s && v?.k;
   }
 }
 
-// Export a factory function to create a new instance
-export const createLowdb = (dbPath: string, chunkSize?: number): Lowdb => {
-  return new Lowdb(dbPath, chunkSize);
-};
-
-export { Lowdb };
+export const createLowdb = (path: string, bufferJSON?: any, size?: number): Lowdb => new Lowdb(path, bufferJSON, size);

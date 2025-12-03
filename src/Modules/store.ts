@@ -2,6 +2,7 @@ import { createSpinner } from 'nanospinner';
 import NodeCache from 'node-cache';
 import { EventEmitter } from 'node:stream';
 import pino from 'pino';
+import { createLowdb, Lowdb } from './lowdb';
 
 export type StoreData = Record<string, any>;
 
@@ -27,6 +28,11 @@ export class NanoStore {
 
   has(key: string) {
     return this.data.has(key);
+  }
+
+  lowdb(session: string, dir: string): Lowdb {
+    const path = `.session/${session}/${dir}`;
+    return createLowdb(path);
   }
 
   spinner = createSpinner('', { color: 'green' });

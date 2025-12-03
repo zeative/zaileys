@@ -1,4 +1,4 @@
-import makeWASocket, { delay } from 'baileys';
+import makeWASocket from 'baileys';
 import { Client } from '../Classes';
 import { socketConfig } from '../Config/socket';
 import { store } from '../Modules/store';
@@ -15,5 +15,4 @@ export const registerAuthCreds = async (client: Client) => {
   socket.ev.on('creds.update', saveCreds);
 
   store.set('socket', socket);
-  store.set('session_path', { path: SESSION_PATH });
 };

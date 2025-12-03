@@ -8,8 +8,6 @@ import { removeAuthCreds, toJson } from '../Utils';
 import { autoDisplayQRCode } from '../Utils/banner';
 
 export class Connection {
-  private tryReconnecting = 0;
-
   constructor(private client: Client) {
     this.initialize();
   }
@@ -31,18 +29,12 @@ export class Connection {
 
     // Retry handler
     const retry = async (error) => {
-      this.tryReconnecting++;
       await delay(3000);
 
-      if (this.tryReconnecting >= 3) {
-        store.spinner.error(' Failed to generate creds!');
-        throw error;
-      }
-
-      store.spinner.warn(` Invalid session. Attempting auto cleaning creds (${this.tryReconnecting}/3)...`);
+      store.spinner.warn(` Invalid session. Attempting auto cleaning creds...`);
       await delay(3000);
+
       await removeAuthCreds(this.client.options.session);
-
       await reload();
     };
 
@@ -103,10 +95,8 @@ export class Connection {
       }
 
       if (connection === 'open') {
-        if (!socket.user) return await this.initialize();
-
-        const id = jidNormalizedUser(socket.user.id).split('@')[0];
-        const name = socket.user.name || socket.user.verifiedName;
+        const id = jidNormalizedUser(socket.user?.id).split('@')[0];
+        const name = socket.user?.name || socket.user?.verifiedName;
 
         store.spinner.success(` Connected as ${cristal(name || id)}`);
       }

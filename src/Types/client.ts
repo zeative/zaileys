@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ExtractorConnectionType } from './connection';
+import { ListenerConnectionType } from './connection';
 
 export const ClientBaseType = z.object({
   session: z.string().default('zaileys').optional(),
@@ -9,6 +9,7 @@ export const ClientBaseType = z.object({
   showLogs: z.boolean().default(true).optional(),
 
   syncFullHistory: z.boolean().default(true).optional(),
+  autoDeleteSessionOnInvalid: z.boolean().default(false).optional(),
 
   autoMentions: z.boolean().default(true).optional(),
   autoOnline: z.boolean().default(true).optional(),
@@ -34,7 +35,7 @@ export const ClientOptionsType = z.union([
 export const EventEnumType = z.enum(['connection', 'messages', 'calls', 'webhooks']);
 
 export type EventCallbackType = {
-  connection: (ctx: z.infer<typeof ExtractorConnectionType>) => void;
+  connection: (ctx: z.infer<typeof ListenerConnectionType>) => void;
   messages: (ctx: z.infer<typeof EventEnumType>) => void;
   calls: (ctx: z.infer<typeof EventEnumType>) => void;
   webhooks: (ctx: z.infer<typeof EventEnumType>) => void;

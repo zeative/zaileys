@@ -1,7 +1,7 @@
 import z from 'zod';
 
-export const ExtractorConnectionType = z.object({
-  status: z.enum(['connecting', 'open', 'close']),
+export const ListenerConnectionType = z.object({
+  status: z.enum(['connecting', 'open', 'close', 'reload']),
   authType: z.enum(['pairing', 'qr']),
 
   qr: z.string().optional(),

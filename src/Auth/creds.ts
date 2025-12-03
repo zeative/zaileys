@@ -5,7 +5,9 @@ import { store } from '../Modules/store';
 import { useAuthState } from './state';
 
 export const registerAuthCreds = async (client: Client) => {
-  const { state, saveCreds } = await useAuthState(`.session/${client.options.session}`);
+  const SESSION_PATH = `.session/${client.options.session}`;
+
+  const { state, saveCreds } = await useAuthState(SESSION_PATH);
 
   const config = socketConfig(client, state);
   const socket = makeWASocket(config);
@@ -24,4 +26,5 @@ export const registerAuthCreds = async (client: Client) => {
   socket.ev.on('creds.update', saveCreds);
 
   store.set('socket', socket);
+  store.set('session_path', { path: SESSION_PATH });
 };

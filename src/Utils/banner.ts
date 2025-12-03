@@ -1,12 +1,19 @@
 import figlet from 'figlet';
-import gradient, { cristal } from 'gradient-string';
+import gradient, { cristal, mind, morning } from 'gradient-string';
 import pkg from '../../package.json' assert { type: 'json' };
 import { store } from '../Modules/store';
 import { getLatestLibVersion } from './validate';
+import qrcode from 'qrcode-terminal';
+
+export const autoDisplayQRCode = (code: string) => {
+  qrcode.generate(code, { small: true }, (code) => {
+    console.log(code);
+  });
+};
 
 export const autoDisplayBanner = async () => {
   console.clear();
-  store.spinner.start('Checking for updates...');
+  store.spinner.start(' Checking for updates...');
 
   const latestVersion = await getLatestLibVersion();
   const isLatest = pkg.version === latestVersion;

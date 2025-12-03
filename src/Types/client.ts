@@ -15,6 +15,8 @@ export const ClientBaseType = z.object({
   autoRead: z.boolean().default(true).optional(),
   autoPresence: z.boolean().default(true).optional(),
   autoRejectCall: z.boolean().default(true).optional(),
+
+  plugins: z.array(z.instanceof(Function)).default([]).optional(),
 });
 
 export const ClientAuthPairingType = z.object({

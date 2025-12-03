@@ -14,10 +14,10 @@ export class Calls {
 
     socket.ev.on('call', async (calls) => {
       for (const call of calls) {
-        const parse = await this.parse(call);
+        const parsed = await this.parse(call);
 
-        await this.client.middleware.run(parse);
-        store.events.emit('calls', parse);
+        await this.client.middleware.run({ calls: parsed });
+        store.events.emit('calls', parsed);
       }
     });
   }

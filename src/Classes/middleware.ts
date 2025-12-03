@@ -1,5 +1,7 @@
+import { MiddlewareContextType } from '../Types/middleware';
+
 export type MiddlewareNext = () => Promise<void> | void;
-export type MiddlewareHandler<T> = (context: T, next: MiddlewareNext) => Promise<void> | void;
+export type MiddlewareHandler<T> = (ctx: MiddlewareContextType, next: MiddlewareNext) => Promise<void> | void;
 
 export class Middleware<T> {
   private stack: MiddlewareHandler<T>[] = [];
@@ -9,7 +11,7 @@ export class Middleware<T> {
     return this;
   }
 
-  async run(context: T) {
+  async run(ctx: MiddlewareContextType) {
     let index = -1;
 
     const dispatch = async (i: number): Promise<void> => {
@@ -20,7 +22,7 @@ export class Middleware<T> {
       if (!fn) return;
 
       try {
-        await fn(context, () => dispatch(i + 1));
+        await fn(ctx, () => dispatch(i + 1));
       } catch (err) {
         console.error('Middleware error:', err);
         throw err;

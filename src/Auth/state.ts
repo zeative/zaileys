@@ -18,7 +18,7 @@ export const useAuthState = async (folder: string): Promise<{ state: Authenticat
   }
 
   const credsDb = createLowdb(`${folder}/auth/creds.json`, BufferJSON);
-  const keysDb = createLowdb(`${folder}/auth/keys.json`, BufferJSON, 512 * 1024);
+  const keysDb = createLowdb(`${folder}/auth/keys.json`, { ...BufferJSON, chunkSize: 512 * 1024 });
 
   await Promise.all([credsDb.read(), keysDb.read()]);
 

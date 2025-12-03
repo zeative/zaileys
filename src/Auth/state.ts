@@ -37,7 +37,7 @@ export async function useAuthState(folder: string): Promise<AuthStateType> {
         } catch (err) {
           reject(err);
         }
-      }, 1500);
+      }, 50);
     });
 
   try {

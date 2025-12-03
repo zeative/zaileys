@@ -28,7 +28,7 @@ export class Connection {
     };
 
     // Retry handler
-    const retry = async (error) => {
+    const retry = async () => {
       await delay(3000);
 
       store.spinner.warn(` Invalid session. Attempting auto cleaning creds...`);
@@ -50,8 +50,8 @@ export class Connection {
 
         store.spinner.warn(` Pairing expired at ${cristal(expired)}`);
         store.spinner.warn(` Pairing code: ${code}`);
-      } catch (error) {
-        await retry(error);
+      } catch {
+        await retry();
       }
     }
 
@@ -86,7 +86,7 @@ export class Connection {
           store.spinner.error(' Invalid session, please delete manually!');
           store.spinner.error(` Session "${this.client.options.session}" has not valid, please delete it!\n`);
 
-          await retry('Invalid session!');
+          await retry();
         }
 
         if (isReconnect) {
@@ -95,10 +95,14 @@ export class Connection {
       }
 
       if (connection === 'open') {
-        const id = jidNormalizedUser(socket.user?.id).split('@')[0];
-        const name = socket.user?.name || socket.user?.verifiedName;
+        if (socket.user?.id) {
+          const id = jidNormalizedUser(socket.user.id).split('@')[0];
+          const name = socket.user.name || socket.user.verifiedName;
 
-        store.spinner.success(` Connected as ${cristal(name || id)}`);
+          store.spinner.success(` Connected as ${cristal(name || id)}`);
+        } else {
+          store.spinner.success(` Connected!`);
+        }
       }
 
       store.events.emit('connection', output);

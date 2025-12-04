@@ -1,6 +1,8 @@
 import { URL_REGEX } from 'baileys';
 import _ from 'lodash';
 
+export const ignoreLint = (data: any) => data;
+
 export const toJson = (object: unknown) => {
   try {
     return JSON.parse(object as string);
@@ -54,26 +56,4 @@ export const pickKeysFromArray = (arr: any[], keys: string[]) => {
     }
     return undefined;
   })[0];
-};
-
-export const generateId = (input: string | string[]) => {
-  let combinedString;
-
-  if (Array.isArray(input)) {
-    combinedString = input.join('|');
-  } else if (typeof input === 'string') {
-    combinedString = input;
-  } else {
-    combinedString = String(input);
-  }
-
-  let hash = 2166136261;
-  const len = combinedString.length;
-
-  for (let i = 0; i < len; i++) {
-    hash ^= combinedString.charCodeAt(i);
-    hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
-  }
-
-  return 'Z4CD' + (hash >>> 0).toString(16).padStart(8, '0').toUpperCase();
 };

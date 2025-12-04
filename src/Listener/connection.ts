@@ -4,7 +4,7 @@ import z from 'zod';
 import { Client } from '../Classes';
 import { store } from '../Modules/store';
 import { ListenerConnectionType } from '../Types/connection';
-import { removeAuthCreds, toJson } from '../Utils';
+import { ignoreLint, removeAuthCreds } from '../Utils';
 import { autoDisplayQRCode } from '../Utils/banner';
 
 export class Connection {
@@ -63,9 +63,9 @@ export class Connection {
       const { connection, lastDisconnect, qr } = ctx;
 
       output.status = connection || 'connecting';
-      store.spinner.update(' Connection status: ' + cristal(output.status));
-
       output.authType = this.client.options.authType;
+
+      store.spinner.update(' Connection status: ' + cristal(output.status));
 
       // QR handler
       if (this.client.options.authType === 'qr' && qr) {
@@ -76,13 +76,14 @@ export class Connection {
         store.spinner.warn(` Please scan the QR code...`);
         store.spinner.warn(` Qr code expired at ${cristal(expired)}`);
 
-        output.qr = qr;
         autoDisplayQRCode(qr);
+
+        output.qr = qr;
         return;
       }
 
       if (connection === 'close') {
-        const code = toJson(lastDisconnect?.error)?.output?.statusCode;
+        const code = ignoreLint(lastDisconnect?.error)?.output?.statusCode;
         const error = lastDisconnect?.error?.message || '';
 
         const isReconnect = typeof code === 'number' && code !== DisconnectReason.loggedOut;

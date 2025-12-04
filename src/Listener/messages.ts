@@ -1,18 +1,11 @@
-import makeWASocket, {
-  extractMessageContent,
-  getContentType,
-  getDevice,
-  jidNormalizedUser,
-  normalizeMessageContent,
-  WAMessage,
-  WAMessageAddressingMode,
-} from 'baileys';
+import makeWASocket, { downloadMediaMessage, getContentType, getDevice, jidNormalizedUser, WAMessage, WAMessageAddressingMode } from 'baileys';
 import z from 'zod';
 import { Client } from '../Classes';
 import { MESSAGE_MEDIA_TYPES } from '../Config/media';
 import { store } from '../Modules/store';
 import { ListenerMessagesType } from '../Types/messages';
-import { generateId, normalizeText, pickKeysFromArray } from '../Utils';
+import { normalizeText, pickKeysFromArray } from '../Utils';
+import { cleanMediaObject, generateId, getDeepContent } from '../Utils/message';
 
 export class Messages {
   constructor(private client: Client) {
@@ -51,10 +44,8 @@ export class Messages {
     const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
     const output: Partial<z.infer<typeof ListenerMessagesType>> = {};
 
-    const contentType = getContentType(message?.message?.protocolMessage?.editedMessage || message?.message);
-    const contentExtract = extractMessageContent(message.message);
-
-    console.log('🔍 ~ parse ~ src/Listener/messages.ts:54 ~ normalize:', JSON.stringify(contentExtract, null, 2));
+    const contentExtract = getDeepContent(message.message);
+    const contentType = contentExtract.chain.at(-1);
 
     output.uniqueId = null;
     output.channelId = null;
@@ -113,7 +104,14 @@ export class Messages {
 
     output.citation = {};
 
-    output.media = null;
+    if (output.chatType !== 'text') {
+      output.media = {
+        ...cleanMediaObject(contentExtract.leaf),
+        buffer: () => downloadMediaMessage(message, 'buffer', {}) as Promise<Buffer>,
+        stream: () => downloadMediaMessage(message, 'stream', {}) as Promise<NodeJS.ReadableStream>,
+      };
+    }
+
     output.message = () => original;
     output.replied = null;
 

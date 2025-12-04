@@ -24,6 +24,10 @@ export class Client {
     new Listener(this);
   }
 
+  db(path: string) {
+    return store.lowdb(this.options.session, `stores/${path}.json`);
+  }
+
   on<T extends z.infer<typeof EventEnumType>>(event: T, handler: EventCallbackType[T]): void {
     store.events.on(event, handler);
   }

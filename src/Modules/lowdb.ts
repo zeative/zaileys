@@ -174,6 +174,25 @@ export class Lowdb {
     });
   }
 
+  async push<T>(key: string, value: T): Promise<void> {
+    await this.ensureLoaded();
+    const keyMutex = this.pool.getKey(key);
+    await keyMutex.runExclusive(async () => {
+      const current = this.data.get(key);
+      let list: any[];
+      if (Array.isArray(current)) {
+        list = current;
+      } else if (current === undefined) {
+        list = [];
+      } else {
+        list = [current];
+      }
+      list.push(value);
+      this.data.set(key, list);
+      this.scheduleFlush();
+    });
+  }
+
   async get<T>(key: string): Promise<T | undefined> {
     await this.ensureLoaded();
     return this.data.get(key);

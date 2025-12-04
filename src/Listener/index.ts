@@ -16,11 +16,56 @@ export class Listener {
 
   async initialize() {
     const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
-    const db = (path: string) => store.lowdb('stores', path);
+
+    socket.ev.on('groups.update', async ([event]) => {
+      const metadata = await socket.groupMetadata(event.id);
+      store.groupCache.set(event.id, metadata);
+    });
+
+    socket.ev.on('group-participants.update', async (event) => {
+      const metadata = await socket.groupMetadata(event.id);
+      store.groupCache.set(event.id, metadata);
+    });
+
+    socket?.ev.on('messaging-history.set', async (update) => {
+      const { chats, contacts, messages } = update;
+
+      for (const chat of chats) {
+        await this.client.db('chats').push(chat.id, chat);
+      }
+
+      for (const contact of contacts) {
+        await this.client.db('contacts').push(contact.id, contact);
+      }
+
+      for (const message of messages) {
+        if (!message.message) return;
+        if (message?.category === 'peer') return;
+        if (message.message?.protocolMessage) return;
+
+        await this.client.db('messages').push(message.key.remoteJid, message);
+      }
+    });
 
     socket?.ev.on('messages.upsert', async ({ messages }) => {
       for (const message of messages) {
-        await db('messages').set(message.key.id, message);
+        if (!message.message) return;
+        if (message?.category === 'peer') return;
+        if (message.message?.protocolMessage) return;
+
+        await this.client.db('messages').push(message.key.remoteJid, message);
+      }
+    });
+
+    socket?.ev.on('chats.upsert', async (chats) => {
+      for (const chat of chats) {
+        await this.client.db('chats').push(chat.id, chat);
+      }
+    });
+
+    socket?.ev.on('contacts.upsert', async (contacts) => {
+      for (const contact of contacts) {
+        await this.client.db('contacts').push(contact.id, contact);
       }
     });
   }

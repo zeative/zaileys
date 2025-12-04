@@ -30,9 +30,16 @@ export class NanoStore {
     return this.data.has(key);
   }
 
+  private dbCache = new Map<string, Lowdb>();
+
   lowdb(session: string, dir: string): Lowdb {
     const path = `.session/${session}/${dir}`;
-    return createLowdb(path);
+    if (this.dbCache.has(path)) {
+      return this.dbCache.get(path)!;
+    }
+    const db = createLowdb(path);
+    this.dbCache.set(path, db);
+    return db;
   }
 
   spinner = createSpinner('', { color: 'green' });

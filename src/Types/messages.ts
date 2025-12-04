@@ -61,12 +61,12 @@ export const MESSAGE_ENUM_TYPES = z.enum([
 ]);
 
 export const ListenerMessagesType = z.object({
+  channelId: z.string(),
+  uniqueId: z.string(),
+
   chatId: z.string(),
   chatAddress: z.enum(['pn', 'lid']),
   chatType: MESSAGE_ENUM_TYPES,
-
-  channelId: z.string(),
-  uniqueId: z.string(),
 
   receiverId: z.string(),
   receiverName: z.string(),

@@ -1,10 +1,18 @@
-import makeWASocket, { getContentType, getDevice, jidNormalizedUser, WAMessage, WAMessageAddressingMode } from 'baileys';
-import { Client } from '../Classes';
-import { store } from '../Modules/store';
+import makeWASocket, {
+  extractMessageContent,
+  getContentType,
+  getDevice,
+  jidNormalizedUser,
+  normalizeMessageContent,
+  WAMessage,
+  WAMessageAddressingMode,
+} from 'baileys';
 import z from 'zod';
-import { ListenerMessagesType } from '../Types/messages';
+import { Client } from '../Classes';
 import { MESSAGE_MEDIA_TYPES } from '../Config/media';
-import { normalizeText } from '../Utils';
+import { store } from '../Modules/store';
+import { ListenerMessagesType } from '../Types/messages';
+import { generateId, normalizeText, pickKeysFromArray } from '../Utils';
 
 export class Messages {
   constructor(private client: Client) {
@@ -44,26 +52,39 @@ export class Messages {
     const output: Partial<z.infer<typeof ListenerMessagesType>> = {};
 
     const contentType = getContentType(message?.message?.protocolMessage?.editedMessage || message?.message);
+    const contentExtract = extractMessageContent(message.message);
+
+    console.log('🔍 ~ parse ~ src/Listener/messages.ts:54 ~ normalize:', JSON.stringify(contentExtract, null, 2));
+
+    output.uniqueId = null;
+    output.channelId = null;
 
     output.chatId = message?.message?.protocolMessage?.key?.id || message?.key?.id || null;
     output.chatAddress = message?.key?.addressingMode as WAMessageAddressingMode;
     output.chatType = MESSAGE_MEDIA_TYPES[contentType];
 
-    output.channelId = '';
-    output.uniqueId = '';
-
     output.receiverId = jidNormalizedUser(socket?.user?.id || '');
     output.receiverName = normalizeText(socket?.user?.name || socket?.user?.verifiedName);
 
     output.roomId = jidNormalizedUser(message?.key?.remoteJid);
-    output.roomName = null;
+
+    const chat = await this.client.db('chats').get(output.roomId);
+    const contact = await this.client.db('contacts').get(output.roomId);
+
+    const chatName = pickKeysFromArray(chat, ['name', 'verifiedName']);
+    const contactName = pickKeysFromArray(contact, ['notify', 'name']);
+
+    output.roomName = chatName || contactName || null;
 
     output.senderLid = message?.key?.remoteJidAlt || null;
     output.senderId = jidNormalizedUser(message?.participant || message?.key?.participant || message?.key?.remoteJid);
     output.senderName = normalizeText(message?.pushName || message?.verifiedBizName);
     output.senderDevice = getDevice(output.chatId);
 
-    output.timestamp = 0;
+    output.channelId = generateId([output.roomId, output.senderId]);
+    output.uniqueId = generateId([output.channelId, output.chatId]);
+
+    output.timestamp = Number(message?.messageTimestamp);
 
     output.text = null;
     output.mentions = [];
@@ -93,7 +114,7 @@ export class Messages {
     output.citation = {};
 
     output.media = null;
-    output.message = null;
+    output.message = () => original;
     output.replied = null;
 
     return output;

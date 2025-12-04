@@ -193,7 +193,7 @@ export class Lowdb {
     });
   }
 
-  async get<T>(key: string): Promise<T | undefined> {
+  async get<T>(key: string): Promise<any> {
     await this.ensureLoaded();
     return this.data.get(key);
   }

@@ -24,5 +24,10 @@ export const socketConfig = (client: Client, state: AuthenticationState): Parame
       creds: state.creds,
       keys: makeCacheableSignalKeyStore(state.keys, store.logger),
     },
+
+    getMessage: async (key) => {
+      if (!key?.id) return undefined;
+      return await client.db('messages').get(key.id);
+    },
   };
 };

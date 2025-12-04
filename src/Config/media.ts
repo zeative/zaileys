@@ -35,6 +35,7 @@ export const MESSAGE_MEDIA_TYPES = {
   stickerSyncRmrMessage: 'sticker',
   interactiveResponseMessage: 'interactiveResponse',
   pollCreationMessage: 'pollCreation',
+  pollCreationMessageKey: 'pollUpdate',
   pollUpdateMessage: 'pollUpdate',
   keepInChatMessage: 'keepInChat',
   documentWithCaptionMessage: 'document',

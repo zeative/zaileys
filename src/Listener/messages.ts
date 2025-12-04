@@ -1,4 +1,14 @@
-import makeWASocket, { downloadMediaMessage, getContentType, getDevice, jidNormalizedUser, WAMessage, WAMessageAddressingMode } from 'baileys';
+import makeWASocket, {
+  decryptPollVote,
+  downloadMediaMessage,
+  getAggregateVotesInPollMessage,
+  getContentType,
+  getDevice,
+  getKeyAuthor,
+  jidNormalizedUser,
+  WAMessage,
+  WAMessageAddressingMode,
+} from 'baileys';
 import z from 'zod';
 import { Client } from '../Classes';
 import { MESSAGE_MEDIA_TYPES } from '../Config/media';
@@ -32,7 +42,7 @@ export class Messages {
   }
 
   async parse(message: WAMessage) {
-    // console.log(JSON.stringify(message, null, 2));
+    console.log(JSON.stringify(message, null, 2));
 
     if (message?.category === 'peer') return;
     if (!message.message || !message?.key?.id) return;

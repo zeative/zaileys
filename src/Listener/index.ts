@@ -1,4 +1,4 @@
-import makeWASocket from 'baileys';
+import makeWASocket, { getAggregateVotesInPollMessage } from 'baileys';
 import { Client } from '../Classes';
 import { store } from '../Modules/store';
 import { Calls } from './calls';
@@ -66,6 +66,23 @@ export class Listener {
     socket?.ev.on('contacts.upsert', async (contacts) => {
       for (const contact of contacts) {
         await this.client.db('contacts').push(contact.id, contact);
+      }
+    });
+
+    socket?.ev.on('messages.update', async (events) => {
+      console.log('🔍 ~ initialize ~ src/Listener/index.ts:72 ~ events:', events);
+      for (const { key, update } of events) {
+        if (!update.pollUpdates) continue;
+
+        const pollCreation = await this.client.db('messages').get(key.remoteJid);
+        if (!pollCreation) continue;
+
+        const aggregation = getAggregateVotesInPollMessage({
+          message: pollCreation,
+          pollUpdates: update.pollUpdates,
+        });
+
+        console.log('poll aggregation:', aggregation);
       }
     });
   }

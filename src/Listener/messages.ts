@@ -36,7 +36,7 @@ export class Messages {
   }
 
   async parse(message: WAMessage) {
-    // console.log(JSON.stringify(message, null, 2));
+    console.log(JSON.stringify(message, null, 2));
 
     if (message?.category === 'peer') return;
     if (!message.message || !message?.key?.id) return;
@@ -165,7 +165,20 @@ export class Messages {
     }
 
     output.message = () => original;
+
     output.replied = null;
+
+    const isReplied = content?.contextInfo?.quotedMessage;
+    const repliedId = content?.contextInfo?.stanzaId;
+
+    if (isReplied) {
+      const messages = await this.client.db('messages').get(output.roomId);
+      const replied = messages?.find((item) => item.key.id === repliedId);
+
+      if (!replied) return;
+
+      output.replied = await this.parse(replied);
+    }
 
     return output;
   }

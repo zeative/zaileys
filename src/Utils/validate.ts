@@ -26,7 +26,7 @@ export const removeAuthCreds = async (session: string) => {
 };
 
 export const normalizeText = (text = '') => {
-  if (!text.length) return null;
+  if (!text?.length) return null;
 
   let clean = text
     .normalize('NFKD')

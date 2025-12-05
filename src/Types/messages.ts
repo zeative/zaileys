@@ -66,7 +66,6 @@ export const ListenerMessagesType = z.object({
   uniqueId: z.string(),
 
   chatId: z.string(),
-  chatAddress: z.enum(['pn', 'lid']),
   chatType: MESSAGE_ENUM_TYPES,
 
   receiverId: z.string(),
@@ -86,6 +85,7 @@ export const ListenerMessagesType = z.object({
   mentions: z.string().array(),
   links: z.string().array(),
 
+  isBot: z.boolean(),
   isFromMe: z.boolean(),
   isPrefix: z.boolean(),
   isSpam: z.boolean(),

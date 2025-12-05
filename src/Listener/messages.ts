@@ -1,13 +1,13 @@
-import makeWASocket, { downloadMediaMessage, getDevice, jidNormalizedUser, WAMessage, WAMessageAddressingMode } from 'baileys';
+import makeWASocket, { downloadMediaMessage, getDevice, jidNormalizedUser, WAMessage } from 'baileys';
+import _ from 'lodash';
 import z from 'zod';
 import { Client } from '../Classes';
 import { MESSAGE_MEDIA_TYPES } from '../Config/media';
+import { RateLimiter } from '../Modules/limiter';
 import { store } from '../Modules/store';
 import { ListenerMessagesType } from '../Types/messages';
 import { extractUrls, findGlobalWord, ignoreLint, normalizeText, pickKeysFromArray, toString } from '../Utils';
 import { cleanJid, cleanMediaObject, generateId, getDeepContent, getUsersMentions } from '../Utils/message';
-import { RateLimiter } from '../Modules/limiter';
-import _ from 'lodash';
 
 export class Messages {
   private limiter: RateLimiter;
@@ -25,8 +25,6 @@ export class Messages {
       if (type !== 'notify') return;
 
       for (const message of messages) {
-        console.log(JSON.stringify(message, null, 2));
-
         const parsed = await this.parse(message);
 
         if (parsed) {
@@ -40,7 +38,7 @@ export class Messages {
   async parse(message: WAMessage) {
     if (message?.category === 'peer') return;
     if (!message?.message || !message?.key?.id) return;
-    if (message?.messageStubType || !!message?.messageStubParameters) return;
+    if (message?.messageStubType || !!message?.messageStubParameters?.length) return;
     if (message?.message?.botInvokeMessage || message.message?.protocolMessage?.peerDataOperationRequestResponseMessage) return;
     if (message.message?.groupStatusMentionMessage) return;
 
@@ -65,7 +63,6 @@ export class Messages {
     output.channelId = null;
 
     output.chatId = message?.message?.protocolMessage?.key?.id || message?.key?.id || null;
-    output.chatAddress = message?.key?.addressingMode as WAMessageAddressingMode;
     output.chatType = MESSAGE_MEDIA_TYPES[contentType];
 
     output.receiverId = jidNormalizedUser(socket?.user?.id || '');
@@ -102,9 +99,8 @@ export class Messages {
 
     output.roomName = chatName || contactName || null;
 
-    output.senderLid = pickKeysFromArray([message?.key], ['remoteJidAlt', 'participant']);
+    output.senderLid = pickKeysFromArray([message?.key], ['remoteJidAlt', 'participant']) || null;
     output.senderId = jidNormalizedUser(message?.participant || message?.key?.participant || message?.key?.remoteJid);
-    output.senderLid = output.senderLid || output.senderId;
 
     output.senderName = normalizeText(message?.pushName || message?.verifiedBizName);
     output.senderDevice = getDevice(output.chatId);
@@ -137,11 +133,19 @@ export class Messages {
     output.mentions = getUsersMentions(output.text);
     output.links = extractUrls(output.text || '');
 
+    output.isBot = output.chatId.startsWith('BAE5') || output.chatId.startsWith('3EB0') || output.chatId.startsWith('Z4CD');
     output.isFromMe = message?.key?.fromMe || false;
     output.isTagMe = output.mentions?.includes(output.receiverId.split('@')[0]);
     output.isPrefix = output.text?.startsWith(this.client.options?.prefix) || false;
 
     output.isSpam = await this.limiter.isSpam(output.channelId);
+
+    if (output.isFromMe) {
+      output.senderLid = jidNormalizedUser(socket.user.lid);
+      output.senderId = output.receiverId;
+
+      output.senderName = output.receiverName;
+    }
 
     output.isGroup = output.roomId?.includes('@g.us');
     output.isNewsletter = isNewsletter;

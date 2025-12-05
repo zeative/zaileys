@@ -6,10 +6,14 @@ import { Connection } from './connection';
 import { Messages } from './messages';
 
 export class Listener {
+  connection: Connection;
+  messages: Messages;
+  calls: Calls;
+
   constructor(private client: Client) {
-    new Connection(client);
-    new Messages(client);
-    new Calls(client);
+    this.connection = new Connection(client);
+    this.messages = new Messages(client);
+    this.calls = new Calls(client);
 
     this.initialize();
   }

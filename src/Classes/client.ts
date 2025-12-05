@@ -10,6 +10,8 @@ import { Listener } from '../Listener';
 import { Middleware, MiddlewareHandler } from './middleware';
 
 export class Client {
+  private listener: Listener;
+
   middleware = new Middleware<any>();
 
   constructor(public options: z.infer<typeof ClientOptionsType>) {
@@ -21,7 +23,7 @@ export class Client {
     await autoDisplayBanner();
     await registerAuthCreds(this);
 
-    new Listener(this);
+    this.listener = new Listener(this);
   }
 
   db(path: string) {
@@ -35,5 +37,17 @@ export class Client {
   use<T>(handler: MiddlewareHandler<T>) {
     this.middleware.use(handler);
     return this;
+  }
+
+  async getMessageByChatId(chatId: string) {
+    const messages = await this.db('messages').all();
+    const message = messages
+      ?.flat()
+      ?.filter((x) => typeof x === 'object')
+      ?.flat()
+      ?.find((x) => x?.key?.id === chatId);
+
+    const parse = await this.listener.messages.parse(message);
+    return parse;
   }
 }

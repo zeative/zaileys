@@ -193,9 +193,14 @@ export class Lowdb {
     });
   }
 
-  async get<T>(key: string): Promise<any> {
+  async get(key: string): Promise<any> {
     await this.ensureLoaded();
     return this.data.get(key);
+  }
+
+  async all(): Promise<any> {
+    await this.ensureLoaded();
+    return Array.from(this.data.entries());
   }
 
   async delete(key: string): Promise<boolean> {

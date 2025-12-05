@@ -101,7 +101,7 @@ export const ListenerMessagesType = z.object({
   isEphemeral: z.boolean(),
   isForwarded: z.boolean(),
 
-  citation: z.record(z.string(), z.boolean()).nullable(),
+  citation: z.record(z.string(), z.function({ output: z.promise(z.boolean()) })).nullable(),
 
   media: z
     .object({

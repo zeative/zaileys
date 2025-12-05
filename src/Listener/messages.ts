@@ -5,8 +5,9 @@ import { MESSAGE_MEDIA_TYPES } from '../Config/media';
 import { store } from '../Modules/store';
 import { ListenerMessagesType } from '../Types/messages';
 import { extractUrls, findGlobalWord, normalizeText, pickKeysFromArray, toString } from '../Utils';
-import { cleanMediaObject, generateId, getDeepContent, getUsersMentions } from '../Utils/message';
+import { cleanJid, cleanMediaObject, generateId, getDeepContent, getUsersMentions } from '../Utils/message';
 import { RateLimiter } from '../Modules/limiter';
+import _ from 'lodash';
 
 export class Messages {
   private limiter: RateLimiter;
@@ -35,7 +36,7 @@ export class Messages {
   }
 
   async parse(message: WAMessage) {
-    console.log(JSON.stringify(message, null, 2));
+    // console.log(JSON.stringify(message, null, 2));
 
     if (message?.category === 'peer') return;
     if (!message.message || !message?.key?.id) return;
@@ -47,11 +48,11 @@ export class Messages {
     const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
     const output: Partial<z.infer<typeof ListenerMessagesType>> = {};
 
-    const contentExtract = getDeepContent(message.message);
-    const contentType = contentExtract.chain.at(-1);
-    const content = contentExtract.leaf;
+    let contentExtract = getDeepContent(message.message);
+    let contentType = contentExtract.chain.at(-1);
+    let content = contentExtract.leaf;
 
-    // console.log(content);
+    console.log(content);
 
     output.uniqueId = null;
     output.channelId = null;
@@ -64,6 +65,24 @@ export class Messages {
     output.receiverName = normalizeText(socket?.user?.name || socket?.user?.verifiedName);
 
     output.roomId = jidNormalizedUser(message?.key?.remoteJid);
+
+    const isRevoke = content?.type === 0;
+    const isPin = content?.type === 1;
+    const isUnPin = content?.type === 2;
+
+    const universalId = content?.key?.id;
+
+    if (isRevoke || isPin || isUnPin) {
+      const messages = await this.client.db('messages').get(output.roomId);
+      const universal = messages?.find((item) => item.key.id === universalId);
+
+      if (!universal) return;
+      message = universal;
+
+      contentExtract = getDeepContent(message.message);
+      contentType = contentExtract.chain.at(-1);
+      content = contentExtract.leaf;
+    }
 
     const chat = await this.client.db('chats').get(output.roomId);
     const contact = await this.client.db('contacts').get(output.roomId);
@@ -100,7 +119,7 @@ export class Messages {
 
     output.isFromMe = message?.key?.fromMe || false;
     output.isTagMe = output.mentions?.includes(output.receiverId.split('@')[0]);
-    output.isPrefix = output.text?.startsWith(this.client.options?.prefix);
+    output.isPrefix = output.text?.startsWith(this.client.options?.prefix) || false;
 
     output.isSpam = await this.limiter.isSpam(output.channelId);
 
@@ -109,17 +128,33 @@ export class Messages {
     output.isStory = output.roomId?.includes('@broadcast');
 
     output.isViewOnce = false;
-    output.isEdited = false;
-    output.isDeleted = false;
-    output.isPinned = false;
-    output.isUnPinned = false;
+    output.isEdited = !!findGlobalWord(toString(contentExtract), 'editedMessage');
+    output.isDeleted = isRevoke;
+    output.isPinned = isPin;
+    output.isUnPinned = isUnPin;
 
     output.isBroadcast = !!message?.broadcast;
 
-    output.isEphemeral = !!findGlobalWord(toString(message.message), 'ephemeralSettingTimestamp');
-    output.isForwarded = !!findGlobalWord(toString(message.message), 'forwardingScore');
+    output.isEphemeral = !!findGlobalWord(toString(content?.contextInfo), 'ephemeralSettingTimestamp');
+    output.isForwarded = !!findGlobalWord(toString(content?.contextInfo), 'forwardingScore');
 
-    output.citation = {};
+    output.citation = null;
+
+    if (this.client.options.citation) {
+      output.citation = output.citation || {};
+      const citation = this.client.options.citation;
+
+      for (const key of Object.keys(citation)) {
+        const method = citation[key];
+
+        output.citation[key] = async () => {
+          const result = await method();
+
+          const compare = [cleanJid(output.roomId), cleanJid(output.senderLid), cleanJid(output.senderId)];
+          return Boolean(_.intersection(compare, result).length);
+        };
+      }
+    }
 
     if (output.chatType !== 'text') {
       output.media = {

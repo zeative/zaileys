@@ -88,3 +88,7 @@ export const getDeepContent = (raw?: proto.IMessage | null) => {
 
   return { leaf: current, chain };
 };
+
+export const cleanJid = (jid: string) => {
+  return Number(jid.split('@')[0]);
+};

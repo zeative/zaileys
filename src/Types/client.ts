@@ -10,6 +10,8 @@ export const LimiterType = z
   })
   .optional();
 
+export const CitationType = z.record(z.string(), z.function({ output: z.promise(z.array(z.number())) })).optional();
+
 export const ClientBaseType = z.object({
   session: z.string().default('zaileys').optional(),
   prefix: z.string().optional(),
@@ -26,6 +28,7 @@ export const ClientBaseType = z.object({
   autoRejectCall: z.boolean().default(true).optional(),
 
   limiter: LimiterType,
+  citation: CitationType,
 });
 
 export const ClientAuthPairingType = z.object({

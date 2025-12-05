@@ -3,6 +3,13 @@ import { ListenerCallsType } from './calls';
 import { ListenerConnectionType } from './connection';
 import { ListenerMessagesType } from './messages';
 
+export const LimiterType = z
+  .object({
+    durationMs: z.number().default(10_000),
+    maxMessages: z.number().default(20),
+  })
+  .optional();
+
 export const ClientBaseType = z.object({
   session: z.string().default('zaileys').optional(),
   prefix: z.string().optional(),
@@ -17,6 +24,8 @@ export const ClientBaseType = z.object({
   autoRead: z.boolean().default(true).optional(),
   autoPresence: z.boolean().default(true).optional(),
   autoRejectCall: z.boolean().default(true).optional(),
+
+  limiter: LimiterType,
 });
 
 export const ClientAuthPairingType = z.object({

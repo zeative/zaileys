@@ -3,6 +3,8 @@ import NodeCache from 'node-cache';
 import { EventEmitter } from 'node:events';
 import pino from 'pino';
 import { createLowdb, Lowdb } from './lowdb';
+import { RateLimiter } from './limiter';
+import { Client } from '../Classes';
 
 export type StoreData = Record<string, any>;
 

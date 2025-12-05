@@ -6,12 +6,15 @@ import { store } from '../Modules/store';
 import { ListenerMessagesType } from '../Types/messages';
 import { extractUrls, findGlobalWord, normalizeText, pickKeysFromArray, toString } from '../Utils';
 import { cleanMediaObject, generateId, getDeepContent, getUsersMentions } from '../Utils/message';
+import { RateLimiter } from '../Modules/limiter';
 
 export class Messages {
+  private limiter: RateLimiter;
+
   constructor(private client: Client) {
-    if (store.get('connection')?.status != 'syncing') {
-      this.initialize();
-    }
+    this.limiter = new RateLimiter(client);
+
+    this.initialize();
   }
 
   async initialize() {
@@ -99,7 +102,7 @@ export class Messages {
     output.isTagMe = output.mentions?.includes(output.receiverId.split('@')[0]);
     output.isPrefix = output.text?.startsWith(this.client.options?.prefix);
 
-    output.isSpam = false;
+    output.isSpam = await this.limiter.isSpam(output.channelId);
 
     output.isGroup = output.roomId?.includes('@g.us');
     output.isNewsletter = output.roomId?.includes('@newsletter');

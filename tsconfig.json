@@ -12,8 +12,7 @@
     "forceConsistentCasingInFileNames": true,
     "moduleResolution": "bundler",
 
-    "experimentalDecorators": true,
-    "emitDecoratorMetadata": true
+    "typeRoots": ["node_modules/@types"]
   },
-  "include": ["src/**/*.ts"]
+  "exclude": ["node_modules", "dist", "**/*.test.ts", "**/*.spec.ts", "node_modules/@types/lowdb"]
 }

@@ -33,6 +33,7 @@ export const MESSAGE_MEDIA_TYPES = {
   interactiveMessage: 'interactive',
   reactionMessage: 'reaction',
   stickerSyncRmrMessage: 'sticker',
+  questionMessage: 'question',
   interactiveResponseMessage: 'interactiveResponse',
   pollCreationMessage: 'pollCreation',
   pollCreationMessageKey: 'pollUpdate',

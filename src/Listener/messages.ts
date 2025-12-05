@@ -53,6 +53,12 @@ export class Messages {
     let contentType = contentExtract.chain.at(-1);
     let content = contentExtract.leaf;
 
+    if (content?.message) {
+      contentExtract = getDeepContent(content.message);
+      contentType = contentExtract.chain.at(-1);
+      content = contentExtract.leaf;
+    }
+
     // console.log(JSON.stringify(content, null, 2));
 
     output.uniqueId = null;
@@ -72,6 +78,7 @@ export class Messages {
     const isUnPin = content?.type === 2;
 
     const isNewsletter = output.roomId?.includes('@newsletter');
+    const isQuestion = !!message?.message?.questionMessage;
 
     const universalId = content?.key?.id;
 
@@ -95,11 +102,6 @@ export class Messages {
 
     output.roomName = chatName || contactName || null;
 
-    if (isNewsletter) {
-      const meta = await socket.newsletterMetadata('jid', output.roomId);
-      output.roomName = ignoreLint(meta.thread_metadata.name)?.text;
-    }
-
     output.senderLid = pickKeysFromArray([message?.key], ['remoteJidAlt', 'participant']);
     output.senderId = jidNormalizedUser(message?.participant || message?.key?.participant || message?.key?.remoteJid);
     output.senderLid = output.senderLid || output.senderId;
@@ -111,6 +113,14 @@ export class Messages {
     output.uniqueId = generateId([output.channelId, output.chatId]);
 
     output.timestamp = Number(message?.messageTimestamp);
+
+    if (isNewsletter) {
+      const meta = await socket.newsletterMetadata('jid', output.roomId);
+
+      output.roomName = ignoreLint(meta.thread_metadata.name)?.text;
+      output.senderId = null;
+      output.senderLid = null;
+    }
 
     output.text =
       content?.text ||
@@ -135,6 +145,7 @@ export class Messages {
 
     output.isGroup = output.roomId?.includes('@g.us');
     output.isNewsletter = isNewsletter;
+    output.isQuestion = isQuestion;
     output.isStory = output.roomId?.includes('@broadcast');
 
     output.isViewOnce = false;

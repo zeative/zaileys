@@ -92,6 +92,7 @@ export const ListenerMessagesType = z.object({
   isTagMe: z.boolean(),
   isGroup: z.boolean(),
   isNewsletter: z.boolean(),
+  isQuestion: z.boolean(),
   isStory: z.boolean(),
   isViewOnce: z.boolean(),
   isEdited: z.boolean(),

@@ -1,6 +1,6 @@
 import { createSpinner } from 'nanospinner';
 import NodeCache from 'node-cache';
-import { EventEmitter } from 'node:stream';
+import { EventEmitter } from 'node:events';
 import pino from 'pino';
 import { createLowdb, Lowdb } from './lowdb';
 

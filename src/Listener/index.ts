@@ -39,7 +39,7 @@ export class Listener {
       }
 
       for (const message of messages) {
-        if (!message.message) return;
+        if (!message.message && !message.key.isViewOnce) return;
         if (message?.category === 'peer') return;
         if (message.message?.protocolMessage) return;
 
@@ -49,7 +49,7 @@ export class Listener {
 
     socket?.ev.on('messages.upsert', async ({ messages }) => {
       for (const message of messages) {
-        if (!message.message) return;
+        if (!message.message && !message.key.isViewOnce) return;
         if (message?.category === 'peer') return;
         if (message.message?.protocolMessage) return;
 

@@ -36,8 +36,10 @@ export class Messages {
   }
 
   async parse(message: WAMessage) {
+    console.log(JSON.stringify(message, null, 2));
+
     if (message?.category === 'peer') return;
-    if (!message.message || !message?.key?.id) return;
+    if (!message?.message || !message?.key?.id) return;
     if (message?.messageStubType || !!message?.messageStubParameters) return;
     if (message?.message?.botInvokeMessage || message.message?.protocolMessage?.peerDataOperationRequestResponseMessage) return;
 
@@ -49,6 +51,9 @@ export class Messages {
     let contentExtract = getDeepContent(message.message);
     let contentType = contentExtract.chain.at(-1);
     let content = contentExtract.leaf;
+
+    // console.log(content);
+    // console.log(JSON.stringify(content, null, 2));
 
     output.uniqueId = null;
     output.channelId = null;
@@ -165,15 +170,25 @@ export class Messages {
     output.replied = null;
 
     const isReplied = content?.contextInfo?.quotedMessage;
+    const isViewOnce = pickKeysFromArray([isReplied], ['viewOnceMessageV2Extension', 'viewOnceMessage']);
+
     const repliedId = content?.contextInfo?.stanzaId;
 
     if (isReplied) {
       const messages = await this.client.db('messages').get(output.roomId);
       const replied = messages?.find((item) => item.key.id === repliedId);
 
-      if (!replied) return;
+      const viewonce = {
+        ...replied,
+        ...getDeepContent(isViewOnce).leaf,
+      };
 
-      output.replied = (await this.parse(replied)) as never;
+      if (isViewOnce) {
+        output.replied = (await this.parse(viewonce)) as never;
+        output.replied.isViewOnce = true;
+      } else {
+        output.replied = (await this.parse(replied)) as never;
+      }
     }
 
     return output;

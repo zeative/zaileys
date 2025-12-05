@@ -38,11 +38,13 @@ export const randomize = (arr: string[]) => {
   return arr[Math.floor(Math.random() * arr.length)];
 };
 
-export const pickKeysFromArray = (arr: any[], keys: string[]) => {
+export const pickKeysFromArray = (arr: any[], keys: string[]): any => {
   for (const obj of arr) {
-    for (const key of keys) {
-      if (key in obj && obj[key] !== undefined && obj[key] !== null) {
-        return obj[key];
+    if (obj && typeof obj === 'object') {
+      for (const key of keys) {
+        if (key in obj && obj[key] !== undefined && obj[key] !== null) {
+          return obj[key];
+        }
       }
     }
   }

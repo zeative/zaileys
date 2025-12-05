@@ -2,6 +2,8 @@ import _ from 'lodash';
 import fs from 'node:fs/promises';
 import { store } from '../Modules/store';
 
+export const ignoreLint = (data: any) => data;
+
 export const getLatestLibVersion = async () => {
   try {
     const res = await fetch('https://registry.npmjs.org/zaileys');

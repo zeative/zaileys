@@ -4,7 +4,7 @@ import { Client } from '../Classes';
 import { MESSAGE_MEDIA_TYPES } from '../Config/media';
 import { store } from '../Modules/store';
 import { ListenerMessagesType } from '../Types/messages';
-import { extractUrls, findGlobalWord, normalizeText, pickKeysFromArray, toString } from '../Utils';
+import { extractUrls, findGlobalWord, ignoreLint, normalizeText, pickKeysFromArray, toString } from '../Utils';
 import { cleanJid, cleanMediaObject, generateId, getDeepContent, getUsersMentions } from '../Utils/message';
 import { RateLimiter } from '../Modules/limiter';
 import _ from 'lodash';
@@ -71,6 +71,8 @@ export class Messages {
     const isPin = content?.type === 1;
     const isUnPin = content?.type === 2;
 
+    const isNewsletter = output.roomId?.includes('@newsletter');
+
     const universalId = content?.key?.id;
 
     if (isRevoke || isPin || isUnPin) {
@@ -92,6 +94,11 @@ export class Messages {
     const contactName = pickKeysFromArray(contact, ['notify', 'name']);
 
     output.roomName = chatName || contactName || null;
+
+    if (isNewsletter) {
+      const meta = await socket.newsletterMetadata('jid', output.roomId);
+      output.roomName = ignoreLint(meta.thread_metadata.name)?.text;
+    }
 
     output.senderLid = pickKeysFromArray([message?.key], ['remoteJidAlt', 'participant']);
     output.senderId = jidNormalizedUser(message?.participant || message?.key?.participant || message?.key?.remoteJid);
@@ -127,7 +134,7 @@ export class Messages {
     output.isSpam = await this.limiter.isSpam(output.channelId);
 
     output.isGroup = output.roomId?.includes('@g.us');
-    output.isNewsletter = output.roomId?.includes('@newsletter');
+    output.isNewsletter = isNewsletter;
     output.isStory = output.roomId?.includes('@broadcast');
 
     output.isViewOnce = false;

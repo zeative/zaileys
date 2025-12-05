@@ -1,8 +1,6 @@
 import { URL_REGEX } from 'baileys';
 import _ from 'lodash';
 
-export const ignoreLint = (data: any) => data;
-
 export const toJson = (object: unknown) => {
   try {
     return JSON.parse(object as string);

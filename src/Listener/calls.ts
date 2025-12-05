@@ -15,10 +15,15 @@ export class Calls {
     socket.ev.on('call', async (calls) => {
       for (const call of calls) {
         const parsed = await this.parse(call);
-        if (!parsed) continue;
 
-        await this.client.middleware.run({ calls: parsed });
-        store.events.emit('calls', parsed);
+        if (parsed) {
+          await this.client.middleware.run({ calls: parsed });
+          store.events.emit('calls', parsed);
+
+          if (this.client.options?.autoRejectCall) {
+            await socket.rejectCall(parsed.callId, parsed.callerId);
+          }
+        }
       }
     });
   }

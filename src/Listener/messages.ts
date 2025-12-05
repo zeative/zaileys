@@ -11,6 +11,7 @@ import { cleanJid, cleanMediaObject, generateId, getDeepContent, getUsersMention
 
 export class Messages {
   private limiter: RateLimiter;
+  private maxReplies = 3;
 
   constructor(private client: Client) {
     this.limiter = new RateLimiter(client);
@@ -30,12 +31,16 @@ export class Messages {
         if (parsed) {
           await this.client.middleware.run({ messages: parsed });
           store.events.emit('messages', parsed);
+
+          if (this.client.options.autoRead) {
+            await socket.readMessages([parsed.message().key]);
+          }
         }
       }
     });
   }
 
-  async parse(message: WAMessage) {
+  async parse(message: WAMessage, type?: 'replied') {
     if (message?.category === 'peer') return;
     if (!message?.message || !message?.key?.id) return;
     if (message?.messageStubType || !!message?.messageStubParameters?.length) return;
@@ -76,6 +81,9 @@ export class Messages {
 
     const isNewsletter = output.roomId?.includes('@newsletter');
     const isQuestion = !!message?.message?.questionMessage;
+    const isFromMe = message?.key?.fromMe || false;
+
+    if (isFromMe && this.client.options.ignoreMe && type !== 'replied') return;
 
     const universalId = content?.key?.id;
 
@@ -118,6 +126,13 @@ export class Messages {
       output.senderLid = null;
     }
 
+    if (isFromMe) {
+      output.senderLid = jidNormalizedUser(socket.user.lid);
+      output.senderId = output.receiverId;
+
+      output.senderName = output.receiverName;
+    }
+
     output.text =
       content?.text ||
       content?.caption ||
@@ -134,18 +149,11 @@ export class Messages {
     output.links = extractUrls(output.text || '');
 
     output.isBot = output.chatId.startsWith('BAE5') || output.chatId.startsWith('3EB0') || output.chatId.startsWith('Z4CD');
-    output.isFromMe = message?.key?.fromMe || false;
+    output.isFromMe = isFromMe;
     output.isTagMe = output.mentions?.includes(output.receiverId.split('@')[0]);
     output.isPrefix = output.text?.startsWith(this.client.options?.prefix) || false;
 
     output.isSpam = await this.limiter.isSpam(output.channelId);
-
-    if (output.isFromMe) {
-      output.senderLid = jidNormalizedUser(socket.user.lid);
-      output.senderId = output.receiverId;
-
-      output.senderName = output.receiverName;
-    }
 
     output.isGroup = output.roomId?.includes('@g.us');
     output.isNewsletter = isNewsletter;
@@ -198,7 +206,9 @@ export class Messages {
 
     const repliedId = content?.contextInfo?.stanzaId;
 
-    if (isReplied) {
+    if (isReplied && !this.maxReplies) {
+      this.maxReplies--;
+
       const messages = await this.client.db('messages').get(output.roomId);
       const replied = messages?.find((item) => item.key.id === repliedId);
 
@@ -208,11 +218,13 @@ export class Messages {
       };
 
       if (isViewOnce) {
-        output.replied = (await this.parse(viewonce)) as never;
+        output.replied = (await this.parse(viewonce, 'replied')) as never;
         output.replied.isViewOnce = true;
       } else {
-        output.replied = (await this.parse(replied)) as never;
+        output.replied = (await this.parse(replied, 'replied')) as never;
       }
+
+      this.maxReplies = 3;
     }
 
     return output;

@@ -39,7 +39,7 @@ export const randomize = (arr: string[]) => {
 };
 
 export const pickKeysFromArray = (arr: any[], keys: string[]): any => {
-  for (const obj of arr) {
+  for (const obj of arr || []) {
     if (obj && typeof obj === 'object') {
       for (const key of keys) {
         if (key in obj && obj[key] !== undefined && obj[key] !== null) {

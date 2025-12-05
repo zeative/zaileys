@@ -62,6 +62,15 @@ export const cleanMediaObject = (object: any) => {
     'message',
     'key',
     'midQualityFileSha256',
+    'historySyncNotification',
+    'appStateSyncKeyShare',
+    'appStateSyncKeyRequest',
+    'initialSecurityNotificationSettingSync',
+    'appStateFatalExceptionNotification',
+    'disappearingMode',
+    'peerDataOperationRequestMessage',
+    'peerDataOperationRequestResponseMessage',
+    'botFeedbackMessage',
   ]);
 };
 

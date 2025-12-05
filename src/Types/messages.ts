@@ -1,3 +1,4 @@
+import { WAMessage } from 'baileys';
 import z from 'zod';
 
 export const DEVICE_ENUM_TYPES = z.enum(['unknown', 'android', 'ios', 'desktop', 'web']);
@@ -85,9 +86,9 @@ export const ListenerMessagesType = z.object({
   mentions: z.string().array(),
   links: z.string().array(),
 
+  isFromMe: z.boolean(),
   isPrefix: z.boolean(),
   isSpam: z.boolean(),
-  isFromMe: z.boolean(),
   isTagMe: z.boolean(),
   isGroup: z.boolean(),
   isNewsletter: z.boolean(),
@@ -110,10 +111,12 @@ export const ListenerMessagesType = z.object({
     })
     .loose()
     .nullable(),
+
   message: z.function({
     input: [],
-    output: z.record(z.string(), z.any()),
+    output: z.custom<WAMessage>(),
   }),
+
   get replied() {
     return ListenerMessagesType.nullable();
   },

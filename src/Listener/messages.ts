@@ -53,7 +53,6 @@ export class Messages {
     let contentType = contentExtract.chain.at(-1);
     let content = contentExtract.leaf;
 
-    // console.log(content);
     // console.log(JSON.stringify(content, null, 2));
 
     output.uniqueId = null;
@@ -96,6 +95,8 @@ export class Messages {
 
     output.senderLid = pickKeysFromArray([message?.key], ['remoteJidAlt', 'participant']);
     output.senderId = jidNormalizedUser(message?.participant || message?.key?.participant || message?.key?.remoteJid);
+    output.senderLid = output.senderLid || output.senderId;
+
     output.senderName = normalizeText(message?.pushName || message?.verifiedBizName);
     output.senderDevice = getDevice(output.chatId);
 

@@ -23,20 +23,18 @@ export const removeAuthCreds = async (session: string) => {
   }
 };
 
-export const getMentions = (text = '') => {
-  if (!text) return [];
-  const ids = new Set();
-  for (const match of text.matchAll(/@(\d+)/g)) {
-    ids.add(match[1]);
-  }
-  return _.toArray(ids) as string[];
-};
+export const normalizeText = (text = '') => {
+  if (!text) return null;
 
-export const extractJids = (text = '') => {
-  if (!text) return [];
-  const ids = new Set();
-  for (const match of text.matchAll(/@(\d+)/g)) {
-    ids.add(match[1]);
-  }
-  return _.flatMap([...ids], (id) => [`${id}@s.whatsapp.net`, `${id}@g.us`]);
+  let clean = text
+    .normalize('NFKD')
+    .replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u2028-\u202F\u2060-\u206F\uFEFF\uFFF9-\uFFFB]/gu, '')
+    .replace(
+      /[\u0300-\u036F\u0483-\u0489\u0591-\u05BD\u05BF\u05C1-\u05C2\u05C4-\u05C7\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7-\u06E8\u06EA-\u06ED\u20D0-\u20FF\uFE20-\uFE2F]/gu,
+      '',
+    )
+    .replace(/[\u202A-\u202E\u2066-\u2069]/gu, '')
+    .replace(/\u202E([\s\S]*?)\u202C?/gu, (_, s) => [...s].reverse().join(''));
+
+  return clean;
 };

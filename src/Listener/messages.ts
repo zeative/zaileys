@@ -1,21 +1,11 @@
-import makeWASocket, {
-  decryptPollVote,
-  downloadMediaMessage,
-  getAggregateVotesInPollMessage,
-  getContentType,
-  getDevice,
-  getKeyAuthor,
-  jidNormalizedUser,
-  WAMessage,
-  WAMessageAddressingMode,
-} from 'baileys';
+import makeWASocket, { downloadMediaMessage, getDevice, jidNormalizedUser, WAMessage, WAMessageAddressingMode } from 'baileys';
 import z from 'zod';
 import { Client } from '../Classes';
 import { MESSAGE_MEDIA_TYPES } from '../Config/media';
 import { store } from '../Modules/store';
 import { ListenerMessagesType } from '../Types/messages';
-import { normalizeText, pickKeysFromArray } from '../Utils';
-import { cleanMediaObject, generateId, getDeepContent } from '../Utils/message';
+import { extractUrls, findGlobalWord, normalizeText, pickKeysFromArray, toString } from '../Utils';
+import { cleanMediaObject, generateId, getDeepContent, getUsersMentions } from '../Utils/message';
 
 export class Messages {
   constructor(private client: Client) {
@@ -56,6 +46,9 @@ export class Messages {
 
     const contentExtract = getDeepContent(message.message);
     const contentType = contentExtract.chain.at(-1);
+    const content = contentExtract.leaf;
+
+    // console.log(content);
 
     output.uniqueId = null;
     output.channelId = null;
@@ -77,7 +70,7 @@ export class Messages {
 
     output.roomName = chatName || contactName || null;
 
-    output.senderLid = message?.key?.remoteJidAlt || null;
+    output.senderLid = pickKeysFromArray([message?.key], ['remoteJidAlt', 'participant']);
     output.senderId = jidNormalizedUser(message?.participant || message?.key?.participant || message?.key?.remoteJid);
     output.senderName = normalizeText(message?.pushName || message?.verifiedBizName);
     output.senderDevice = getDevice(output.chatId);
@@ -87,15 +80,26 @@ export class Messages {
 
     output.timestamp = Number(message?.messageTimestamp);
 
-    output.text = null;
-    output.mentions = [];
-    output.links = [];
+    output.text =
+      content?.text ||
+      content?.caption ||
+      content?.name ||
+      content?.displayName ||
+      content?.conversation ||
+      content?.contentText ||
+      content?.selectedDisplayText ||
+      content ||
+      null;
 
-    output.isPrefix = false;
-    output.isSpam = false;
+    output.text = normalizeText(output.text);
+    output.mentions = getUsersMentions(output.text);
+    output.links = extractUrls(output.text || '');
 
     output.isFromMe = message?.key?.fromMe || false;
-    output.isTagMe = false;
+    output.isTagMe = output.mentions?.includes(output.receiverId.split('@')[0]);
+    output.isPrefix = output.text?.startsWith(this.client.options?.prefix);
+
+    output.isSpam = false;
 
     output.isGroup = output.roomId?.includes('@g.us');
     output.isNewsletter = output.roomId?.includes('@newsletter');
@@ -109,14 +113,14 @@ export class Messages {
 
     output.isBroadcast = !!message?.broadcast;
 
-    output.isEphemeral = false;
-    output.isForwarded = false;
+    output.isEphemeral = !!findGlobalWord(toString(message.message), 'ephemeralSettingTimestamp');
+    output.isForwarded = !!findGlobalWord(toString(message.message), 'forwardingScore');
 
     output.citation = {};
 
     if (output.chatType !== 'text') {
       output.media = {
-        ...cleanMediaObject(contentExtract.leaf),
+        ...cleanMediaObject(content),
         buffer: () => downloadMediaMessage(message, 'buffer', {}) as Promise<Buffer>,
         stream: () => downloadMediaMessage(message, 'stream', {}) as Promise<NodeJS.ReadableStream>,
       };

@@ -24,18 +24,9 @@ export const shuffleString = (str = '') => {
   return _.shuffle(str).join('');
 };
 
-export const findWord = (text = '', word = '') => {
+export const findGlobalWord = (text = '', word = '') => {
   if (!text) return null;
   return _.includes(text.toLowerCase(), word.toLowerCase());
-};
-
-export const normalizeText = (text = '') => {
-  if (!text) return null;
-  return _.replace(text, /\u202E([\s\S]*?)\u202C/g, (_e, segmen) => {
-    const arr = _.toArray(segmen);
-    const reversed = _.reverse(_.clone(arr));
-    return _.join(reversed, '');
-  }).replace(/[\u202A-\u202E\u202C]/g, '');
 };
 
 export const extractUrls = (text = '') => {
@@ -48,12 +39,12 @@ export const randomize = (arr: string[]) => {
 };
 
 export const pickKeysFromArray = (arr: any[], keys: string[]) => {
-  return arr.map((obj) => {
+  for (const obj of arr) {
     for (const key of keys) {
-      if (key in obj) {
+      if (key in obj && obj[key] !== undefined && obj[key] !== null) {
         return obj[key];
       }
     }
-    return undefined;
-  })[0];
+  }
+  return undefined;
 };

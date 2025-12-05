@@ -1,4 +1,4 @@
-import z from "zod";
+import z from 'zod';
 
 export const parseZod = <T>(schema: z.ZodSchema<T>, data: unknown) => {
   const result = schema.safeParse(data);
@@ -7,5 +7,5 @@ export const parseZod = <T>(schema: z.ZodSchema<T>, data: unknown) => {
 
   console.error(z.treeifyError(result.error));
 
-  throw new Error("Invalid data");
+  throw 'Invalid data';
 };

@@ -23,6 +23,24 @@ export const generateId = (input: string | string[]) => {
   return 'Z4CD' + (hash >>> 0).toString(16).padStart(8, '0').toUpperCase();
 };
 
+export const getUsersMentions = (text = '') => {
+  if (!text) return [];
+  const ids = new Set();
+  for (const match of text.matchAll(/@(\d+)/g)) {
+    ids.add(match[1]);
+  }
+  return _.toArray(ids) as string[];
+};
+
+export const extractJids = (text = '') => {
+  if (!text) return [];
+  const ids = new Set();
+  for (const match of text.matchAll(/@(\d+)/g)) {
+    ids.add(match[1]);
+  }
+  return _.flatMap([...ids], (id) => [`${id}@s.whatsapp.net`, `${id}@g.us`]);
+};
+
 export const cleanMediaObject = (object: any) => {
   return _.omit(object, [
     'url',

@@ -11,7 +11,7 @@ const banner = `
  * Author: zaadevofc
  * Last build time: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}
  * 
- * Repository: ${pkg.repository.url}
+ * Repository: ${pkg.repository.url} 
  */
 `;
 

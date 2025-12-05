@@ -25,6 +25,8 @@ export class Messages {
       if (type !== 'notify') return;
 
       for (const message of messages) {
+        console.log(JSON.stringify(message, null, 2));
+
         const parsed = await this.parse(message);
 
         if (parsed) {
@@ -36,12 +38,11 @@ export class Messages {
   }
 
   async parse(message: WAMessage) {
-    console.log(JSON.stringify(message, null, 2));
-
     if (message?.category === 'peer') return;
     if (!message?.message || !message?.key?.id) return;
     if (message?.messageStubType || !!message?.messageStubParameters) return;
     if (message?.message?.botInvokeMessage || message.message?.protocolMessage?.peerDataOperationRequestResponseMessage) return;
+    if (message.message?.groupStatusMentionMessage) return;
 
     const original = message;
 

@@ -1,4 +1,4 @@
-import makeWASocket, { getAggregateVotesInPollMessage } from 'baileys';
+import makeWASocket from 'baileys';
 import { Client } from '../Classes';
 import { store } from '../Modules/store';
 import { Calls } from './calls';
@@ -42,6 +42,7 @@ export class Listener {
         if (!message.message && !message.key.isViewOnce) return;
         if (message?.category === 'peer') return;
         if (message.message?.protocolMessage) return;
+        if (message.message?.groupStatusMentionMessage) return;
 
         await this.client.db('messages').push(message.key.remoteJid, message);
       }
@@ -52,6 +53,7 @@ export class Listener {
         if (!message.message && !message.key.isViewOnce) return;
         if (message?.category === 'peer') return;
         if (message.message?.protocolMessage) return;
+        if (message.message?.groupStatusMentionMessage) return;
 
         await this.client.db('messages').push(message.key.remoteJid, message);
       }

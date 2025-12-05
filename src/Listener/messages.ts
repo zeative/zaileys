@@ -36,8 +36,6 @@ export class Messages {
   }
 
   async parse(message: WAMessage) {
-    console.log(JSON.stringify(message, null, 2));
-
     if (message?.category === 'peer') return;
     if (!message.message || !message?.key?.id) return;
     if (message?.messageStubType || !!message?.messageStubParameters) return;
@@ -51,8 +49,6 @@ export class Messages {
     let contentExtract = getDeepContent(message.message);
     let contentType = contentExtract.chain.at(-1);
     let content = contentExtract.leaf;
-
-    console.log(content);
 
     output.uniqueId = null;
     output.channelId = null;
@@ -177,7 +173,7 @@ export class Messages {
 
       if (!replied) return;
 
-      output.replied = await this.parse(replied);
+      output.replied = (await this.parse(replied)) as never;
     }
 
     return output;

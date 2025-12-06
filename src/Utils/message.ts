@@ -99,5 +99,5 @@ export const getDeepContent = (raw?: proto.IMessage | null) => {
 };
 
 export const cleanJid = (jid: string) => {
-  return Number(jid.split('@')[0]);
+  return Number(jid?.split('@')[0]);
 };

@@ -1,8 +1,8 @@
 import z from 'zod';
-import { ListenerMessagesType } from '../Types/messages';
-import { Client } from './client';
 import { store } from '../Modules/store';
-import { cleanJid, logColor } from '../Utils';
+import { ListenerMessagesType } from '../Types/messages';
+import { cleanJid, ignoreLint, logColor } from '../Utils';
+import { Client } from './client';
 
 export class Logs {
   private ready = false;
@@ -43,7 +43,8 @@ export class Logs {
   message(message: Partial<z.infer<typeof ListenerMessagesType>>) {
     if (!this.ready) return;
 
-    const color = this.getRoomColor(message);
+    const color = ignoreLint(this.getRoomColor(message));
+    const isMatch = message.text?.toLowerCase()?.match('zaileys');
 
     const sender = logColor(`${message?.roomName}`, color);
     const text = message.text?.slice(0, 300);
@@ -56,7 +57,7 @@ export class Logs {
       output += `${logColor(`[sender]`, '#383838ff')} → ${logColor(`${message?.senderName} (${cleanJid(message?.senderId)})`, color)}\n`;
     }
 
-    output += `${logColor(`[${message.chatType}]`, '#383838ff')} → ${logColor(text, 'brown')}\n`;
+    output += `${logColor(`[${message.chatType}]`, '#383838ff')} → ${logColor(text ? text + '...' : text, isMatch ? ['#ff5f6d', '#ffc371'] : 'brown')}\n`;
     output += `—`;
 
     console.log(output);

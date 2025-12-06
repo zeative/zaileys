@@ -1,4 +1,4 @@
-import makeWASocket, { downloadMediaMessage, getDevice, jidNormalizedUser, WAMessage } from 'baileys';
+import makeWASocket, { downloadMediaMessage, getDevice, isJidMetaAI, jidNormalizedUser, proto, WAMessage } from 'baileys';
 import _ from 'lodash';
 import z from 'zod';
 import { Client } from '../Classes';
@@ -6,7 +6,7 @@ import { MESSAGE_MEDIA_TYPES } from '../Config/media';
 import { RateLimiter } from '../Modules/limiter';
 import { store } from '../Modules/store';
 import { ListenerMessagesType } from '../Types/messages';
-import { extractUrls, findGlobalWord, ignoreLint, normalizeText, pickKeysFromArray, toString } from '../Utils';
+import { extractUrls, findGlobalWord, ignoreLint, logColor, normalizeText, pickKeysFromArray, toString } from '../Utils';
 import { cleanJid, cleanMediaObject, generateId, getDeepContent, getUsersMentions } from '../Utils/message';
 
 export class Messages {
@@ -44,7 +44,7 @@ export class Messages {
     if (message?.category === 'peer') return;
     if (!message?.message || !message?.key?.id) return;
     if (message?.messageStubType || !!message?.messageStubParameters?.length) return;
-    if (message?.message?.botInvokeMessage || message.message?.protocolMessage?.peerDataOperationRequestResponseMessage) return;
+    if (message.message?.protocolMessage?.peerDataOperationRequestResponseMessage) return;
     if (message.message?.groupStatusMentionMessage) return;
 
     const original = message;
@@ -226,6 +226,8 @@ export class Messages {
 
       this.maxReplies = 3;
     }
+
+    this.client.logs.message(output);
 
     return output;
   }

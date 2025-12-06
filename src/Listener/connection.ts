@@ -131,7 +131,6 @@ export class Connection {
         output.syncCompleted = true;
       }
 
-      store.set('connection', output);
       store.events.emit('connection', output);
     });
   }

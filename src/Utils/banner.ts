@@ -4,6 +4,7 @@ import pkg from '../../package.json' assert { type: 'json' };
 import { store } from '../Modules/store';
 import { getLatestLibVersion } from './validate';
 import qrcode from 'qrcode-terminal';
+import { logColor } from './helper';
 
 export const autoDisplayQRCode = (code: string) => {
   qrcode.generate(code, { small: true }, (code) => {
@@ -24,12 +25,12 @@ export const autoDisplayBanner = async () => {
   const copyright = `\nby ${pkg.author} · v${pkg.version}`;
 
   const updateLabel = `${isLatest ? 'Already using latest version!' : `Update available! (v${latestVersion})`} \n`;
-  const updateColor = isLatest ? ['#04ba25ff', '#04ba25ff'] : ['#ffaf00ff', '#ffaf00ff'];
+  const updateColor = isLatest ? 'lime' : 'orange';
 
   const logo = await figlet.text(logoLabel);
   const fancy = cristal(logo);
 
   console.log(fancy);
-  console.log(gradient(['#383838ff', '#383838ff'])(copyright));
-  console.log(gradient(updateColor)(updateLabel));
+  console.log(logColor(copyright, '#383838ff'));
+  console.log(logColor(updateLabel, updateColor));
 };

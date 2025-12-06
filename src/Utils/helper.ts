@@ -1,5 +1,8 @@
 import { URL_REGEX } from 'baileys';
+import gradient from 'gradient-string';
 import _ from 'lodash';
+
+export const logColor = (text: string, color: string = '#04ba25ff') => gradient([color, color])(text);
 
 export const toJson = (object: unknown) => {
   try {

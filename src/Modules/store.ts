@@ -3,13 +3,12 @@ import NodeCache from 'node-cache';
 import { EventEmitter } from 'node:events';
 import pino from 'pino';
 import { createLowdb, Lowdb } from './lowdb';
-import { RateLimiter } from './limiter';
-import { Client } from '../Classes';
 
 export type StoreData = Record<string, any>;
 
 export class NanoStore {
   private data = new Map<string, StoreData>();
+  private cache = new Map<string, Lowdb>();
 
   set(key: string, value: any) {
     this.data.set(key, { ...this.data.get(key), ...value });
@@ -32,23 +31,21 @@ export class NanoStore {
     return this.data.has(key);
   }
 
-  private dbCache = new Map<string, Lowdb>();
-
   lowdb(session: string, dir: string): Lowdb {
     const path = `.session/${session}/${dir}`;
-    if (this.dbCache.has(path)) {
-      return this.dbCache.get(path)!;
+    if (this.cache.has(path)) {
+      return this.cache.get(path)!;
     }
     const db = createLowdb(path);
-    this.dbCache.set(path, db);
+    this.cache.set(path, db);
     return db;
   }
 
   spinner = createSpinner('', { color: 'green' });
+
   logger = pino({ level: 'silent', enabled: false });
 
   events = new EventEmitter();
-
   groupCache = new NodeCache({ stdTTL: 5 * 60, useClones: false });
 }
 

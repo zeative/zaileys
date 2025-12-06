@@ -8,10 +8,12 @@ import { autoDisplayBanner } from '../Utils/banner';
 import { Listener } from '../Listener';
 
 import { Middleware, MiddlewareHandler } from './middleware';
+import { Logs } from './logs';
 
 export class Client {
   private listener: Listener;
 
+  logs: Logs;
   middleware = new Middleware<any>();
 
   constructor(public options: z.infer<typeof ClientOptionsType>) {
@@ -24,6 +26,7 @@ export class Client {
     await registerAuthCreds(this);
 
     this.listener = new Listener(this);
+    this.logs = new Logs(this);
   }
 
   db(path: string) {

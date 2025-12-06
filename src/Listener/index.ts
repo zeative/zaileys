@@ -1,4 +1,4 @@
-import makeWASocket from 'baileys';
+import makeWASocket, { isJidMetaAI } from 'baileys';
 import { Client } from '../Classes';
 import { store } from '../Modules/store';
 import { Calls } from './calls';

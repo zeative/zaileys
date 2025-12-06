@@ -7,8 +7,6 @@ import { Client } from './client';
 export class Logs {
   private ready = false;
 
-  private timestamp = logColor(`[${new Date().toTimeString().split(' ')[0]}]`, '#383838ff');
-
   constructor(private client: Client) {
     this.initialize();
   }
@@ -44,20 +42,23 @@ export class Logs {
     if (!this.ready) return;
 
     const color = ignoreLint(this.getRoomColor(message));
-    const isMatch = message.text?.toLowerCase()?.match('zaileys');
+    const isMatch = message?.text?.toLowerCase()?.match('zaileys');
 
+    const timestamp = logColor(`[${new Date(message?.timestamp).toTimeString().split(' ')[0]}]`, '#383838ff');
     const sender = logColor(`${message?.roomName}`, color);
-    const text = message.text?.slice(0, 300);
 
-    let output = `${this.timestamp} → ${sender}\n`;
+    const text = message?.text?.slice(0, 300) || '';
+    const dots = text?.length >= 300 ? '...' : '';
 
-    if (message.isNewsletter) {
+    let output = `${timestamp} → ${sender}\n`;
+
+    if (message?.isNewsletter) {
       output += `${logColor(`[room]`, '#383838ff')} → ${logColor(`${message?.roomName} (${cleanJid(message?.roomId)})`, color)}\n`;
     } else {
       output += `${logColor(`[sender]`, '#383838ff')} → ${logColor(`${message?.senderName} (${cleanJid(message?.senderId)})`, color)}\n`;
     }
 
-    output += `${logColor(`[${message.chatType}]`, '#383838ff')} → ${logColor(text ? text + '...' : text, isMatch ? ['#ff5f6d', '#ffc371'] : 'brown')}\n`;
+    output += `${logColor(`[${message?.chatType}]`, '#383838ff')} → ${logColor(text + dots, isMatch ? ['#ff5f6d', '#ffc371'] : 'brown')}\n`;
     output += `—`;
 
     console.log(output);

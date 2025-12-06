@@ -116,7 +116,7 @@ export class Messages {
     output.channelId = generateId([output.roomId, output.senderId]);
     output.uniqueId = generateId([output.channelId, output.chatId]);
 
-    output.timestamp = Number(message?.messageTimestamp);
+    output.timestamp = Number(message?.messageTimestamp) * 1000;
 
     if (isNewsletter) {
       const meta = await socket.newsletterMetadata('jid', output.roomId);
@@ -192,8 +192,8 @@ export class Messages {
     if (output.chatType !== 'text') {
       output.media = {
         ...cleanMediaObject(content),
-        buffer: () => downloadMediaMessage(message, 'buffer', {}) as Promise<Buffer>,
-        stream: () => downloadMediaMessage(message, 'stream', {}) as Promise<NodeJS.ReadableStream>,
+        buffer: () => downloadMediaMessage(message, 'buffer', {}),
+        stream: () => downloadMediaMessage(message, 'stream', {}),
       };
     }
 

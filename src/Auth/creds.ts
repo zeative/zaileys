@@ -7,6 +7,9 @@ import { useAuthState } from './state';
 export const registerAuthCreds = async (client: Client) => {
   const SESSION_PATH = `.session/${client.options.session}`;
 
+  // silent libsignal-node session record.
+  console.info = () => {};
+
   const { state, saveCreds } = await useAuthState(SESSION_PATH);
 
   const config = socketConfig(client, state);

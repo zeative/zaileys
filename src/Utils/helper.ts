@@ -81,3 +81,13 @@ export const findNestedByKeys = (data: unknown, target: Record<string, any> | Re
 
   return search(data);
 };
+
+export const modifyFn = <T extends (...args: any[]) => any>(fn: T, before?: (args: any[]) => void | any, after?: (result: any, args: any[]) => any): T => {
+  return new Proxy(fn, {
+    apply(target, thisArg, args) {
+      before?.(args);
+      const result = Reflect.apply(target, thisArg, args);
+      return after ? after(result, args) : result;
+    },
+  }) as T;
+};

@@ -5,7 +5,7 @@ export const parseZod = <T>(schema: z.ZodSchema<T>, data: unknown) => {
 
   if (result.success) return result.data;
 
-  console.error(z.treeifyError(result.error));
+  console.error(result.error);
 
   throw 'Invalid data';
 };

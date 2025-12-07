@@ -38,7 +38,7 @@ export const extractJids = (text = '') => {
   for (const match of text.matchAll(/@(\d+)/g)) {
     ids.add(match[1]);
   }
-  return _.flatMap([...ids], (id) => [`${id}@s.whatsapp.net`, `${id}@g.us`]);
+  return _.flatMap([...ids], (id) => [`${id}@s.whatsapp.net`, `${id}@g.us`, `${id}@lid`]);
 };
 
 export const cleanMediaObject = (object: any) => {

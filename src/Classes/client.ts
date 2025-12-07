@@ -4,12 +4,12 @@ import { Listener } from '../Listener';
 import { store } from '../Modules/store';
 import { parseZod } from '../Modules/zod';
 import { ClientOptionsType, EventCallbackType, EventEnumType } from '../Types';
-import { autoDisplayBanner } from '../Utils/banner';
 import { normalizeText, pickKeysFromArray } from '../Utils';
+import { autoDisplayBanner } from '../Utils/banner';
 import { Logs } from './logs';
 import { Middleware, MiddlewareHandler } from './middleware';
+import { NativeProxy } from './proxy';
 import { Signal } from './signal';
-import { proxyClassBuilder } from '../Utils/proxy';
 
 export interface Client extends Signal {}
 
@@ -23,7 +23,7 @@ export class Client {
     this.options = parseZod(ClientOptionsType, options);
     this.initialize();
 
-    return proxyClassBuilder(this, [new Signal(this)]);
+    return new NativeProxy().classInjection(this, [new Signal(this)]);
   }
 
   async initialize() {

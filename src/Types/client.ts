@@ -12,6 +12,12 @@ export const LimiterType = z
 
 export const CitationType = z.record(z.string(), z.function({ output: z.promise(z.array(z.number())) })).optional();
 
+export const FakeReplyType = z
+  .object({
+    provider: z.enum(['whatsapp', 'meta', 'chatgpt', 'copilot', 'instagram', 'tiktok']).or(z.number()),
+  })
+  .optional();
+
 export const ClientBaseType = z.object({
   session: z.string().default('zaileys').optional(),
   prefix: z.string().optional(),
@@ -21,6 +27,7 @@ export const ClientBaseType = z.object({
 
   syncFullHistory: z.boolean().default(true).optional(),
 
+  autoMarkAI: z.boolean().default(true).optional(),
   autoMentions: z.boolean().default(true).optional(),
   autoOnline: z.boolean().default(true).optional(),
   autoRead: z.boolean().default(true).optional(),
@@ -29,6 +36,7 @@ export const ClientBaseType = z.object({
 
   limiter: LimiterType,
   citation: CitationType,
+  fakeReply: FakeReplyType,
 });
 
 export const ClientAuthPairingType = z.object({

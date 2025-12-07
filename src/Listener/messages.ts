@@ -30,6 +30,8 @@ export class Messages {
 
         if (parsed) {
           await this.client.middleware.run({ messages: parsed });
+
+          store.set('message', parsed);
           store.events.emit('messages', parsed);
 
           if (this.client.options.autoRead) {

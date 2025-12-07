@@ -5,10 +5,13 @@ import { store } from '../Modules/store';
 import { parseZod } from '../Modules/zod';
 import { ClientOptionsType, EventCallbackType, EventEnumType } from '../Types';
 import { autoDisplayBanner } from '../Utils/banner';
-
 import { normalizeText, pickKeysFromArray } from '../Utils';
 import { Logs } from './logs';
 import { Middleware, MiddlewareHandler } from './middleware';
+import { Signal } from './signal';
+import { proxyClassBuilder } from '../Utils/proxy';
+
+export interface Client extends Signal {}
 
 export class Client {
   private listener: Listener;
@@ -19,6 +22,8 @@ export class Client {
   constructor(public options: z.infer<typeof ClientOptionsType>) {
     this.options = parseZod(ClientOptionsType, options);
     this.initialize();
+
+    return proxyClassBuilder(this, [new Signal(this)]);
   }
 
   async initialize() {

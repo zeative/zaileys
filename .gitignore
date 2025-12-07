@@ -8,3 +8,5 @@ test*
 .temp
 tsup*
 tsup.config.ts
+
+example/test*

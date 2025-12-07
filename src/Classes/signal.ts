@@ -5,7 +5,7 @@ import { MESSAGES_VERIFIED_TYPE } from '../Config/media';
 import { store } from '../Modules/store';
 import { parseZod } from '../Modules/zod';
 import { SignalOptionsType, SignalType } from '../Types/signal';
-import { convertToOpus, extractJids, getMediaThumbnail, ignoreLint, pickKeysFromArray } from '../Utils';
+import { convertToOpus, extractJids, getMediaThumbnail, getWaSticker, ignoreLint, pickKeysFromArray } from '../Utils';
 import { Client } from './client';
 
 export class Signal {
@@ -39,6 +39,14 @@ export class Signal {
     const isMedia = hasImage || hasVideo || hasAudio || hasSticker || hasDocument;
 
     const text = isText ? options : pickKeysFromArray([options], ['text', 'caption']);
+
+    if (isAutoPresence) {
+      if (hasAudio) {
+        await socket.sendPresenceUpdate('recording', roomId);
+      } else {
+        await socket.sendPresenceUpdate('composing', roomId);
+      }
+    }
 
     if (isAutoMentions) {
       output = {
@@ -111,6 +119,13 @@ export class Signal {
           audio: await convertToOpus(media),
         };
       }
+
+      if (hasSticker) {
+        output = {
+          ...output,
+          sticker: await getWaSticker(media, this.client.options?.sticker),
+        };
+      }
     }
 
     if (type == 'forward') {
@@ -122,14 +137,6 @@ export class Signal {
           forwardingScore: ignoreLint(options).isForwardedMany ? 9999 : 1,
         },
       };
-    }
-
-    if (isAutoPresence) {
-      if (hasAudio) {
-        await socket.sendPresenceUpdate('recording', roomId);
-      } else {
-        await socket.sendPresenceUpdate('composing', roomId);
-      }
     }
 
     await socket.sendMessage(roomId, ignoreLint(output), misc);

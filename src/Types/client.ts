@@ -5,8 +5,8 @@ import { ListenerMessagesType } from './messages';
 
 export const LimiterType = z
   .object({
-    durationMs: z.number().default(10_000),
     maxMessages: z.number().default(20),
+    durationMs: z.number().default(10_000),
   })
   .optional();
 
@@ -15,6 +15,14 @@ export const CitationType = z.record(z.string(), z.function({ output: z.promise(
 export const FakeReplyType = z
   .object({
     provider: z.enum(['whatsapp', 'meta', 'chatgpt', 'copilot', 'instagram', 'tiktok']).or(z.number()),
+  })
+  .optional();
+
+export const StickerMetadataType = z
+  .object({
+    packageName: z.string(),
+    authorName: z.string(),
+    quality: z.number(),
   })
   .optional();
 
@@ -37,6 +45,7 @@ export const ClientBaseType = z.object({
   limiter: LimiterType,
   citation: CitationType,
   fakeReply: FakeReplyType,
+  sticker: StickerMetadataType,
 });
 
 export const ClientAuthPairingType = z.object({

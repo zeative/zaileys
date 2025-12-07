@@ -12,3 +12,5 @@ test*
 .temp
 examples
 tsup*
+
+media

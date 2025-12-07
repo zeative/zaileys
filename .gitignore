@@ -10,3 +10,4 @@ tsup*
 tsup.config.ts
 
 example/test*
+media

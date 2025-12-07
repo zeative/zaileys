@@ -5,7 +5,7 @@ import { MESSAGES_VERIFIED_TYPE } from '../Config/media';
 import { store } from '../Modules/store';
 import { parseZod } from '../Modules/zod';
 import { SignalOptionsType, SignalType } from '../Types/signal';
-import { extractJids, ignoreLint, pickKeysFromArray } from '../Utils';
+import { convertToOpus, extractJids, getMediaThumbnail, ignoreLint, pickKeysFromArray } from '../Utils';
 import { Client } from './client';
 
 export class Signal {
@@ -20,13 +20,14 @@ export class Signal {
     let misc: Partial<MiscMessageGenerationOptions> = {};
 
     const isText = _.isString(options);
-    const isObject = _.isObject(options);
 
     const isFakeReply = this.client.options?.fakeReply?.provider;
     const isAutoMentions = this.client.options?.autoMentions;
     const isAutoPresence = this.client.options?.autoPresence;
+
     const isReplied = _.has(options, 'replied');
     const isBanner = _.has(options, 'banner');
+    const isViewOnce = _.has(options, 'isViewOnce');
 
     const hasText = _.has(options, 'text');
     const hasImage = _.has(options, 'image');
@@ -34,6 +35,8 @@ export class Signal {
     const hasAudio = _.has(options, 'audio');
     const hasSticker = _.has(options, 'sticker');
     const hasDocument = _.has(options, 'document');
+
+    const isMedia = hasImage || hasVideo || hasAudio || hasSticker || hasDocument;
 
     const text = isText ? options : pickKeysFromArray([options], ['text', 'caption']);
 
@@ -65,8 +68,49 @@ export class Signal {
       };
     }
 
+    if (isViewOnce) {
+      output = {
+        ...output,
+        viewOnce: ignoreLint(options)?.isViewOnce,
+      };
+    }
+
     if (isText || hasText) {
-      output = { ...output, text };
+      output = { ...output, text, caption: text };
+
+      if (isMedia) {
+        delete ignoreLint(output).text;
+      }
+    }
+
+    if (isMedia) {
+      const media = pickKeysFromArray([options], ['image', 'video', 'audio', 'sticker', 'document']);
+      const isUrl = _.isString(media);
+
+      const content = isUrl ? { url: media } : media;
+
+      if (hasImage) {
+        output = {
+          ...output,
+          image: content,
+          jpegThumbnail: await getMediaThumbnail(media),
+        };
+      }
+
+      if (hasVideo) {
+        output = {
+          ...output,
+          video: content,
+          jpegThumbnail: await getMediaThumbnail(media),
+        };
+      }
+
+      if (hasAudio) {
+        output = {
+          ...output,
+          audio: await convertToOpus(media),
+        };
+      }
     }
 
     if (type == 'forward') {

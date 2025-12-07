@@ -26,6 +26,7 @@ export class Signal {
     const isAutoMentions = this.client.options?.autoMentions;
     const isAutoPresence = this.client.options?.autoPresence;
     const isReplied = _.has(options, 'replied');
+    const isBanner = _.has(options, 'banner');
 
     const hasText = _.has(options, 'text');
     const hasImage = _.has(options, 'image');
@@ -55,6 +56,15 @@ export class Signal {
       }
     }
 
+    if (isBanner) {
+      output = {
+        ...output,
+        contextInfo: {
+          externalAdReply: ignoreLint(options).banner,
+        },
+      };
+    }
+
     if (isText || hasText) {
       output = { ...output, text };
     }
@@ -65,7 +75,7 @@ export class Signal {
         contextInfo: {
           ...ignoreLint(output).contextInfo,
           isForwarded: true,
-          forwardingScore: options.isForwardedMany ? 9999 : 1,
+          forwardingScore: ignoreLint(options).isForwardedMany ? 9999 : 1,
         },
       };
     }

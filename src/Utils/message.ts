@@ -36,7 +36,7 @@ export const extractJids = (text = '') => {
   if (!text) return [];
   const ids = new Set();
   for (const match of text.matchAll(/@(\d+)/g)) {
-    ids.add(match[1]);
+    if (match[1].length <= 15) ids.add(match[1]);
   }
   return _.flatMap([...ids], (id) => [`${id}@s.whatsapp.net`, `${id}@g.us`, `${id}@lid`]);
 };

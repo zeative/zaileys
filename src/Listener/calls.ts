@@ -37,13 +37,7 @@ export class Calls {
     output.callId = caller.id;
     output.callerId = jidNormalizedUser(caller.from);
 
-    const chat = await this.client.db('chats').get({ lidJid: output.callerId });
-    const contact = await this.client.db('contacts').get({ lid: output.callerId });
-
-    const chatName = pickKeysFromArray([chat], ['name', 'verifiedName']);
-    const contactName = pickKeysFromArray([contact], ['notify', 'name']);
-
-    output.callerName = chatName || contactName || null;
+    output.callerName = await this.client.getRoomName(output.callerId);
 
     output.roomId = jidNormalizedUser(caller.chatId);
     output.roomName = normalizeText(socket?.user?.name || socket?.user?.verifiedName);

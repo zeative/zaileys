@@ -1,14 +1,14 @@
-import makeWASocket from 'baileys';
 import z from 'zod';
 import { registerAuthCreds } from '../Auth';
+import { Listener } from '../Listener';
 import { store } from '../Modules/store';
 import { parseZod } from '../Modules/zod';
 import { ClientOptionsType, EventCallbackType, EventEnumType } from '../Types';
 import { autoDisplayBanner } from '../Utils/banner';
-import { Listener } from '../Listener';
 
-import { Middleware, MiddlewareHandler } from './middleware';
+import { normalizeText, pickKeysFromArray } from '../Utils';
 import { Logs } from './logs';
+import { Middleware, MiddlewareHandler } from './middleware';
 
 export class Client {
   private listener: Listener;
@@ -52,5 +52,15 @@ export class Client {
 
     const parse = await this.listener.messages.parse(message);
     return parse;
+  }
+
+  async getRoomName(roomId: string) {
+    const chat = await this.db('chats').get(roomId);
+    const contact = await this.db('contacts').get(roomId);
+
+    const chatName = pickKeysFromArray(chat, ['name', 'verifiedName']);
+    const contactName = pickKeysFromArray(contact, ['notify', 'name']);
+
+    return normalizeText(chatName || contactName) || null;
   }
 }

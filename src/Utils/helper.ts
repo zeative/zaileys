@@ -59,12 +59,22 @@ export const pickKeysFromArray = (arr: any[], keys: string[]): any => {
   return undefined;
 };
 
-export const findNestedByKeys = (data: unknown, target: object | object[]) => {
-  const search = (obj) => {
+export const findNestedByKeys = (data: unknown, target: Record<string, any> | Record<string, any>[]) => {
+  const targets = _.castArray(target);
+
+  const matchAll = (obj: any, t: Record<string, any>) => _.every(t, (v, k) => obj?.[k] === v);
+
+  const matchAny = (obj: any, t: Record<string, any>) => _.some(t, (v, k) => obj?.[k] === v);
+
+  const search = (obj: any): any => {
     if (_.isArray(obj)) return _.find(obj, search) ?? obj;
     if (!_.isObject(obj)) return null;
 
-    if (_.find(Object.entries(target), ([k, v]) => obj[k] === v)) return obj;
+    const fullMatch = _.find(targets, (t) => matchAll(obj, t));
+    if (fullMatch) return obj;
+
+    const partialMatch = _.find(targets, (t) => matchAny(obj, t));
+    if (partialMatch) return obj;
 
     return _.find(_.values(obj), search) ?? obj;
   };

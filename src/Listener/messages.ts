@@ -99,13 +99,7 @@ export class Messages {
       content = contentExtract.leaf;
     }
 
-    const chat = await this.client.db('chats').get(output.roomId);
-    const contact = await this.client.db('contacts').get(output.roomId);
-
-    const chatName = pickKeysFromArray(chat, ['name', 'verifiedName']);
-    const contactName = pickKeysFromArray(contact, ['notify', 'name']);
-
-    output.roomName = normalizeText(chatName || contactName) || null;
+    output.roomName = await this.client.getRoomName(output.roomId);
 
     output.senderLid = pickKeysFromArray([message?.key], ['remoteJidAlt', 'participant']) || null;
     output.senderId = jidNormalizedUser(message?.participant || message?.key?.participant || message?.key?.remoteJid);
@@ -120,6 +114,7 @@ export class Messages {
 
     if (isNewsletter) {
       const meta = await socket.newsletterMetadata('jid', output.roomId);
+      3;
 
       output.roomName = ignoreLint(meta.thread_metadata.name)?.text;
       output.senderId = null;

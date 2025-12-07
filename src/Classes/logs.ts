@@ -3,6 +3,7 @@ import { store } from '../Modules/store';
 import { ListenerMessagesType } from '../Types/messages';
 import { cleanJid, ignoreLint, logColor } from '../Utils';
 import { Client } from './client';
+import { ListenerCallsType } from '../Types/calls';
 
 export class Logs {
   private ready = false;
@@ -59,6 +60,23 @@ export class Logs {
     }
 
     output += `${logColor(`[${message?.chatType}]`, '#383838ff')} → ${logColor(text + dots, isMatch ? ['#ff5f6d', '#ffc371'] : 'brown')}\n`;
+    output += `—`;
+
+    console.log(output);
+  }
+
+  call(call: Partial<z.infer<typeof ListenerCallsType>>) {
+    if (!this.ready) return;
+
+    const color = ignoreLint(this.getRoomColor(call));
+
+    const timestamp = logColor(`[${new Date(call?.date).toTimeString().split(' ')[0]}]`, '#383838ff');
+    const sender = logColor(`${call?.roomName}`, color);
+
+    let output = `${timestamp} → ${sender}\n`;
+    output += `${logColor(`[caller]`, '#383838ff')} → ${logColor(`${call?.callerName} (${cleanJid(call?.callerId)})`, color)}\n`;
+
+    output += `${logColor(`[${call?.status}]`, '#383838ff')} → ${logColor(call?.isVideo ? 'Video Call' : 'Voice Call', 'brown')}\n`;
     output += `—`;
 
     console.log(output);

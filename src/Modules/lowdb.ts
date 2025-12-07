@@ -1,6 +1,8 @@
 import { Mutex } from 'async-mutex';
-import { readFile, writeFile, unlink, mkdir, readdir, rmdir } from 'fs/promises';
-import { join, dirname } from 'path';
+import { mkdir, readdir, readFile, rmdir, unlink, writeFile } from 'fs/promises';
+import { dirname, join } from 'path';
+import { findNestedByKeys } from '../Utils';
+import _ from 'lodash';
 
 interface ChunkManifest {
   v: 1;
@@ -193,9 +195,15 @@ export class Lowdb {
     });
   }
 
-  async get(key: string): Promise<any> {
+  async get(key?: string | object): Promise<any> {
     await this.ensureLoaded();
-    return this.data.get(key);
+
+    if (typeof key === 'string') return this.data.get(key);
+
+    const data = Array.from(this.data.values()).flat();
+    const find = findNestedByKeys(data, key);
+
+    return find;
   }
 
   async all(): Promise<any> {

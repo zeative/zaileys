@@ -1,6 +1,7 @@
 import { URL_REGEX } from 'baileys';
 import gradient from 'gradient-string';
 import _ from 'lodash';
+import { object } from 'zod';
 
 export const logColor = (text: string, color: string[] | string = 'lime') => {
   if (Array.isArray(color)) {
@@ -56,4 +57,17 @@ export const pickKeysFromArray = (arr: any[], keys: string[]): any => {
     }
   }
   return undefined;
+};
+
+export const findNestedByKeys = (data: unknown, target: object | object[]) => {
+  const search = (obj) => {
+    if (_.isArray(obj)) return _.find(obj, search) ?? obj;
+    if (!_.isObject(obj)) return null;
+
+    if (_.find(Object.entries(target), ([k, v]) => obj[k] === v)) return obj;
+
+    return _.find(_.values(obj), search) ?? obj;
+  };
+
+  return search(data);
 };

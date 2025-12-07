@@ -105,7 +105,7 @@ export class Messages {
     const chatName = pickKeysFromArray(chat, ['name', 'verifiedName']);
     const contactName = pickKeysFromArray(contact, ['notify', 'name']);
 
-    output.roomName = chatName || contactName || null;
+    output.roomName = normalizeText(chatName || contactName) || null;
 
     output.senderLid = pickKeysFromArray([message?.key], ['remoteJidAlt', 'participant']) || null;
     output.senderId = jidNormalizedUser(message?.participant || message?.key?.participant || message?.key?.remoteJid);

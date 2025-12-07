@@ -1,8 +1,9 @@
-import makeWASocket, { WACallEvent } from 'baileys';
+import makeWASocket, { jidNormalizedUser, WACallEvent } from 'baileys';
+import z from 'zod';
 import { Client } from '../Classes';
 import { store } from '../Modules/store';
-import z from 'zod';
 import { ListenerCallsType } from '../Types/calls';
+import { normalizeText, pickKeysFromArray } from '../Utils';
 
 export class Calls {
   constructor(private client: Client) {
@@ -29,18 +30,33 @@ export class Calls {
   }
 
   async parse(caller: WACallEvent) {
+    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+
     const output: Partial<z.infer<typeof ListenerCallsType>> = {};
 
     output.callId = caller.id;
-    output.callerId = caller.from;
-    output.roomId = caller.chatId;
+    output.callerId = jidNormalizedUser(caller.from);
+
+    const chat = await this.client.db('chats').get({ lidJid: output.callerId });
+    const contact = await this.client.db('contacts').get({ lid: output.callerId });
+
+    const chatName = pickKeysFromArray([chat], ['name', 'verifiedName']);
+    const contactName = pickKeysFromArray([contact], ['notify', 'name']);
+
+    output.callerName = chatName || contactName || null;
+
+    output.roomId = jidNormalizedUser(caller.chatId);
+    output.roomName = normalizeText(socket?.user?.name || socket?.user?.verifiedName);
 
     output.date = caller.date;
+
     output.offline = caller.offline;
     output.status = caller.status;
 
     output.isVideo = !!caller.isVideo;
     output.isGroup = !!caller.isGroup;
+
+    this.client.logs.call(output);
 
     return output;
   }

@@ -7,7 +7,7 @@ export class RateLimiter {
   constructor(private client: Client) {
     this.limiter = new RateLimiterMemory({
       points: this.client.options.limiter?.maxMessages,
-      duration: this.client.options.limiter?.durationMs,
+      duration: this.client.options.limiter?.durationMs / 1000,
     });
   }
 

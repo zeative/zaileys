@@ -6,9 +6,10 @@ import webp from 'node-webpmux';
 import { tmpdir } from 'os';
 import path from 'path';
 import sharp from 'sharp';
-import { generateId } from './message';
-import { StickerMetadataType } from '../Types';
 import z from 'zod';
+import { StickerMetadataType } from '../Types';
+import { generateId } from './message';
+import { ignoreLint } from './validate';
 
 const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path;
 const ffprobePath = require('@ffprobe-installer/ffprobe').path;
@@ -16,226 +17,425 @@ const ffprobePath = require('@ffprobe-installer/ffprobe').path;
 ffmpeg.setFfmpegPath(ffmpegPath);
 ffmpeg.setFfprobePath(ffprobePath);
 
-const cleanup = async (files: string[]) => Promise.all(files.map((f) => fs.unlink(f).catch(() => {})));
+const CONSTANTS = {
+  OPUS: {
+    CODEC: 'libopus',
+    CHANNELS: 1,
+    FREQUENCY: 48000,
+    BITRATE: '48k',
+    FORMAT: 'ogg',
+  },
+  THUMBNAIL: {
+    SIZE: 100,
+    QUALITY: 50,
+    TIMESTAMP: '10%',
+  },
+  STICKER: {
+    SIZE: 512,
+    MAX_DURATION: 10,
+    FPS: 15,
+    DEFAULT_QUALITY: 80,
+    COMPRESSION_LEVEL: 6,
+  },
+  MIME: {
+    AUDIO: 'audio/',
+    VIDEO: 'video/',
+    IMAGE: 'image/',
+    GIF: 'image/gif',
+    MP4: 'video/mp4',
+  },
+} as const;
 
-const toBuffer = async (input: string | ArrayBuffer | Buffer): Promise<any> => {
-  if (isBuffer(input)) return input;
-  if (isArrayBuffer(input)) return Buffer.from(input);
+type MediaInput = string | ArrayBuffer | Buffer;
+type FileExtension = 'wav' | 'ogg' | 'mp4' | 'gif' | 'jpg' | 'webp' | 'tmp';
 
-  if (isString(input)) {
-    if (input.startsWith('http')) {
-      const res = await fetch(input);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const arrayBuffer = await res.arrayBuffer();
-      return Buffer.from(arrayBuffer);
+interface FFmpegConfig {
+  input: string;
+  output: string;
+  options: string[];
+  onEnd: () => Promise<void>;
+  onError: (err: Error) => Promise<void>;
+}
+
+class FileManager {
+  private static generateUniqueId(): string {
+    return `${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+  }
+
+  static createTempPath(prefix: string, ext: FileExtension): string {
+    return path.join(tmpdir(), `${prefix}_${this.generateUniqueId()}.${ext}`);
+  }
+
+  static async cleanup(files: string[]): Promise<void> {
+    await Promise.allSettled(files.map((f) => fs.unlink(f)));
+  }
+
+  static async safeReadFile(filePath: string): Promise<Buffer> {
+    try {
+      return await fs.readFile(filePath);
+    } catch (error) {
+      throw new Error(`Failed to read file: ${filePath}`);
+    }
+  }
+
+  static async safeWriteFile(filePath: string, data: Buffer): Promise<void> {
+    try {
+      await fs.writeFile(filePath, data);
+    } catch (error) {
+      throw new Error(`Failed to write file: ${filePath}`);
+    }
+  }
+}
+
+class BufferConverter {
+  static async toBuffer(input: MediaInput): Promise<any> {
+    if (isBuffer(input)) return input;
+    if (isArrayBuffer(input)) return Buffer.from(input);
+    if (isString(input)) return this.fromString(input);
+
+    throw new Error('Invalid input type: expected string, Buffer, or ArrayBuffer');
+  }
+
+  private static async fromString(input: string): Promise<Buffer> {
+    if (input.startsWith('http://') || input.startsWith('https://')) {
+      return this.fromUrl(input);
     }
     return Buffer.from(input, 'base64');
   }
 
-  throw new Error('Invalid input type');
-};
+  private static async fromUrl(url: string): Promise<Buffer> {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+      const arrayBuffer = await response.arrayBuffer();
+      return Buffer.from(arrayBuffer);
+    } catch (error) {
+      throw new Error(`Failed to fetch URL: ${error.message}`);
+    }
+  }
+}
 
-const createTempFiles = (extIn: string, extOut: string) => {
-  const id = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
-  return [path.join(tmpdir(), `audio_${id}.${extIn}`), path.join(tmpdir(), `audio_${id}.ogg`)];
-};
-
-export const convertToOpus = async (input: string | ArrayBuffer | Buffer): Promise<Buffer> => {
-  const buffer = await toBuffer(input);
-  const ft = await fileTypeFromBuffer(buffer);
-
-  if (!ft?.mime.startsWith('audio/')) throw 'Not audio file';
-
-  const [tempIn, tempOut] = createTempFiles('wav', 'ogg');
-  await fs.writeFile(tempIn, Buffer.from(buffer));
-
-  return new Promise((resolve, reject) => {
-    ffmpeg(tempIn)
-      .audioCodec('libopus')
-      .audioChannels(1)
-      .audioFrequency(48000)
-      .audioBitrate('48k')
-      .addOutputOptions(['-avoid_negative_ts', 'make_zero', '-map_metadata', '-1', '-f', 'ogg'])
-      .output(tempOut)
-      .on('end', async () => {
-        const opusBuffer = await fs.readFile(tempOut);
-        await cleanup([tempIn, tempOut]);
-        resolve(opusBuffer);
-      })
-      .on('error', async (err) => {
-        await cleanup([tempIn]);
-        reject(err);
-      })
-      .run();
-  });
-};
-
-export const getVideoThumbnail = async (input: string | ArrayBuffer | Buffer): Promise<string> => {
-  const buffer = await toBuffer(input);
-  const ft = await fileTypeFromBuffer(buffer);
-
-  if (!ft?.mime.startsWith('video/')) throw 'Not video file';
-
-  const [tempIn, , tempThumb] = [
-    path.join(tmpdir(), `video_${Date.now()}.mp4`),
-    path.join(tmpdir(), `video_${Date.now()}.jpg`),
-    path.join(tmpdir(), `thumb_${Date.now()}.jpg`),
-  ];
-
-  await fs.writeFile(tempIn, Buffer.from(buffer));
-
-  return new Promise((resolve, reject) => {
-    ffmpeg(tempIn)
-      .screenshots({
-        timestamps: ['10%'],
-        filename: path.basename(tempThumb),
-        folder: path.dirname(tempThumb),
-        size: '100x100',
-        quality: 50,
-      })
-      .on('end', async () => {
-        const thumbBuffer = await fs.readFile(tempThumb);
-        await cleanup([tempIn, tempThumb]);
-        resolve(thumbBuffer.toString('base64'));
-      })
-      .on('error', async (err) => {
-        await cleanup([tempIn]);
-        reject(err);
-      });
-  });
-};
-
-export const getVideoDuration = async (filePath: string): Promise<number> => {
-  return new Promise((resolve, reject) => {
-    ffmpeg.ffprobe(filePath, (err, metadata) => {
-      if (err) return reject(err);
-      const duration = metadata.format.duration || 0;
-      resolve(duration);
-    });
-  });
-};
-
-export const getMediaThumbnail = async (input: string | ArrayBuffer | Buffer): Promise<string> => {
-  const buffer = await toBuffer(input);
-  const ft = await fileTypeFromBuffer(buffer);
-
-  if (!ft || (!ft.mime.startsWith('image/') && !ft.mime.startsWith('video/'))) throw 'Invalid media type';
-  if (ft.mime.startsWith('video/')) return getVideoThumbnail(input);
-
-  const sharpProc = ft.mime === 'image/gif' ? sharp(buffer, { animated: false }) : sharp(buffer);
-
-  return sharpProc
-    .resize(100, 100, { fit: 'cover' })
-    .jpeg({ quality: 50 })
-    .toBuffer()
-    .then((b) => b.toString('base64'));
-};
-
-const createExifMetadata = (metadata: z.infer<typeof StickerMetadataType>): Buffer => {
-  const json = {
-    'sticker-pack-id': generateId(Date.now().toString()),
-    'sticker-pack-name': metadata?.packageName || 'Zaileys Library',
-    'sticker-pack-publisher': metadata?.authorName || 'https://github.com/zeative/zaileys',
-    emojis: ['🤓'],
-    'android-app-store-link': 'https://play.google.com/store/apps/details?id=com.marsvard.stickermakerforwhatsapp',
-    'ios-app-store-link': 'https://itunes.apple.com/app/sticker-maker-studio/id1443326857',
-  };
-
-  const exifAttr = Buffer.from([0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x41, 0x57, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x16, 0x00, 0x00, 0x00]);
-
-  const jsonBuffer = Buffer.from(JSON.stringify(json), 'utf8');
-  const exif = Buffer.concat([exifAttr, jsonBuffer]);
-  exif.writeUIntLE(jsonBuffer.length, 14, 4);
-
-  return exif;
-};
-
-const processStaticSticker = async (buffer: Buffer, options: z.infer<typeof StickerMetadataType>): Promise<Buffer> => {
-  return sharp(buffer)
-    .resize(512, 512, {
-      fit: 'cover',
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
-    })
-    .webp({ quality: options?.quality || 80 })
-    .toBuffer();
-};
-
-const processAnimatedSticker = async (buffer: Buffer, mimeType: string, options: z.infer<typeof StickerMetadataType>): Promise<Buffer> => {
-  const id = generateId(Date.now().toString());
-  let ext = 'tmp';
-
-  if (mimeType === 'image/gif') ext = 'gif';
-  else if (mimeType.startsWith('video/mp4')) ext = 'mp4';
-  else if (mimeType.startsWith('video/')) ext = 'mp4';
-
-  const tempIn = path.join(tmpdir(), `sticker_in_${id}.${ext}`);
-  const tempOut = path.join(tmpdir(), `sticker_out_${id}.webp`);
-
-  await fs.writeFile(tempIn, buffer);
-
-  let duration = 10;
-  try {
-    const videoDuration = await getVideoDuration(tempIn);
-    duration = Math.min(videoDuration, 10);
-  } catch (err) {
-    console.warn('Could not get video duration, using default 10s');
+class MimeValidator {
+  static validate(fileType: any, expectedPrefix: string): void {
+    if (!fileType?.mime?.startsWith(expectedPrefix)) {
+      throw new Error(`Invalid file type: expected ${expectedPrefix}*, got ${fileType?.mime || 'unknown'}`);
+    }
   }
 
-  const videoFilter = 'scale=512:512:force_original_aspect_ratio=increase,crop=512:512,fps=15,format=rgba';
+  static isMedia(mime: string): boolean {
+    return mime.startsWith(CONSTANTS.MIME.IMAGE) || mime.startsWith(CONSTANTS.MIME.VIDEO);
+  }
 
-  return new Promise((resolve, reject) => {
-    ffmpeg(tempIn)
-      .outputOptions([
-        '-vcodec libwebp',
-        `-vf ${videoFilter}`,
-        `-q:v ${Math.max(1, Math.min(100, 100 - (options?.quality || 80)))}`,
-        '-loop 0',
-        '-preset default',
-        '-an',
-        '-vsync 0',
-        `-t ${duration}`,
-        '-compression_level 6',
-      ])
-      .output(tempOut)
-      .on('end', async () => {
-        const webpBuffer = await fs.readFile(tempOut);
-        await cleanup([tempIn, tempOut]);
-        resolve(webpBuffer);
+  static isAnimated(mime: string): boolean {
+    return mime === CONSTANTS.MIME.GIF || mime.startsWith(CONSTANTS.MIME.VIDEO);
+  }
+}
+
+class FFmpegProcessor {
+  static async process(config: FFmpegConfig): Promise<void> {
+    return new Promise((resolve, reject) => {
+      const processor = ffmpeg(config.input).output(config.output);
+
+      config.options.forEach((opt) => {
+        if (opt.startsWith('-')) {
+          processor.outputOptions(opt);
+        }
+      });
+
+      processor
+        .on('end', async () => {
+          try {
+            await config.onEnd();
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
+        })
+        .on('error', async (err) => {
+          try {
+            await config.onError(err);
+          } finally {
+            reject(err);
+          }
+        })
+        .run();
+    });
+  }
+
+  static async getDuration(filePath: string): Promise<number> {
+    return new Promise((resolve, reject) => {
+      ffmpeg.ffprobe(filePath, (err, metadata) => {
+        if (err) return reject(err);
+        resolve(metadata.format.duration || 0);
+      });
+    });
+  }
+}
+
+export class AudioProcessor {
+  static async convertToOpus(input: MediaInput): Promise<Buffer> {
+    const buffer = await BufferConverter.toBuffer(input);
+    const fileType = await fileTypeFromBuffer(buffer);
+
+    MimeValidator.validate(fileType, CONSTANTS.MIME.AUDIO);
+
+    const tempIn = FileManager.createTempPath('audio_in', 'wav');
+    const tempOut = FileManager.createTempPath('audio_out', 'ogg');
+
+    await FileManager.safeWriteFile(tempIn, buffer);
+
+    let outputBuffer: Buffer;
+
+    try {
+      await FFmpegProcessor.process({
+        input: tempIn,
+        output: tempOut,
+        options: [
+          `-acodec ${CONSTANTS.OPUS.CODEC}`,
+          `-ac ${CONSTANTS.OPUS.CHANNELS}`,
+          `-ar ${CONSTANTS.OPUS.FREQUENCY}`,
+          `-b:a ${CONSTANTS.OPUS.BITRATE}`,
+          '-avoid_negative_ts make_zero',
+          '-map_metadata -1',
+          `-f ${CONSTANTS.OPUS.FORMAT}`,
+        ],
+        onEnd: async () => {
+          outputBuffer = await FileManager.safeReadFile(tempOut);
+        },
+        onError: async () => {
+          await FileManager.cleanup([tempIn, tempOut]);
+        },
+      });
+
+      await FileManager.cleanup([tempIn, tempOut]);
+      return outputBuffer!;
+    } catch (error) {
+      await FileManager.cleanup([tempIn, tempOut]);
+      throw new Error(`Opus conversion failed: ${error.message}`);
+    }
+  }
+}
+
+export class VideoProcessor {
+  static async getThumbnail(input: MediaInput): Promise<string> {
+    const buffer = await BufferConverter.toBuffer(input);
+    const fileType = await fileTypeFromBuffer(buffer);
+
+    MimeValidator.validate(fileType, CONSTANTS.MIME.VIDEO);
+
+    const tempIn = FileManager.createTempPath('video', 'mp4');
+    const tempThumb = FileManager.createTempPath('thumb', 'jpg');
+
+    await FileManager.safeWriteFile(tempIn, buffer);
+
+    let thumbnailBase64: string;
+
+    try {
+      await new Promise<void>((resolve, reject) => {
+        ffmpeg(tempIn)
+          .screenshots({
+            timestamps: [CONSTANTS.THUMBNAIL.TIMESTAMP],
+            filename: path.basename(tempThumb),
+            folder: path.dirname(tempThumb),
+            size: `${CONSTANTS.THUMBNAIL.SIZE}x${CONSTANTS.THUMBNAIL.SIZE}`,
+            quality: CONSTANTS.THUMBNAIL.QUALITY,
+          })
+          .on('end', async () => {
+            try {
+              const thumbBuffer = await FileManager.safeReadFile(tempThumb);
+              thumbnailBase64 = thumbBuffer.toString('base64');
+              resolve();
+            } catch (error) {
+              reject(error);
+            }
+          })
+          .on('error', reject);
+      });
+
+      await FileManager.cleanup([tempIn, tempThumb]);
+      return thumbnailBase64!;
+    } catch (error) {
+      await FileManager.cleanup([tempIn, tempThumb]);
+      throw new Error(`Thumbnail generation failed: ${error.message}`);
+    }
+  }
+
+  static async getDuration(filePath: string): Promise<number> {
+    return FFmpegProcessor.getDuration(filePath);
+  }
+}
+
+export class ImageProcessor {
+  static async getThumbnail(buffer: Buffer): Promise<string> {
+    const mime = (await fileTypeFromBuffer(buffer)).mime;
+    const sharpInstance = mime === CONSTANTS.MIME.GIF ? sharp(buffer, { animated: false }) : sharp(buffer);
+
+    const thumbnail = await sharpInstance
+      .resize(CONSTANTS.THUMBNAIL.SIZE, CONSTANTS.THUMBNAIL.SIZE, { fit: 'cover' })
+      .jpeg({ quality: CONSTANTS.THUMBNAIL.QUALITY })
+      .toBuffer();
+
+    return thumbnail.toString('base64');
+  }
+
+  static async resizeForSticker(buffer: Buffer, quality: number): Promise<Buffer> {
+    return sharp(buffer)
+      .resize(CONSTANTS.STICKER.SIZE, CONSTANTS.STICKER.SIZE, {
+        fit: 'cover',
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
       })
-      .on('error', async (err) => {
-        await cleanup([tempIn, tempOut]);
-        reject(new Error(`FFmpeg error: ${err.message}`));
-      })
-      .run();
-  });
-};
+      .webp({ quality })
+      .toBuffer();
+  }
+}
 
-export const getWaSticker = async (input: string | Buffer | ArrayBuffer, metadata?: z.infer<typeof StickerMetadataType>): Promise<Buffer> => {
-  try {
-    const buffer = await toBuffer(input);
-    const properBuffer = Buffer.isBuffer(buffer) ? buffer : Buffer.from(buffer);
+export class MediaProcessor {
+  static async getThumbnail(input: MediaInput): Promise<string> {
+    const buffer = await BufferConverter.toBuffer(input);
+    const fileType = await fileTypeFromBuffer(buffer);
 
-    const ft = await fileTypeFromBuffer(properBuffer);
-    if (!ft) throw new Error('Unable to detect file type');
-
-    let webpBuffer: Buffer;
-    const isAnimated = ft.mime === 'image/gif' || ft.mime.startsWith('video/');
-
-    if (isAnimated) {
-      webpBuffer = await processAnimatedSticker(properBuffer, ft.mime, metadata);
-    } else {
-      webpBuffer = await processStaticSticker(properBuffer, metadata);
+    if (!fileType || !MimeValidator.isMedia(fileType.mime)) {
+      throw new Error('Invalid media type: expected image or video');
     }
 
-    const exif = createExifMetadata(metadata);
+    if (fileType.mime.startsWith(CONSTANTS.MIME.VIDEO)) {
+      return VideoProcessor.getThumbnail(input);
+    }
 
-    const img = new webp.Image();
-    await img.load(webpBuffer);
-    img.exif = exif;
-
-    const finalBuffer = await img.save(null);
-    return Buffer.isBuffer(finalBuffer) ? finalBuffer : Buffer.from(finalBuffer);
-  } catch (error) {
-    throw new Error(`Failed to create sticker: ${error.message || error}`);
+    return ImageProcessor.getThumbnail(buffer);
   }
-};
+}
+
+export class StickerProcessor {
+  private static createExifMetadata(metadata?: z.infer<typeof StickerMetadataType>): Buffer {
+    const json = {
+      'sticker-pack-id': generateId(Date.now().toString()),
+      'sticker-pack-name': metadata?.packageName || 'Zaileys Library',
+      'sticker-pack-publisher': metadata?.authorName || 'https://github.com/zeative/zaileys',
+      emojis: ['🤓'],
+      'android-app-store-link': 'https://play.google.com/store/apps/details?id=com.marsvard.stickermakerforwhatsapp',
+      'ios-app-store-link': 'https://itunes.apple.com/app/sticker-maker-studio/id1443326857',
+    };
+
+    const exifAttr = Buffer.from([
+      0x49, 0x49, 0x2a, 0x00, 0x08, 0x00, 0x00, 0x00, 0x01, 0x00, 0x41, 0x57, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x16, 0x00, 0x00, 0x00,
+    ]);
+
+    const jsonBuffer = Buffer.from(JSON.stringify(json), 'utf8');
+    const exif = Buffer.concat([exifAttr, jsonBuffer]);
+    exif.writeUIntLE(jsonBuffer.length, 14, 4);
+
+    return exif;
+  }
+
+  private static async processAnimated(buffer: Buffer, mime: string, quality: number): Promise<Buffer> {
+    const ext = this.getExtension(mime);
+    const tempIn = FileManager.createTempPath('sticker_in', ext);
+    const tempOut = FileManager.createTempPath('sticker_out', 'webp');
+
+    await FileManager.safeWriteFile(tempIn, buffer);
+
+    let duration = CONSTANTS.STICKER.MAX_DURATION;
+    try {
+      const videoDuration = await VideoProcessor.getDuration(tempIn);
+      duration = ignoreLint(Math.min(videoDuration, CONSTANTS.STICKER.MAX_DURATION));
+    } catch (error) {
+      console.warn('Using default duration:', CONSTANTS.STICKER.MAX_DURATION);
+    }
+
+    const videoFilter = `scale=${CONSTANTS.STICKER.SIZE}:${CONSTANTS.STICKER.SIZE}:force_original_aspect_ratio=increase,crop=${CONSTANTS.STICKER.SIZE}:${CONSTANTS.STICKER.SIZE},fps=${CONSTANTS.STICKER.FPS},format=rgba`;
+    const qualityValue = Math.max(1, Math.min(100, 100 - quality));
+
+    let webpBuffer: Buffer;
+
+    try {
+      await FFmpegProcessor.process({
+        input: tempIn,
+        output: tempOut,
+        options: [
+          '-vcodec libwebp',
+          `-vf ${videoFilter}`,
+          `-q:v ${qualityValue}`,
+          '-loop 0',
+          '-preset default',
+          '-an',
+          '-vsync 0',
+          `-t ${duration}`,
+          `-compression_level ${CONSTANTS.STICKER.COMPRESSION_LEVEL}`,
+        ],
+        onEnd: async () => {
+          webpBuffer = await FileManager.safeReadFile(tempOut);
+        },
+        onError: async () => {
+          await FileManager.cleanup([tempIn, tempOut]);
+        },
+      });
+
+      await FileManager.cleanup([tempIn, tempOut]);
+      return webpBuffer!;
+    } catch (error) {
+      await FileManager.cleanup([tempIn, tempOut]);
+      throw new Error(`Animated sticker processing failed: ${error.message}`);
+    }
+  }
+
+  private static getExtension(mime: string): FileExtension {
+    if (mime === CONSTANTS.MIME.GIF) return 'gif';
+    if (mime.startsWith(CONSTANTS.MIME.VIDEO)) return 'mp4';
+    return 'tmp';
+  }
+
+  static async create(input: MediaInput, metadata?: z.infer<typeof StickerMetadataType>): Promise<Buffer> {
+    try {
+      const buffer = await BufferConverter.toBuffer(input);
+      const fileType = await fileTypeFromBuffer(buffer);
+
+      if (!fileType) throw new Error('Unable to detect file type');
+
+      const quality = metadata?.quality || CONSTANTS.STICKER.DEFAULT_QUALITY;
+      const isAnimated = MimeValidator.isAnimated(fileType.mime);
+
+      const webpBuffer = isAnimated ? await this.processAnimated(buffer, fileType.mime, quality) : await ImageProcessor.resizeForSticker(buffer, quality);
+
+      const exif = this.createExifMetadata(metadata);
+      const img = new webp.Image();
+      await img.load(webpBuffer);
+      img.exif = exif;
+
+      const finalBuffer = await img.save(null);
+      return Buffer.isBuffer(finalBuffer) ? finalBuffer : Buffer.from(finalBuffer);
+    } catch (error) {
+      throw new Error(`Sticker creation failed: ${error.message || error}`);
+    }
+  }
+}
+
+export class DocumentProcessor {
+  static async create(input: MediaInput) {
+    try {
+      const buffer = await BufferConverter.toBuffer(input);
+      const fileType = await fileTypeFromBuffer(buffer);
+
+      if (!fileType) throw new Error('Unable to detect file type');
+
+      return {
+        document: buffer,
+        mimetype: fileType.mime,
+        fileName: generateId(Date.now().toString()),
+        jpegThumbnail: await MediaProcessor.getThumbnail(buffer),
+      };
+    } catch (error) {
+      throw new Error(`Document creation failed: ${error.message || error}`);
+    }
+  }
+}
+
+export const toBuffer = BufferConverter.toBuffer.bind(BufferConverter);
+export const convertToOpus = AudioProcessor.convertToOpus.bind(AudioProcessor);
+export const getVideoThumbnail = VideoProcessor.getThumbnail.bind(VideoProcessor);
+export const getVideoDuration = VideoProcessor.getDuration.bind(VideoProcessor);
+export const getMediaThumbnail = MediaProcessor.getThumbnail.bind(MediaProcessor);
+export const getWaSticker = StickerProcessor.create.bind(StickerProcessor);
+export const getWaDocument = DocumentProcessor.create.bind(DocumentProcessor);

@@ -5,7 +5,7 @@ import { MESSAGES_VERIFIED_TYPE } from '../Config/media';
 import { store } from '../Modules/store';
 import { parseZod } from '../Modules/zod';
 import { SignalOptionsType, SignalType } from '../Types/signal';
-import { convertToOpus, extractJids, getMediaThumbnail, getWaSticker, ignoreLint, pickKeysFromArray } from '../Utils';
+import { convertToOpus, extractJids, getMediaThumbnail, getWaDocument, getWaSticker, ignoreLint, pickKeysFromArray } from '../Utils';
 import { Client } from './client';
 
 export class Signal {
@@ -83,7 +83,7 @@ export class Signal {
       };
     }
 
-    if (isText || hasText) {
+    if (text) {
       output = { ...output, text, caption: text };
 
       if (isMedia) {
@@ -124,6 +124,16 @@ export class Signal {
         output = {
           ...output,
           sticker: await getWaSticker(media, this.client.options?.sticker),
+        };
+      }
+
+      if (hasDocument) {
+        const data = await getWaDocument(media);
+
+        output = {
+          ...output,
+          fileName: ignoreLint(options).fileName,
+          ...data,
         };
       }
     }

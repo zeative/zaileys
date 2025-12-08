@@ -1,19 +1,23 @@
-import makeWASocket, { AnyMessageContent, ButtonReplyInfo, MiscMessageGenerationOptions } from 'baileys';
+import makeWASocket, { AnyMessageContent, MiscMessageGenerationOptions } from 'baileys';
 import _ from 'lodash';
 import z from 'zod';
 import { MESSAGES_VERIFIED_TYPE } from '../Config/media';
 import { store } from '../Modules/store';
 import { parseZod } from '../Modules/zod';
-import { SignalOptionsType, SignalType } from '../Types/signal';
+import { ButtonOptionsType, SignalOptionsType, SignalType } from '../Types/signal';
 import { extractJids, getMediaThumbnail, getWaAudio, getWaDocument, getWaSticker, ignoreLint, pickKeysFromArray } from '../Utils';
-import { Client } from './client';
 import { InteractiveButtons } from './button';
+import { Client } from './client';
 
 export class Signal {
   constructor(protected client: Client) {}
 
   protected async initialize(roomId: string, options: z.infer<typeof SignalOptionsType>, type?: z.infer<typeof SignalType>) {
-    options = parseZod(SignalOptionsType, options);
+    if (type == 'button') {
+      options = parseZod(ButtonOptionsType, options);
+    } else {
+      options = parseZod(SignalOptionsType, options);
+    }
 
     let socket = store.get('socket') as ReturnType<typeof makeWASocket>;
 
@@ -29,9 +33,8 @@ export class Signal {
     const isReplied = _.has(options, 'replied');
     const isBanner = _.has(options, 'banner');
     const isViewOnce = _.has(options, 'isViewOnce');
-    const isButton = _.has(options, 'buttons');
+    const isButton = type == 'button';
 
-    const hasText = _.has(options, 'text');
     const hasImage = _.has(options, 'image');
     const hasVideo = _.has(options, 'video');
     const hasAudio = _.has(options, 'audio');
@@ -162,7 +165,7 @@ export class Signal {
 
     if (isButton) {
       const button = new InteractiveButtons();
-      await button.send(roomId, ignoreLint(options), misc);
+      await button.send(roomId, options, misc);
     } else {
       await socket.sendMessage(roomId, ignoreLint(output), misc);
     }
@@ -174,5 +177,9 @@ export class Signal {
 
   async forward(roomId: string, options: z.infer<typeof SignalOptionsType>) {
     await this.initialize(roomId, options, 'forward');
+  }
+
+  async button(roomId: string, options: z.infer<typeof ButtonOptionsType>) {
+    await this.initialize(roomId, options, 'button');
   }
 }

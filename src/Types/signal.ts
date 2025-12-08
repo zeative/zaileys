@@ -4,8 +4,8 @@ import { ButtonType } from './button';
 
 const MediaType = z.url().or(z.base64()).or(z.instanceof(Buffer));
 
-const MessageTextType = z.object({ text: z.string() }).strip();
-const MessageImageType = z.object({ image: MediaType, caption: z.string().optional() }).strip();
+const MessageTextType = z.object({ text: z.string() }).passthrough();
+const MessageImageType = z.object({ image: MediaType, caption: z.string().optional() }).passthrough();
 
 const MessageAudioType = z
   .object({
@@ -13,7 +13,7 @@ const MessageAudioType = z
     caption: z.string().optional(),
     ptt: z.boolean().optional(),
   })
-  .strip();
+  .passthrough();
 
 const MessageVideoType = z
   .object({
@@ -21,10 +21,10 @@ const MessageVideoType = z
     caption: z.string().optional(),
     ptv: z.boolean().optional(),
   })
-  .strip();
+  .passthrough();
 
-const MessageStickerType = z.object({ sticker: MediaType, caption: z.string().optional() }).strip();
-const MessageDocumentType = z.object({ document: MediaType, caption: z.string().optional(), fileName: z.string().optional() }).strip();
+const MessageStickerType = z.object({ sticker: MediaType, caption: z.string().optional() }).passthrough();
+const MessageDocumentType = z.object({ document: MediaType, caption: z.string().optional(), fileName: z.string().optional() }).passthrough();
 
 export const SignalBaseType = z.object({
   replied: z.custom<WAMessage>().optional(),
@@ -35,7 +35,9 @@ export const SignalBaseType = z.object({
   buttons: ButtonType.optional(),
 });
 
-export const SignalType = z.enum(['forward']);
+export const SignalType = z.enum(['forward', 'button']);
 
 export const SignalOptionsUnionType = z.union([MessageTextType, MessageImageType, MessageAudioType, MessageVideoType, MessageStickerType, MessageDocumentType]);
-export const SignalOptionsType = z.string().or(SignalOptionsUnionType.and(SignalBaseType));
+
+export const SignalOptionsType = z.string().or(z.intersection(SignalOptionsUnionType, SignalBaseType.omit({ buttons: true })));
+export const ButtonOptionsType = z.intersection(SignalBaseType, MessageTextType);

@@ -12,7 +12,13 @@ interface CollectorOptions {
   max?: number;
 }
 
-const COLLECTOR_EVENT = '__collector__';
+interface CollectorState {
+  messages: ParsedMessage[];
+  max: number;
+  filter?: CollectorFilter;
+  callback: CollectorCallback;
+  timeoutId: ReturnType<typeof setTimeout>;
+}
 
 export class MessageCollector {
   collect(channelId: string, options: CollectorOptions, callback: CollectorCallback): void {
@@ -23,39 +29,59 @@ export class MessageCollector {
       return;
     }
 
-    const messages: ParsedMessage[] = [];
-    let timeoutId: ReturnType<typeof setTimeout>;
+    const existing = store.collectors.get(channelId) as CollectorState | undefined;
+    if (existing) {
+      clearTimeout(existing.timeoutId);
+      existing.callback(existing.messages);
+      store.collectors.delete(channelId);
+    }
 
-    const cleanup = () => {
-      clearTimeout(timeoutId);
-      store.events.removeListener(COLLECTOR_EVENT, handler);
-    };
-
-    const handler = (msg: ParsedMessage) => {
-      if (msg.channelId !== channelId) return;
-      if (options.filter && !options.filter(msg)) return;
-
-      messages.push(msg);
-
-      if (messages.length >= max) {
-        cleanup();
-        callback(messages);
+    const timeoutId = setTimeout(() => {
+      const state = store.collectors.get(channelId) as CollectorState | undefined;
+      if (state) {
+        state.callback(state.messages);
+        store.collectors.delete(channelId);
       }
-    };
-
-    store.events.on(COLLECTOR_EVENT, handler);
-
-    timeoutId = setTimeout(() => {
-      cleanup();
-      callback(messages);
     }, options.timeout);
+
+    store.collectors.set(channelId, {
+      messages: [],
+      max,
+      filter: options.filter,
+      callback,
+      timeoutId,
+    });
   }
 
   push(msg: ParsedMessage): boolean {
-    const listeners = store.events.listenerCount(COLLECTOR_EVENT);
-    if (listeners === 0) return false;
+    const state = store.collectors.get(msg.channelId) as CollectorState | undefined;
+    if (!state) return false;
 
-    store.events.emit(COLLECTOR_EVENT, msg);
+    if (state.filter && !state.filter(msg)) return false;
+
+    state.messages.push(msg);
+
+    if (state.messages.length >= state.max) {
+      clearTimeout(state.timeoutId);
+      state.callback(state.messages);
+      store.collectors.delete(msg.channelId);
+    }
+
     return true;
+  }
+
+  has(channelId: string): boolean {
+    return store.collectors.has(channelId);
+  }
+
+  cancel(channelId: string): ParsedMessage[] {
+    const state = store.collectors.get(channelId) as CollectorState | undefined;
+    if (!state) return [];
+
+    clearTimeout(state.timeoutId);
+    state.callback(state.messages);
+    store.collectors.delete(channelId);
+
+    return state.messages;
   }
 }

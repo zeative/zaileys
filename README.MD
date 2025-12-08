@@ -21,23 +21,23 @@
 
 ---
 
-## Overview
+## 🚀 Overview
 
 > Zaileys solves the complexity of managing raw WhatsApp socket connections by providing a high-level, opinionated API. It is built for developers who need to create bots, customer support agents, or automated notification systems without getting bogged down in protocol details.
 
 Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essential features like rate limiting, session management, and input validation out of the box.
 
-## Features
+## ✨ Features
 
-- **Type-Safe Architecture**: Built with TypeScript and Zod for robust runtime validation and excellent IDE autocomplete.
-- **Middleware System**: Express-style middleware support (`.use()`) for intercepting and processing messages globally.
-- **Built-in State Management**: Integrated `lowdb` support for easy JSON-based data persistence (chats, contacts, messages).
-- **Event-Driven API**: Simplified event listeners for `connection`, `messages`, and `calls` with rich context objects.
-- **Rate Limiting**: Built-in protection against spam and excessive API usage.
-- **Auto-Automation**: Configurable options for auto-read, auto-online presence, and auto-rejecting calls.
-- **Multi-Device Support**: Full support for WhatsApp Multi-Device (MD) via QR code or Pairing Code.
+- 🛡️ **Type-Safe Architecture**: Built with TypeScript and Zod for robust runtime validation and excellent IDE autocomplete.
+- 🔌 **Middleware System**: Express-style middleware support (`.use()`) for intercepting and processing messages globally.
+- 💾 **Built-in State Management**: Integrated `lowdb` support for easy JSON-based data persistence (chats, contacts, messages).
+- 📡 **Event-Driven API**: Simplified event listeners for `connection`, `messages`, and `calls` with rich context objects.
+- 🚦 **Rate Limiting**: Built-in protection against spam and excessive API usage.
+- 🤖 **Auto-Automation**: Configurable options for auto-read, auto-online presence, auto-rejecting calls, and more.
+- 📱 **Multi-Device Support**: Full support for WhatsApp Multi-Device (MD) via QR code or Pairing Code.
 
-## Concepts & Architecture
+## 🏗️ Concepts & Architecture
 
 Zaileys is built around a few core concepts:
 
@@ -46,7 +46,7 @@ Zaileys is built around a few core concepts:
 - **Middleware**: A pipeline that processes events before they reach your main handlers, useful for logging, auth checks, or spam filtering.
 - **Store**: A local JSON database (powered by `lowdb`) that automatically syncs chats and contacts, accessible via `client.db()`.
 
-## Installation
+## 📦 Installation
 
 Install `zaileys` using your preferred package manager:
 
@@ -60,7 +60,7 @@ yarn add zaileys
 
 > **Note**: Requires Node.js v18+ and TypeScript for best experience.
 
-## Quick Start
+## ⚡ Quick Start
 
 Here is a minimal example to get your bot running with QR code authentication:
 
@@ -70,7 +70,6 @@ import { Client } from 'zaileys';
 // Initialize the client
 const wa = new Client({
   authType: 'qr',
-  printQR: true, // Automatically print QR to terminal
   session: 'my-session',
 });
 
@@ -93,7 +92,64 @@ wa.on('messages', async (ctx) => {
 });
 ```
 
-## Advanced Usage
+## 🛠️ Configuration
+
+The `Client` constructor accepts a configuration object. Below are the valid options based on the library's type definitions.
+
+### Authentication Options
+
+You must choose one of the following authentication methods:
+
+**1. QR Code Auth**
+
+```typescript
+{
+  authType: 'qr';
+}
+```
+
+**2. Pairing Code Auth**
+
+```typescript
+{
+  authType: 'pairing',
+  phoneNumber: 6281234567890 // Number required for pairing
+}
+```
+
+### General Options
+
+These options apply to both authentication methods:
+
+| Option            | Type      | Default     | Description                             |
+| :---------------- | :-------- | :---------- | :-------------------------------------- |
+| `session`         | `string`  | `'zaileys'` | Name of the session folder.             |
+| `prefix`          | `string`  | `undefined` | Command prefix (e.g., `'/'`).           |
+| `showLogs`        | `boolean` | `true`      | Enable internal logging.                |
+| `ignoreMe`        | `boolean` | `true`      | Ignore messages sent by the bot itself. |
+| `syncFullHistory` | `boolean` | `true`      | Sync full chat history on startup.      |
+
+### Automation Options
+
+| Option           | Type      | Default | Description                                                |
+| :--------------- | :-------- | :------ | :--------------------------------------------------------- |
+| `autoRead`       | `boolean` | `true`  | Automatically mark messages as read.                       |
+| `autoOnline`     | `boolean` | `true`  | Automatically set presence to online.                      |
+| `autoPresence`   | `boolean` | `true`  | Automatically send presence updates (composing/recording). |
+| `autoMarkAI`     | `boolean` | `true`  | Automatically mark AI responses.                           |
+| `autoMentions`   | `boolean` | `true`  | Automatically handle mentions.                             |
+| `autoRejectCall` | `boolean` | `true`  | Automatically reject incoming calls.                       |
+
+### Advanced Configuration
+
+| Option      | Type     | Description                                                                     |
+| :---------- | :------- | :------------------------------------------------------------------------------ |
+| `limiter`   | `object` | Rate limiting configuration. Default: `{ maxMessages: 20, durationMs: 10000 }`. |
+| `fakeReply` | `object` | Configuration for fake reply provider.                                          |
+| `sticker`   | `object` | Default metadata for sticker creation (`packageName`, `authorName`, `quality`). |
+| `citation`  | `object` | Custom citation sources.                                                        |
+
+## 💡 Advanced Usage
 
 ### Middleware & Spam Protection
 
@@ -157,31 +213,14 @@ console.log('Chat Name:', chat?.name);
 const messages = await wa.getMessageByChatId(ctx.roomId);
 ```
 
-## Configuration
-
-The `Client` constructor accepts a configuration object. Here are the key options:
-
-| Option        | Type                | Default                      | Description                                   |
-| :------------ | :------------------ | :--------------------------- | :-------------------------------------------- |
-| `authType`    | `'qr' \| 'pairing'` | Required                     | Authentication method.                        |
-| `phoneNumber` | `number`            | Required (if pairing)        | Phone number for pairing code auth.           |
-| `session`     | `string`            | `'zaileys'`                  | Name of the session folder.                   |
-| `prefix`      | `string`            | `undefined`                  | Command prefix (e.g., `'/'`).                 |
-| `printQR`     | `boolean`           | `true`                       | Whether to print the QR code to the terminal. |
-| `showLogs`    | `boolean`           | `true`                       | Enable internal logging.                      |
-| `autoRead`    | `boolean`           | `true`                       | Automatically mark messages as read.          |
-| `autoOnline`  | `boolean`           | `true`                       | Automatically set presence to online.         |
-| `limiter`     | `object`            | `{ max: 20, duration: 10s }` | Rate limiting configuration.                  |
-| `sticker`     | `object`            | `undefined`                  | Default metadata for sticker creation.        |
-
-## Project Stats
+## 📊 Project Stats
 
 - **Core**: ~20 source files
 - **Language**: 100% TypeScript
 - **Runtime**: Node.js
 - **Dependencies**: `baileys`, `zod`, `lowdb`, `sharp`, `fluent-ffmpeg`
 
-## Contributing
+## 🤝 Contributing
 
 Contributions are welcome! Please follow these steps:
 
@@ -195,11 +234,11 @@ Contributions are welcome! Please follow these steps:
 
 If you encounter any bugs or have feature requests, please open an issue on [GitHub Issues](https://github.com/zeative/zaileys/issues).
 
-## License
+## 📄 License
 
 Distributed under the **MIT** License. See [LICENSE](LICENSE) for more information.
 
-## Credits
+## 👏 Credits
 
 - **Author**: [zaadevofc](https://github.com/zaadevofc)
 - **Core Library**: [Baileys](https://github.com/WhiskeySockets/Baileys)

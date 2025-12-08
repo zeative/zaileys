@@ -20,6 +20,7 @@ export class Client {
   private _ready: Promise<void>;
 
   logs: Logs;
+
   collector = new MessageCollector();
   middleware = new Middleware<any>();
   plugins = new Plugins();
@@ -34,6 +35,7 @@ export class Client {
   async initialize() {
     await autoDisplayBanner();
     await registerAuthCreds(this);
+
     await this.plugins.load();
 
     this.listener = new Listener(this);

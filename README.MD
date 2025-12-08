@@ -20,6 +20,21 @@
   </p>
 </div>
 
+<br>
+
+<div align="center">
+
+[🚀 Overview](#-overview) &nbsp;&nbsp;•&nbsp;&nbsp;
+[🪶 Features](#-features) &nbsp;&nbsp;•&nbsp;&nbsp;
+[📦 Installation](#-installation) &nbsp;&nbsp;•&nbsp;&nbsp;
+[⚡ Quick Start](#-quick-start) &nbsp;&nbsp;•&nbsp;&nbsp;
+[🧩 Plugins](#-plugins) &nbsp;&nbsp;•&nbsp;&nbsp;
+[🤝 Contributing](#-contributing)
+
+</div>
+
+<br>
+
 ---
 
 ## 🚀 Overview
@@ -32,6 +47,7 @@ Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essentia
 
 - 🛡️ **Type-Safe Architecture**: Built with TypeScript and Zod for robust runtime validation and autocomplete.
 - 🏓 **Middleware System**: Middleware support for intercepting and processing events globally.
+- 🧩 **Plugin System**: Modularize your bot's logic with a file-based plugin architecture.
 - 💾 **Built-in State Management**: Integrated `lowdb` support for easy JSON-based data persistence (chats, contacts, messages).
 - 🔔 **Event-Driven API**: Simplified event listeners for `connection`, `messages`, and `calls` with rich context objects.
 - 📢 **Rate Limiting**: Built-in protection against spam and excessive API usage.
@@ -45,6 +61,7 @@ Zaileys is built around a few core concepts:
 - **Client**: The main entry point. It extends the underlying signal handling and manages the connection lifecycle.
 - **Context**: Every event comes with a rich object containing all relevant data and helper methods.
 - **Middleware**: A pipeline that processes events before they reach your main handlers, useful for logging, auth checks, or spam filtering.
+- **Plugins**: Reusable units of logic that can be dropped into the `plugins` directory.
 - **Store**: A local JSON database (powered by `lowdb`) that automatically syncs chats and contacts.
 
 ## 📦 Installation
@@ -130,6 +147,49 @@ wa.use(async (ctx, next) => {
   await next();
 });
 ```
+
+### 🧩 Plugins
+
+Zaileys features a built-in file-based plugin system. By default, it looks for plugins in the `plugins` directory of your project root.
+
+**1. Create a plugin file** (e.g., `plugins/hello.ts`):
+
+```typescript
+import { definePlugins } from 'zaileys';
+
+export default definePlugins(
+  async (wa, ctx) => {
+    await wa.send(ctx.roomId, 'Hello from plugin!');
+  },
+  {
+    matcher: ['/hello', '!hello'], // Trigger commands
+    metadata: {
+      description: 'A simple hello world plugin',
+    },
+  },
+);
+```
+
+**2. That's it!** The client automatically loads and executes plugins that match the incoming message.
+
+**3. Extract plugin information** (optional):
+
+```typescript
+const pluginsInfo = wa.plugins.getPluginsInfo();
+
+/* Example output 
+[
+  {
+    matcher: ['/hello', '!hello'],
+    metadata: {
+      description: 'A simple hello world plugin',
+    },
+  }
+]
+*/
+```
+
+This returns an array of all loaded plugins with their `matcher` and `metadata`, useful for generating help menus or listing available commands.
 
 ## 🤝 Contributing
 

@@ -1,12 +1,13 @@
-import { MiddlewareContextType } from '../Types/middleware';
-import { Client } from './client';
 import * as fs from 'fs';
 import * as path from 'path';
 import { pathToFileURL } from 'url';
+import { MiddlewareContextType } from '../Types/middleware';
+import { Client } from './client';
 
 export type PluginsHandlerType = (wa: Client, ctx: MiddlewareContextType) => Promise<void> | void;
 export type PluginsConfigType = {
-  matcher: string | RegExp | ((text: string) => boolean);
+  matcher: string[];
+  metadata?: Record<string, any>;
 };
 
 export type PluginDefinition = {
@@ -55,19 +56,16 @@ export class Plugins {
     }
   }
 
-  private match(text: string, matcher: string | RegExp | ((text: string) => boolean)): boolean {
-    if (typeof matcher === 'string') {
-      return text === matcher || text.startsWith(matcher + ' ');
-    } else if (matcher instanceof RegExp) {
-      return matcher.test(text);
-    } else if (typeof matcher === 'function') {
-      return matcher(text);
-    }
-    return false;
+  private match(text: string, matchers: string[]): boolean {
+    return matchers.some((m) => text === m || text.startsWith(m + ' '));
   }
 
   getLoadedPlugins(): PluginDefinition[] {
     return this.plugins;
+  }
+
+  getPluginsInfo(): { matcher: string[]; metadata?: Record<string, any> }[] {
+    return this.plugins.map((p) => ({ matcher: p.config.matcher, metadata: p.config.metadata }));
   }
 
   async reload(): Promise<void> {

@@ -1,10 +1,8 @@
-import makeWASocket, { generateMessageIDV2, generateWAMessageFromContent, isJidGroup, MessageGenerationOptionsFromContent, proto } from 'baileys';
-import _ from 'lodash';
+import { generateMessageIDV2, generateWAMessageFromContent, isJidGroup, MessageGenerationOptionsFromContent, proto } from 'baileys';
 import z from 'zod';
 import { store } from '../Modules/store';
 import { SignalOptionsType } from '../Types/signal';
 import { ignoreLint } from '../Utils';
-import { Socket } from 'dgram';
 
 export class InteractiveButtons {
   private toNativeSimple(buttons: Array<{ id: string; text: string }>) {

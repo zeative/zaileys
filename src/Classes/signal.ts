@@ -165,21 +165,21 @@ export class Signal {
 
     if (isButton) {
       const button = new InteractiveButtons();
-      await button.send(roomId, options, misc);
+      return await button.send(roomId, options, misc);
     } else {
-      await socket.sendMessage(roomId, ignoreLint(output), misc);
+      return await socket.sendMessage(roomId, ignoreLint(output), misc);
     }
   }
 
   async send(roomId: string, options: z.infer<typeof SignalOptionsType>) {
-    await this.initialize(roomId, options);
+    return await this.initialize(roomId, options);
   }
 
   async forward(roomId: string, options: z.infer<typeof SignalOptionsType>) {
-    await this.initialize(roomId, options, 'forward');
+    return await this.initialize(roomId, options, 'forward');
   }
 
   async button(roomId: string, options: z.infer<typeof ButtonOptionsType>) {
-    await this.initialize(roomId, options, 'button');
+    return await this.initialize(roomId, options, 'button');
   }
 }

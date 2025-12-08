@@ -23,7 +23,7 @@ export const MESSAGE_ENUM_TYPES = z.enum([
   'groupInvite',
   'product',
   'deviceSent',
-  'list',
+  'lists',
   'viewOnce',
   'order',
   'ephemeral',

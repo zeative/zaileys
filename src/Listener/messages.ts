@@ -6,7 +6,7 @@ import { MESSAGE_MEDIA_TYPES } from '../Config/media';
 import { RateLimiter } from '../Modules/limiter';
 import { store } from '../Modules/store';
 import { ListenerMessagesType } from '../Types/messages';
-import { extractUrls, findGlobalWord, ignoreLint, logColor, normalizeText, pickKeysFromArray, toString } from '../Utils';
+import { extractUrls, findGlobalWord, ignoreLint, logColor, normalizeText, pickKeysFromArray, toJson, toString } from '../Utils';
 import { cleanJid, cleanMediaObject, generateId, getDeepContent, getUsersMentions } from '../Utils/message';
 
 export class Messages {
@@ -140,6 +140,10 @@ export class Messages {
       content?.selectedDisplayText ||
       content ||
       null;
+
+    if (content?.name == 'menu_options') {
+      output.text = toJson(content?.paramsJson)?.id;
+    }
 
     output.text = normalizeText(output.text);
     output.mentions = getUsersMentions(output.text);

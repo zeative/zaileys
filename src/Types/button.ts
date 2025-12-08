@@ -32,9 +32,9 @@ export const ButtonInteractiveSingleSelectType = z.object({
       rows: z
         .object({
           id: z.string(),
-          header: z.string(),
           title: z.string(),
-          description: z.string(),
+          header: z.string().optional(),
+          description: z.string().optional(),
         })
         .array(),
     })

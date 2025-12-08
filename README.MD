@@ -59,7 +59,7 @@ pnpm add zaileys
 yarn add zaileys
 ```
 
-> **Note**: Requires Node.js v18+ and TypeScript for best experience.
+> **Note**: Requires Node.js v20+ and TypeScript for best experience.
 
 ## ⚡ Quick Start
 
@@ -68,26 +68,12 @@ Here is a minimal example to get your bot running with QR code authentication:
 ```typescript
 import { Client } from 'zaileys';
 
-// Initialize the client
 const wa = new Client({
   authType: 'qr',
-  session: 'my-session',
 });
 
-// Listen for connection updates
-wa.on('connection', (ctx) => {
-  console.log('Connection status:', ctx.status);
-});
-
-// Handle incoming messages
 wa.on('messages', async (ctx) => {
-  // Ignore messages from self or if no text
-  if (ctx.fromMe || !ctx.text) return;
-
-  console.log(`Received message from ${ctx.senderName}: ${ctx.text}`);
-
-  // Simple command handler
-  if (ctx.text === '/ping') {
+  if (ctx.text == 'ping') {
     await wa.send(ctx.roomId, 'Pong! 🏓');
   }
 });
@@ -96,27 +82,6 @@ wa.on('messages', async (ctx) => {
 ## 🛠️ Configuration
 
 The `Client` constructor accepts a configuration object. Below are the valid options based on the library's type definitions.
-
-### Authentication Options
-
-You must choose one of the following authentication methods:
-
-**1. QR Code Auth**
-
-```typescript
-{
-  authType: 'qr';
-}
-```
-
-**2. Pairing Code Auth**
-
-```typescript
-{
-  authType: 'pairing',
-  phoneNumber: 6281234567890 // Number required for pairing
-}
-```
 
 ### General Options
 
@@ -137,7 +102,6 @@ These options apply to both authentication methods:
 | `autoRead`       | `boolean` | `true`  | Automatically mark messages as read.                       |
 | `autoOnline`     | `boolean` | `true`  | Automatically set presence to online.                      |
 | `autoPresence`   | `boolean` | `true`  | Automatically send presence updates (composing/recording). |
-| `autoMarkAI`     | `boolean` | `true`  | Automatically mark AI responses.                           |
 | `autoMentions`   | `boolean` | `true`  | Automatically handle mentions.                             |
 | `autoRejectCall` | `boolean` | `true`  | Automatically reject incoming calls.                       |
 
@@ -145,7 +109,7 @@ These options apply to both authentication methods:
 
 | Option      | Type     | Description                                                                     |
 | :---------- | :------- | :------------------------------------------------------------------------------ |
-| `limiter`   | `object` | Rate limiting configuration. Default: `{ maxMessages: 20, durationMs: 10000 }`. |
+| `limiter`   | `object` | Rate limiting configuration. Default: `maxMessages: 20, durationMs: 10_000`.    |
 | `fakeReply` | `object` | Configuration for fake reply provider.                                          |
 | `sticker`   | `object` | Default metadata for sticker creation (`packageName`, `authorName`, `quality`). |
 | `citation`  | `object` | Custom citation sources.                                                        |
@@ -157,69 +121,15 @@ These options apply to both authentication methods:
 You can use middleware to filter messages or add custom logic before your handlers run.
 
 ```typescript
-// Add a global spam check middleware
 wa.use(async (ctx, next) => {
-  if (ctx.isSpam) {
-    console.warn(`Spam detected from ${ctx.senderName}`);
-    return; // Stop processing
+  if (ctx.messages.isSpam) {
+    console.warn(`Spam detected from ${ctx.messages.senderName}`);
+    return;
   }
 
-  // Continue to next middleware or event handler
   await next();
 });
 ```
-
-### Interactive Buttons
-
-Send interactive messages with buttons or lists (where supported).
-
-```typescript
-wa.on('messages', async (ctx) => {
-  if (ctx.text === '/menu') {
-    await wa.button(ctx.roomId, {
-      text: `Hello ${ctx.senderName}, choose an option:`,
-      buttons: {
-        type: 'interactive',
-        data: [
-          {
-            type: 'single_select',
-            text: 'Main Menu',
-            section: [
-              {
-                title: 'Features',
-                rows: [
-                  { id: 'opt1', title: 'Check Status' },
-                  { id: 'opt2', title: 'Get Info' },
-                ],
-              },
-            ],
-          },
-        ],
-      },
-    });
-  }
-});
-```
-
-### Using the Built-in Database
-
-Access the internal JSON store to manage data easily.
-
-```typescript
-// Get chat metadata
-const chat = await wa.db('chats').get(ctx.roomId);
-console.log('Chat Name:', chat?.name);
-
-// Get all messages in a chat
-const messages = await wa.getMessageByChatId(ctx.roomId);
-```
-
-## 📊 Project Stats
-
-- **Core**: ~20 source files
-- **Language**: 100% TypeScript
-- **Runtime**: Node.js
-- **Dependencies**: `baileys`, `zod`, `lowdb`, `sharp`, `fluent-ffmpeg`
 
 ## 🤝 Contributing
 
@@ -231,15 +141,15 @@ Contributions are welcome! Please follow these steps:
 4.  Push to the branch: `git push origin feature/my-feature`.
 5.  Open a Pull Request.
 
-### Issues & Feedback
+### 🎯 Issues & Feedback
 
-If you encounter any bugs or have feature requests, please open an issue on [GitHub Issues](https://github.com/zeative/zaileys/issues).
+**If you encounter any problems or have feature requests, please open an [issue](https://github.com/zeative/zaileys/issues)**
 
-## 📄 License
+- [Buy me a coffee ☕](https://saweria.co/zaadevofc)
+- [Ko-Fi](https://ko-fi.com/zaadevofc)
+- [Trakteer](https://trakteer.id/zaadevofc)
+- ⭐ Star the repo on GitHub
 
-Distributed under the **MIT** License. See [LICENSE](LICENSE) for more information.
+### 📜 License
 
-## 👏 Credits
-
-- **Author**: [zaadevofc](https://github.com/zaadevofc)
-- **Core Library**: [Baileys](https://github.com/WhiskeySockets/Baileys)
+Distributed under the **MIT License**. See [`LICENSE`](https://github.com/zeative/zaileys/blob/main/LICENSE) for details.

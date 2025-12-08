@@ -56,5 +56,8 @@
     "thumbsupply": "^0.4.0",
     "zod": "^4.1.13"
   },
-  "packageManager": "pnpm@10.24.0"
+  "packageManager": "pnpm@10.24.0",
+  "engines": {
+    "node": ">=20.0.0"
+  }
 }

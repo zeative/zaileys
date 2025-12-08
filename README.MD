@@ -46,15 +46,16 @@ Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essentia
 
 ## 🪶 Features
 
-- 🛡️ **Type-Safe Architecture**: Built with TypeScript and Zod for robust runtime validation and autocomplete.
-- 🏓 **Middleware System**: Middleware support for intercepting and processing events globally.
-- 🧩 **Plugin System**: Modularize your bot's logic with a file-based plugin architecture.
-- 💾 **Built-in State Management**: Integrated `lowdb` support for easy JSON-based data persistence (chats, contacts, messages).
-- 🔔 **Event-Driven API**: Simplified event listeners for `connection`, `messages`, and `calls` with rich context objects.
-- 📢 **Rate Limiting**: Built-in protection against spam and excessive API usage.
-- 🤖 **Auto-Automation**: Configurable options for auto-read, auto-rejecting calls, and more.
-- 📲 **Multi-Device Support**: Full support for WhatsApp Multi-Device (MD) via QR code or Pairing Code.
-- 🎬 **Built-in FFmpeg**: No need to install FFmpeg separately - it's bundled for media processing.
+- 🛡️ **Type-Safe** - Full TypeScript + Zod validation with autocomplete
+- 🏓 **Middleware** - Intercept and process events globally
+- 🧩 **Plugin System** - Drop-in file-based plugins
+- 💾 **State Management** - Built-in `lowdb` for data persistence
+- 🔔 **Event-Driven** - Clean listeners for `connection`, `messages`, `calls`
+- 📢 **Rate Limiting** - Anti-spam protection out of the box
+- 🤖 **Auto-Everything** - Auto-read, auto-reject calls, auto-mentions
+- 📲 **Multi-Device** - QR code or Pairing Code authentication
+- 🎬 **Built-in FFmpeg** - No external dependencies for media processing
+- 🔘 **Interactive Buttons** - Simple buttons, URL, copy code, call buttons, and lists
 
 ## 🎨 Concepts & Architecture
 

@@ -175,8 +175,4 @@ export class Signal {
   async forward(roomId: string, options: z.infer<typeof SignalOptionsType>) {
     await this.initialize(roomId, options, 'forward');
   }
-
-  async button(roomId: string, options: z.infer<typeof SignalOptionsType>) {
-    await this.initialize(roomId, options, 'button');
-  }
 }

@@ -47,7 +47,9 @@ const CONSTANTS = {
 } as const;
 
 type MediaInput = string | ArrayBuffer | Buffer;
-type FileExtension = 'wav' | 'ogg' | 'mp4' | 'gif' | 'jpg' | 'webp' | 'tmp';
+type FileExtension = 'wav' | 'ogg' | 'mp4' | 'gif' | 'jpg' | 'webp' | 'tmp' | 'mp3';
+
+export type AudioType = 'opus' | 'mp3';
 
 interface FFmpegConfig {
   input: string;
@@ -138,11 +140,20 @@ class FFmpegProcessor {
     return new Promise((resolve, reject) => {
       const processor = ffmpeg(config.input).output(config.output);
 
-      config.options.forEach((opt) => {
-        if (opt.startsWith('-')) {
-          processor.outputOptions(opt);
+      // Process options in pairs (key, value)
+      for (let i = 0; i < config.options.length; i++) {
+        const option = config.options[i];
+
+        // If it's a flag with value (e.g., '-c:a', 'libopus')
+        if (option.startsWith('-') && i + 1 < config.options.length && !config.options[i + 1].startsWith('-')) {
+          processor.outputOptions(option, config.options[i + 1]);
+          i++; // Skip next item as it's already processed
         }
-      });
+        // If it's a standalone flag (e.g., '-vn')
+        else {
+          processor.outputOptions(option);
+        }
+      }
 
       processor
         .on('end', async () => {
@@ -175,32 +186,30 @@ class FFmpegProcessor {
 }
 
 export class AudioProcessor {
-  static async convertToOpus(input: MediaInput): Promise<Buffer> {
+  static async getWaAudio(input: MediaInput, type: AudioType = 'opus'): Promise<Buffer> {
     const buffer = await BufferConverter.toBuffer(input);
     const fileType = await fileTypeFromBuffer(buffer);
 
     MimeValidator.validate(fileType, CONSTANTS.MIME.AUDIO);
 
     const tempIn = FileManager.createTempPath('audio_in', 'wav');
-    const tempOut = FileManager.createTempPath('audio_out', 'ogg');
+    const extension = type === 'opus' ? 'ogg' : 'mp3';
+    const tempOut = FileManager.createTempPath('audio_out', extension);
 
     await FileManager.safeWriteFile(tempIn, buffer);
 
     let outputBuffer: Buffer;
 
     try {
+      const options =
+        type === 'opus'
+          ? ['-vn', '-c:a', 'libopus', '-b:a', '48k', '-ac', '1', '-avoid_negative_ts', 'make_zero', '-map_metadata', '-1', '-f', 'opus']
+          : ['-vn', '-c:a', 'libmp3lame', '-b:a', '128k', '-ac', '2', '-avoid_negative_ts', 'make_zero', '-map_metadata', '-1', '-f', 'mp3'];
+
       await FFmpegProcessor.process({
         input: tempIn,
         output: tempOut,
-        options: [
-          `-acodec ${CONSTANTS.OPUS.CODEC}`,
-          `-ac ${CONSTANTS.OPUS.CHANNELS}`,
-          `-ar ${CONSTANTS.OPUS.FREQUENCY}`,
-          `-b:a ${CONSTANTS.OPUS.BITRATE}`,
-          '-avoid_negative_ts make_zero',
-          '-map_metadata -1',
-          `-f ${CONSTANTS.OPUS.FORMAT}`,
-        ],
+        options,
         onEnd: async () => {
           outputBuffer = await FileManager.safeReadFile(tempOut);
         },
@@ -213,7 +222,7 @@ export class AudioProcessor {
       return outputBuffer!;
     } catch (error) {
       await FileManager.cleanup([tempIn, tempOut]);
-      throw new Error(`Opus conversion failed: ${error.message}`);
+      throw new Error(`${type.toUpperCase()} conversion failed: ${error.message}`);
     }
   }
 }
@@ -433,7 +442,7 @@ export class DocumentProcessor {
 }
 
 export const toBuffer = BufferConverter.toBuffer.bind(BufferConverter);
-export const convertToOpus = AudioProcessor.convertToOpus.bind(AudioProcessor);
+export const getWaAudio = AudioProcessor.getWaAudio.bind(AudioProcessor);
 export const getVideoThumbnail = VideoProcessor.getThumbnail.bind(VideoProcessor);
 export const getVideoDuration = VideoProcessor.getDuration.bind(VideoProcessor);
 export const getMediaThumbnail = MediaProcessor.getThumbnail.bind(MediaProcessor);

@@ -37,6 +37,7 @@
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@ffprobe-installer/ffprobe": "^2.1.2",
     "async-mutex": "^0.5.0",
+    "audio-decode": "^2.2.3",
     "baileys": "7.0.0-rc.9",
     "figlet": "^1.9.4",
     "file-type": "^21.1.1",

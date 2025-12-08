@@ -1,12 +1,13 @@
-import makeWASocket, { AnyMessageContent, MiscMessageGenerationOptions } from 'baileys';
+import makeWASocket, { AnyMessageContent, ButtonReplyInfo, MiscMessageGenerationOptions } from 'baileys';
 import _ from 'lodash';
 import z from 'zod';
 import { MESSAGES_VERIFIED_TYPE } from '../Config/media';
 import { store } from '../Modules/store';
 import { parseZod } from '../Modules/zod';
 import { SignalOptionsType, SignalType } from '../Types/signal';
-import { convertToOpus, extractJids, getMediaThumbnail, getWaDocument, getWaSticker, ignoreLint, pickKeysFromArray } from '../Utils';
+import { extractJids, getMediaThumbnail, getWaAudio, getWaDocument, getWaSticker, ignoreLint, pickKeysFromArray } from '../Utils';
 import { Client } from './client';
+import { InteractiveButtons } from './button';
 
 export class Signal {
   constructor(protected client: Client) {}
@@ -28,6 +29,7 @@ export class Signal {
     const isReplied = _.has(options, 'replied');
     const isBanner = _.has(options, 'banner');
     const isViewOnce = _.has(options, 'isViewOnce');
+    const isButton = _.has(options, 'buttons');
 
     const hasText = _.has(options, 'text');
     const hasImage = _.has(options, 'image');
@@ -74,6 +76,8 @@ export class Signal {
           externalAdReply: ignoreLint(options).banner,
         },
       };
+
+      output.contextInfo.externalAdReply.mediaType = 1;
     }
 
     if (isViewOnce) {
@@ -106,17 +110,24 @@ export class Signal {
       }
 
       if (hasVideo) {
+        const isPtv = ignoreLint(options)?.ptv;
+
         output = {
           ...output,
           video: content,
+          ptv: isPtv,
           jpegThumbnail: await getMediaThumbnail(media),
         };
       }
 
       if (hasAudio) {
+        const isPtt = ignoreLint(options)?.ptt;
+
         output = {
           ...output,
-          audio: await convertToOpus(media),
+          audio: await getWaAudio(media),
+          ptt: isPtt,
+          mimetype: isPtt ? 'audio/ogg; codecs=opus' : 'audio/mpeg',
         };
       }
 
@@ -149,7 +160,12 @@ export class Signal {
       };
     }
 
-    await socket.sendMessage(roomId, ignoreLint(output), misc);
+    if (isButton) {
+      const button = new InteractiveButtons();
+      await button.send(roomId, ignoreLint(options), misc);
+    } else {
+      await socket.sendMessage(roomId, ignoreLint(output), misc);
+    }
   }
 
   async send(roomId: string, options: z.infer<typeof SignalOptionsType>) {

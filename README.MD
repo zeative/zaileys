@@ -28,6 +28,7 @@
 [🪶 Features](#-features) &nbsp;&nbsp;•&nbsp;&nbsp;
 [📦 Installation](#-installation) &nbsp;&nbsp;•&nbsp;&nbsp;
 [⚡ Quick Start](#-quick-start) &nbsp;&nbsp;•&nbsp;&nbsp;
+[📨 Sending Messages](#-sending-messages) &nbsp;&nbsp;•&nbsp;&nbsp;
 [🧩 Plugins](#-plugins) &nbsp;&nbsp;•&nbsp;&nbsp;
 [🤝 Contributing](#-contributing)
 
@@ -238,6 +239,172 @@ Citation functions return an array of phone numbers, group id and lid Internally
 - `senderLid` - The sender's LID
 
 If any of these match a number in your returned array, the citation check returns `true`. This makes it flexible for both individual chats and group scenarios.
+
+## 📫 Sending Messages
+
+> **Quick Jump:** [Text](#send-text) · [Reply](#reply-to-message) · [Forward](#forward-message) · [Media](#send-media) · [Mentions](#mentions) · [Edit & Delete](#edit--delete-messages) · [Buttons](#interactive-buttons)
+
+### Send Text
+
+Send a simple text message to any chat.
+
+```typescript
+await wa.send(ctx.roomId, 'Hello World!');
+
+await wa.send(ctx.roomId, {
+  text: 'Hello with options!',
+});
+```
+
+### Reply to Message
+
+Reply to a specific message using the `replied` option.
+
+```typescript
+await wa.send(ctx.roomId, {
+  text: 'This is a reply!',
+  replied: ctx.message(),
+});
+```
+
+### Forward Message
+
+Forward a message to any chat.
+
+```typescript
+await wa.forward(ctx.roomId, {
+  text: 'Forwarded message',
+  isForwardedMany: true,
+});
+```
+
+### Send Media
+
+Send images, videos, audio, stickers, or documents. Media can be a URL, Buffer, or base64 string.
+
+**Image:**
+
+```typescript
+await wa.send(ctx.roomId, {
+  image: 'https://example.com/image.jpg',
+  caption: 'Check this out!',
+});
+
+await wa.send(ctx.roomId, {
+  image: fs.readFileSync('./image.jpg'),
+  caption: 'Image from buffer',
+  isViewOnce: true,
+});
+```
+
+**Video:**
+
+```typescript
+await wa.send(ctx.roomId, {
+  video: 'https://example.com/video.mp4',
+  caption: 'Cool video!',
+  ptv: true,
+});
+```
+
+**Audio:**
+
+```typescript
+await wa.send(ctx.roomId, {
+  audio: 'https://example.com/audio.mp3',
+  ptt: true,
+});
+```
+
+**Sticker:**
+
+```typescript
+// support gif and video
+await wa.send(ctx.roomId, {
+  sticker: 'https://example.com/sticker.mp4',
+});
+```
+
+**Document:**
+
+```typescript
+await wa.send(ctx.roomId, {
+  document: 'https://example.com/file.pdf',
+  fileName: 'document.pdf',
+  caption: 'Here is the file',
+});
+```
+
+### Mentions
+
+Mentions are automatically detected when `autoMentions` is enabled (default: `true`).
+
+```typescript
+await wa.send(ctx.roomId, 'Hello @6281234567890!');
+```
+
+### Edit & Delete Messages
+
+**Edit a message:**
+
+```typescript
+const sent = await wa.send(ctx.roomId, 'Original text');
+
+setTimeout(async () => {
+  await wa.edit(sent, 'Edited text');
+}, 2000);
+```
+
+**Delete a message:**
+
+```typescript
+const sent = await wa.send(ctx.roomId, 'This will be deleted');
+
+setTimeout(async () => {
+  await wa.delete(sent);
+}, 2000);
+
+// or multiple messages
+await wa.delete([sent1, sent2]);
+```
+
+### Interactive Buttons
+
+Send messages with interactive buttons.
+
+**Simple Buttons:**
+
+```typescript
+await wa.button(ctx.roomId, {
+  text: 'Choose an option:',
+  buttons: {
+    type: 'simple',
+    data: [
+      { id: 'btn1', text: 'Option 1' },
+      { id: 'btn2', text: 'Option 2' },
+      { id: 'btn3', text: 'Option 3' },
+    ],
+    footer: 'Footer text',
+  },
+});
+```
+
+**Advanced Buttons:**
+
+```typescript
+await wa.button(ctx.roomId, {
+  text: 'Interactive menu:',
+  buttons: {
+    type: 'interactive',
+    data: [
+      { type: 'quick_reply', id: 'reply1', text: 'Quick Reply' },
+      { type: 'cta_url', text: 'Visit Website', url: 'https://example.com' },
+      { type: 'cta_copy', id: 'copy1', text: 'Copy Code', copy: 'PROMO123' },
+      { type: 'cta_call', text: 'Call Us', phoneNumber: '+6281234567890' },
+    ],
+  },
+});
+```
 
 ## 🤝 Contributing
 

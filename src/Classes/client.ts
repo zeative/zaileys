@@ -10,6 +10,7 @@ import { Logs } from './logs';
 import { Middleware, MiddlewareHandler } from './middleware';
 import { NativeProxy } from './proxy';
 import { Signal } from './signal';
+import { Plugins } from './plugins';
 
 export interface Client extends Signal {}
 
@@ -18,6 +19,7 @@ export class Client {
 
   logs: Logs;
   middleware = new Middleware<any>();
+  plugins: Plugins;
 
   constructor(public options: z.infer<typeof ClientOptionsType>) {
     this.options = parseZod(ClientOptionsType, options);
@@ -32,6 +34,9 @@ export class Client {
 
     this.listener = new Listener(this);
     this.logs = new Logs(this);
+    this.plugins = new Plugins();
+
+    await this.plugins.load();
   }
 
   db(path: string) {

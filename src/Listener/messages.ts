@@ -30,6 +30,7 @@ export class Messages {
 
         if (parsed) {
           await this.client.middleware.run({ messages: parsed });
+          await this.client.plugins.execute(this.client, { messages: parsed });
 
           store.set('message', parsed);
           store.events.emit('messages', parsed);

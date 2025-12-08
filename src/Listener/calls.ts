@@ -19,6 +19,8 @@ export class Calls {
 
         if (parsed) {
           await this.client.middleware.run({ calls: parsed });
+          await this.client.plugins.execute(this.client, { messages: parsed });
+
           store.events.emit('calls', parsed);
 
           if (this.client.options?.autoRejectCall) {

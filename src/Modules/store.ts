@@ -47,6 +47,7 @@ export class NanoStore {
 
   events = new EventEmitter();
   groupCache = new NodeCache({ stdTTL: 5 * 60, useClones: false });
+  collectors = new Map<string, any>();
 }
 
 export const store = new NanoStore();

@@ -1,4 +1,4 @@
-import makeWASocket, { downloadMediaMessage, getDevice, isJidMetaAI, jidNormalizedUser, proto, WAMessage } from 'baileys';
+import makeWASocket, { downloadMediaMessage, getDevice, jidNormalizedUser, WAMessage } from 'baileys';
 import _ from 'lodash';
 import z from 'zod';
 import { Client } from '../Classes';
@@ -6,7 +6,7 @@ import { MESSAGE_MEDIA_TYPES } from '../Config/media';
 import { RateLimiter } from '../Modules/limiter';
 import { store } from '../Modules/store';
 import { ListenerMessagesType } from '../Types/messages';
-import { extractUrls, findGlobalWord, ignoreLint, logColor, normalizeText, pickKeysFromArray, toJson, toString } from '../Utils';
+import { extractUrls, findGlobalWord, ignoreLint, normalizeText, pickKeysFromArray, toJson, toString } from '../Utils';
 import { cleanJid, cleanMediaObject, generateId, getDeepContent, getUsersMentions } from '../Utils/message';
 
 export class Messages {
@@ -15,7 +15,6 @@ export class Messages {
 
   constructor(private client: Client) {
     this.limiter = new RateLimiter(client);
-
     this.initialize();
   }
 
@@ -29,11 +28,15 @@ export class Messages {
         const parsed = await this.parse(message);
 
         if (parsed) {
-          await this.client.middleware.run({ messages: parsed });
-          await this.client.plugins.execute(this.client, { messages: parsed });
+          const collected = this.client.collector.push(parsed);
 
-          store.set('message', parsed);
-          store.events.emit('messages', parsed);
+          if (!collected) {
+            await this.client.middleware.run({ messages: parsed });
+            await this.client.plugins.execute(this.client, { messages: parsed });
+
+            store.set('message', parsed);
+            store.events.emit('messages', parsed);
+          }
 
           if (this.client.options.autoRead) {
             await socket.readMessages([parsed.message().key]);
@@ -64,8 +67,6 @@ export class Messages {
       contentType = contentExtract.chain.at(-1);
       content = contentExtract.leaf;
     }
-
-    // console.log(JSON.stringify(content, null, 2));
 
     output.uniqueId = null;
     output.channelId = null;
@@ -117,7 +118,6 @@ export class Messages {
 
     if (isNewsletter) {
       const meta = await socket.newsletterMetadata('jid', output.roomId);
-      3;
 
       output.roomName = ignoreLint(meta.thread_metadata.name)?.text;
       output.senderId = null;
@@ -127,7 +127,6 @@ export class Messages {
     if (isFromMe) {
       output.senderLid = jidNormalizedUser(socket.user.lid);
       output.senderId = output.receiverId;
-
       output.senderName = output.receiverName;
     }
 

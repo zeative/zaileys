@@ -6,11 +6,12 @@ import { parseZod } from '../Modules/zod';
 import { ClientOptionsType, EventCallbackType, EventEnumType } from '../Types';
 import { normalizeText, pickKeysFromArray } from '../Utils';
 import { autoDisplayBanner } from '../Utils/banner';
+import { MessageCollector } from './collector';
 import { Logs } from './logs';
 import { Middleware, MiddlewareHandler } from './middleware';
 import { NativeProxy } from './proxy';
-import { Signal } from './signal';
 import { Plugins } from './plugins';
+import { Signal } from './signal';
 
 export interface Client extends Signal {}
 
@@ -19,6 +20,7 @@ export class Client {
   private _ready: Promise<void>;
 
   logs: Logs;
+  collector = new MessageCollector();
   middleware = new Middleware<any>();
   plugins = new Plugins();
 

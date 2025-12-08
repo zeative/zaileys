@@ -1,7 +1,7 @@
 import { generateMessageIDV2, generateWAMessageFromContent, isJidGroup, MessageGenerationOptionsFromContent, proto } from 'baileys';
 import z from 'zod';
 import { store } from '../Modules/store';
-import { SignalOptionsType } from '../Types/signal';
+import { SignalOptionsType } from '../Types/Signal/signal';
 import { ignoreLint } from '../Utils';
 
 export class InteractiveButtons {

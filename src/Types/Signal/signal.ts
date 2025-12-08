@@ -1,6 +1,6 @@
 import { proto, WAMessage } from 'baileys';
 import z from 'zod';
-import { ButtonType } from './button';
+import { ButtonType } from '../button';
 
 const MediaType = z.url().or(z.base64()).or(z.instanceof(Buffer));
 

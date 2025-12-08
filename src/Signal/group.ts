@@ -1,9 +1,9 @@
 import { Client } from '../Classes';
 
 export class SignalGroup {
-  constructor(protected client: Client) {}
+  constructor(protected glient: Client) {}
 
   group() {
-    return this.client;
+    return this.glient;
   }
 }

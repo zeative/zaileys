@@ -4,7 +4,7 @@ import z from 'zod';
 import { MESSAGES_VERIFIED_TYPE } from '../Config/media';
 import { store } from '../Modules/store';
 import { parseZod } from '../Modules/zod';
-import { ButtonOptionsType, SignalOptionsType, SignalType } from '../Types/signal';
+import { ButtonOptionsType, SignalOptionsType, SignalType } from '../Types/Signal/signal';
 import { extractJids, getMediaThumbnail, getWaAudio, getWaDocument, getWaSticker, ignoreLint, pickKeysFromArray } from '../Utils';
 import { InteractiveButtons } from '../Classes/button';
 import { Client } from '../Classes/client';

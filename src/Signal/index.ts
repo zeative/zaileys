@@ -6,8 +6,8 @@ import { store } from '../Modules/store';
 import { parseZod } from '../Modules/zod';
 import { ButtonOptionsType, SignalOptionsType, SignalType } from '../Types/signal';
 import { extractJids, getMediaThumbnail, getWaAudio, getWaDocument, getWaSticker, ignoreLint, pickKeysFromArray } from '../Utils';
-import { InteractiveButtons } from './button';
-import { Client } from './client';
+import { InteractiveButtons } from '../Classes/button';
+import { Client } from '../Classes/client';
 
 export class Signal {
   constructor(protected client: Client) {}

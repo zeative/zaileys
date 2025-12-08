@@ -3,17 +3,18 @@ import { registerAuthCreds } from '../Auth';
 import { Listener } from '../Listener';
 import { store } from '../Modules/store';
 import { parseZod } from '../Modules/zod';
+import { Signal } from '../Signal';
+import { SignalGroup } from '../Signal/group';
 import { ClientOptionsType, EventCallbackType, EventEnumType } from '../Types';
 import { normalizeText, pickKeysFromArray } from '../Utils';
 import { autoDisplayBanner } from '../Utils/banner';
 import { MessageCollector } from './collector';
 import { Logs } from './logs';
 import { Middleware, MiddlewareHandler } from './middleware';
-import { NativeProxy } from './proxy';
 import { Plugins } from './plugins';
-import { Signal } from './signal';
+import { NativeProxy } from './proxy';
 
-export interface Client extends Signal {}
+export interface Client extends Signal, SignalGroup {}
 
 export class Client {
   private listener: Listener;
@@ -29,7 +30,7 @@ export class Client {
     this.options = parseZod(ClientOptionsType, options);
     this._ready = this.initialize();
 
-    return new NativeProxy().classInjection(this, [new Signal(this)]);
+    return new NativeProxy().classInjection(this, [new Signal(this), new SignalGroup(this)]);
   }
 
   async initialize() {

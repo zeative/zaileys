@@ -35,7 +35,7 @@ export const SignalBaseType = z.object({
   buttons: ButtonType.optional(),
 });
 
-export const SignalType = z.enum(['forward', 'button']);
+export const SignalType = z.enum(['forward', 'button', 'edit', 'delete']);
 
 export const SignalOptionsUnionType = z.union([MessageTextType, MessageImageType, MessageAudioType, MessageVideoType, MessageStickerType, MessageDocumentType]);
 

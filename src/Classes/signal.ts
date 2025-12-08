@@ -1,4 +1,4 @@
-import makeWASocket, { AnyMessageContent, MiscMessageGenerationOptions } from 'baileys';
+import makeWASocket, { AnyMessageContent, MiscMessageGenerationOptions, WAMessage } from 'baileys';
 import _ from 'lodash';
 import z from 'zod';
 import { MESSAGES_VERIFIED_TYPE } from '../Config/media';
@@ -12,11 +12,13 @@ import { Client } from './client';
 export class Signal {
   constructor(protected client: Client) {}
 
-  protected async initialize(roomId: string, options: z.infer<typeof SignalOptionsType>, type?: z.infer<typeof SignalType>) {
-    if (type == 'button') {
-      options = parseZod(ButtonOptionsType, options);
-    } else {
-      options = parseZod(SignalOptionsType, options);
+  protected async initialize(roomId: string, options: z.infer<typeof SignalOptionsType>, type?: z.infer<typeof SignalType>, message?: WAMessage) {
+    if (type != 'delete') {
+      if (type == 'button') {
+        options = parseZod(ButtonOptionsType, options);
+      } else {
+        options = parseZod(SignalOptionsType, options);
+      }
     }
 
     let socket = store.get('socket') as ReturnType<typeof makeWASocket>;
@@ -163,6 +165,24 @@ export class Signal {
       };
     }
 
+    if (type == 'edit') {
+      output = {
+        ...output,
+        edit: message?.key,
+      };
+
+      await socket.sendPresenceUpdate('paused', roomId);
+    }
+
+    if (type == 'delete') {
+      output = {
+        ...output,
+        delete: message?.key,
+      };
+
+      await socket.sendPresenceUpdate('paused', roomId);
+    }
+
     if (isButton) {
       const button = new InteractiveButtons();
       return await button.send(roomId, options, misc);
@@ -181,5 +201,21 @@ export class Signal {
 
   async button(roomId: string, options: z.infer<typeof ButtonOptionsType>) {
     return await this.initialize(roomId, options, 'button');
+  }
+
+  async edit(message: WAMessage, options: z.infer<typeof SignalOptionsType>) {
+    return await this.initialize(message.key.remoteJid, options, 'edit', message);
+  }
+
+  async delete(message: WAMessage | WAMessage[]) {
+    if (_.isArray(message)) {
+      return Promise.all(
+        message.map((message) => {
+          return this.initialize(message.key.remoteJid, {}, 'delete', message);
+        }),
+      );
+    }
+
+    return await this.initialize(message.key.remoteJid, {}, 'delete', message);
   }
 }

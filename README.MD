@@ -269,7 +269,7 @@ await wa.send(ctx.roomId, {
 
 ### Forward Message
 
-Forward a message to any chat.
+Forward message to any chat.
 
 ```typescript
 await wa.forward(ctx.roomId, {
@@ -345,7 +345,7 @@ await wa.send(ctx.roomId, 'Hello @6281234567890!');
 
 ### Edit & Delete Messages
 
-**Edit a message:**
+**Edit message:**
 
 ```typescript
 const sent = await wa.send(ctx.roomId, 'Original text');
@@ -355,7 +355,7 @@ setTimeout(async () => {
 }, 2000);
 ```
 
-**Delete a message:**
+**Delete message:**
 
 ```typescript
 const sent = await wa.send(ctx.roomId, 'This will be deleted');

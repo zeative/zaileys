@@ -68,8 +68,7 @@ export class Client {
       ?.flat()
       ?.find((x) => x?.key?.id === chatId);
 
-    const parse = await this.listener.messages.parse(message);
-    return parse;
+    return await this.listener.messages.parse(message);
   }
 
   async getRoomName(roomId: string) {

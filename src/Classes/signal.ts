@@ -43,6 +43,10 @@ export class Signal {
     const hasSticker = _.has(options, 'sticker');
     const hasDocument = _.has(options, 'document');
 
+    const hasLocation = _.has(options, 'location');
+    const hasContacts = _.has(options, 'contacts');
+    const hasPoll = _.has(options, 'poll');
+
     const isMedia = hasImage || hasVideo || hasAudio || hasSticker || hasDocument;
 
     const text = isText ? options : pickKeysFromArray([options], ['text', 'caption']);
@@ -154,6 +158,60 @@ export class Signal {
       }
     }
 
+    if (hasLocation) {
+      const params = ignoreLint(options).location;
+
+      output = {
+        ...output,
+        location: {
+          degreesLatitude: params.latitude,
+          degreesLongitude: params.longitude,
+          url: params.url,
+          address: params.footer,
+          name: params.title,
+        },
+      };
+    }
+
+    if (hasContacts) {
+      const params = ignoreLint(options)?.contacts;
+
+      const contacts = params?.contacts.map((x) => {
+        const vcard = [
+          'BEGIN:VCARD',
+          'VERSION:3.0',
+          `FN:${x.fullname}`,
+          `ORG:${x.organization || ''}`,
+          `TEL;type=CELL;type=VOICE;waid=${x.phoneNumber}:${x.phoneNumber}`,
+          'END:VCARD',
+        ].join('\n');
+
+        return { displayName: x.fullname, vcard };
+      });
+
+      output = {
+        ...output,
+        contacts: {
+          displayName: params?.title,
+          contacts,
+        },
+      };
+    }
+
+    if (hasPoll) {
+      const params = ignoreLint(options)?.poll;
+
+      output = {
+        ...output,
+        poll: {
+          name: params.name,
+          values: params.answers,
+          selectableCount: !!params.isMultiple ? 1 : 0,
+          toAnnouncementGroup: true,
+        },
+      };
+    }
+
     if (type == 'forward') {
       output = {
         ...output,
@@ -217,5 +275,24 @@ export class Signal {
     }
 
     return await this.signal(message.key.remoteJid, {}, 'delete', message);
+  }
+
+  async presence(roomId: string, type: 'typing' | 'recording' | 'online' | 'offline' | 'paused') {
+    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+
+    const options = {
+      typing: 'composing',
+      recording: 'recording',
+      online: 'available',
+      offline: 'unavailable',
+      paused: 'paused',
+    } as const;
+
+    return await socket.sendPresenceUpdate(options[type], roomId);
+  }
+
+  async reaction(message: WAMessage, reaction: string) {
+    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    return await socket.sendMessage(message.key.remoteJid, { react: { text: reaction, key: message?.key } });
   }
 }

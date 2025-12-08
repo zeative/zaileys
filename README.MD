@@ -30,22 +30,22 @@ Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essentia
 
 ## 🪶 Features
 
-- 🛡️ **Type-Safe Architecture**: Built with TypeScript and Zod for robust runtime validation and excellent IDE autocomplete.
-- 🔌 **Middleware System**: Express-style middleware support (`.use()`) for intercepting and processing messages globally.
+- 🛡️ **Type-Safe Architecture**: Built with TypeScript and Zod for robust runtime validation and autocomplete.
+- 🏓 **Middleware System**: Middleware support for intercepting and processing events globally.
 - 💾 **Built-in State Management**: Integrated `lowdb` support for easy JSON-based data persistence (chats, contacts, messages).
-- 📡 **Event-Driven API**: Simplified event listeners for `connection`, `messages`, and `calls` with rich context objects.
-- 🚦 **Rate Limiting**: Built-in protection against spam and excessive API usage.
-- 🤖 **Auto-Automation**: Configurable options for auto-read, auto-online presence, auto-rejecting calls, and more.
-- 📱 **Multi-Device Support**: Full support for WhatsApp Multi-Device (MD) via QR code or Pairing Code.
+- 🔔 **Event-Driven API**: Simplified event listeners for `connection`, `messages`, and `calls` with rich context objects.
+- 📢 **Rate Limiting**: Built-in protection against spam and excessive API usage.
+- 🤖 **Auto-Automation**: Configurable options for auto-read, auto-rejecting calls, and more.
+- 📲 **Multi-Device Support**: Full support for WhatsApp Multi-Device (MD) via QR code or Pairing Code.
 
 ## 🎨 Concepts & Architecture
 
 Zaileys is built around a few core concepts:
 
-- **Client**: The main entry point. It extends the underlying signal handling and manages the connection lifecycle. It uses a **Proxy** pattern to inject modules dynamically.
-- **Context (ctx)**: Every event (like a message) comes with a rich `ctx` object containing all relevant data (sender, text, room ID) and helper methods (reply, react).
+- **Client**: The main entry point. It extends the underlying signal handling and manages the connection lifecycle.
+- **Context**: Every event comes with a rich object containing all relevant data and helper methods.
 - **Middleware**: A pipeline that processes events before they reach your main handlers, useful for logging, auth checks, or spam filtering.
-- **Store**: A local JSON database (powered by `lowdb`) that automatically syncs chats and contacts, accessible via `client.db()`.
+- **Store**: A local JSON database (powered by `lowdb`) that automatically syncs chats and contacts.
 
 ## 📦 Installation
 

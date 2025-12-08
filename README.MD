@@ -535,6 +535,102 @@ await wa.button(ctx.roomId, {
 });
 ```
 
+## 👥 Group Management
+
+> **Quick Jump:** [Create](#create-group) · [Participants](#manage-participants) · [Profile](#group-profile) · [Settings](#group-settings) · [Invite Code](#invite-code) · [Leave](#leave-group)
+
+Manage groups, participants, and settings easily.
+
+### Create Group
+
+Create a new group with initial participants.
+
+```typescript
+// Create group with name and participants
+const group = await wa.group.create('My Group', ['6281234567890', '6289876543210']);
+console.log('Group created:', group.id);
+```
+
+### Manage Participants
+
+Add, remove, promote, or demote participants.
+
+```typescript
+const groupId = '1234567890@g.us';
+
+// Add participants
+await wa.group.participant(groupId, ['6281234567890'], 'add');
+
+// Remove participants
+await wa.group.participant(groupId, ['6281234567890'], 'remove');
+
+// Promote to admin
+await wa.group.participant(groupId, ['6281234567890'], 'promote');
+
+// Demote to member
+await wa.group.participant(groupId, ['6281234567890'], 'demote');
+```
+
+### Group Profile
+
+Update group subject, description, or icon.
+
+```typescript
+// Update subject
+await wa.group.profile(groupId, 'New Group Name', 'subject');
+
+// Update description
+await wa.group.profile(groupId, 'This is the new description', 'description');
+
+// Update group icon (from URL or Buffer)
+await wa.group.profile(groupId, 'https://example.com/icon.jpg', 'avatar');
+```
+
+### Group Settings
+
+Configure group permissions.
+
+```typescript
+// Only admins can send messages
+await wa.group.setting(groupId, 'announcement');
+
+// All members can send messages
+await wa.group.setting(groupId, 'not_announcement');
+
+// Only admins can edit group info
+await wa.group.setting(groupId, 'locked');
+
+// All members can edit group info
+await wa.group.setting(groupId, 'unlocked');
+```
+
+### Invite Code
+
+Manage group invite links.
+
+```typescript
+// Get current invite code
+const code = await wa.group.inviteCode(groupId, 'code');
+console.log('Invite link:', `https://chat.whatsapp.com/${code}`);
+
+// Revoke invite code
+await wa.group.inviteCode(groupId, 'revoke');
+
+// Get invite info
+const info = await wa.group.inviteCode('INVITE_CODE', 'info');
+
+// Join group via invite code
+await wa.group.inviteCode('INVITE_CODE', 'accept');
+```
+
+### Leave Group
+
+Leave a group.
+
+```typescript
+await wa.group.leave(groupId);
+```
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please follow these steps:

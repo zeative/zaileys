@@ -1,5 +1,5 @@
 <div align="center">
-  <img alt="Zaileys - Simplified WhatsApp Node.js TypeScript/JavaScript API" src="https://socialify.git.ci/zeative/zaileys/image?custom_description=Simplified+WhatsApp+Node.js+TypeScript%2FJavaScript+API&custom_language=TypeScript&description=1&font=Inter&language=1&logo=https%3A%2F%2Fgithub.com%2Fzeative%2Fzeative%2Fblob%2Fmain%2Flibraries%2Fzaileys%2Ficon.png%3Fraw%3Dtrue&owner=1&pattern=Charlie+Brown&theme=Auto">
+  <img alt="Zaileys - Simplified WhatsApp Node.js TypeScript/JavaScript API" src="https://socialify.git.ci/zeative/zaileys/image?custom_description=Simplified+WhatsApp+Node.js+TypeScript%2FJavaScript+API&custom_language=TypeScript&description=1&font=Inter&language=1&owner=1&pattern=Charlie+Brown&theme=Auto">
 
   <h1 align="center">Zaileys - Simplified WhatsApp Node.js TypeScript/JavaScript API</h1>
 

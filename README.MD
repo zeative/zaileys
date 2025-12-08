@@ -229,6 +229,16 @@ wa.on('messages', async (ctx) => {
 
 Each citation function returns `true` if the sender matches any ID in the returned list, `false` otherwise.
 
+**How it works:**
+
+Citation functions return an array of phone numbers (without `@s.whatsapp.net`). Internally, Zaileys compares the sender's ID against this list by checking:
+
+- `roomId` - The chat/group ID
+- `senderId` - The sender's WhatsApp ID
+- `senderLid` - The sender's LID (Linked ID)
+
+If any of these match a number in your returned array, the citation check returns `true`. This makes it flexible for both individual chats and group scenarios.
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please follow these steps:

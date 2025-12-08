@@ -54,6 +54,7 @@ Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essentia
 - 📢 **Rate Limiting**: Built-in protection against spam and excessive API usage.
 - 🤖 **Auto-Automation**: Configurable options for auto-read, auto-rejecting calls, and more.
 - 📲 **Multi-Device Support**: Full support for WhatsApp Multi-Device (MD) via QR code or Pairing Code.
+- 🎬 **Built-in FFmpeg**: No need to install FFmpeg separately - it's bundled for media processing.
 
 ## 🎨 Concepts & Architecture
 
@@ -78,6 +79,8 @@ yarn add zaileys
 ```
 
 > **Note**: Requires Node.js v20+ and TypeScript for best experience.
+
+> **FFmpeg**: No need to install FFmpeg separately! It's already bundled with Zaileys for seamless media processing (audio, video, stickers).
 
 ## ⚡ Quick Start
 

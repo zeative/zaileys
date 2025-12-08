@@ -231,11 +231,11 @@ Each citation function returns `true` if the sender matches any ID in the return
 
 **How it works:**
 
-Citation functions return an array of phone numbers (without `@s.whatsapp.net`). Internally, Zaileys compares the sender's ID against this list by checking:
+Citation functions return an array of phone numbers, group id and lid Internally, Zaileys compares the sender's ID against this list by checking:
 
 - `roomId` - The chat/group ID
 - `senderId` - The sender's WhatsApp ID
-- `senderLid` - The sender's LID (Linked ID)
+- `senderLid` - The sender's LID
 
 If any of these match a number in your returned array, the citation check returns `true`. This makes it flexible for both individual chats and group scenarios.
 

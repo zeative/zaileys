@@ -44,7 +44,9 @@ export const ButtonInteractiveSingleSelectType = z.object({
 export const ButtonInteractiveType = z.object({
   type: z.literal('interactive'),
   footer: z.string().optional(),
-  data: z.union([ButtonInteractiveReplyType, ButtonInteractiveUrlType, ButtonInteractiveCopyType, ButtonInteractiveCallType]).array(),
+  data: z
+    .union([ButtonInteractiveReplyType, ButtonInteractiveUrlType, ButtonInteractiveCopyType, ButtonInteractiveCallType, ButtonInteractiveSingleSelectType])
+    .array(),
 });
 
 export const ButtonSimpleType = z.object({

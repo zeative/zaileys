@@ -394,24 +394,24 @@ Send messages with interactive buttons.
 
 **Simple Buttons:**
 
-Simple button has support Android/iPhone/Desktop
+> ✅ Simple button has support Android/iPhone/Desktop
 
 ```typescript
 await wa.button(ctx.roomId, {
   text: 'Choose an option:',
   buttons: {
     type: 'simple',
+    footer: 'Footer text',
     data: [
       { id: 'btn1', text: 'Option 1' },
       { id: 'btn2', text: 'Option 2' },
       { id: 'btn3', text: 'Option 3' },
     ],
-    footer: 'Footer text',
   },
 });
 ```
 
-**Advanced Buttons:**
+**Interactive Buttons:**
 
 > ⚠️ Experimental, only support Android/iPhone
 
@@ -420,11 +420,42 @@ await wa.button(ctx.roomId, {
   text: 'Interactive menu:',
   buttons: {
     type: 'interactive',
+    footer: 'Footer text',
     data: [
       { type: 'quick_reply', id: 'reply1', text: 'Quick Reply' },
       { type: 'cta_url', text: 'Visit Website', url: 'https://example.com' },
       { type: 'cta_copy', id: 'copy1', text: 'Copy Code', copy: 'PROMO123' },
       { type: 'cta_call', text: 'Call Us', phoneNumber: '+6281234567890' },
+    ],
+  },
+});
+```
+
+**Lists Buttons:**
+
+> ⚠️ Experimental, not supported on some devices. Don't use in production!
+
+```typescript
+await wa.button(ctx.roomId, {
+  text: 'Choose an option:',
+  buttons: {
+    type: 'interactive',
+    footer: 'Footer text',
+    data: [
+      {
+        type: 'single_select',
+        text: 'Choose an option:',
+        section: [
+          {
+            title: 'Section 1',
+            rows: [
+              { id: 'btn1', title: 'Option 1' },
+              { id: 'btn2', title: 'Option 2' },
+              { id: 'btn3', title: 'Option 3' },
+            ],
+          },
+        ],
+      },
     ],
   },
 });

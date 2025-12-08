@@ -15,10 +15,11 @@ export class InteractiveButtons {
 
   private toNativeInteractive(buttons: Array<any>) {
     const map = {
-      quick_reply: (b: any) => ({ display_text: b.text, id: b.id }),
-      cta_url: (b: any) => ({ display_text: b.text, url: b.url, merchant_url: b.url }),
-      cta_copy: (b: any) => ({ display_text: b.text, id: b.id, copy_code: b.copy }),
-      cta_call: (b: any) => ({ display_text: b.text, phone_number: b.phoneNumber }),
+      quick_reply: (x) => ({ display_text: x.text, id: x.id }),
+      cta_url: (x) => ({ display_text: x.text, url: x.url, merchant_url: x.url }),
+      cta_copy: (x) => ({ display_text: x.text, id: x.id, copy_code: x.copy }),
+      cta_call: (x) => ({ display_text: x.text, phone_number: x.phoneNumber }),
+      single_select: (x) => ({ title: x.text, sections: x.section }),
     };
 
     return buttons.map((b) => ({

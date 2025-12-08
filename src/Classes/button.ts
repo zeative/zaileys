@@ -1,9 +1,10 @@
-import { generateMessageIDV2, generateWAMessageFromContent, isJidGroup, MessageGenerationOptionsFromContent } from 'baileys';
+import makeWASocket, { generateMessageIDV2, generateWAMessageFromContent, isJidGroup, MessageGenerationOptionsFromContent, proto } from 'baileys';
 import _ from 'lodash';
 import z from 'zod';
 import { store } from '../Modules/store';
 import { SignalOptionsType } from '../Types/signal';
 import { ignoreLint } from '../Utils';
+import { Socket } from 'dgram';
 
 export class InteractiveButtons {
   private toNativeSimple(buttons: Array<{ id: string; text: string }>) {
@@ -28,7 +29,7 @@ export class InteractiveButtons {
     }));
   }
 
-  private build(payload: z.infer<typeof SignalOptionsType>) {
+  private build(payload: z.infer<typeof SignalOptionsType>): proto.Message.IInteractiveMessage {
     const buttons = ignoreLint(payload).buttons;
     const data = buttons?.data || [];
 
@@ -36,11 +37,9 @@ export class InteractiveButtons {
     const native = type == 'simple' ? this.toNativeSimple(data) : this.toNativeInteractive(data);
 
     return {
-      interactiveMessage: {
-        body: { text: ignoreLint(payload).text },
-        footer: buttons.footer ? { text: buttons.footer } : undefined,
-        nativeFlowMessage: { buttons: native },
-      },
+      body: { text: ignoreLint(payload).text },
+      footer: buttons.footer ? { text: buttons.footer } : undefined,
+      nativeFlowMessage: { buttons: native },
     };
   }
 
@@ -50,11 +49,15 @@ export class InteractiveButtons {
     const userJid = socket.authState?.creds?.me?.id || socket.user?.id;
     const content = this.build(payload);
 
-    const msg = generateWAMessageFromContent(roomId, content, {
-      userJid,
-      messageId: generateMessageIDV2(userJid),
-      ...options,
-    });
+    const msg = generateWAMessageFromContent(
+      roomId,
+      { interactiveMessage: content },
+      {
+        userJid,
+        messageId: generateMessageIDV2(userJid),
+        ...options,
+      },
+    );
 
     await socket.relayMessage(roomId, msg.message, {
       messageId: msg.key.id,

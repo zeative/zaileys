@@ -40,4 +40,4 @@ export const SignalType = z.enum(['forward', 'button']);
 export const SignalOptionsUnionType = z.union([MessageTextType, MessageImageType, MessageAudioType, MessageVideoType, MessageStickerType, MessageDocumentType]);
 
 export const SignalOptionsType = z.string().or(z.intersection(SignalOptionsUnionType, SignalBaseType.omit({ buttons: true })));
-export const ButtonOptionsType = z.intersection(SignalBaseType, MessageTextType);
+export const ButtonOptionsType = z.intersection(MessageTextType, SignalBaseType.omit({ banner: true }));

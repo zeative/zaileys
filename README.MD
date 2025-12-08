@@ -242,7 +242,7 @@ If any of these match a number in your returned array, the citation check return
 
 ## 📫 Sending Messages
 
-> **Quick Jump:** [Text](#send-text) · [Reply](#reply-to-message) · [Forward](#forward-message) · [Media](#send-media) · [Mentions](#mentions) · [Edit & Delete](#edit--delete-messages) · [Buttons](#interactive-buttons)
+> **Quick Jump:** [Text](#send-text) · [Reply](#reply-to-message) · [Forward](#forward-message) · [Media](#send-media) · [Banner](#send-with-banner) · [Mentions](#mentions) · [Edit & Delete](#edit--delete-messages) · [Buttons](#interactive-buttons)
 
 ### Send Text
 
@@ -335,11 +335,28 @@ await wa.send(ctx.roomId, {
 });
 ```
 
+### Send with Banner
+
+Send messages with an external ad reply banner (link preview).
+
+```typescript
+await wa.send(ctx.roomId, {
+  text: 'Banner message!',
+  banner: {
+    thumbnailUrl: 'https://github.com/zeative.png',
+    sourceUrl: 'https://jaa.web.id',
+    title: 'Test Banner',
+    body: 'Hello World!',
+  },
+});
+```
+
 ### Mentions
 
 Mentions are automatically detected when `autoMentions` is enabled (default: `true`).
 
 ```typescript
+// support lid
 await wa.send(ctx.roomId, 'Hello @6281234567890!');
 ```
 

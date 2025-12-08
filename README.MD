@@ -191,6 +191,44 @@ const pluginsInfo = wa.plugins.getPluginsInfo();
 
 This returns an array of all loaded plugins with their `matcher` and `metadata`, useful for generating help menus or listing available commands.
 
+### 🔐 Citation (Custom Authorization)
+
+Citation allows you to define custom authorization logic by creating named checkers that verify if a user is in a specific list (e.g., premium users, banned users).
+
+**1. Configure citation sources** in the client options:
+
+```typescript
+const wa = new Client({
+  authType: 'qr',
+  citation: {
+    premium: async () => {
+      // const numbers = await fetch...
+      return [6280000000, 12388888888];
+    },
+    banned: async () => {
+      return [6285555555555];
+    },
+  },
+});
+```
+
+**2. Use citation in your message handlers**:
+
+```typescript
+wa.on('messages', async (ctx) => {
+  const isBanned = await ctx.citation.banned();
+  const isPremium = await ctx.citation.premium();
+
+  if (isBanned) return;
+
+  if (isPremium) {
+    await wa.send(ctx.roomId, 'Premium feature unlocked!');
+  }
+});
+```
+
+Each citation function returns `true` if the sender matches any ID in the returned list, `false` otherwise.
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please follow these steps:

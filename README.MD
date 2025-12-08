@@ -394,6 +394,8 @@ Send messages with interactive buttons.
 
 **Simple Buttons:**
 
+Simple button has support Android/iPhone/Desktop
+
 ```typescript
 await wa.button(ctx.roomId, {
   text: 'Choose an option:',
@@ -410,6 +412,8 @@ await wa.button(ctx.roomId, {
 ```
 
 **Advanced Buttons:**
+
+> ⚠️ Experimental, only support Android/iPhone
 
 ```typescript
 await wa.button(ctx.roomId, {

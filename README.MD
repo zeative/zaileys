@@ -59,13 +59,15 @@ Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essentia
 
 ## 🎨 Concepts & Architecture
 
-Zaileys is built around a few core concepts:
+**Client** - Your bot's brain. Manages connections, events, and the entire lifecycle.
 
-- **Client**: The main entry point. It extends the underlying signal handling and manages the connection lifecycle.
-- **Context**: Every event comes with a rich object containing all relevant data and helper methods.
-- **Middleware**: A pipeline that processes events before they reach your main handlers, useful for logging, auth checks, or spam filtering.
-- **Plugins**: Reusable units of logic that can be dropped into the `plugins` directory.
-- **Store**: A local JSON database (powered by `lowdb`) that automatically syncs chats and contacts.
+**Context** - Rich event objects with all the data and helpers you need.
+
+**Middleware** - Pre-process events for logging, auth, spam filtering, or custom logic.
+
+**Plugins** - Drop files in `plugins/` directory. Auto-loaded, zero config.
+
+**Store** - JSON database (`lowdb`) that auto-syncs chats, contacts, and messages.
 
 ## 📦 Installation
 

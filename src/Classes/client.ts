@@ -16,14 +16,15 @@ export interface Client extends Signal {}
 
 export class Client {
   private listener: Listener;
+  private _ready: Promise<void>;
 
   logs: Logs;
   middleware = new Middleware<any>();
-  plugins: Plugins;
+  plugins = new Plugins();
 
   constructor(public options: z.infer<typeof ClientOptionsType>) {
     this.options = parseZod(ClientOptionsType, options);
-    this.initialize();
+    this._ready = this.initialize();
 
     return new NativeProxy().classInjection(this, [new Signal(this)]);
   }
@@ -31,12 +32,14 @@ export class Client {
   async initialize() {
     await autoDisplayBanner();
     await registerAuthCreds(this);
+    await this.plugins.load();
 
     this.listener = new Listener(this);
     this.logs = new Logs(this);
-    this.plugins = new Plugins();
+  }
 
-    await this.plugins.load();
+  ready() {
+    return this._ready;
   }
 
   db(path: string) {

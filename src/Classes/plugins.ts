@@ -2,6 +2,7 @@ import { MiddlewareContextType } from '../Types/middleware';
 import { Client } from './client';
 import * as fs from 'fs';
 import * as path from 'path';
+import { pathToFileURL } from 'url';
 
 export type PluginsHandlerType = (wa: Client, ctx: MiddlewareContextType) => Promise<void> | void;
 export type PluginsConfigType = {
@@ -22,35 +23,22 @@ export class Plugins {
   }
 
   async load(): Promise<void> {
-    try {
-      if (!fs.existsSync(this.pluginsDir)) {
-        console.warn(`Folder plugins tidak ditemukan: ${this.pluginsDir}`);
-        return;
-      }
+    if (!fs.existsSync(this.pluginsDir)) return;
 
-      const files = fs.readdirSync(this.pluginsDir);
+    const files = fs.readdirSync(this.pluginsDir).filter((f) => (f.endsWith('.ts') || f.endsWith('.js')) && !f.endsWith('.d.ts'));
 
-      for (const file of files) {
-        if (!file.endsWith('.ts') && !file.endsWith('.js')) {
-          continue;
+    for (const file of files) {
+      const filePath = path.join(this.pluginsDir, file);
+
+      try {
+        const pluginModule = await import(pathToFileURL(filePath).href);
+        const plugin = pluginModule.default;
+
+        if (plugin?.handler && plugin?.config) {
+          this.plugins.push(plugin);
         }
-
-        if (file.endsWith('.d.ts')) {
-          continue;
-        }
-
-        const filePath = path.join(this.pluginsDir, file);
-
-        try {
-          const pluginModule = await import(filePath);
-          const plugin = pluginModule.default;
-
-          if (plugin && plugin.handler && plugin.config) {
-            this.plugins.push(plugin);
-          }
-        } catch {}
-      }
-    } catch {}
+      } catch {}
+    }
   }
 
   async execute(wa: Client, ctx: MiddlewareContextType): Promise<void> {

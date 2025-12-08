@@ -245,7 +245,7 @@ If any of these match a number in your returned array, the citation check return
 
 ## 📫 Sending Messages
 
-> **Quick Jump:** [Text](#send-text) · [Reply](#reply-to-message) · [Forward](#forward-message) · [Media](#send-media) · [Banner](#send-with-banner) · [Mentions](#mentions) · [Edit & Delete](#edit--delete-messages) · [Buttons](#interactive-buttons)
+> **Quick Jump:** [Text](#send-text) · [Reply](#reply-to-message) · [Forward](#forward-message) · [Media](#send-media) · [Banner](#send-with-banner) · [Location](#send-location) · [Contact](#send-contact) · [Poll](#send-poll) · [Reaction](#send-reaction) · [Presence](#update-presence) · [Mentions](#mentions) · [Edit & Delete](#edit--delete-messages) · [Buttons](#interactive-buttons)
 
 ### Send Text
 
@@ -352,6 +352,77 @@ await wa.send(ctx.roomId, {
     body: 'Hello World!',
   },
 });
+```
+
+### Send Location
+
+Send location with coordinates.
+
+```typescript
+await wa.send(ctx.roomId, {
+  location: {
+    latitude: -6.2,
+    longitude: 106.816666,
+    title: 'Jakarta',
+    footer: 'Capital of Indonesia',
+    url: 'https://maps.google.com/?q=-6.200000,106.816666',
+  },
+});
+```
+
+### Send Contact
+
+Send one or multiple contacts.
+
+```typescript
+await wa.send(ctx.roomId, {
+  title: 'My Contacts',
+  contacts: [
+    {
+      fullname: 'John Doe',
+      phoneNumber: 6281234567890,
+      organization: 'Company Inc.',
+    },
+    {
+      fullname: 'Jane Smith',
+      phoneNumber: 6289876543210,
+    },
+  ],
+});
+```
+
+### Send Poll
+
+Create a poll with multiple options.
+
+```typescript
+await wa.send(ctx.roomId, {
+  poll: {
+    name: 'What is your favorite color?',
+    answers: ['Red', 'Blue', 'Green', 'Yellow'],
+    isMultiple: false,
+  },
+});
+```
+
+### Send Reaction
+
+React to a message with an emoji.
+
+```typescript
+await wa.reaction(ctx.message(), '👍');
+
+await wa.reaction(ctx.message(), '❤️');
+```
+
+### Update Presence
+
+Update your presence status in a chat.
+
+```typescript
+await wa.presence(ctx.roomId, 'typing');
+
+await wa.presence(ctx.roomId, 'recording');
 ```
 
 ### Mentions

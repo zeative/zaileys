@@ -28,7 +28,7 @@
 
 Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essential features like rate limiting, session management, and input validation out of the box.
 
-## ✨ Features
+## 🪶 Features
 
 - 🛡️ **Type-Safe Architecture**: Built with TypeScript and Zod for robust runtime validation and excellent IDE autocomplete.
 - 🔌 **Middleware System**: Express-style middleware support (`.use()`) for intercepting and processing messages globally.
@@ -38,7 +38,7 @@ Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essentia
 - 🤖 **Auto-Automation**: Configurable options for auto-read, auto-online presence, auto-rejecting calls, and more.
 - 📱 **Multi-Device Support**: Full support for WhatsApp Multi-Device (MD) via QR code or Pairing Code.
 
-## 🏗️ Concepts & Architecture
+## 🎨 Concepts & Architecture
 
 Zaileys is built around a few core concepts:
 

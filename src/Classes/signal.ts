@@ -12,7 +12,7 @@ import { Client } from './client';
 export class Signal {
   constructor(protected client: Client) {}
 
-  protected async initialize(roomId: string, options: z.infer<typeof SignalOptionsType>, type?: z.infer<typeof SignalType>, message?: WAMessage) {
+  protected async signal(roomId: string, options: z.infer<typeof SignalOptionsType>, type?: z.infer<typeof SignalType>, message?: WAMessage) {
     if (type != 'delete') {
       if (type == 'button') {
         options = parseZod(ButtonOptionsType, options);
@@ -192,30 +192,30 @@ export class Signal {
   }
 
   async send(roomId: string, options: z.infer<typeof SignalOptionsType>) {
-    return await this.initialize(roomId, options);
+    return await this.signal(roomId, options);
   }
 
   async forward(roomId: string, options: z.infer<typeof SignalOptionsType>) {
-    return await this.initialize(roomId, options, 'forward');
+    return await this.signal(roomId, options, 'forward');
   }
 
   async button(roomId: string, options: z.infer<typeof ButtonOptionsType>) {
-    return await this.initialize(roomId, options, 'button');
+    return await this.signal(roomId, options, 'button');
   }
 
   async edit(message: WAMessage, options: z.infer<typeof SignalOptionsType>) {
-    return await this.initialize(message.key.remoteJid, options, 'edit', message);
+    return await this.signal(message.key.remoteJid, options, 'edit', message);
   }
 
   async delete(message: WAMessage | WAMessage[]) {
     if (_.isArray(message)) {
       return Promise.all(
         message.map((message) => {
-          return this.initialize(message.key.remoteJid, {}, 'delete', message);
+          return this.signal(message.key.remoteJid, {}, 'delete', message);
         }),
       );
     }
 
-    return await this.initialize(message.key.remoteJid, {}, 'delete', message);
+    return await this.signal(message.key.remoteJid, {}, 'delete', message);
   }
 }

@@ -1,4 +1,6 @@
 <div align="center">
+  <img alt="Zaileys - Simplified WhatsApp Node.js TypeScript/JavaScript API" src="https://socialify.git.ci/zeative/zaileys/image?custom_description=Simplified+WhatsApp+Node.js+TypeScript%2FJavaScript+API&custom_language=TypeScript&description=1&font=Inter&language=1&logo=https%3A%2F%2Fgithub.com%2Fzeative%2Fzeative%2Fblob%2Fmain%2Flibraries%2Fzaileys%2Ficon.png%3Fraw%3Dtrue&owner=1&pattern=Charlie+Brown&theme=Auto">
+
   <h1 align="center">Zaileys - Simplified WhatsApp Node.js TypeScript/JavaScript API</h1>
 
 <a href="https://www.npmjs.com/package/zaileys"><img src="https://img.shields.io/npm/v/zaileys.svg" alt="NPM Version"></a>
@@ -10,7 +12,6 @@
 <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/stars/zeative/zaileys" alt="GitHub Stars"></a>
 <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/forks/zeative/zaileys" alt="GitHub Forks"></a>
 
-  <img alt="Zaileys - Simplified WhatsApp Node.js TypeScript/JavaScript API" src="https://socialify.git.ci/zeative/zaileys/image?description=1&descriptionEditable=Zaileys%20is%20a%20simplified%20version%20of%20the%20Baileys%20package%20%0Awhich%20is%20easier%20and%20faster.&font=KoHo&forks=1&issues=1&language=1&name=1&owner=1&pattern=Circuit%20Board&pulls=1&stargazers=1&theme=Auto">
 </div>
 
 <div align="center">

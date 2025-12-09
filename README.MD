@@ -31,7 +31,8 @@
 [🧩 Plugins](#-plugins) &nbsp;&nbsp;•&nbsp;&nbsp;
 [📨 Sending Messages](#-sending-messages) &nbsp;&nbsp;•&nbsp;&nbsp;
 [👥 Group Management](#-group-management) &nbsp;&nbsp;•&nbsp;&nbsp;
-[📰 Newsletter](#-newsletter-channel) &nbsp;&nbsp;•&nbsp;&nbsp;
+[📰 Newsletter Management](#-newsletter-channel) &nbsp;&nbsp;•&nbsp;&nbsp;
+[🌐 Community Management](#-community-management) &nbsp;&nbsp;•&nbsp;&nbsp;
 [🔒 Privacy](#-privacy-settings) &nbsp;&nbsp;•&nbsp;&nbsp;
 [🤝 Contributing](#-contributing)
 
@@ -790,6 +791,120 @@ await wa.newsletter.demote(channelId, 'senderId');
 
 // Delete channel
 await wa.newsletter.delete(channelId);
+```
+
+## 🌐 Community Management
+
+Create and manage WhatsApp Communities.
+
+### Create Community
+
+```typescript
+const community = await wa.community.create('My Community', 'Description here');
+console.log('Community created:', community);
+```
+
+### Create Group in Community
+
+Create a new group linked to a community.
+
+```typescript
+const communityId = '1234567890@g.us';
+const group = await wa.community.createGroup('New Group', ['senderId'], communityId);
+```
+
+### Manage Groups
+
+Link or unlink groups from a community.
+
+```typescript
+const groupId = '0987654321@g.us';
+
+// Link group
+await wa.community.group(communityId, 'link', groupId);
+
+// Unlink group
+await wa.community.group(communityId, 'unlink', groupId);
+
+// Get linked groups
+const linkedGroups = await wa.community.group(communityId, 'linked');
+```
+
+### Community Info
+
+Get metadata or update info.
+
+```typescript
+// Get metadata
+const meta = await wa.community.metadata(communityId);
+
+// Update subject
+await wa.community.update(communityId, 'subject', 'New Name');
+
+// Update description
+await wa.community.update(communityId, 'description', 'New Description');
+```
+
+### Manage Participants
+
+Manage community participants.
+
+```typescript
+// List participants
+const participants = await wa.community.participants(communityId, 'list');
+
+// Add participant
+await wa.community.participants(communityId, 'update', 'add', ['senderId']);
+
+// Remove participant
+await wa.community.participants(communityId, 'update', 'remove', ['senderId']);
+
+// Promote to admin
+await wa.community.participants(communityId, 'update', 'promote', ['senderId']);
+
+// Demote to member
+await wa.community.participants(communityId, 'update', 'demote', ['senderId']);
+```
+
+### Invite Code
+
+Manage community invite links.
+
+```typescript
+// Get invite code
+const code = await wa.community.invite(communityId, 'code');
+
+// Revoke invite code
+await wa.community.invite(communityId, 'revoke');
+
+// Get invite info
+const info = await wa.community.invite('INVITE_CODE', 'info');
+
+// Join via invite code
+await wa.community.invite('INVITE_CODE', 'accept');
+```
+
+### Community Settings
+
+Configure community settings.
+
+```typescript
+// Toggle ephemeral messages
+await wa.community.settings(communityId, 'ephemeral', 86400); // 24 hours
+
+// Who can add members? 'all_member_add' or 'admin_add'
+await wa.community.settings(communityId, 'memberAdd', 'admin_add');
+
+// Join approval mode? 'on' or 'off'
+await wa.community.settings(communityId, 'approval', 'on');
+```
+
+### Leave Community
+
+Leave a community.
+
+```typescript
+await wa.community.leave(communityId);
 ```
 
 ## 🔒 Privacy Settings

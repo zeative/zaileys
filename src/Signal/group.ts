@@ -30,9 +30,23 @@ export class Group {
     }
   }
 
-  async setting(roomId: string, type: 'announcement' | 'not_announcement' | 'locked' | 'unlocked') {
+  async setting(roomId: string, type: 'announcement' | 'not_announcement' | 'locked' | 'unlocked' | 'all_member_add' | 'admin_add') {
     const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
-    return await socket.groupSettingUpdate(roomId, type);
+
+    switch (type) {
+      case 'announcement':
+        return await socket.groupSettingUpdate(roomId, type);
+      case 'not_announcement':
+        return await socket.groupSettingUpdate(roomId, type);
+      case 'locked':
+        return await socket.groupSettingUpdate(roomId, type);
+      case 'unlocked':
+        return await socket.groupSettingUpdate(roomId, type);
+      case 'all_member_add':
+        return await socket.groupMemberAddMode(roomId, type);
+      case 'admin_add':
+        return await socket.groupMemberAddMode(roomId, type);
+    }
   }
 
   async leave(roomId: string) {
@@ -53,6 +67,32 @@ export class Group {
       case 'info':
         return await socket.groupGetInviteInfo(roomId);
     }
+  }
+
+  async metadata(roomId: string) {
+    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    return await socket.groupMetadata(roomId);
+  }
+
+  async requestJoin(roomId: string, participants: number[], type: 'approve' | 'reject') {
+    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+
+    switch (type) {
+      case 'approve':
+        return await socket.groupRequestParticipantsUpdate(roomId, numbersToJids(participants), 'approve');
+      case 'reject':
+        return await socket.groupRequestParticipantsUpdate(roomId, numbersToJids(participants), 'reject');
+    }
+  }
+
+  async requestJoinList(roomId: string) {
+    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    return await socket.groupRequestParticipantsList(roomId);
+  }
+
+  async fetchAllGroups() {
+    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    return await socket.groupFetchAllParticipating();
   }
 }
 

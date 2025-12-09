@@ -16,7 +16,7 @@
 
 <div align="center">
   <p>
-    <b>Zaileys</b> is a powerful, type-safe wrapper around Baileys, designed to simplify the development of WhatsApp bots. It provides a robust architecture with built-in state management, middleware support, and easy-to-use event handlers, making it perfect for building scalable and maintainable WhatsApp applications.
+    <b>Zaileys</b> is a powerful, type-safe wrapper around <a href="https://github.com/WhiskeySockets/Baileys">Baileys</a>, designed to simplify the development of WhatsApp bots. It provides a robust architecture with built-in state management, middleware support, and easy-to-use event handlers, making it perfect for building scalable and maintainable WhatsApp applications.
   </p>
 </div>
 

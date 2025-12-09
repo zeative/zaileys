@@ -13,8 +13,9 @@ import { Logs } from './logs';
 import { Middleware, MiddlewareHandler } from './middleware';
 import { Plugins } from './plugins';
 import { NativeProxy } from './proxy';
+import { SignalPrivacy } from '../Signal/privacy';
 
-export interface Client extends Signal, SignalGroup {}
+export interface Client extends Signal, SignalGroup, SignalPrivacy {}
 
 export class Client {
   private listener: Listener;
@@ -30,7 +31,7 @@ export class Client {
     this.options = parseZod(ClientOptionsType, options);
     this._ready = this.initialize();
 
-    return new NativeProxy().classInjection(this, [new Signal(this), new SignalGroup(this)]);
+    return new NativeProxy().classInjection(this, [new Signal(this), new SignalGroup(this), new SignalPrivacy(this)]);
   }
 
   async initialize() {

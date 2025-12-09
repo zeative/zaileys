@@ -29,6 +29,7 @@
 [📦 Installation](#-installation) &nbsp;&nbsp;•&nbsp;&nbsp;
 [⚡ Quick Start](#-quick-start) &nbsp;&nbsp;•&nbsp;&nbsp;
 [📨 Sending Messages](#-sending-messages) &nbsp;&nbsp;•&nbsp;&nbsp;
+[👥 Group Management](#-group-management) &nbsp;&nbsp;•&nbsp;&nbsp;
 [🧩 Plugins](#-plugins) &nbsp;&nbsp;•&nbsp;&nbsp;
 [🤝 Contributing](#-contributing)
 
@@ -537,7 +538,7 @@ await wa.button(ctx.roomId, {
 
 ## 👥 Group Management
 
-> **Quick Jump:** [Create](#create-group) · [Participants](#manage-participants) · [Profile](#group-profile) · [Settings](#group-settings) · [Invite Code](#invite-code) · [Leave](#leave-group)
+> **Quick Jump:** [Create](#create-group) · [Participants](#manage-participants) · [Profile](#group-profile) · [Settings](#group-settings) · [Invite Code](#invite-code) · [Metadata](#group-metadata) · [Join Requests](#join-requests) · [Fetch All](#fetch-all-groups) · [Leave](#leave-group)
 
 Manage groups, participants, and settings easily.
 
@@ -548,7 +549,7 @@ Create a new group with initial participants.
 ```typescript
 // Create group with name and participants
 const group = await wa.group.create('My Group', [6281234567890, 6289876543210]);
-console.log('Group created:', group.id);
+console.log('Group created:', group);
 ```
 
 ### Manage Participants
@@ -602,6 +603,12 @@ await wa.group.setting(groupId, 'locked');
 
 // All members can edit group info
 await wa.group.setting(groupId, 'unlocked');
+
+// Only admins can add members
+await wa.group.setting(groupId, 'admin_add');
+
+// All members can add members
+await wa.group.setting(groupId, 'all_member_add');
 ```
 
 ### Invite Code
@@ -621,6 +628,39 @@ const info = await wa.group.inviteCode('INVITE_CODE', 'info');
 
 // Join group via invite code
 await wa.group.inviteCode('INVITE_CODE', 'accept');
+```
+
+### Group Metadata
+
+Get full group metadata.
+
+```typescript
+const metadata = await wa.group.metadata(groupId);
+console.log(metadata);
+```
+
+### Join Requests
+
+Manage pending join requests.
+
+```typescript
+// Get list of pending requests
+const requests = await wa.group.requestJoinList(groupId);
+
+// Approve requests
+await wa.group.requestJoin(groupId, [6281234567890], 'approve');
+
+// Reject requests
+await wa.group.requestJoin(groupId, [6281234567890], 'reject');
+```
+
+### Fetch All Groups
+
+Get all groups the bot is part of.
+
+```typescript
+const groups = await wa.group.fetchAllGroups();
+console.log('Joined groups:', Object.keys(groups).length);
 ```
 
 ### Leave Group

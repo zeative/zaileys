@@ -79,9 +79,9 @@ export class Group {
 
     switch (type) {
       case 'approve':
-        return await socket.groupRequestParticipantsUpdate(roomId, numbersToJids(participants), 'approve');
+        return await socket.groupRequestParticipantsUpdate(roomId, numbersToJids(participants), type);
       case 'reject':
-        return await socket.groupRequestParticipantsUpdate(roomId, numbersToJids(participants), 'reject');
+        return await socket.groupRequestParticipantsUpdate(roomId, numbersToJids(participants), type);
     }
   }
 

@@ -15,8 +15,9 @@ import { Plugins } from './plugins';
 import { NativeProxy } from './proxy';
 import { SignalPrivacy } from '../Signal/privacy';
 import { SignalNewsletter } from '../Signal/newsletter';
+import { SignalCommunity } from '../Signal/community';
 
-export interface Client extends Signal, SignalGroup, SignalPrivacy, SignalNewsletter {}
+export interface Client extends Signal, SignalGroup, SignalPrivacy, SignalNewsletter, SignalCommunity {}
 
 export class Client {
   private listener: Listener;
@@ -32,7 +33,13 @@ export class Client {
     this.options = parseZod(ClientOptionsType, options);
     this._ready = this.initialize();
 
-    return new NativeProxy().classInjection(this, [new Signal(this), new SignalGroup(this), new SignalPrivacy(this), new SignalNewsletter(this)]);
+    return new NativeProxy().classInjection(this, [
+      new Signal(this),
+      new SignalGroup(this),
+      new SignalPrivacy(this),
+      new SignalNewsletter(this),
+      new SignalCommunity(this),
+    ]);
   }
 
   async initialize() {

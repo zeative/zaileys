@@ -29,6 +29,7 @@ export const ButtonInteractiveSingleSelectType = z.object({
   section: z
     .object({
       title: z.string(),
+      highlight_label: z.string().optional(),
       rows: z
         .object({
           id: z.string(),

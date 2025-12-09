@@ -16,7 +16,7 @@ export class Group {
     return await socket.groupParticipantsUpdate(roomId, numbersToJids(participants), action);
   }
 
-  async profile(roomId: string, update: string | Buffer, type: 'subject' | 'description' | 'avatar') {
+  async profile(roomId: string, update: string | Buffer, type: 'subject' | 'description' | 'picture') {
     const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
     const isBuffer = Buffer.isBuffer(update);
 
@@ -25,7 +25,7 @@ export class Group {
         if (!isBuffer) return await socket.groupUpdateSubject(roomId, update);
       case 'description':
         if (!isBuffer) return await socket.groupUpdateDescription(roomId, update);
-      case 'avatar':
+      case 'picture':
         return await socket.updateProfilePicture(roomId, toBuffer(update));
     }
   }

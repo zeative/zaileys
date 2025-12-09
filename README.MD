@@ -538,7 +538,7 @@ await wa.button(ctx.roomId, {
 
 ## 👥 Group Management
 
-> **Quick Jump:** [Create](#create-group) · [Participants](#manage-participants) · [Profile](#group-profile) · [Settings](#group-settings) · [Invite Code](#invite-code) · [Metadata](#group-metadata) · [Join Requests](#join-requests) · [Fetch All](#fetch-all-groups) · [Leave](#leave-group)
+> **Quick Jump:** [Create](#create-group) · [Participants](#manage-participants) · [Profile](#group-profile) · [Settings](#group-settings) · [Invite Code](#invite-code) · [Metadata](#group-metadata) · [Join Requests](#join-requests) · [Fetch All](#fetch-all-groups) · [Ephemeral](#ephemeral-messages) · [Leave](#leave-group)
 
 Manage groups, participants, and settings easily.
 
@@ -661,6 +661,24 @@ Get all groups the bot is part of.
 ```typescript
 const groups = await wa.group.fetchAllGroups();
 console.log('Joined groups:', Object.keys(groups).length);
+```
+
+### Ephemeral Messages
+
+Set disappearing messages in groups.
+
+```typescript
+// Turn off disappearing messages
+await wa.group.ephemeral(groupId, 'off');
+
+// Set to 24 hours
+await wa.group.ephemeral(groupId, '24h');
+
+// Set to 7 days
+await wa.group.ephemeral(groupId, '7d');
+
+// Set to 90 days
+await wa.group.ephemeral(groupId, '90d');
 ```
 
 ### Leave Group

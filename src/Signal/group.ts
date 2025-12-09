@@ -94,6 +94,19 @@ export class Group {
     const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
     return await socket.groupFetchAllParticipating();
   }
+
+  async ephemeral(roomId: string, type: 'off' | '24h' | '7d' | '90d') {
+    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+
+    const options = {
+      off: 0,
+      '24h': 86_400,
+      '7d': 604_800,
+      '90d': 7_776_000,
+    };
+
+    return await socket.groupToggleEphemeral(roomId, options[type]);
+  }
 }
 
 export class SignalGroup {

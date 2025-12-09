@@ -1,19 +1,19 @@
 import makeWASocket, { ParticipantAction } from 'baileys';
 import { Client } from '../Classes';
 import { store } from '../Modules/store';
-import { numbersToJids, toBuffer } from '../Utils';
+import { toBuffer } from '../Utils';
 
 export class Group {
   constructor(protected client: Client) {}
 
-  async create(name: string, participants: number[]) {
+  async create(name: string, participants: string[]) {
     const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
-    return await socket.groupCreate(name, numbersToJids(participants));
+    return await socket.groupCreate(name, participants);
   }
 
-  async participant(roomId: string, participants: number[], action: ParticipantAction) {
+  async participant(roomId: string, participants: string[], action: ParticipantAction) {
     const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
-    return await socket.groupParticipantsUpdate(roomId, numbersToJids(participants), action);
+    return await socket.groupParticipantsUpdate(roomId, participants, action);
   }
 
   async profile(roomId: string, update: string | Buffer, type: 'subject' | 'description' | 'picture') {
@@ -74,14 +74,14 @@ export class Group {
     return await socket.groupMetadata(roomId);
   }
 
-  async requestJoin(roomId: string, participants: number[], type: 'approve' | 'reject') {
+  async requestJoin(roomId: string, participants: string[], type: 'approve' | 'reject') {
     const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
 
     switch (type) {
       case 'approve':
-        return await socket.groupRequestParticipantsUpdate(roomId, numbersToJids(participants), type);
+        return await socket.groupRequestParticipantsUpdate(roomId, participants, type);
       case 'reject':
-        return await socket.groupRequestParticipantsUpdate(roomId, numbersToJids(participants), type);
+        return await socket.groupRequestParticipantsUpdate(roomId, participants, type);
     }
   }
 

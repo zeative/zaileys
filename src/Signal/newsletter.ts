@@ -52,9 +52,9 @@ export class Newsletter {
     return await socket.newsletterSubscribers(roomId);
   }
 
-  async reaction(roomId: string, message: string, reaction: string) {
+  async reaction(roomId: string, chatId: string, reaction: string) {
     const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
-    return await socket.newsletterReactMessage(roomId, message, reaction);
+    return await socket.newsletterReactMessage(roomId, chatId, reaction);
   }
 
   async fetchMessages(roomId: string, count: number, since: Date, after: Date) {

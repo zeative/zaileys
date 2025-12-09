@@ -28,9 +28,11 @@
 [🪶 Features](#-features) &nbsp;&nbsp;•&nbsp;&nbsp;
 [📦 Installation](#-installation) &nbsp;&nbsp;•&nbsp;&nbsp;
 [⚡ Quick Start](#-quick-start) &nbsp;&nbsp;•&nbsp;&nbsp;
+[🧩 Plugins](#-plugins) &nbsp;&nbsp;•&nbsp;&nbsp;
 [📨 Sending Messages](#-sending-messages) &nbsp;&nbsp;•&nbsp;&nbsp;
 [👥 Group Management](#-group-management) &nbsp;&nbsp;•&nbsp;&nbsp;
-[🧩 Plugins](#-plugins) &nbsp;&nbsp;•&nbsp;&nbsp;
+[📰 Newsletter](#-newsletter-channel) &nbsp;&nbsp;•&nbsp;&nbsp;
+[🔒 Privacy](#-privacy-settings) &nbsp;&nbsp;•&nbsp;&nbsp;
 [🤝 Contributing](#-contributing)
 
 </div>
@@ -550,7 +552,7 @@ Create a new group with initial participants.
 
 ```typescript
 // Create group with name and participants
-const group = await wa.group.create('My Group', [6281234567890, 6289876543210]);
+const group = await wa.group.create('My Group', ['senderId']);
 console.log('Group created:', group);
 ```
 
@@ -562,16 +564,16 @@ Add, remove, promote, or demote participants.
 const groupId = '1234567890@g.us';
 
 // Add participants
-await wa.group.participant(groupId, [6281234567890], 'add');
+await wa.group.participant(groupId, ['senderId'], 'add');
 
 // Remove participants
-await wa.group.participant(groupId, [6281234567890], 'remove');
+await wa.group.participant(groupId, [...], 'remove');
 
 // Promote to admin
-await wa.group.participant(groupId, [6281234567890], 'promote');
+await wa.group.participant(groupId, [...], 'promote');
 
 // Demote to member
-await wa.group.participant(groupId, [6281234567890], 'demote');
+await wa.group.participant(groupId, [...], 'demote');
 ```
 
 ### Group Profile
@@ -650,10 +652,10 @@ Manage pending join requests.
 const requests = await wa.group.requestJoinList(groupId);
 
 // Approve requests
-await wa.group.requestJoin(groupId, [6281234567890], 'approve');
+await wa.group.requestJoin(groupId, ['senderId'], 'approve');
 
 // Reject requests
-await wa.group.requestJoin(groupId, [6281234567890], 'reject');
+await wa.group.requestJoin(groupId, [...], 'reject');
 ```
 
 ### Fetch All Groups
@@ -689,6 +691,158 @@ Leave group.
 
 ```typescript
 await wa.group.leave(groupId);
+```
+
+## 📰 Newsletter (Channel)
+
+Create and manage WhatsApp Channels (Newsletters).
+
+### Create Channel
+
+```typescript
+const channel = await wa.newsletter.create('My Channel', 'Description here');
+console.log('Channel created:', channel);
+```
+
+### Channel Actions
+
+Follow, unfollow, mute, or unmute a channel.
+
+```typescript
+const channelId = '1234567890@newsletter';
+
+// Follow
+await wa.newsletter.action(channelId, 'follow');
+
+// Unfollow
+await wa.newsletter.action(channelId, 'unfollow');
+
+// Mute
+await wa.newsletter.action(channelId, 'mute');
+
+// Unmute
+await wa.newsletter.action(channelId, 'unmute');
+```
+
+### Update Channel
+
+Update channel info.
+
+```typescript
+// Update name
+await wa.newsletter.update(channelId, 'New Name', 'name');
+
+// Update description
+await wa.newsletter.update(channelId, 'New Description', 'description');
+
+// Update picture (URL/Buffer)
+await wa.newsletter.update(channelId, 'https://example.com/image.jpg', 'picture');
+
+// Remove picture
+await wa.newsletter.removePicture(channelId);
+```
+
+### Channel Info
+
+Get channel details.
+
+```typescript
+// Get metadata by ChannelId
+const meta = await wa.newsletter.metadata(channelId, 'jid');
+
+// Get metadata by Invite Code
+const metaInvite = await wa.newsletter.metadata('INVITE_CODE', 'invite');
+
+// Get subscribers
+const subs = await wa.newsletter.subscribers(channelId);
+
+// Get admin count
+const adminCount = await wa.newsletter.adminCount(channelId);
+```
+
+### Manage Messages
+
+Fetch messages or react to them.
+
+```typescript
+// Fetch messages
+const since = new Date() - 1000 * 60 * 60 * 24; // 1 day
+const after = new Date();
+
+const count = 10;
+
+const messages = await wa.newsletter.fetchMessages(channelId, count, since, after);
+
+// React to message
+await wa.newsletter.reaction(channelId, 'chatId', '👍');
+```
+
+### Admin Actions
+
+Manage channel ownership and admins.
+
+```typescript
+// Change owner
+await wa.newsletter.changeOwner(channelId, 'senderId');
+
+// Demote admin
+await wa.newsletter.demote(channelId, 'senderId');
+
+// Delete channel
+await wa.newsletter.delete(channelId);
+```
+
+## 🔒 Privacy Settings
+
+Manage your privacy settings and block list.
+
+### Block/Unblock
+
+```typescript
+// Block user
+await wa.privacy.block('senderId');
+
+// Unblock user
+await wa.privacy.unblock('senderId');
+
+// Get blocklist
+const blocklist = await wa.privacy.blocklist();
+```
+
+### Privacy Configuration
+
+Update privacy settings.
+
+```typescript
+// Last Seen: 'all', 'contacts', 'contact_blacklist', 'none'
+await wa.privacy.lastSeen('contacts');
+
+// Online: 'all', 'match_last_seen'
+await wa.privacy.online('match_last_seen');
+
+// Profile Picture: 'all', 'contacts', 'contact_blacklist', 'none'
+await wa.privacy.picture('all');
+
+// Status: 'all', 'contacts', 'contact_blacklist', 'none'
+await wa.privacy.status('contacts');
+
+// Read Receipts: 'all', 'none'
+await wa.privacy.readReceipt('all');
+
+// Group Add: 'all', 'contacts', 'contact_blacklist', 'none'
+await wa.privacy.groupsAdd('contacts');
+
+// Default Disappearing Mode: 'off', '24h', '7d', '90d'
+await wa.privacy.ephemeral('90d');
+```
+
+### Get Settings
+
+Fetch current privacy settings.
+
+```typescript
+const settings = await wa.privacy.getSettings();
+console.log(settings);
 ```
 
 ## 🤝 Contributing

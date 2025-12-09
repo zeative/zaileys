@@ -30,14 +30,14 @@ export class Group {
     }
   }
 
-  async setting(roomId: string, type: 'announcement' | 'not_announcement' | 'locked' | 'unlocked' | 'all_member_add' | 'admin_add') {
+  async setting(roomId: string, type: 'open' | 'close' | 'locked' | 'unlocked' | 'all_member_add' | 'admin_add') {
     const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
 
     switch (type) {
-      case 'announcement':
-        return await socket.groupSettingUpdate(roomId, type);
-      case 'not_announcement':
-        return await socket.groupSettingUpdate(roomId, type);
+      case 'open':
+        return await socket.groupSettingUpdate(roomId, 'not_announcement');
+      case 'close':
+        return await socket.groupSettingUpdate(roomId, 'announcement');
       case 'locked':
         return await socket.groupSettingUpdate(roomId, type);
       case 'unlocked':

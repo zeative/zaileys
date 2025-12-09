@@ -592,11 +592,11 @@ await wa.group.profile(groupId, 'https://example.com/icon.jpg', 'avatar');
 Configure group permissions.
 
 ```typescript
-// Only admins can send messages
-await wa.group.setting(groupId, 'announcement');
-
 // All members can send messages
-await wa.group.setting(groupId, 'not_announcement');
+await wa.group.setting(groupId, 'open');
+
+// Only admins can send messages
+await wa.group.setting(groupId, 'close');
 
 // Only admins can edit group info
 await wa.group.setting(groupId, 'locked');

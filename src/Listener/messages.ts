@@ -149,7 +149,7 @@ export class Messages {
     output.mentions = getUsersMentions(output.text);
     output.links = extractUrls(output.text || '');
 
-    output.isBot = output.chatId.startsWith('BAE5') || output.chatId.startsWith('3EB0') || output.chatId.startsWith('Z4CD');
+    output.isBot = output.chatId.startsWith('BAE5') || output.chatId.startsWith('3EB0') || output.chatId.startsWith('Z4D3FC');
     output.isFromMe = isFromMe;
     output.isTagMe = output.mentions?.includes(output.receiverId.split('@')[0]);
     output.isPrefix = output.text?.startsWith(this.client.options?.prefix) || false;

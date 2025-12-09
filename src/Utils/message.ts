@@ -20,7 +20,7 @@ export const generateId = (input: string | string[]) => {
     hash += (hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24);
   }
 
-  return 'Z4CD' + (hash >>> 0).toString(16).padStart(8, '0').toUpperCase();
+  return 'Z4D3FC' + (hash >>> 0).toString(16).padStart(8, '0').toUpperCase();
 };
 
 export const getUsersMentions = (text = '') => {
@@ -39,6 +39,11 @@ export const extractJids = (text = '') => {
     if (match[1].length <= 15) ids.add(match[1]);
   }
   return _.flatMap([...ids], (id) => [`${id}@s.whatsapp.net`, `${id}@g.us`, `${id}@lid`]);
+};
+
+export const numbersToJids = (numbers: number[]) => {
+  if (_.isEmpty(numbers)) return [];
+  return _.map([...numbers], (id) => `${id}@s.whatsapp.net`);
 };
 
 export const cleanMediaObject = (object: any) => {

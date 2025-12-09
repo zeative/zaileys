@@ -1,19 +1,19 @@
 import makeWASocket, { ParticipantAction } from 'baileys';
 import { Client } from '../Classes';
 import { store } from '../Modules/store';
-import { toBuffer } from '../Utils';
+import { numbersToJids, toBuffer } from '../Utils';
 
 export class Group {
   constructor(protected client: Client) {}
 
-  async create(name: string, participants: string[]) {
+  async create(name: string, participants: number[]) {
     const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
-    return await socket.groupCreate(name, participants);
+    return await socket.groupCreate(name, numbersToJids(participants));
   }
 
-  async participant(roomId: string, participants: string[], action: ParticipantAction) {
+  async participant(roomId: string, participants: number[], action: ParticipantAction) {
     const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
-    return await socket.groupParticipantsUpdate(roomId, participants, action);
+    return await socket.groupParticipantsUpdate(roomId, numbersToJids(participants), action);
   }
 
   async profile(roomId: string, update: string | Buffer, type: 'subject' | 'description' | 'avatar') {

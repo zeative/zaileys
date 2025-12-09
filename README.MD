@@ -547,7 +547,7 @@ Create a new group with initial participants.
 
 ```typescript
 // Create group with name and participants
-const group = await wa.group.create('My Group', ['6281234567890', '6289876543210']);
+const group = await wa.group.create('My Group', [6281234567890, 6289876543210]);
 console.log('Group created:', group.id);
 ```
 
@@ -559,16 +559,16 @@ Add, remove, promote, or demote participants.
 const groupId = '1234567890@g.us';
 
 // Add participants
-await wa.group.participant(groupId, ['6281234567890'], 'add');
+await wa.group.participant(groupId, [6281234567890], 'add');
 
 // Remove participants
-await wa.group.participant(groupId, ['6281234567890'], 'remove');
+await wa.group.participant(groupId, [6281234567890], 'remove');
 
 // Promote to admin
-await wa.group.participant(groupId, ['6281234567890'], 'promote');
+await wa.group.participant(groupId, [6281234567890], 'promote');
 
 // Demote to member
-await wa.group.participant(groupId, ['6281234567890'], 'demote');
+await wa.group.participant(groupId, [6281234567890], 'demote');
 ```
 
 ### Group Profile
@@ -582,7 +582,7 @@ await wa.group.profile(groupId, 'New Group Name', 'subject');
 // Update description
 await wa.group.profile(groupId, 'This is the new description', 'description');
 
-// Update group icon (from URL or Buffer)
+// Update group avatar (from URL or Buffer)
 await wa.group.profile(groupId, 'https://example.com/icon.jpg', 'avatar');
 ```
 
@@ -625,7 +625,7 @@ await wa.group.inviteCode('INVITE_CODE', 'accept');
 
 ### Leave Group
 
-Leave a group.
+Leave group.
 
 ```typescript
 await wa.group.leave(groupId);
@@ -636,16 +636,16 @@ await wa.group.leave(groupId);
 Contributions are welcome! Please follow these steps:
 
 1.  Fork the repository.
-2.  Create a new branch: `git checkout -b feature/my-feature`.
+2.  Create new branch: `git checkout -b feature/my-feature`.
 3.  Commit your changes: `git commit -m 'Add some feature'`.
 4.  Push to the branch: `git push origin feature/my-feature`.
-5.  Open a Pull Request.
+5.  Open Pull Request.
 
 ### 🎯 Issues & Feedback
 
 **If you encounter any problems or have feature requests, please open an [issue](https://github.com/zeative/zaileys/issues)**
 
-- [Buy me a coffee ☕](https://saweria.co/zaadevofc)
+- [Buy me coffee ☕](https://saweria.co/zaadevofc)
 - [Ko-Fi](https://ko-fi.com/zaadevofc)
 - [Trakteer](https://trakteer.id/zaadevofc)
 - ⭐ Star the repo on GitHub

@@ -92,6 +92,8 @@ Here is a minimal example to get your bot running with QR code authentication:
 
 ```typescript
 import { Client } from 'zaileys';
+// or
+const { Client } = require('zaileys');
 
 const wa = new Client({
   authType: 'qr',

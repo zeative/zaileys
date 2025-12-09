@@ -698,6 +698,8 @@ await wa.group.leave(groupId);
 
 Create and manage WhatsApp Channels (Newsletters).
 
+> **Quick Jump:** [Create](#create-channel) · [Actions](#channel-actions) · [Update](#update-channel) · [Info](#channel-info) · [Messages](#manage-messages) · [Admin](#admin-actions)
+
 ### Create Channel
 
 ```typescript
@@ -796,6 +798,8 @@ await wa.newsletter.delete(channelId);
 ## 🌐 Community Management
 
 Create and manage WhatsApp Communities.
+
+> **Quick Jump:** [Create](#create-community) · [Create Group](#create-group-in-community) · [Groups](#manage-groups) · [Info](#community-info) · [Participants](#manage-participants-1) · [Invite](#invite-code-1) · [Settings](#community-settings) · [Leave](#leave-community)
 
 ### Create Community
 
@@ -910,6 +914,8 @@ await wa.community.leave(communityId);
 ## 🔒 Privacy Settings
 
 Manage your privacy settings and block list.
+
+> **Quick Jump:** [Block/Unblock](#blockunblock) · [Configuration](#privacy-configuration) · [Get Settings](#get-settings)
 
 ### Block/Unblock
 

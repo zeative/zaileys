@@ -33,7 +33,11 @@ export class Plugins {
 
       try {
         const pluginModule = await import(pathToFileURL(filePath).href);
-        const plugin = pluginModule.default;
+        let plugin = pluginModule.default;
+
+        if (plugin?.default) {
+          plugin = plugin.default;
+        }
 
         if (plugin?.handler && plugin?.config) {
           this.plugins.push(plugin);

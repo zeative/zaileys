@@ -88,7 +88,7 @@ export class Connection {
 
         const isReconnect = typeof code === 'number' && code !== DisconnectReason.loggedOut;
 
-        store.spinner.error(`[${code} - Closed] ${error}`);
+        store.spinner.error(` [${code} - Closed] ${error}`);
 
         if (code === 401 || code === 405 || code === 500) {
           store.spinner.error(' Invalid session, please delete manually!');

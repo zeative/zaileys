@@ -1,7 +1,7 @@
 import { Client } from 'zaileys';
 
 const wa = new Client({
-  authType: 'qr',
+  authType: 'qr', // or pairing
 });
 
 wa.on('messages', async (ctx) => {

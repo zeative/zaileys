@@ -31,24 +31,26 @@ export class Client {
 
   constructor(public options: z.infer<typeof ClientOptionsType>) {
     this.options = parseZod(ClientOptionsType, options);
-    this._ready = this.initialize();
 
-    return new NativeProxy().classInjection(this, [
+    const proxy = new NativeProxy().classInjection(this, [
       new Signal(this),
       new SignalGroup(this),
       new SignalPrivacy(this),
       new SignalNewsletter(this),
       new SignalCommunity(this),
     ]);
+
+    this._ready = this.initialize(proxy);
+    return proxy;
   }
 
-  async initialize() {
+  async initialize(client?: Client) {
     await autoDisplayBanner();
     await registerAuthCreds(this);
 
     await this.plugins.load();
 
-    this.listener = new Listener(this);
+    this.listener = new Listener(client || this);
     this.logs = new Logs(this);
   }
 

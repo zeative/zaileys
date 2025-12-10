@@ -39,6 +39,6 @@ export default defineConfig({
     };
   },
 
-  tsconfig: './tsconfig.json',
+  // tsconfig: './tsconfig.json',
   noExternal: [],
 });

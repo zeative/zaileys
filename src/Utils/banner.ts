@@ -1,10 +1,10 @@
 import figlet from 'figlet';
-import gradient, { cristal, mind, morning } from 'gradient-string';
+import { cristal } from 'gradient-string';
+import qrcode from 'qrcode-terminal';
 import pkg from '../../package.json' assert { type: 'json' };
 import { store } from '../Modules/store';
-import { getLatestLibVersion } from './validate';
-import qrcode from 'qrcode-terminal';
 import { logColor } from './helper';
+import { getLatestLibVersion } from './validate';
 
 export const autoDisplayQRCode = (code: string) => {
   qrcode.generate(code, { small: true }, (code) => {

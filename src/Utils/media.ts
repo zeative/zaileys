@@ -1,7 +1,7 @@
 import { fileTypeFromBuffer } from 'file-type';
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs/promises';
-import { isArrayBuffer, isBuffer, isString } from 'lodash';
+import _ from 'lodash';
 import webp from 'node-webpmux';
 import { tmpdir } from 'os';
 import path from 'path';
@@ -91,9 +91,9 @@ class FileManager {
 
 class BufferConverter {
   static async toBuffer(input: MediaInput): Promise<any> {
-    if (isBuffer(input)) return input;
-    if (isArrayBuffer(input)) return Buffer.from(input);
-    if (isString(input)) return this.fromString(input);
+    if (_.isBuffer(input)) return input;
+    if (_.isArrayBuffer(input)) return Buffer.from(input);
+    if (_.isString(input)) return this.fromString(input);
 
     throw new Error('Invalid input type: expected string, Buffer, or ArrayBuffer');
   }

@@ -24,19 +24,21 @@ export class Logs {
     if (!this.client.options.showLogs) return;
 
     store.events.on('connection', (data) => {
-      if (data?.status === 'open') this.ready = true;
-
-      if (this.ready) {
-        console.log();
-        store.spinner.info('Logs Indicator:');
-
-        console.log(logColor('  •', 'orange') + ' Private Chat');
-        console.log(logColor('  •', 'lime') + ' Group Chat');
-        console.log(logColor('  •', 'blue') + ' Newsletter Chat');
-
-        console.log();
+      if (data?.status === 'open') {
+        store.set('logs', { ready: 1 });
       }
     });
+
+    if (store.get('logs')?.ready) {
+      console.log();
+      store.spinner.info('Logs Indicator:');
+
+      console.log(logColor('  •', 'orange') + ' Private Chat');
+      console.log(logColor('  •', 'lime') + ' Group Chat');
+      console.log(logColor('  •', 'blue') + ' Newsletter Chat');
+
+      console.log();
+    }
   }
 
   message(message: Partial<z.infer<typeof ListenerMessagesType>>) {

@@ -6,6 +6,9 @@ import { Client } from './client';
 import { ListenerCallsType } from '../Types/calls';
 
 export class Logs {
+  private logsInitialized = false;
+  private logsReady = false;
+
   constructor(private client: Client) {
     this.initialize();
   }
@@ -20,27 +23,28 @@ export class Logs {
 
   initialize() {
     if (!this.client.options.showLogs) return;
+    if (this.logsInitialized) return;
+
+    this.logsInitialized = true;
 
     store.events.on('connection', (data) => {
-      if (data?.status === 'open') {
-        store.set('logs', { ready: true });
-      }
+      if (data?.status !== 'open') return;
+      if (this.logsReady) return;
+      this.logsReady = true;
 
-      if (store.get('logs')?.ready) {
-        console.log();
-        store.spinner.info('Logs Indicator:');
+      console.log();
+      store.spinner.info('Logs Indicator:');
 
-        console.log(logColor('  •', 'orange') + ' Private Chat');
-        console.log(logColor('  •', 'lime') + ' Group Chat');
-        console.log(logColor('  •', 'blue') + ' Newsletter Chat');
+      console.log(logColor('  •', 'orange') + ' Private Chat');
+      console.log(logColor('  •', 'lime') + ' Group Chat');
+      console.log(logColor('  •', 'blue') + ' Newsletter Chat');
 
-        console.log();
-      }
+      console.log();
     });
   }
 
   message(message: Partial<z.infer<typeof ListenerMessagesType>>) {
-    if (!store.get('logs')?.ready) return;
+    if (!this.logsReady) return;
 
     const color = ignoreLint(this.getRoomColor(message));
     const isMatch = message?.text?.toLowerCase()?.match('zaileys');
@@ -66,7 +70,7 @@ export class Logs {
   }
 
   call(call: Partial<z.infer<typeof ListenerCallsType>>) {
-    if (!store.get('logs')?.ready) return;
+    if (!this.logsReady) return;
 
     const color = ignoreLint(this.getRoomColor(call));
 

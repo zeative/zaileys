@@ -17,7 +17,7 @@ export class Logs {
     if (!validator?.isGroup) return 'orange';
     if (validator?.isGroup) return 'lime';
 
-    return '#383838ff';
+    return 'dimgray';
   }
 
   initialize() {
@@ -45,7 +45,7 @@ export class Logs {
     const color = ignoreLint(this.getRoomColor(message));
     const isMatch = message?.text?.toLowerCase()?.match('zaileys');
 
-    const timestamp = logColor(`[${new Date(message?.timestamp).toTimeString().split(' ')[0]}]`, '#383838ff');
+    const timestamp = logColor(`[${new Date(message?.timestamp).toTimeString().split(' ')[0]}]`, 'dimgray');
     const sender = logColor(`${message?.roomName}`, color);
 
     const text = message?.text?.slice(0, 300) || '';
@@ -54,12 +54,12 @@ export class Logs {
     let output = `${timestamp} → ${sender}\n`;
 
     if (message?.isNewsletter) {
-      output += `${logColor(`[room]`, '#383838ff')} → ${logColor(`${message?.roomName} (${cleanJid(message?.roomId)})`, color)}\n`;
+      output += `${logColor(`[room]`, 'dimgray')} → ${logColor(`${message?.roomName} (${cleanJid(message?.roomId)})`, color)}\n`;
     } else {
-      output += `${logColor(`[sender]`, '#383838ff')} → ${logColor(`${message?.senderName} (${cleanJid(message?.senderId)})`, color)}\n`;
+      output += `${logColor(`[sender]`, 'dimgray')} → ${logColor(`${message?.senderName} (${cleanJid(message?.senderId)})`, color)}\n`;
     }
 
-    output += `${logColor(`[${message?.chatType}]`, '#383838ff')} → ${logColor(text + dots, isMatch ? ['#ff5f6d', '#ffc371'] : 'brown')}\n`;
+    output += `${logColor(`[${message?.chatType}]`, 'dimgray')} → ${logColor(text + dots, isMatch ? ['#ff5f6d', '#ffc371'] : 'brown')}\n`;
     output += `—`;
 
     console.log(output);
@@ -70,13 +70,13 @@ export class Logs {
 
     const color = ignoreLint(this.getRoomColor(call));
 
-    const timestamp = logColor(`[${new Date(call?.date).toTimeString().split(' ')[0]}]`, '#383838ff');
+    const timestamp = logColor(`[${new Date(call?.date).toTimeString().split(' ')[0]}]`, 'dimgray');
     const sender = logColor(`${call?.roomName}`, color);
 
     let output = `${timestamp} → ${sender}\n`;
-    output += `${logColor(`[caller]`, '#383838ff')} → ${logColor(`${call?.callerName} (${cleanJid(call?.callerId)})`, color)}\n`;
+    output += `${logColor(`[caller]`, 'dimgray')} → ${logColor(`${call?.callerName} (${cleanJid(call?.callerId)})`, color)}\n`;
 
-    output += `${logColor(`[${call?.status}]`, '#383838ff')} → ${logColor(call?.isVideo ? 'Video Call' : 'Voice Call', 'brown')}\n`;
+    output += `${logColor(`[${call?.status}]`, 'dimgray')} → ${logColor(call?.isVideo ? 'Video Call' : 'Voice Call', 'brown')}\n`;
     output += `—`;
 
     console.log(output);

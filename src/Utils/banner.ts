@@ -31,6 +31,6 @@ export const autoDisplayBanner = async () => {
   const fancy = cristal(logo);
 
   console.log(fancy);
-  console.log(logColor(copyright, '#383838ff'));
+  console.log(logColor(copyright, 'dimgray'));
   console.log(logColor(updateLabel, updateColor));
 };

@@ -14,11 +14,8 @@ import { ignoreLint } from './validate';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import ffprobeInstaller from '@ffprobe-installer/ffprobe';
 
-const ffmpegPath = ffmpegInstaller.path;
-const ffprobePath = ffprobeInstaller.path;
-
-ffmpeg.setFfmpegPath(ffmpegPath);
-ffmpeg.setFfprobePath(ffprobePath);
+ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+ffmpeg.setFfprobePath(ffprobeInstaller.path);
 
 const CONSTANTS = {
   OPUS: {

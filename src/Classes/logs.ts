@@ -1,13 +1,15 @@
+import makeWASocket from 'baileys';
 import z from 'zod';
 import { store } from '../Modules/store';
+import { ListenerCallsType } from '../Types/calls';
 import { ListenerMessagesType } from '../Types/messages';
 import { cleanJid, ignoreLint, logColor } from '../Utils';
 import { Client } from './client';
-import { ListenerCallsType } from '../Types/calls';
 
 export class Logs {
   private logsInitialized = false;
-  private logsReady = false;
+  private logsDisplayed = false;
+  private isReady = false;
 
   constructor(private client: Client) {
     this.initialize();
@@ -27,10 +29,14 @@ export class Logs {
 
     this.logsInitialized = true;
 
-    store.events.on('connection', (data) => {
-      if (data?.status !== 'open') return;
-      if (this.logsReady) return;
-      this.logsReady = true;
+    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+
+    socket.ev.on('connection.update', ({ connection }) => {
+      if (this.logsDisplayed) return;
+      if (connection !== 'open') return;
+
+      this.logsDisplayed = true;
+      this.isReady = true;
 
       console.log();
       store.spinner.info('Logs Indicator:');
@@ -44,7 +50,7 @@ export class Logs {
   }
 
   message(message: Partial<z.infer<typeof ListenerMessagesType>>) {
-    if (!this.logsReady) return;
+    if (!this.isReady) return; // Pakai instance variable
 
     const color = ignoreLint(this.getRoomColor(message));
     const isMatch = message?.text?.toLowerCase()?.match('zaileys');
@@ -70,7 +76,7 @@ export class Logs {
   }
 
   call(call: Partial<z.infer<typeof ListenerCallsType>>) {
-    if (!this.logsReady) return;
+    if (!store.get('logs')?.ready) return;
 
     const color = ignoreLint(this.getRoomColor(call));
 

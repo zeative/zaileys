@@ -23,14 +23,34 @@ export class Plugins {
     this.pluginsDir = pluginsDir;
   }
 
+  /**
+   * Rekursif membaca semua file di direktori dan subdirektori
+   */
+  private getAllFiles(dir: string, fileList: string[] = []): string[] {
+    if (!fs.existsSync(dir)) return fileList;
+
+    const files = fs.readdirSync(dir);
+
+    for (const file of files) {
+      const filePath = path.join(dir, file);
+      const stat = fs.statSync(filePath);
+
+      if (stat.isDirectory()) {
+        this.getAllFiles(filePath, fileList);
+      } else if ((file.endsWith('.ts') || file.endsWith('.js')) && !file.endsWith('.d.ts')) {
+        fileList.push(filePath);
+      }
+    }
+
+    return fileList;
+  }
+
   async load(): Promise<void> {
     if (!fs.existsSync(this.pluginsDir)) return;
 
-    const files = fs.readdirSync(this.pluginsDir).filter((f) => (f.endsWith('.ts') || f.endsWith('.js')) && !f.endsWith('.d.ts'));
+    const files = this.getAllFiles(this.pluginsDir);
 
-    for (const file of files) {
-      const filePath = path.join(this.pluginsDir, file);
-
+    for (const filePath of files) {
       try {
         const pluginModule = await import(pathToFileURL(filePath).href);
         let plugin = pluginModule.default;

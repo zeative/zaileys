@@ -178,7 +178,7 @@ import { definePlugins } from 'zaileys';
 
 export default definePlugins(
   async (wa, ctx) => {
-    await wa.send(ctx.roomId, 'Hello from plugin!');
+    await wa.send(ctx.messages.roomId, 'Hello from plugin!');
   },
   {
     matcher: ['/hello', '!hello'], // Trigger commands

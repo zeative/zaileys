@@ -31,6 +31,7 @@
 [🚀 Overview](#-overview) &nbsp;&nbsp;•&nbsp;&nbsp;
 [🪶 Features](#-features) &nbsp;&nbsp;•&nbsp;&nbsp;
 [📦 Installation](#-installation) &nbsp;&nbsp;•&nbsp;&nbsp;
+[🏁 Starter Kit](#-starter-kit) &nbsp;&nbsp;•&nbsp;&nbsp;
 [⚡ Quick Start](#-quick-start) &nbsp;&nbsp;•&nbsp;&nbsp;
 [🧩 Plugins](#-plugins) &nbsp;&nbsp;•&nbsp;&nbsp;
 [📨 Sending Messages](#-sending-messages) &nbsp;&nbsp;•&nbsp;&nbsp;
@@ -94,6 +95,12 @@ yarn add zaileys
 > **Note**: Requires Node.js v20+ and TypeScript for best experience.
 
 > **FFmpeg**: No need to install FFmpeg separately! It's already bundled with Zaileys for seamless media processing (audio, video, stickers).
+
+## 🏁 Starter Kit
+
+Prefer a ready-to-run setup? We provide an official **Starter Kit** that includes a fully configured environment, example commands, and best practices.
+
+👉 [**Zaileys Example**](https://github.com/zeative/starter-zaileys)
 
 ## ⚡ Quick Start
 

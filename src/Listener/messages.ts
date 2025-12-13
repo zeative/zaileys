@@ -157,7 +157,7 @@ export class Messages {
     output.isSpam = await this.limiter.isSpam(output.channelId);
 
     if (output.isPrefix) {
-      output.text = _.replace(output.text, new RegExp(`^${this.client.options?.prefix}`), '');
+      output.text = output.text.replace(new RegExp(`^${this.client.options?.prefix}`), '');
     }
 
     output.isGroup = output.roomId?.includes('@g.us');

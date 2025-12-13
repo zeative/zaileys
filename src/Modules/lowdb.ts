@@ -195,6 +195,37 @@ export class Lowdb {
     });
   }
 
+  async upsert<T extends { key?: { id?: string }; id?: string }>(key: string, value: T, idKey: string = 'key.id'): Promise<void> {
+    await this.ensureLoaded();
+    const keyMutex = this.pool.getKey(key);
+    await keyMutex.runExclusive(async () => {
+      const current = this.data.get(key);
+      let list: any[];
+      if (Array.isArray(current)) {
+        list = current;
+      } else if (current === undefined) {
+        list = [];
+      } else {
+        list = [current];
+      }
+
+      const valueId = _.get(value, idKey);
+      if (valueId) {
+        const existingIdx = list.findIndex((item) => _.get(item, idKey) === valueId);
+        if (existingIdx >= 0) {
+          list[existingIdx] = value;
+        } else {
+          list.push(value);
+        }
+      } else {
+        list.push(value);
+      }
+
+      this.data.set(key, list);
+      this.scheduleFlush();
+    });
+  }
+
   async get(key?: string | object): Promise<any> {
     await this.ensureLoaded();
 

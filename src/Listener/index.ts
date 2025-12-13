@@ -35,11 +35,11 @@ export class Listener {
       const { chats, contacts, messages } = update;
 
       for (const chat of chats) {
-        await this.client.db('chats').push(chat.id, chat);
+        await this.client.db('chats').upsert(chat.id, chat, 'id');
       }
 
       for (const contact of contacts) {
-        await this.client.db('contacts').push(contact.id, contact);
+        await this.client.db('contacts').upsert(contact.id, contact, 'id');
       }
 
       for (const message of messages) {
@@ -48,7 +48,7 @@ export class Listener {
         if (message.message?.protocolMessage) return;
         if (message.message?.groupStatusMentionMessage) return;
 
-        await this.client.db('messages').push(message.key.remoteJid, message);
+        await this.client.db('messages').upsert(message.key.remoteJid, message, 'key.id');
       }
     });
 
@@ -59,19 +59,19 @@ export class Listener {
         if (message.message?.protocolMessage) return;
         if (message.message?.groupStatusMentionMessage) return;
 
-        await this.client.db('messages').push(message.key.remoteJid, message);
+        await this.client.db('messages').upsert(message.key.remoteJid, message, 'key.id');
       }
     });
 
     socket?.ev.on('chats.upsert', async (chats) => {
       for (const chat of chats) {
-        await this.client.db('chats').push(chat.id, chat);
+        await this.client.db('chats').upsert(chat.id, chat, 'id');
       }
     });
 
     socket?.ev.on('contacts.upsert', async (contacts) => {
       for (const contact of contacts) {
-        await this.client.db('contacts').push(contact.id, contact);
+        await this.client.db('contacts').upsert(contact.id, contact, 'id');
       }
     });
   }

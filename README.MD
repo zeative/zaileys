@@ -15,6 +15,7 @@
 <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/stars/zeative/zaileys" alt="GitHub Stars"></a>
 <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/forks/zeative/zaileys" alt="GitHub Forks"></a>
 <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/watchers/zeative/zaileys" alt="GitHub Watchers"></a>
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/zeative/zaileys)
 
 </div>
 
@@ -989,7 +990,7 @@ Contributions are welcome! Please follow these steps:
 4.  Push to the branch: `git push origin feature/my-feature`.
 5.  Open Pull Request.
 
-### 🎯 Issues & Feedback
+## 🎯 Issues & Feedback
 
 **If you encounter any problems or have feature requests, please open an [issue](https://github.com/zeative/zaileys/issues)**
 
@@ -998,6 +999,6 @@ Contributions are welcome! Please follow these steps:
 - [Trakteer](https://trakteer.id/zaadevofc)
 - ⭐ Star the repo on GitHub
 
-### 📜 License
+## 📜 License
 
 Distributed under the **MIT License**. See [`LICENSE`](https://github.com/zeative/zaileys/blob/main/LICENSE) for details.

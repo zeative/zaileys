@@ -8,6 +8,7 @@ import { SignalGroup } from '../Signal/group';
 import { ClientOptionsType, EventCallbackType, EventEnumType } from '../Types';
 import { normalizeText, pickKeysFromArray } from '../Utils';
 import { autoDisplayBanner } from '../Utils/banner';
+import { createWatchdog, SessionWatchdog } from '../Utils/watchdog';
 import { MessageCollector } from './collector';
 import { Logs } from './logs';
 import { Middleware, MiddlewareHandler } from './middleware';
@@ -22,6 +23,7 @@ export interface Client extends Signal, SignalGroup, SignalPrivacy, SignalNewsle
 export class Client {
   private listener: Listener;
   private _ready: Promise<void>;
+  private watchdog: SessionWatchdog | null = null;
 
   logs: Logs;
 
@@ -52,6 +54,43 @@ export class Client {
 
     this.listener = new Listener(client || this);
     this.logs = new Logs(this);
+
+    this.watchdog = createWatchdog({
+      session: this.options.session,
+      checkIntervalMs: 60_000,
+      staleThresholdMs: 120_000,
+      cooldownMs: 60_000,
+      maxRetries: 3,
+      onRecovery: async () => {
+        await this.initialize(client);
+      },
+    });
+    this.watchdog.start();
+
+    this.setupPrekeyErrorDetection();
+  }
+
+  private prekeyDetected = false;
+  private setupPrekeyErrorDetection() {
+    const originalLog = console.log;
+    const watchdog = this.watchdog;
+    const self = this;
+
+    console.log = (...args: unknown[]) => {
+      const message = args
+        .map((a) => String(a))
+        .join(' ')
+        .toLowerCase();
+      if ((message.includes('closing open session') || message.includes('prekey bundle')) && !self.prekeyDetected) {
+        self.prekeyDetected = true;
+        store.spinner.warn(' Prekey bundle error detected');
+        watchdog?.forceRecovery();
+        setTimeout(() => {
+          self.prekeyDetected = false;
+        }, 60_000);
+      }
+      return originalLog.apply(console, args);
+    };
   }
 
   ready() {

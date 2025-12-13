@@ -207,7 +207,7 @@ export class Messages {
 
     const repliedId = content?.contextInfo?.stanzaId;
 
-    if (isReplied && !this.maxReplies) {
+    if (isReplied && this.maxReplies) {
       this.maxReplies--;
 
       const messages = await this.client.db('messages').get(output.roomId);

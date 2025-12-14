@@ -273,7 +273,7 @@ If any of these match a number in your returned array, the citation check return
 
 ## 📫 Sending Messages
 
-> **Quick Jump:** [Text](#send-text) · [Reply](#reply-to-message) · [Forward](#forward-message) · [Media](#send-media) · [Banner](#send-with-banner) · [Location](#send-location) · [Contact](#send-contact) · [Poll](#send-poll) · [Reaction](#send-reaction) · [Presence](#update-presence) · [Mentions](#mentions) · [Edit & Delete](#edit--delete-messages) · [Buttons](#interactive-buttons)
+> **Quick Jump:** [Text](#send-text) · [Reply](#reply-to-message) · [Forward](#forward-message) · [Media](#send-media) · [Banner](#send-with-banner) · [Location](#send-location) · [Contact](#send-contact) · [Poll](#send-poll) · [Reaction](#send-reaction) · [Presence](#update-presence) · [Mentions](#mentions) · [Edit & Delete](#edit--delete-messages) · [Buttons](#interactive-buttons) · [Member Label](#member-label)
 
 ### Send Text
 

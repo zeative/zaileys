@@ -125,7 +125,7 @@ export class Client {
     const chat = await this.db('chats').get(roomId);
     const contact = await this.db('contacts').get(roomId);
 
-    const chatName = pickKeysFromArray(chat, ['name', 'verifiedName']);
+    const chatName = pickKeysFromArray(chat, ['name', 'verifiedName', 'displayName']);
     const contactName = pickKeysFromArray(contact, ['notify', 'name']);
 
     return normalizeText(chatName || contactName) || null;

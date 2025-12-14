@@ -207,7 +207,9 @@ export class Messages {
     output.replied = null;
 
     const isReplied = content?.contextInfo?.quotedMessage;
-    const isViewOnce = pickKeysFromArray([isReplied], ['viewOnceMessageV2Extension', 'viewOnceMessage']);
+
+    let isViewOnce = pickKeysFromArray([isReplied], ['viewOnceMessageV2Extension', 'viewOnceMessage']);
+    isViewOnce = findGlobalWord(toString(isReplied), 'viewOnce') ? isReplied : isViewOnce;
 
     const repliedId = content?.contextInfo?.stanzaId;
 
@@ -219,7 +221,7 @@ export class Messages {
 
       const viewonce = {
         ...replied,
-        ...getDeepContent(isViewOnce).leaf,
+        message: isViewOnce,
       };
 
       if (isViewOnce) {
@@ -232,7 +234,9 @@ export class Messages {
       this.maxReplies = 3;
     }
 
-    this.client.logs.message(output);
+    if (type != 'replied') {
+      this.client.logs.message(output);
+    }
 
     return output;
   }

@@ -118,7 +118,7 @@ const wa = new Client({
 
   // pairing code
   authType: 'pairing',
-  phoneNumber: 628xxxxx
+  phoneNumber: 6280000000,
 });
 
 wa.on('messages', async (ctx) => {

@@ -295,4 +295,22 @@ export class Signal {
     const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
     return await socket.sendMessage(message.key.remoteJid, { react: { text: reaction, key: message?.key } });
   }
+
+  async memberLabel(roomId: string, label: string) {
+    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+
+    return await socket.relayMessage(
+      roomId,
+      {
+        protocolMessage: {
+          type: 30,
+          memberLabel: {
+            label,
+            labelTimestamp: Date.now(),
+          },
+        },
+      },
+      {},
+    );
+  }
 }

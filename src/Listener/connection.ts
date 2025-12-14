@@ -99,11 +99,17 @@ export class Connection {
           return;
         }
 
-        if (code === 401 || code === 405 || code === 500) {
-          store.spinner.error(' Invalid session, please delete manually!');
-          store.spinner.error(` Session "${this.client.options.session}" has not valid, please delete it!\n`);
+        if (code === 401 || code === 405) {
+          store.spinner.warn(' Session may be used by another device/instance.');
+          store.spinner.warn(` If you want to connect here, close the other connection first.`);
+          store.spinner.warn(` Or use a different session name in your Client options.\n`);
+          return;
+        }
 
-          await retry();
+        if (code === 500) {
+          store.spinner.error(' Server error occurred, attempting reconnect...');
+          await reload();
+          return;
         }
 
         if (isReconnect) {

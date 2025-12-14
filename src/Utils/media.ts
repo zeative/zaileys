@@ -140,17 +140,13 @@ class FFmpegProcessor {
     return new Promise((resolve, reject) => {
       const processor = ffmpeg(config.input).output(config.output);
 
-      // Process options in pairs (key, value)
       for (let i = 0; i < config.options.length; i++) {
         const option = config.options[i];
 
-        // If it's a flag with value (e.g., '-c:a', 'libopus')
         if (option.startsWith('-') && i + 1 < config.options.length && !config.options[i + 1].startsWith('-')) {
           processor.outputOptions(option, config.options[i + 1]);
-          i++; // Skip next item as it's already processed
-        }
-        // If it's a standalone flag (e.g., '-vn')
-        else {
+          i++;
+        } else {
           processor.outputOptions(option);
         }
       }

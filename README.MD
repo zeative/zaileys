@@ -113,7 +113,12 @@ import { Client } from 'zaileys';
 const { Client } = require('zaileys');
 
 const wa = new Client({
-  authType: 'qr', // or pairing
+  // qr code
+  authType: 'qr',
+
+  // pairing code
+  authType: 'pairing',
+  phoneNumber: 628xxxxx
 });
 
 wa.on('messages', async (ctx) => {
@@ -553,6 +558,14 @@ await wa.button(ctx.roomId, {
     ],
   },
 });
+```
+
+### Member Label
+
+Labeling user member on group chat (NEW!)
+
+```typescript
+await wa.memberLabel(ctx.roomId, 'Fullstack Developer');
 ```
 
 ## 👥 Group Management

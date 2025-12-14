@@ -4,7 +4,7 @@ const wa = new Client({
   authType: 'qr',
 
   // authType: 'pairing',
-  // phoneNumber: 628xxxxx
+  // phoneNumber: 6280000000
 });
 
 wa.on('messages', async (ctx) => {

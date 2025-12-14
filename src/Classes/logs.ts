@@ -69,7 +69,7 @@ export class Logs {
       output += `${logColor(`[sender]`, 'dimgray')} → ${logColor(`${message?.senderName} (${cleanJid(message?.senderId)})`, color)}\n`;
     }
 
-    output += `${logColor(`[${message?.chatType}]`, 'dimgray')} → ${logColor(text + dots, isMatch ? ['#ff5f6d', '#ffc371'] : 'brown')}\n`;
+    output += `${logColor(`[${message?.chatType || 'unknown'}]`, 'dimgray')} → ${logColor(text + dots, isMatch ? ['#ff5f6d', '#ffc371'] : 'brown')}\n`;
     output += `—`;
 
     console.log(output);

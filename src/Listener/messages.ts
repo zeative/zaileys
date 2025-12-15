@@ -1,11 +1,10 @@
 import makeWASocket, { downloadMediaMessage, getDevice, jidNormalizedUser, WAMessage } from 'baileys';
 import _ from 'lodash';
-import z from 'zod';
 import { Client } from '../Classes';
 import { MESSAGE_MEDIA_TYPES } from '../Config/media';
 import { RateLimiter } from '../Modules/limiter';
 import { store } from '../Modules/store';
-import { ListenerMessagesType } from '../Types/messages';
+import { MessagesContext } from '../Types/messages';
 import { extractUrls, findGlobalWord, ignoreLint, normalizeText, pickKeysFromArray, toJson, toString } from '../Utils';
 import { cleanJid, cleanMediaObject, generateId, getDeepContent, getUsersMentions } from '../Utils/message';
 
@@ -56,7 +55,7 @@ export class Messages {
     const original = message;
 
     const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
-    const output: Partial<z.infer<typeof ListenerMessagesType>> = {};
+    const output: Partial<MessagesContext> = {};
 
     let contentExtract = getDeepContent(message.message);
     let contentType = contentExtract.chain.at(-1);

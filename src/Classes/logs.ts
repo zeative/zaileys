@@ -1,8 +1,7 @@
 import makeWASocket from 'baileys';
-import z from 'zod';
 import { store } from '../Modules/store';
-import { ListenerCallsType } from '../Types/calls';
-import { ListenerMessagesType } from '../Types/messages';
+import { CallsContext } from '../Types/calls';
+import { MessagesContext } from '../Types/messages';
 import { cleanJid, ignoreLint, logColor } from '../Utils';
 import { Client } from './client';
 
@@ -49,7 +48,7 @@ export class Logs {
     });
   }
 
-  message(message: Partial<z.infer<typeof ListenerMessagesType>>) {
+  message(message: Partial<MessagesContext>) {
     if (!this.isReady) return; // Pakai instance variable
 
     const color = ignoreLint(this.getRoomColor(message));
@@ -75,7 +74,7 @@ export class Logs {
     console.log(output);
   }
 
-  call(call: Partial<z.infer<typeof ListenerCallsType>>) {
+  call(call: Partial<CallsContext>) {
     if (!store.get('logs')?.ready) return;
 
     const color = ignoreLint(this.getRoomColor(call));

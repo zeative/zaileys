@@ -16,3 +16,5 @@ export const ListenerCallsType = z.object({
   isVideo: z.boolean(),
   isGroup: z.boolean(),
 });
+
+export type CallsContext = z.infer<typeof ListenerCallsType>;

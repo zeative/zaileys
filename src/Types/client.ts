@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { ListenerCallsType } from './calls';
-import { ListenerConnectionType } from './connection';
-import { ListenerMessagesType } from './messages';
+import { CallsContext } from './calls';
+import { ConnectionContext } from './connection';
+import { MessagesContext } from './messages';
 
 export const LimiterType = z
   .object({
@@ -62,7 +62,7 @@ export const ClientOptionsType = z.union([ClientAuthPairingType.extend(ClientBas
 export const EventEnumType = z.enum(['connection', 'messages', 'calls']);
 
 export type EventCallbackType = {
-  connection: (ctx: z.infer<typeof ListenerConnectionType>) => void;
-  messages: (ctx: z.infer<typeof ListenerMessagesType>) => void;
-  calls: (ctx: z.infer<typeof ListenerCallsType>) => void;
+  connection: (ctx: ConnectionContext) => void;
+  messages: (ctx: MessagesContext) => void;
+  calls: (ctx: CallsContext) => void;
 };

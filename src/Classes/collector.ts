@@ -1,8 +1,7 @@
-import z from 'zod';
 import { store } from '../Modules/store';
-import { ListenerMessagesType } from '../Types/messages';
+import { MessagesContext } from '../Types/messages';
 
-type ParsedMessage = Partial<z.infer<typeof ListenerMessagesType>>;
+type ParsedMessage = Partial<MessagesContext>;
 type CollectorFilter = (msg: ParsedMessage) => boolean;
 type CollectorCallback = (messages: ParsedMessage[]) => void;
 

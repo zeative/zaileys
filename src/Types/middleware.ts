@@ -1,8 +1,7 @@
-import { ListenerCallsType } from './calls';
-import { ListenerMessagesType } from './messages';
-import z from 'zod';
+import { CallsContext } from './calls';
+import { MessagesContext } from './messages';
 
 export type MiddlewareContextType = {
-  messages?: Partial<z.infer<typeof ListenerMessagesType>>;
-  calls?: Partial<z.infer<typeof ListenerCallsType>>;
+  messages?: Partial<MessagesContext>;
+  calls?: Partial<CallsContext>;
 };

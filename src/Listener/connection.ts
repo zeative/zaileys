@@ -1,9 +1,8 @@
 import makeWASocket, { delay, DisconnectReason, jidNormalizedUser } from 'baileys';
 import { cristal } from 'gradient-string';
-import z from 'zod';
 import { Client } from '../Classes';
 import { store } from '../Modules/store';
-import { ListenerConnectionType } from '../Types/connection';
+import { ConnectionContext } from '../Types/connection';
 import { ignoreLint, removeAuthCreds, repairSessionKeys } from '../Utils';
 import { autoDisplayQRCode } from '../Utils/banner';
 
@@ -17,7 +16,7 @@ export class Connection {
 
     const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
 
-    const output: Partial<z.infer<typeof ListenerConnectionType>> = {};
+    const output: Partial<ConnectionContext> = {};
 
     // Reload client
     const reload = async () => {

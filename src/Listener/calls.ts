@@ -1,9 +1,8 @@
 import makeWASocket, { jidNormalizedUser, WACallEvent } from 'baileys';
-import z from 'zod';
 import { Client } from '../Classes';
 import { store } from '../Modules/store';
-import { ListenerCallsType } from '../Types/calls';
-import { normalizeText, pickKeysFromArray } from '../Utils';
+import { CallsContext } from '../Types/calls';
+import { normalizeText } from '../Utils';
 
 export class Calls {
   constructor(private client: Client) {
@@ -34,7 +33,7 @@ export class Calls {
   async parse(caller: WACallEvent) {
     const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
 
-    const output: Partial<z.infer<typeof ListenerCallsType>> = {};
+    const output: Partial<CallsContext> = {};
 
     output.callId = caller.id;
     output.callerId = jidNormalizedUser(caller.from);

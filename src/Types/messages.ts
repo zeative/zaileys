@@ -1,4 +1,5 @@
 import { WAMessage } from 'baileys';
+import Stream from 'stream';
 import z from 'zod';
 
 export const DEVICE_ENUM_TYPES = z.enum(['unknown', 'android', 'ios', 'desktop', 'web']);
@@ -61,7 +62,7 @@ export const MESSAGE_ENUM_TYPES = z.enum([
   'encEventUpdate',
 ]);
 
-export const ListenerMessagesType = z.object({
+export const BaseMessagesType = z.object({
   channelId: z.string(),
   uniqueId: z.string(),
 
@@ -107,8 +108,8 @@ export const ListenerMessagesType = z.object({
 
   media: z
     .object({
-      buffer: z.function(),
-      stream: z.function(),
+      buffer: z.function({ output: z.promise(z.instanceof(Buffer)) }),
+      stream: z.function({ output: z.promise(z.instanceof(Stream)) }),
     })
     .loose()
     .nullable(),
@@ -117,8 +118,10 @@ export const ListenerMessagesType = z.object({
     input: [],
     output: z.custom<WAMessage>(),
   }),
-
-  get replied() {
-    return ListenerMessagesType.nullable();
-  },
 });
+
+export const ListenerMessagesType = BaseMessagesType.extend({
+  replied: BaseMessagesType.nullable(),
+});
+
+export type MessagesContext = z.infer<typeof ListenerMessagesType>;

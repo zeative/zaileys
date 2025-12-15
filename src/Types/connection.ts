@@ -12,3 +12,5 @@ export const ListenerConnectionType = z.object({
   qr: z.string().optional(),
   code: z.string().optional(),
 });
+
+export type ConnectionContext = z.infer<typeof ListenerConnectionType>;

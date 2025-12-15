@@ -1,4 +1,4 @@
-import makeWASocket, { AuthenticationState, isJidBroadcast, makeCacheableSignalKeyStore } from 'baileys';
+import makeWASocket, { AuthenticationState, makeCacheableSignalKeyStore } from 'baileys';
 import NodeCache from 'node-cache';
 import { Client } from '../Classes';
 import { store } from '../Modules/store';
@@ -18,7 +18,6 @@ export const socketConfig = (client: Client, state: AuthenticationState): Parame
     mediaCache: new NodeCache({ stdTTL: 60 }),
 
     cachedGroupMetadata: async (jid: string) => cache.get(jid),
-    shouldIgnoreJid: (jid) => isJidBroadcast(jid),
 
     auth: {
       creds: state.creds,
@@ -26,8 +25,11 @@ export const socketConfig = (client: Client, state: AuthenticationState): Parame
     },
 
     getMessage: async (key) => {
-      if (!key?.id) return undefined;
-      return await client.db('messages').get(key.id);
+      if (!key?.remoteJid) return undefined;
+      const messages = await client.db('messages').get(key.remoteJid);
+      const message = messages?.find((item) => item?.key?.id === key.id);
+
+      return message;
     },
   };
 };

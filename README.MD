@@ -1,6 +1,6 @@
 <dd align="center">
 
-<img alt="Zaileys - Simplified WhatsApp Node.js TypeScript/JavaScript API" src="https://github.com/zeative/zeative/blob/main/libraries/zaileys/zaileys-clean.png?raw=true" width="120" align="">
+<img alt="Zaileys - Simplified WhatsApp Node.js TypeScript/JavaScript API" src="https://github.com/zeative/zeative/blob/main/libraries/zaileys/zaileys-clean.png?raw=true" width="140" align="">
 
 <h1 align="center">Zaileys - Simplified WhatsApp Node.js TypeScript/JavaScript API</h1>
 

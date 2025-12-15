@@ -45,7 +45,7 @@ export class Listener {
       for (const message of messages) {
         if (!message.message && !message.key.isViewOnce) return;
         if (message?.category === 'peer') return;
-        if (message.message?.protocolMessage) return;
+        if (message.message?.protocolMessage && !message.message?.protocolMessage?.memberLabel) return;
         if (message.message?.groupStatusMentionMessage) return;
 
         await this.client.db('messages').upsert(message.key.remoteJid, message, 'key.id');
@@ -56,7 +56,7 @@ export class Listener {
       for (const message of messages) {
         if (!message.message && !message.key.isViewOnce) return;
         if (message?.category === 'peer') return;
-        if (message.message?.protocolMessage) return;
+        if (message.message?.protocolMessage && !message.message?.protocolMessage?.memberLabel) return;
         if (message.message?.groupStatusMentionMessage) return;
 
         await this.client.db('messages').upsert(message.key.remoteJid, message, 'key.id');

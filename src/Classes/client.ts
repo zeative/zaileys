@@ -1,12 +1,16 @@
+import makeWASocket from 'baileys';
 import z from 'zod';
 import { registerAuthCreds } from '../Auth';
 import { Listener } from '../Listener';
 import { store } from '../Modules/store';
 import { parseZod } from '../Modules/zod';
 import { Signal } from '../Signal';
+import { SignalCommunity } from '../Signal/community';
 import { SignalGroup } from '../Signal/group';
+import { SignalNewsletter } from '../Signal/newsletter';
+import { SignalPrivacy } from '../Signal/privacy';
 import { ClientOptionsType, EventCallbackType, EventEnumType } from '../Types';
-import { normalizeText, pickKeysFromArray } from '../Utils';
+import { getDeepContent, normalizeText, pickKeysFromArray } from '../Utils';
 import { autoDisplayBanner } from '../Utils/banner';
 import { createWatchdog, SessionWatchdog } from '../Utils/watchdog';
 import { MessageCollector } from './collector';
@@ -14,9 +18,6 @@ import { Logs } from './logs';
 import { Middleware, MiddlewareHandler } from './middleware';
 import { Plugins } from './plugins';
 import { NativeProxy } from './proxy';
-import { SignalPrivacy } from '../Signal/privacy';
-import { SignalNewsletter } from '../Signal/newsletter';
-import { SignalCommunity } from '../Signal/community';
 
 export interface Client extends Signal, SignalGroup, SignalPrivacy, SignalNewsletter, SignalCommunity {}
 
@@ -61,12 +62,13 @@ export class Client {
       staleThresholdMs: 120_000,
       cooldownMs: 60_000,
       maxRetries: 3,
+
       onRecovery: async () => {
         await this.initialize(client);
       },
     });
-    this.watchdog.start();
 
+    this.watchdog.start();
     this.setupPrekeyErrorDetection();
   }
 
@@ -110,6 +112,10 @@ export class Client {
     return this;
   }
 
+  get socket() {
+    return store.get('socket') as ReturnType<typeof makeWASocket>;
+  }
+
   async getMessageByChatId(chatId: string) {
     const messages = await this.db('messages').all();
     const message = messages
@@ -129,5 +135,12 @@ export class Client {
     const contactName = pickKeysFromArray(contact, ['notify', 'name']);
 
     return normalizeText(chatName || contactName) || null;
+  }
+
+  async getLabelName(roomId: string) {
+    const message = await this.db('messages').get(roomId);
+    const keys = pickKeysFromArray(message, ['message.protocolMessage.memberLabel']);
+
+    return normalizeText(keys?.label) || null;
   }
 }

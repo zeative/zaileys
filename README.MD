@@ -1,4 +1,4 @@
-<div align="center">
+<dd align="center">
 
 <img alt="Zaileys - Simplified WhatsApp Node.js TypeScript/JavaScript API" src="https://github.com/zeative/zeative/blob/main/libraries/zaileys/zaileys-clean.png?raw=true" width="120" align="">
 
@@ -25,15 +25,13 @@
 
 <br>
 
-<div align="center">
-  <p>
+<dl align="center">
+  <dd>
     <b>Zaileys</b> is a powerful, type-safe wrapper around <a href="https://github.com/WhiskeySockets/Baileys">Baileys</a>, designed to simplify the development of WhatsApp bots. It provides a robust architecture with built-in state management, middleware support, and easy-to-use event handlers, making it perfect for building scalable and maintainable WhatsApp applications.
-  </p>
-</div>
+  </dd>
+</dl>
 
-<br>
-
-<div align="center">
+<dd align="center">
 
 [🚀 Overview](#-overview) &nbsp;&nbsp;•&nbsp;&nbsp;
 [🪶 Features](#-features) &nbsp;&nbsp;•&nbsp;&nbsp;
@@ -52,9 +50,9 @@
 
 <a href="https://discord.gg/SfnWWYUe"><img alt="Discord" src="https://discord.com/api/guilds/1105833273415962654/widget.png?style=banner2"></a>
 
-</div>
+</dd>
 
-</div>
+</dd>
 
 <br>
 

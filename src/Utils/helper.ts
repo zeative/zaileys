@@ -47,12 +47,21 @@ export const randomize = (arr: string[]) => {
 };
 
 export const pickKeysFromArray = (arr: any[], keys: string[]): any => {
+  const getNested = (obj: any, path: string): any => {
+    if (!obj || typeof obj !== 'object') return undefined;
+    let current = obj;
+    for (const key of path.split('.')) {
+      current = current?.[key];
+      if (current === undefined || current === null) return undefined;
+    }
+    return current;
+  };
+
   for (const obj of arr || []) {
     if (obj && typeof obj === 'object') {
       for (const key of keys) {
-        if (key in obj && obj[key] !== undefined && obj[key] !== null) {
-          return obj[key];
-        }
+        const value = getNested(obj, key);
+        if (value !== undefined && value !== null) return value;
       }
     }
   }

@@ -164,6 +164,10 @@ export class Messages {
     output.isQuestion = isQuestion;
     output.isStory = output.roomId?.includes('@broadcast');
 
+    if (!output.isGroup && !output.roomName) {
+      output.roomName = output.senderName;
+    }
+
     output.isViewOnce = false;
     output.isEdited = !!findGlobalWord(toString(contentExtract), 'editedMessage');
     output.isDeleted = isRevoke;

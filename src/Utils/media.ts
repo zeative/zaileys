@@ -11,11 +11,19 @@ import { StickerMetadataType } from '../Types';
 import { generateId } from './message';
 import { ignoreLint } from './validate';
 
-import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
-import ffprobeInstaller from '@ffprobe-installer/ffprobe';
+export const configureFFmpeg = async (disable: boolean = false) => {
+  if (disable) return;
 
-ffmpeg.setFfmpegPath(ffmpegInstaller.path);
-ffmpeg.setFfprobePath(ffprobeInstaller.path);
+  try {
+    const ffmpegInstaller = (await import('@ffmpeg-installer/ffmpeg')).default;
+    const ffprobeInstaller = (await import('@ffprobe-installer/ffprobe')).default;
+
+    ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+    ffmpeg.setFfprobePath(ffprobeInstaller.path);
+  } catch (e) {
+    // Ignore errors if paths are already set or invalid
+  }
+};
 
 const CONSTANTS = {
   OPUS: {

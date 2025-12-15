@@ -12,6 +12,7 @@ import { SignalPrivacy } from '../Signal/privacy';
 import { ClientOptionsType, EventCallbackType, EventEnumType } from '../Types';
 import { getDeepContent, normalizeText, pickKeysFromArray } from '../Utils';
 import { autoDisplayBanner } from '../Utils/banner';
+import { configureFFmpeg } from '../Utils/media';
 import { createWatchdog, SessionWatchdog } from '../Utils/watchdog';
 import { MessageCollector } from './collector';
 import { Logs } from './logs';
@@ -49,6 +50,7 @@ export class Client {
 
   async initialize(client?: Client) {
     await autoDisplayBanner();
+    await configureFFmpeg(this.options.disableFFmpeg);
     await registerAuthCreds(this);
 
     await this.plugins.load();
@@ -131,7 +133,7 @@ export class Client {
     const chat = await this.db('chats').get(roomId);
     const contact = await this.db('contacts').get(roomId);
 
-    const chatName = pickKeysFromArray(chat, ['name', 'verifiedName', 'displayName']);
+    const chatName = pickKeysFromArray(chat, ['name', 'verifiedName']);
     const contactName = pickKeysFromArray(contact, ['notify', 'name']);
 
     return normalizeText(chatName || contactName) || null;

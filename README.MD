@@ -1,6 +1,6 @@
 <dd align="center">
 
-<img alt="Zaileys - Simplified WhatsApp Node.js TypeScript/JavaScript API" src="https://github.com/zeative/zeative/blob/main/libraries/zaileys/zaileys-clean.png?raw=true" width="140" align="">
+<img alt="Zaileys - Simplified WhatsApp Node.js TypeScript/JavaScript API" src="https://github.com/zeative/zeative/blob/main/libraries/zaileys/zaileys-clean.png?raw=true" width="140">
 
 <h1 align="center">Zaileys - Simplified WhatsApp Node.js TypeScript/JavaScript API</h1>
 
@@ -69,7 +69,7 @@ Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essentia
 - 🛡️ **Type-Safe** - Full TypeScript + Zod validation with autocomplete
 - 🏓 **Middleware** - Intercept and process events globally
 - 🧩 **Plugin System** - Drop-in file-based plugins
-- 💾 **State Management** - Built-in `lowdb` for data persistence
+- 💾 **State Management** - Built-in `lowdb` for data persistence with **auto chunking**
 - 🔔 **Event-Driven** - Clean listeners for `connection`, `messages`, `calls`
 - 📢 **Rate Limiting** - Anti-spam protection out of the box
 - 🤖 **Auto-Everything** - Auto-read, auto-reject calls, auto-mentions
@@ -121,12 +121,18 @@ import { Client } from 'zaileys';
 const { Client } = require('zaileys');
 
 const wa = new Client({
+  // dynamic session you can change
+  session: 'zaileys', // default
+
   // qr code
   authType: 'qr',
 
   // pairing code
   authType: 'pairing',
   phoneNumber: 6280000000,
+
+  // if you want to disable built-in ffmpeg
+  // disableFFmpeg: true,
 });
 
 wa.on('messages', async (ctx) => {
@@ -570,7 +576,7 @@ await wa.button(ctx.roomId, {
 
 ### Member Label
 
-Labeling user member on group chat (NEW!)
+Labeling user member on group chat.
 
 ```typescript
 await wa.memberLabel(ctx.roomId, 'Fullstack Developer');

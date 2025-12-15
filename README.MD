@@ -1026,5 +1026,9 @@ Contributions are welcome! Please follow these steps:
 
 Distributed under the **MIT License**. See [`LICENSE`](https://github.com/zeative/zaileys/blob/main/LICENSE) for details.
 
-<img alt="Zaileys - Simplified WhatsApp Node.js TypeScript/JavaScript API" src="https://github.com/zeative/zeative/blob/main/libraries/zaileys/zaileys-clean.png?raw=true" width="28" align="center">
-Copyright © 2025 zaadevofc. All rights reserved.
+<div align="left">
+  <p>
+    <img alt="Zaileys - Simplified WhatsApp Node.js TypeScript/JavaScript API" src="https://github.com/zeative/zeative/blob/main/libraries/zaileys/zaileys-clean.png?raw=true" width="28" align="center">
+    Copyright © 2025 zaadevofc. All rights reserved.
+  </p>
+</div>

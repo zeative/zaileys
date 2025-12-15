@@ -17,6 +17,20 @@
   "repository": {
     "url": "git+https://github.com/zeative/zaileys.git"
   },
+  "keywords": [
+    "baileys",
+    "zaileys",
+    "whatsapp",
+    "whatsapp-api",
+    "whatsapp-web",
+    "whatsapp-bot",
+    "multi-device",
+    "simplified",
+    "automation",
+    "modern-library",
+    "nodejs",
+    "javascript-typescript"
+  ],
   "scripts": {
     "test": "tsx --watch examples/test.ts",
     "build": "tsup",

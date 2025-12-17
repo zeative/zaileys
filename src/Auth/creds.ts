@@ -7,6 +7,7 @@ import { cleanupSocket, getExistingSocket } from '../Utils/session';
 
 export const registerAuthCreds = async (client: Client) => {
   const existingSocket = getExistingSocket();
+
   if (existingSocket) {
     cleanupSocket(existingSocket);
   }

@@ -1,5 +1,5 @@
 export * from './Auth';
 export * from './Classes';
-export * from './Modules/lowdb';
+export { JetDB, createJetDB, type JetDBOptions } from 'jetdb';
 export * from './Utils';
 export * from './Types';

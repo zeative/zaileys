@@ -25,8 +25,9 @@ export const socketConfig = (client: Client, state: AuthenticationState): Parame
 
     getMessage: async (key) => {
       if (!key?.remoteJid) return undefined;
-      const messages = await client.db('messages').get(key.remoteJid);
-      const message = messages?.find((item) => item?.key?.id === key.id);
+
+      // Use query builder for optimized lookup
+      const message = await client.db('messages').query(key.remoteJid).where('key.id', '=', key.id).first();
 
       return message;
     },

@@ -1,4 +1,5 @@
 import makeWASocket from 'baileys';
+import { JetDB } from 'jetdb';
 import z from 'zod';
 import { registerAuthCreds } from '../Auth';
 import { Listener } from '../Listener';
@@ -101,8 +102,8 @@ export class Client {
     return this._ready;
   }
 
-  db(path: string) {
-    return store.lowdb(this.options.session, `stores/${path}.json`);
+  db(path: string): JetDB {
+    return store.db(this.options.session, path);
   }
 
   on<T extends z.infer<typeof EventEnumType>>(event: T, handler: EventCallbackType[T]): void {
@@ -119,24 +120,29 @@ export class Client {
   }
 
   async getMessageByChatId(chatId: string) {
-    const messages = await this.db('messages').all();
-    const message = messages
-      ?.flat()
-      ?.filter((x) => typeof x === 'object')
-      ?.flat()
-      ?.find((x) => x?.key?.id === chatId);
+    const allEntries = await this.db('messages').all();
 
-    return await this.listener.messages.parse(message);
+    // Search through each room's messages efficiently
+    for (const [roomId] of allEntries) {
+      const message = await this.db('messages').query(roomId).where('key.id', '=', chatId).first();
+
+      if (message) {
+        return await this.listener.messages.parse(message);
+      }
+    }
+
+    return null;
   }
 
   async getRoomName(roomId: string) {
     const chat = await this.db('chats').get(roomId);
-    const contact = await this.db('contacts').get(roomId);
+    const contact = await this.db('contacts').query('all-contacts').all();
+    console.log('🔍 ~ getRoomName ~ src/Classes/client.ts:139 ~ contact:', contact);
 
-    const chatName = pickKeysFromArray(chat, ['name', 'verifiedName']);
-    const contactName = pickKeysFromArray(contact, ['notify', 'name']);
+    // const chatName = pickKeysFromArray(chat, ['name', 'verifiedName']);
+    // const contactName = pickKeysFromArray(contact, ['notify', 'name']);
 
-    return normalizeText(chatName || contactName) || null;
+    // return normalizeText(chatName || contactName) || null;
   }
 
   async getLabelName(roomId: string) {

@@ -91,8 +91,8 @@ export class Messages {
     const universalId = content?.key?.id;
 
     if (isRevoke || isPin || isUnPin) {
-      const messages = await this.client.db('messages').get(output.roomId);
-      const universal = messages?.find((item) => item.key.id === universalId);
+      // Use query builder for optimized lookup
+      const universal = await this.client.db('messages').query(output.roomId).where('key.id', '=', universalId).first();
 
       if (!universal) return;
       message = universal;
@@ -219,8 +219,8 @@ export class Messages {
     if (isReplied && this.maxReplies) {
       this.maxReplies--;
 
-      const messages = await this.client.db('messages').get(output.roomId);
-      const replied = messages?.find((item) => item.key.id === repliedId);
+      // Use query builder for optimized lookup
+      const replied = await this.client.db('messages').query(output.roomId).where('key.id', '=', repliedId).first();
 
       const viewonce = {
         ...replied,

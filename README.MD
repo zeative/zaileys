@@ -69,7 +69,7 @@ Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essentia
 - 🛡️ **Type-Safe** - Full TypeScript + Zod validation with autocomplete
 - 🏓 **Middleware** - Intercept and process events globally
 - 🧩 **Plugin System** - Drop-in file-based plugins
-- 💾 **State Management** - Built-in `lowdb` for data persistence with **auto chunking**
+- 💾 **State Management** - Built-in `JetDB` for data persistence with **auto chunking**
 - 🔔 **Event-Driven** - Clean listeners for `connection`, `messages`, `calls`
 - 📢 **Rate Limiting** - Anti-spam protection out of the box
 - 🤖 **Auto-Everything** - Auto-read, auto-reject calls, auto-mentions
@@ -87,7 +87,7 @@ Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essentia
 
 **Plugins** - Drop files in `plugins/` directory. Auto-loaded, zero config.
 
-**Store** - JSON database (`lowdb`) that auto-syncs chats, contacts, and messages.
+**Store** - JSON database (`JetDB`) that auto-syncs chats, contacts, and messages.
 
 ## 📦 Installation
 

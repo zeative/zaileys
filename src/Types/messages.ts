@@ -6,6 +6,7 @@ export const DEVICE_ENUM_TYPES = z.enum(['unknown', 'android', 'ios', 'desktop',
 
 export const MESSAGE_ENUM_TYPES = z.enum([
   'text',
+  'album',
   'image',
   'contact',
   'location',
@@ -17,6 +18,8 @@ export const MESSAGE_ENUM_TYPES = z.enum([
   'highlyStructured',
   'sendPayment',
   'requestPayment',
+  'groupStatusMention',
+  'statusMention',
   'declinePaymentRequest',
   'cancelPaymentRequest',
   'template',
@@ -91,15 +94,22 @@ export const BaseMessagesType = z.object({
   isPrefix: z.boolean(),
   isSpam: z.boolean(),
   isTagMe: z.boolean(),
+
+  isStatusMention: z.boolean(),
+  isGroupStatusMention: z.boolean(),
+  isHideTags: z.boolean(),
+
   isGroup: z.boolean(),
   isNewsletter: z.boolean(),
   isQuestion: z.boolean(),
   isStory: z.boolean(),
+
   isViewOnce: z.boolean(),
   isEdited: z.boolean(),
   isDeleted: z.boolean(),
   isPinned: z.boolean(),
   isUnPinned: z.boolean(),
+
   isBroadcast: z.boolean(),
   isEphemeral: z.boolean(),
   isForwarded: z.boolean(),

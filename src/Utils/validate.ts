@@ -1,6 +1,7 @@
 import _ from 'lodash';
 import fs from 'node:fs/promises';
 import { store } from '../Modules/store';
+import unorm from 'unorm';
 
 export const ignoreLint = (data: any) => data;
 
@@ -30,22 +31,45 @@ export const normalizeText = (text = '') => {
 
   let clean = text
 
-    .normalize('NFKD')
-    .replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u2028-\u202F\u2060-\u206F\uFEFF\uFFF9-\uFFFB]/gu, '')
-    .replace(
-      /[\u0300-\u036F\u0483-\u0489\u0591-\u05BD\u05BF\u05C1-\u05C2\u05C4-\u05C7\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7-\u06E8\u06EA-\u06ED\u20D0-\u20FF\uFE20-\uFE2F]/gu,
-      '',
-    )
+    .replace(/\u202E(.*?)(\u202C|$)/gu, (_, content) => [...content].reverse().join(''))
+    .replace(/\u202D(.*?)(\u202C|$)/gu, (_, content) => [...content].reverse().join(''))
 
-    .replace(/[\u202A-\u202E\u2066-\u2069]/gu, '')
-    .replace(/\u202E([\s\S]*?)\u202C?/gu, (_, s) => [...s].reverse().join(''))
+    .replace(/[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/gu, '')
+    .replace(/[\u200B\u200C\u200D\uFEFF]/gu, '')
+    .replace(/[\u00AD\u034F\u115F\u1160\u17B4\u17B5\u180B-\u180E]/gu, '')
+    .replace(/[\u2060-\u2064\u206A-\u206F]/gu, '')
+    .replace(/[\u2800\uFFFC\uFFFD]/gu, '')
+
     .replace(/[\uFE00-\uFE0F]/gu, '')
-    .replace(/[\u200C\u200D]/gu, '')
-    .replace(/[\u2800\u180E]/gu, '')
-    .replace(/[\s\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]+/gu, ' ')
-    .replace(/[\p{Cc}\p{Cf}\p{Co}\p{Cn}]/gu, '')
-    .trim()
-    .replace(/\s+/g, ' ');
+
+    .split('')
+    .map((char) => unorm.nfkd(char))
+    .join('')
+
+    .replace(/[\u0300-\u036F]/gu, '')
+    .replace(/[\u1AB0-\u1AFF]/gu, '')
+    .replace(/[\u1DC0-\u1DFF]/gu, '')
+    .replace(/[\u20D0-\u20FF]/gu, '')
+    .replace(/[\uFE20-\uFE2F]/gu, '')
+
+    .replace(/[\p{Cc}]/gu, '')
+    .replace(/[\p{Cf}]/gu, '')
+    .replace(/[\p{Co}]/gu, '')
+    .replace(/[\p{Cn}]/gu, '')
+    .replace(/[\p{Cs}]/gu, '')
+
+    .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/gu, ' ')
+    .replace(/[\u2028\u2029]/gu, ' ')
+    .replace(/[\t\r\n\f\v]/g, ' ')
+
+    .split('')
+    .map((char) => unorm.nfkc(char))
+    .join('')
+
+    .normalize('NFC')
+
+    .replace(/\s+/g, ' ')
+    .trim();
 
   return clean.length ? clean : null;
 };

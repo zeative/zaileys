@@ -1,4 +1,4 @@
-import makeWASocket, { isJidMetaAI } from 'baileys';
+import makeWASocket from 'baileys';
 import { Client } from '../Classes';
 import { store } from '../Modules/store';
 import { Calls } from './calls';
@@ -35,20 +35,17 @@ export class Listener {
       const { chats, contacts, messages } = update;
 
       for (const chat of chats) {
-        // Simpan langsung tanpa chunking
         await this.client.db('chats').set(chat.id, chat);
       }
 
       for (const contact of contacts) {
-        // Simpan langsung tanpa chunking
         await this.client.db('contacts').set(contact.id, contact);
       }
 
       for (const message of messages) {
-        if (!message.message && !message.key.isViewOnce) return;
         if (message?.category === 'peer') return;
+        if (!message.message && !message.key.isViewOnce && (!message.message?.groupStatusMentionMessage || !message.message?.statusMentionMessage)) return;
         if (message.message?.protocolMessage && !message.message?.protocolMessage?.memberLabel) return;
-        if (message.message?.groupStatusMentionMessage) return;
 
         await this.client.db('messages').upsert(message.key.remoteJid, message, 'key.id');
       }
@@ -56,10 +53,9 @@ export class Listener {
 
     socket?.ev.on('messages.upsert', async ({ messages }) => {
       for (const message of messages) {
-        if (!message.message && !message.key.isViewOnce) return;
         if (message?.category === 'peer') return;
+        if (!message.message && !message.key.isViewOnce) return;
         if (message.message?.protocolMessage && !message.message?.protocolMessage?.memberLabel) return;
-        if (message.message?.groupStatusMentionMessage) return;
 
         await this.client.db('messages').upsert(message.key.remoteJid, message, 'key.id');
       }
@@ -67,15 +63,13 @@ export class Listener {
 
     socket?.ev.on('chats.upsert', async (chats) => {
       for (const chat of chats) {
-        // Simpan langsung tanpa chunking
-        await this.client.db('chats').set(chat.id, chat);
+        await this.client.db('chats').upsert(chat.id, chat, 'id');
       }
     });
 
     socket?.ev.on('contacts.upsert', async (contacts) => {
       for (const contact of contacts) {
-        // Simpan langsung tanpa chunking
-        await this.client.db('contacts').set(contact.id, contact);
+        await this.client.db('contacts').upsert(contact.id, contact, 'id');
       }
     });
   }

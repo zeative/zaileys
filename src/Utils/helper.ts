@@ -46,24 +46,51 @@ export const randomize = (arr: string[]) => {
 };
 
 export const pickKeysFromArray = (arr: any[], keys: string[]): any => {
+  const isEmpty = (value: any): boolean => {
+    if (value === undefined || value === null) return true;
+    if (typeof value === 'string' && value.trim() === '') return true;
+    if (Array.isArray(value) && value.length === 0) return true;
+    if (typeof value === 'object' && Object.keys(value).length === 0) return true;
+    return false;
+  };
+
   const getNested = (obj: any, path: string): any => {
     if (!obj || typeof obj !== 'object') return undefined;
+
     let current = obj;
-    for (const key of path.split('.')) {
-      current = current?.[key];
-      if (current === undefined || current === null) return undefined;
+    const keys = path.split('.');
+
+    for (const key of keys) {
+      const arrayMatch = key.match(/^(.+?)\[(\d+)\]$/);
+
+      if (arrayMatch) {
+        const [, arrayKey, index] = arrayMatch;
+        current = current?.[arrayKey]?.[parseInt(index, 10)];
+      } else {
+        current = current?.[key];
+      }
+
+      if (isEmpty(current)) return undefined;
     }
+
     return current;
   };
 
-  for (const obj of arr || []) {
-    if (obj && typeof obj === 'object') {
-      for (const key of keys) {
-        const value = getNested(obj, key);
-        if (value !== undefined && value !== null) return value;
+  if (!Array.isArray(arr) || arr.length === 0) return undefined;
+  if (!Array.isArray(keys) || keys.length === 0) return undefined;
+
+  for (const obj of arr) {
+    if (!obj || typeof obj !== 'object') continue;
+
+    for (const key of keys) {
+      const value = getNested(obj, key);
+
+      if (!isEmpty(value)) {
+        return value;
       }
     }
   }
+
   return undefined;
 };
 

@@ -46,12 +46,10 @@ export class Messages {
   }
 
   async parse(message: WAMessage, type?: 'replied') {
-    // console.log('🔍 ~ parse ~ src/Listener/messages.ts:48 ~ message:', message);
     if (message?.category === 'peer') return;
     if (!message?.message || !message?.key?.id) return;
     if (message?.messageStubType || !!message?.messageStubParameters?.length) return;
     if (message.message?.protocolMessage?.peerDataOperationRequestResponseMessage) return;
-    if (message.message?.groupStatusMentionMessage) return;
 
     const original = message;
 
@@ -106,7 +104,7 @@ export class Messages {
 
     output.roomName = await this.client.getRoomName(output.roomId);
 
-    output.senderLid = pickKeysFromArray([message?.key], ['remoteJidAlt', 'participant']) || null;
+    output.senderLid = pickKeysFromArray([message?.key], ['participant', 'remoteJid', 'remoteJidAlt']) || null;
     output.senderId = jidNormalizedUser(message?.key?.participantAlt || message?.key?.remoteJidAlt);
 
     output.senderName = normalizeText(message?.pushName || message?.verifiedBizName);
@@ -152,8 +150,16 @@ export class Messages {
 
     output.isBot = output.chatId.startsWith('BAE5') || output.chatId.startsWith('3EB0') || output.chatId.startsWith('Z4D3FC');
     output.isFromMe = isFromMe;
-    output.isTagMe = output.mentions?.includes(output.receiverId.split('@')[0]);
     output.isPrefix = output.text?.startsWith(this.client.options?.prefix) || false;
+    output.isTagMe = output.mentions?.includes(output.receiverId.split('@')[0]);
+
+    output.isStatusMention = !!message?.message?.statusMentionMessage;
+    output.isGroupStatusMention = !!message?.message?.groupStatusMentionMessage;
+    output.isHideTags = false;
+
+    if (_.isEmpty(output.text) && content?.contextInfo?.mentionedJid?.length) {
+      output.isHideTags = true;
+    }
 
     output.isSpam = await this.limiter.isSpam(output.channelId);
 
@@ -207,6 +213,14 @@ export class Messages {
       };
     }
 
+    if (output.isStatusMention) {
+      output.chatType = 'statusMention';
+    }
+
+    if (output.isGroupStatusMention) {
+      output.chatType = 'groupStatusMention';
+    }
+
     output.message = () => original;
 
     output.replied = null;
@@ -227,9 +241,9 @@ export class Messages {
         if (isViewOnce) {
           output.replied.isViewOnce = true;
         }
-
-        this.maxReplies = 3;
       }
+
+      this.maxReplies = 3;
     }
 
     if (type != 'replied') {

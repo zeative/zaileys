@@ -66,16 +66,16 @@ Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essentia
 
 ## 🪶 Features
 
-- 🛡️ **Type-Safe** - Full TypeScript + Zod validation with autocomplete
-- 🏓 **Middleware** - Intercept and process events globally
-- 🧩 **Plugin System** - Drop-in file-based plugins
-- 💾 **State Management** - Built-in `JetDB` for data persistence with **auto chunking**
-- 🔔 **Event-Driven** - Clean listeners for `connection`, `messages`, `calls`
-- 📢 **Rate Limiting** - Anti-spam protection out of the box
-- 🤖 **Auto-Everything** - Auto-read, auto-reject calls, auto-mentions
-- 📲 **Multi-Device** - QR code or Pairing Code authentication
-- 🎬 **Built-in FFmpeg** - No external dependencies for media processing
-- 🔘 **Interactive Buttons** - Simple buttons, URL, copy code, call buttons, and lists
+- ✅ **Type-Safe** - Full TypeScript + Zod validation with autocomplete
+- ✅ **Middleware** - Intercept and process events globally
+- ✅ **Plugin System** - Drop-in file-based plugins
+- ✅ **State Management** - Built-in `JetDB` for data persistence with **auto chunking**
+- ✅ **Event-Driven** - Clean listeners for `connection`, `messages`, `calls`
+- ✅ **Rate Limiting** - Anti-spam protection out of the box
+- ✅ **Auto-Everything** - Auto-read, auto-reject calls, auto-mentions
+- ✅ **Multi-Device** - QR code or Pairing Code authentication
+- ✅ **Built-in FFmpeg** - No external dependencies for media processing
+- ✅ **Interactive Buttons** - Simple buttons, URL, copy code, call buttons, and lists
 
 ## 🎨 Concepts & Architecture
 
@@ -103,7 +103,7 @@ yarn add zaileys
 
 > **Note**: Requires Node.js v20+ and TypeScript for best experience.
 
-> **FFmpeg**: No need to install FFmpeg separately! It's already bundled with Zaileys for seamless media processing (audio, video, stickers).
+> **FFmpeg**: No need to install FFmpeg separately! It's already bundled with Zaileys for seamless media processing (audio, video, stickers). You can disabled it if you want at `Client Configuration`.
 
 ## 🏁 Starter Kit
 
@@ -133,6 +133,13 @@ const wa = new Client({
 
   // if you want to disable built-in ffmpeg
   // disableFFmpeg: true,
+
+  sticker: {
+    authorName: 'your name',
+    packageName: 'package name',
+    quality: 80,
+    shape: 'circle', // output sticker must be circle
+  },
 });
 
 wa.on('messages', async (ctx) => {
@@ -141,6 +148,77 @@ wa.on('messages', async (ctx) => {
   }
 });
 ```
+
+<details>
+  <summary>✨ Structure of <b>ctx</b> on event listener <code>messages</code></summary>
+  
+```jsonc
+{
+  "uniqueId": "Z4D3FCXXXXXXXXXXXXX",
+  "channelId": "Z4D3FCXXXXXXXXXXXXX",
+
+"chatId": "ACAE07XXXXXXXXXXXXX",
+"chatType": "text",
+
+"receiverId": "628xxxxxxxx@s.whatsapp.net",
+"receiverName": "Zaileys",
+
+"roomId": "120xxxxxxxx@g.us",
+"roomName": "Group Test",
+"senderLid": "272xxxxxxxx@lid",
+
+"senderId": "628xxxxxxxx@s.whatsapp.net",
+"senderName": "hajel",
+"senderDevice": "android",
+
+"timestamp": 1766045633000,
+"text": "World Hello! https://github.com/zeative/zaileys",
+
+"mentions": ["@628xxxxxxxx", "@123xxxxxxxx"],
+"links": ["https://github.com/zeative/zaileys"],
+
+"isBot": false,
+"isFromMe": false,
+"isPrefix": false,
+"isTagMe": false,
+
+"isStatusMention": false,
+"isGroupStatusMention": false,
+"isHideTags": true,
+
+"isSpam": false,
+"isGroup": true,
+"isNewsletter": false,
+"isQuestion": false,
+"isStory": false,
+
+"isViewOnce": false,
+"isEdited": false,
+"isDeleted": false,
+"isPinned": false,
+"isUnPinned": false,
+
+"isBroadcast": false,
+"isEphemeral": false,
+"isForwarded": false,
+
+"citation": {
+"authors": [AsyncFunction (anonymous)],
+"banned": [AsyncFunction (anonymous)]  
+ },
+
+"media": {
+// ...
+// buffer promise
+// stream promise
+},
+
+"message": [Function (anonymous)],
+"replied": {} // MessagesContext
+}
+
+````
+</details>
 
 ## 🛠️ Configuration
 
@@ -174,7 +252,7 @@ These options apply to both authentication methods:
 | :---------- | :------- | :------------------------------------------------------------------------------ |
 | `limiter`   | `object` | Rate limiting configuration. Default: `maxMessages: 20, durationMs: 10_000`.    |
 | `fakeReply` | `object` | Configuration for fake reply provider.                                          |
-| `sticker`   | `object` | Default metadata for sticker creation (`packageName`, `authorName`, `quality`). |
+| `sticker`   | `object` | Default metadata for sticker creation (`packageName`, `authorName`, `quality`, `shape`). |
 | `citation`  | `object` | Custom citation sources.                                                        |
 
 ## 💡 Advanced Usage
@@ -192,7 +270,7 @@ wa.use(async (ctx, next) => {
 
   await next();
 });
-```
+````
 
 ### 🧩 Plugins
 
@@ -367,6 +445,7 @@ await wa.send(ctx.roomId, {
 // support gif and video
 await wa.send(ctx.roomId, {
   sticker: 'https://example.com/sticker.mp4',
+  shape: 'circle', // default: 'default' | 'circle' | 'rounded' | 'oval'
 });
 ```
 

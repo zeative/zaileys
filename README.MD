@@ -168,7 +168,7 @@ wa.on('messages', async (ctx) => {
   "senderLid": "272xxxxxxxx@lid",
 
   "senderId": "628xxxxxxxx@s.whatsapp.net",
-  "senderName": "hajel",
+  "senderName": "kejaa",
   "senderDevice": "android",
 
   "timestamp": 1766045633000,

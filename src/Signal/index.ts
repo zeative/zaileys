@@ -141,9 +141,10 @@ export class Signal {
       }
 
       if (hasSticker) {
+        const shape = ignoreLint(options)?.shape;
         output = {
           ...output,
-          sticker: await getWaSticker(media, this.client.options?.sticker),
+          sticker: await getWaSticker(media, { ...this.client.options?.sticker, shape }),
         };
       }
 

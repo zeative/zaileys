@@ -1,6 +1,7 @@
 import { proto, WAMessage } from 'baileys';
 import z from 'zod';
 import { ButtonType } from '../button';
+import { StickerShapeType } from '../client';
 
 const MediaType = z.url().or(z.base64()).or(z.instanceof(Buffer));
 
@@ -23,7 +24,14 @@ const MessageVideoType = z
   })
   .passthrough();
 
-const MessageStickerType = z.object({ sticker: MediaType, caption: z.string().optional() }).passthrough();
+const MessageStickerType = z
+  .object({
+    sticker: MediaType,
+    shape: StickerShapeType.optional(),
+    caption: z.string().optional(),
+  })
+  .passthrough();
+
 const MessageDocumentType = z.object({ document: MediaType, caption: z.string().optional(), fileName: z.string().optional() }).passthrough();
 
 export const MessageLocationType = z

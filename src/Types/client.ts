@@ -18,11 +18,14 @@ export const FakeReplyType = z
   })
   .optional();
 
+export const StickerShapeType = z.enum(['default', 'rounded', 'circle', 'oval']).default('default');
+
 export const StickerMetadataType = z
   .object({
     packageName: z.string(),
     authorName: z.string(),
     quality: z.number(),
+    shape: StickerShapeType.optional(),
   })
   .optional();
 

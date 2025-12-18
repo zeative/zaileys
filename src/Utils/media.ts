@@ -293,14 +293,41 @@ export class ImageProcessor {
     return thumbnail.toString('base64');
   }
 
-  static async resizeForSticker(buffer: Buffer, quality: number): Promise<Buffer> {
-    return sharp(buffer)
-      .resize(CONSTANTS.STICKER.SIZE, CONSTANTS.STICKER.SIZE, {
-        fit: 'cover',
-        background: { r: 0, g: 0, b: 0, alpha: 0 },
-      })
-      .webp({ quality })
-      .toBuffer();
+  static async resizeForSticker(buffer: Buffer, quality: number, shape: string = 'default'): Promise<Buffer> {
+    let sharpInstance = sharp(buffer).resize(CONSTANTS.STICKER.SIZE, CONSTANTS.STICKER.SIZE, {
+      fit: 'cover',
+      background: { r: 0, g: 0, b: 0, alpha: 0 },
+    });
+
+    if (shape !== 'default') {
+      const size = CONSTANTS.STICKER.SIZE;
+      let mask: string;
+
+      switch (shape) {
+        case 'rounded':
+          mask = `<svg width="${size}" height="${size}"><rect x="0" y="0" width="${size}" height="${size}" rx="${size / 10}" ry="${size / 10}" fill="white"/></svg>`;
+          break;
+        case 'circle':
+          mask = `<svg width="${size}" height="${size}"><circle cx="${size / 2}" cy="${size / 2}" r="${size / 2}" fill="white"/></svg>`;
+          break;
+        case 'oval':
+          mask = `<svg width="${size}" height="${size}"><ellipse cx="${size / 2}" cy="${size / 2}" rx="${size / 2}" ry="${size / 3}" fill="white"/></svg>`;
+          break;
+        default:
+          mask = '';
+      }
+
+      if (mask) {
+        sharpInstance = sharpInstance.composite([
+          {
+            input: Buffer.from(mask),
+            blend: 'dest-in',
+          },
+        ]);
+      }
+    }
+
+    return sharpInstance.webp({ quality }).toBuffer();
   }
 }
 
@@ -410,7 +437,8 @@ export class StickerProcessor {
       const quality = metadata?.quality || CONSTANTS.STICKER.DEFAULT_QUALITY;
       const isAnimated = MimeValidator.isAnimated(fileType.mime);
 
-      const webpBuffer = isAnimated ? await this.processAnimated(buffer, fileType.mime, quality) : await ImageProcessor.resizeForSticker(buffer, quality);
+      const shape = metadata?.shape || 'default';
+      const webpBuffer = isAnimated ? await this.processAnimated(buffer, fileType.mime, quality) : await ImageProcessor.resizeForSticker(buffer, quality, shape);
 
       const exif = this.createExifMetadata(metadata);
       const img = new webp.Image();

@@ -36,9 +36,9 @@ export class HealthManager {
     this.setupActivityListeners();
 
     this.checkInterval = setInterval(() => this.check(), this.options.checkIntervalMs);
-
-    this.cleanupInterval = setInterval(() => this.client.cleanupMessages(), 60 * 60 * 1000);
-    this.client.cleanupMessages();
+    
+    this.cleanupInterval = setInterval(() => this.client.cleanupMessages(this.client.options.cleanupDays), 60 * 60 * 1000);
+    this.client.cleanupMessages(this.client.options.cleanupDays);
 
     store.spinner.success(' Health manager monitoring started');
   }

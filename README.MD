@@ -66,6 +66,9 @@ Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essentia
 
 ## 🪶 Features
 
+- ✅ **Auto-Cleanup** - Automatically delete old messages to keep database light
+- ✅ **Intelligent Health Manager** - Auto-recovery and connection monitoring
+- ✅ **History Filtering** - Smart filtering of old history sync messages
 - ✅ **Type-Safe** - Full TypeScript + Zod validation with autocomplete
 - ✅ **Middleware** - Intercept and process events globally
 - ✅ **Plugin System** - Drop-in file-based plugins
@@ -235,6 +238,8 @@ These options apply to both authentication methods:
 | `showLogs`        | `boolean` | `true`      | Enable internal logging.                |
 | `ignoreMe`        | `boolean` | `true`      | Ignore messages sent by the bot itself. |
 | `syncFullHistory` | `boolean` | `true`      | Sync full chat history on startup.      |
+| `cleanupDays`     | `number`  | `7`         | Days to keep messages before auto-deletion. |
+| `disableFFmpeg`   | `boolean` | `false`     | Disable built-in FFmpeg installers.     |
 
 ### Automation Options
 
@@ -271,6 +276,14 @@ wa.use(async (ctx, next) => {
   await next();
 });
 ````
+
+### 🛠️ Maintenance & Health
+
+Zaileys includes built-in tools to keep your bot running smoothly and your database light.
+
+- **Auto-Cleanup**: Automatically deletes messages older than `cleanupDays` (default 7) every hour.
+- **Intelligent Recovery**: Automatically detects and repairs session issues or connection drops.
+- **History Filtering**: Prevents database bloat by ignoring extremely old messages during the initial history sync.
 
 ### 🧩 Plugins
 

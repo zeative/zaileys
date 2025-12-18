@@ -31,7 +31,7 @@ export class NanoStore {
   }
 
   db(session: string, dir: string): JetDB {
-    const path = `.session/${session}/${dir}`;
+    const path = `.session/${session}/${dir}.json`;
     const db = createJetDB(path, {
       cacheSize: 5000,
       flushMode: 'debounce',

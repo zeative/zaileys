@@ -1,7 +1,6 @@
 import { URL_REGEX } from 'baileys';
 import gradient from 'gradient-string';
 import _ from 'lodash';
-import { object } from 'zod';
 
 export const logColor = (text: string, color: string[] | string = 'lime') => {
   if (Array.isArray(color)) {

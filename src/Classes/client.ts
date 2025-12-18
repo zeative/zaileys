@@ -1,4 +1,4 @@
-import makeWASocket from 'baileys';
+import makeWASocket, { proto } from 'baileys';
 import { JetDB } from 'jetdb';
 import z from 'zod';
 import { registerAuthCreds } from '../Auth';
@@ -11,11 +11,11 @@ import { SignalGroup } from '../Signal/group';
 import { SignalNewsletter } from '../Signal/newsletter';
 import { SignalPrivacy } from '../Signal/privacy';
 import { ClientOptionsType, EventCallbackType, EventEnumType } from '../Types';
-import { getDeepContent, normalizeText, pickKeysFromArray } from '../Utils';
+import { normalizeText, pickKeysFromArray } from '../Utils';
 import { autoDisplayBanner } from '../Utils/banner';
 import { configureFFmpeg } from '../Utils/media';
-import { createWatchdog, SessionWatchdog } from '../Utils/watchdog';
 import { MessageCollector } from './collector';
+import { HealthManager } from './health';
 import { Logs } from './logs';
 import { Middleware, MiddlewareHandler } from './middleware';
 import { Plugins } from './plugins';
@@ -26,8 +26,8 @@ export interface Client extends Signal, SignalGroup, SignalPrivacy, SignalNewsle
 export class Client {
   private listener: Listener;
   private _ready: Promise<void>;
-  private watchdog: SessionWatchdog | null = null;
 
+  health: HealthManager;
   logs: Logs;
 
   collector = new MessageCollector();
@@ -59,43 +59,8 @@ export class Client {
     this.listener = new Listener(client || this);
     this.logs = new Logs(this);
 
-    this.watchdog = createWatchdog({
-      session: this.options.session,
-      checkIntervalMs: 60_000,
-      staleThresholdMs: 120_000,
-      cooldownMs: 60_000,
-      maxRetries: 3,
-
-      onRecovery: async () => {
-        await this.initialize(client);
-      },
-    });
-
-    this.watchdog.start();
-    this.setupPrekeyErrorDetection();
-  }
-
-  private prekeyDetected = false;
-  private setupPrekeyErrorDetection() {
-    const originalLog = console.log;
-    const watchdog = this.watchdog;
-    const self = this;
-
-    console.log = (...args: unknown[]) => {
-      const message = args
-        .map((a) => String(a))
-        .join(' ')
-        .toLowerCase();
-      if ((message.includes('closing open session') || message.includes('prekey bundle')) && !self.prekeyDetected) {
-        self.prekeyDetected = true;
-        store.spinner.warn(' Prekey bundle error detected');
-        watchdog?.forceRecovery();
-        setTimeout(() => {
-          self.prekeyDetected = false;
-        }, 60_000);
-      }
-      return originalLog.apply(console, args);
-    };
+    this.health = new HealthManager(client || this);
+    this.health.start();
   }
 
   ready() {
@@ -119,14 +84,18 @@ export class Client {
     return store.get('socket') as ReturnType<typeof makeWASocket>;
   }
 
-  async getMessageByChatId(chatId: string) {
+  async getMessageByChatId(chatId: string, media?: proto.IMessage) {
     const allEntries = await this.db('messages').all();
 
-    // Search through each room's messages efficiently
     for (const [roomId] of allEntries) {
-      const message = await this.db('messages').query(roomId).where('key.id', '=', chatId).first();
+      let message = await this.db('messages').query(roomId).where('key.id', '=', chatId).first();
 
       if (message) {
+        message = {
+          ...message,
+          message: media,
+        };
+
         return await this.listener.messages.parse(message);
       }
     }
@@ -135,14 +104,17 @@ export class Client {
   }
 
   async getRoomName(roomId: string) {
-    const chat = await this.db('chats').get(roomId);
-    const contact = await this.db('contacts').query('all-contacts').all();
-    console.log('🔍 ~ getRoomName ~ src/Classes/client.ts:139 ~ contact:', contact);
+    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const isGroup = roomId.endsWith('@g.us');
 
-    // const chatName = pickKeysFromArray(chat, ['name', 'verifiedName']);
-    // const contactName = pickKeysFromArray(contact, ['notify', 'name']);
+    let roomName = null;
 
-    // return normalizeText(chatName || contactName) || null;
+    if (isGroup) {
+      const metadata = await socket.groupMetadata(roomId);
+      roomName = metadata?.subject || null;
+    }
+
+    return normalizeText(roomName);
   }
 
   async getLabelName(roomId: string) {

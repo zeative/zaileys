@@ -3,4 +3,3 @@ export * from './helper';
 export * from './message';
 export * from './media';
 export * from './session';
-export * from './watchdog';

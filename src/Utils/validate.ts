@@ -29,14 +29,23 @@ export const normalizeText = (text = '') => {
   if (!text?.length) return null;
 
   let clean = text
+
     .normalize('NFKD')
     .replace(/[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u2028-\u202F\u2060-\u206F\uFEFF\uFFF9-\uFFFB]/gu, '')
     .replace(
       /[\u0300-\u036F\u0483-\u0489\u0591-\u05BD\u05BF\u05C1-\u05C2\u05C4-\u05C7\u0610-\u061A\u064B-\u065F\u0670\u06D6-\u06DC\u06DF-\u06E4\u06E7-\u06E8\u06EA-\u06ED\u20D0-\u20FF\uFE20-\uFE2F]/gu,
       '',
     )
-    .replace(/[\u202A-\u202E\u2066-\u2069]/gu, '')
-    .replace(/\u202E([\s\S]*?)\u202C?/gu, (_, s) => [...s].reverse().join(''));
 
-  return clean;
+    .replace(/[\u202A-\u202E\u2066-\u2069]/gu, '')
+    .replace(/\u202E([\s\S]*?)\u202C?/gu, (_, s) => [...s].reverse().join(''))
+    .replace(/[\uFE00-\uFE0F]/gu, '')
+    .replace(/[\u200C\u200D]/gu, '')
+    .replace(/[\u2800\u180E]/gu, '')
+    .replace(/[\s\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]+/gu, ' ')
+    .replace(/[\p{Cc}\p{Cf}\p{Co}\p{Cn}]/gu, '')
+    .trim()
+    .replace(/\s+/g, ' ');
+
+  return clean.length ? clean : null;
 };

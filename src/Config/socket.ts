@@ -23,12 +23,14 @@ export const socketConfig = (client: Client, state: AuthenticationState): Parame
       keys: makeCacheableSignalKeyStore(state.keys, store.logger),
     },
 
+    shouldIgnoreJid: () => false,
+
+    patchMessageBeforeSending: (msg) => msg,
+
     getMessage: async (key) => {
       if (!key?.remoteJid) return undefined;
 
-      // Use query builder for optimized lookup
       const message = await client.db('messages').query(key.remoteJid).where('key.id', '=', key.id).first();
-
       return message;
     },
   };

@@ -46,6 +46,7 @@ export class Messages {
   }
 
   async parse(message: WAMessage, type?: 'replied') {
+    // console.log('🔍 ~ parse ~ src/Listener/messages.ts:48 ~ message:', message);
     if (message?.category === 'peer') return;
     if (!message?.message || !message?.key?.id) return;
     if (message?.messageStubType || !!message?.messageStubParameters?.length) return;
@@ -73,6 +74,8 @@ export class Messages {
     output.chatId = message?.message?.protocolMessage?.key?.id || message?.key?.id || null;
     output.chatType = MESSAGE_MEDIA_TYPES[contentType];
 
+    if (!output.chatType) return;
+
     output.receiverId = jidNormalizedUser(socket?.user?.id || '');
     output.receiverName = normalizeText(socket?.user?.name || socket?.user?.verifiedName);
 
@@ -91,7 +94,6 @@ export class Messages {
     const universalId = content?.key?.id;
 
     if (isRevoke || isPin || isUnPin) {
-      // Use query builder for optimized lookup
       const universal = await this.client.db('messages').query(output.roomId).where('key.id', '=', universalId).first();
 
       if (!universal) return;
@@ -105,7 +107,7 @@ export class Messages {
     output.roomName = await this.client.getRoomName(output.roomId);
 
     output.senderLid = pickKeysFromArray([message?.key], ['remoteJidAlt', 'participant']) || null;
-    output.senderId = jidNormalizedUser(message?.participant || message?.key?.participant || message?.key?.remoteJid);
+    output.senderId = jidNormalizedUser(message?.key?.participantAlt || message?.key?.remoteJidAlt);
 
     output.senderName = normalizeText(message?.pushName || message?.verifiedBizName);
     output.senderDevice = getDevice(output.chatId);
@@ -210,31 +212,24 @@ export class Messages {
     output.replied = null;
 
     const isReplied = content?.contextInfo?.quotedMessage;
-
-    let isViewOnce = pickKeysFromArray([isReplied], ['viewOnceMessageV2Extension', 'viewOnceMessage']);
-    isViewOnce = findGlobalWord(toString(isReplied), 'viewOnce') ? isReplied : isViewOnce;
+    const isViewOnce = findGlobalWord(toString(isReplied), 'viewOnce');
 
     const repliedId = content?.contextInfo?.stanzaId;
 
     if (isReplied && this.maxReplies) {
       this.maxReplies--;
 
-      // Use query builder for optimized lookup
-      const replied = await this.client.db('messages').query(output.roomId).where('key.id', '=', repliedId).first();
+      const replied = await this.client.getMessageByChatId(repliedId, isReplied);
 
-      const viewonce = {
-        ...replied,
-        message: isViewOnce,
-      };
+      if (replied) {
+        output.replied = replied as never;
 
-      if (isViewOnce) {
-        output.replied = (await this.parse(viewonce, 'replied')) as never;
-        output.replied.isViewOnce = true;
-      } else {
-        output.replied = (await this.parse(replied, 'replied')) as never;
+        if (isViewOnce) {
+          output.replied.isViewOnce = true;
+        }
+
+        this.maxReplies = 3;
       }
-
-      this.maxReplies = 3;
     }
 
     if (type != 'replied') {

@@ -34,93 +34,49 @@ export class Listener {
     socket?.ev.on('messaging-history.set', async (update) => {
       const { chats, contacts, messages } = update;
 
-      // Batch upsert chats
-      if (chats.length) {
-        await this.client.db('chats').batchUpsert('all-chats', chats, 'id');
+      for (const chat of chats) {
+        // Simpan langsung tanpa chunking
+        await this.client.db('chats').set(chat.id, chat);
       }
 
-      // Batch upsert contacts
-      if (contacts.length) {
-        await this.client.db('contacts').batchUpsert('all-contacts', contacts, 'id');
+      for (const contact of contacts) {
+        // Simpan langsung tanpa chunking
+        await this.client.db('contacts').set(contact.id, contact);
       }
 
-      // Filter valid messages
-      const validMessages = messages.filter((message) => {
-        if (!message.message && !message.key.isViewOnce) return false;
-        if (message?.category === 'peer') return false;
-        if (message.message?.protocolMessage && !message.message?.protocolMessage?.memberLabel) return false;
-        if (message.message?.groupStatusMentionMessage) return false;
-        return true;
-      });
+      for (const message of messages) {
+        if (!message.message && !message.key.isViewOnce) return;
+        if (message?.category === 'peer') return;
+        if (message.message?.protocolMessage && !message.message?.protocolMessage?.memberLabel) return;
+        if (message.message?.groupStatusMentionMessage) return;
 
-      // Group messages by roomId and batch upsert
-      if (validMessages.length) {
-        const messagesByRoom = validMessages.reduce((acc, msg) => {
-          const roomId = msg.key.remoteJid;
-          if (!acc[roomId]) acc[roomId] = [];
-          acc[roomId].push(msg);
-          return acc;
-        }, {} as Record<string, typeof messages>);
-
-        await Promise.all(Object.entries(messagesByRoom).map(([roomId, msgs]) => this.client.db('messages').batchUpsert(roomId, msgs, 'key.id')));
+        await this.client.db('messages').upsert(message.key.remoteJid, message, 'key.id');
       }
     });
 
     socket?.ev.on('messages.upsert', async ({ messages }) => {
-      const validMessages = messages.filter((message) => {
-        if (!message.message && !message.key.isViewOnce) return false;
-        if (message?.category === 'peer') return false;
-        if (message.message?.protocolMessage && !message.message?.protocolMessage?.memberLabel) return false;
-        if (message.message?.groupStatusMentionMessage) return false;
-        return true;
-      });
+      for (const message of messages) {
+        if (!message.message && !message.key.isViewOnce) return;
+        if (message?.category === 'peer') return;
+        if (message.message?.protocolMessage && !message.message?.protocolMessage?.memberLabel) return;
+        if (message.message?.groupStatusMentionMessage) return;
 
-      // Group by roomId and batch upsert
-      if (validMessages.length) {
-        const messagesByRoom = validMessages.reduce((acc, msg) => {
-          const roomId = msg.key.remoteJid;
-          if (!acc[roomId]) acc[roomId] = [];
-          acc[roomId].push(msg);
-          return acc;
-        }, {} as Record<string, typeof messages>);
-
-        await Promise.all(Object.entries(messagesByRoom).map(([roomId, msgs]) => this.client.db('messages').batchUpsert(roomId, msgs, 'key.id')));
+        await this.client.db('messages').upsert(message.key.remoteJid, message, 'key.id');
       }
     });
 
     socket?.ev.on('chats.upsert', async (chats) => {
-      if (chats.length) {
-        await this.client.db('chats').batchUpsert('all-chats', chats, 'id');
+      for (const chat of chats) {
+        // Simpan langsung tanpa chunking
+        await this.client.db('chats').set(chat.id, chat);
       }
     });
 
     socket?.ev.on('contacts.upsert', async (contacts) => {
-      if (contacts.length) {
-        await this.client.db('contacts').batchUpsert('all-contacts', contacts, 'id');
+      for (const contact of contacts) {
+        // Simpan langsung tanpa chunking
+        await this.client.db('contacts').set(contact.id, contact);
       }
     });
-
-    // Setup database indexes for fast queries
-    await this.setupIndexes();
-  }
-
-  private async setupIndexes() {
-    try {
-      // Create indexes for frequently queried fields
-      const messageDb = this.client.db('messages');
-      const allRooms = await messageDb.all();
-
-      for (const [roomId] of allRooms) {
-        await messageDb.createIndex(roomId, 'key.id');
-      }
-
-      await this.client.db('chats').createIndex('all-chats', 'id');
-      await this.client.db('contacts').createIndex('all-contacts', 'id');
-
-      store.spinner.success(' Database indexes created');
-    } catch (error) {
-      // Non-critical, indexes will be created incrementally
-      store.spinner.warn(' Could not create indexes (non-critical)');
-    }
   }
 }

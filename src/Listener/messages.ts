@@ -20,27 +20,40 @@ export class Messages {
   async initialize() {
     const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
 
+    if (!socket?.ev) {
+      console.warn('⚠️ [Messages] Socket or socket.ev is not available during initialization');
+      return;
+    }
+
     socket.ev.on('messages.upsert', async ({ messages, type }) => {
-      if (type !== 'notify') return;
+      try {
+        if (type !== 'notify' && type !== 'append') return;
 
-      for (const message of messages) {
-        const parsed = await this.parse(message);
+        for (const message of messages) {
+          try {
+            const parsed = await this.parse(message);
 
-        if (parsed) {
-          const collected = this.client.collector.push(parsed);
+            if (parsed) {
+              const collected = this.client.collector.push(parsed);
 
-          if (!collected) {
-            await this.client.middleware.run({ messages: parsed });
-            await this.client.plugins.execute(this.client, { messages: parsed });
+              if (!collected) {
+                await this.client.middleware.run({ messages: parsed });
+                await this.client.plugins.execute(this.client, { messages: parsed });
 
-            store.set('message', parsed);
-            store.events.emit('messages', parsed);
-          }
+                store.set('message', parsed);
+                store.events.emit('messages', parsed);
+              }
 
-          if (this.client.options.autoRead) {
-            await socket.readMessages([parsed.message().key]);
+              if (this.client.options.autoRead) {
+                await socket.readMessages([parsed.message().key]);
+              }
+            }
+          } catch (err) {
+            console.error(`❌ [Messages] Error processing message ${message.key?.id}:`, err);
           }
         }
+      } catch (err) {
+        console.error('❌ [Messages] Critical error in upsert listener:', err);
       }
     });
   }
@@ -87,7 +100,9 @@ export class Messages {
     const isQuestion = !!message?.message?.questionMessage;
     const isFromMe = message?.key?.fromMe || false;
 
-    if (isFromMe && this.client.options.ignoreMe && type !== 'replied') return;
+    if (isFromMe && this.client.options.ignoreMe && type !== 'replied') {
+      return;
+    }
 
     const universalId = content?.key?.id;
 
@@ -104,11 +119,12 @@ export class Messages {
 
     output.roomName = await this.client.getRoomName(output.roomId);
 
-    output.senderLid = pickKeysFromArray([message?.key], ['participant', 'remoteJid', 'remoteJidAlt']) || null;
-    output.senderId = jidNormalizedUser(message?.key?.participantAlt || message?.key?.remoteJidAlt);
+    output.senderLid = pickKeysFromArray([message?.key], ['participant', 'remoteJid']) || null;
+    output.senderId = jidNormalizedUser(message?.key?.participant || message?.key?.remoteJid);
 
     output.senderName = normalizeText(message?.pushName || message?.verifiedBizName);
-    output.senderDevice = getDevice(output.chatId);
+
+    output.senderDevice = getDevice(output.chatId || '');
 
     output.channelId = generateId([output.roomId, output.senderId]);
     output.uniqueId = generateId([output.channelId, output.chatId]);

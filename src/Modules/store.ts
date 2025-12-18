@@ -10,7 +10,14 @@ export class NanoStore {
   private data = new Map<string, StoreData>();
 
   set(key: string, value: any) {
-    this.data.set(key, { ...this.data.get(key), ...value });
+    const isPlainObject = (obj: any) => obj && typeof obj === 'object' && obj.constructor === Object;
+    const current = this.data.get(key);
+
+    if (isPlainObject(value) && isPlainObject(current)) {
+      this.data.set(key, { ...current, ...value });
+    } else {
+      this.data.set(key, value);
+    }
   }
 
   get(key: string) {

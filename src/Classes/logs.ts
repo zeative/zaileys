@@ -1,4 +1,3 @@
-import makeWASocket from 'baileys';
 import { store } from '../Modules/store';
 import { CallsContext } from '../Types/calls';
 import { MessagesContext } from '../Types/messages';
@@ -28,28 +27,37 @@ export class Logs {
 
     this.logsInitialized = true;
 
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const connectionListener = async ({ status }) => {
+      if (status === 'open') {
+        this.isReady = true;
+        
+        if (!this.logsDisplayed) {
+          setTimeout(() => {
+            this.displayIndicator();
+          }, 500);
+        }
+      }
+    };
 
-    socket.ev.on('connection.update', ({ connection }) => {
-      if (this.logsDisplayed) return;
-      if (connection !== 'open') return;
+    store.events.on('connection', connectionListener);
+  }
 
-      this.logsDisplayed = true;
-      this.isReady = true;
+  private displayIndicator() {
+    if (this.logsDisplayed) return;
+    this.logsDisplayed = true;
 
-      console.log();
-      store.spinner.info('Logs Indicator:');
+    console.log();
+    store.spinner.info('Logs Indicator:');
 
-      console.log(logColor('  •', 'orange') + ' Private Chat');
-      console.log(logColor('  •', 'lime') + ' Group Chat');
-      console.log(logColor('  •', 'blue') + ' Newsletter Chat');
+    console.log(logColor('  •', 'orange') + ' Private Chat');
+    console.log(logColor('  •', 'lime') + ' Group Chat');
+    console.log(logColor('  •', 'blue') + ' Newsletter Chat');
 
-      console.log();
-    });
+    console.log();
   }
 
   message(message: Partial<MessagesContext>) {
-    if (!this.isReady) return; // Pakai instance variable
+    if (!this.isReady) return;
 
     const color = ignoreLint(this.getRoomColor(message));
     const isMatch = message?.text?.toLowerCase()?.match('zaileys');

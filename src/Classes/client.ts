@@ -57,8 +57,15 @@ export class Client {
     await this.plugins.load();
 
     this.listener = new Listener(client || this);
-    this.logs = new Logs(this);
+    
+    if (!this.logs) {
+      this.logs = new Logs(this);
+    }
 
+    if (this.health) {
+      this.health.stop();
+    }
+    
     this.health = new HealthManager(client || this);
     this.health.start();
   }
@@ -122,5 +129,33 @@ export class Client {
     const keys = pickKeysFromArray(message, ['message.protocolMessage.memberLabel']);
 
     return normalizeText(keys?.label) || null;
+  }
+
+  async cleanupMessages(days = 7) {
+    const threshold = Date.now() - days * 24 * 60 * 60 * 1000;
+    const allEntries = await this.db('messages').all();
+    let deletedCount = 0;
+
+    for (const [roomId] of allEntries) {
+      const messages = await this.db('messages').get(roomId);
+      if (!Array.isArray(messages)) continue;
+
+      const filtered = messages.filter((msg) => {
+        const timestamp = Number(msg.messageTimestamp) * 1000;
+        if (timestamp < threshold) {
+          deletedCount++;
+          return false;
+        }
+        return true;
+      });
+
+      if (filtered.length !== messages.length) {
+        await this.db('messages').set(roomId, filtered);
+      }
+    }
+
+    if (deletedCount > 0 && this.options.showLogs) {
+      store.spinner.info(` Cleaned up ${deletedCount} old messages`);
+    }
   }
 }

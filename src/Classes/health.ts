@@ -1,9 +1,6 @@
-import makeWASocket from 'baileys';
 import { store } from '../Modules/store';
 import { repairSessionKeys } from '../Utils/session';
 import { Client } from './client';
-
-type WASocket = ReturnType<typeof makeWASocket>;
 
 export interface HealthOptions {
   checkIntervalMs?: number;
@@ -23,6 +20,7 @@ export class HealthManager {
   private lastActivityTime = Date.now();
   private lastRecoveryTime = 0;
   private checkInterval: NodeJS.Timeout | null = null;
+  private cleanupInterval: NodeJS.Timeout | null = null;
   private isRecovering = false;
   private retryCount = 0;
   private options: Required<HealthOptions>;
@@ -32,12 +30,16 @@ export class HealthManager {
   }
 
   start() {
-    if (this.checkInterval) return;
+    this.stop();
 
     this.lastActivityTime = Date.now();
     this.setupActivityListeners();
 
     this.checkInterval = setInterval(() => this.check(), this.options.checkIntervalMs);
+
+    this.cleanupInterval = setInterval(() => this.client.cleanupMessages(), 60 * 60 * 1000);
+    this.client.cleanupMessages();
+
     store.spinner.success(' Health manager monitoring started');
   }
 
@@ -45,6 +47,10 @@ export class HealthManager {
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
       this.checkInterval = null;
+    }
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = null;
     }
   }
 

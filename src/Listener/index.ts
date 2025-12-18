@@ -43,9 +43,13 @@ export class Listener {
       }
 
       for (const message of messages) {
-        if (message?.category === 'peer') return;
-        if (!message.message && !message.key.isViewOnce && (!message.message?.groupStatusMentionMessage || !message.message?.statusMentionMessage)) return;
-        if (message.message?.protocolMessage && !message.message?.protocolMessage?.memberLabel) return;
+        if (message?.category === 'peer') continue;
+        if (!message.message && !message.key.isViewOnce && (!message.message?.groupStatusMentionMessage || !message.message?.statusMentionMessage)) continue;
+        if (message.message?.protocolMessage && !message.message?.protocolMessage?.memberLabel) continue;
+
+        // Skip messages older than 24 hours
+        const timestamp = Number(message.messageTimestamp) * 1000;
+        if (Date.now() - timestamp > 24 * 60 * 60 * 1000) continue;
 
         await this.client.db('messages').upsert(message.key.remoteJid, message, 'key.id');
       }
@@ -53,9 +57,13 @@ export class Listener {
 
     socket?.ev.on('messages.upsert', async ({ messages }) => {
       for (const message of messages) {
-        if (message?.category === 'peer') return;
-        if (!message.message && !message.key.isViewOnce) return;
-        if (message.message?.protocolMessage && !message.message?.protocolMessage?.memberLabel) return;
+        if (message?.category === 'peer') continue;
+        if (!message.message && !message.key.isViewOnce) continue;
+        if (message.message?.protocolMessage && !message.message?.protocolMessage?.memberLabel) continue;
+
+        // Skip messages older than 24 hours
+        const timestamp = Number(message.messageTimestamp) * 1000;
+        if (Date.now() - timestamp > 24 * 60 * 60 * 1000) continue;
 
         await this.client.db('messages').upsert(message.key.remoteJid, message, 'key.id');
       }

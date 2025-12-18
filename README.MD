@@ -157,64 +157,64 @@ wa.on('messages', async (ctx) => {
   "uniqueId": "Z4D3FCXXXXXXXXXXXXX",
   "channelId": "Z4D3FCXXXXXXXXXXXXX",
 
-"chatId": "ACAE07XXXXXXXXXXXXX",
-"chatType": "text",
+  "chatId": "ACAE07XXXXXXXXXXXXX",
+  "chatType": "text",
 
-"receiverId": "628xxxxxxxx@s.whatsapp.net",
-"receiverName": "Zaileys",
+  "receiverId": "628xxxxxxxx@s.whatsapp.net",
+  "receiverName": "Zaileys",
 
-"roomId": "120xxxxxxxx@g.us",
-"roomName": "Group Test",
-"senderLid": "272xxxxxxxx@lid",
+  "roomId": "120xxxxxxxx@g.us",
+  "roomName": "Group Test",
+  "senderLid": "272xxxxxxxx@lid",
 
-"senderId": "628xxxxxxxx@s.whatsapp.net",
-"senderName": "hajel",
-"senderDevice": "android",
+  "senderId": "628xxxxxxxx@s.whatsapp.net",
+  "senderName": "hajel",
+  "senderDevice": "android",
 
-"timestamp": 1766045633000,
-"text": "World Hello! https://github.com/zeative/zaileys",
+  "timestamp": 1766045633000,
+  "text": "World Hello! https://github.com/zeative/zaileys",
 
-"mentions": ["@628xxxxxxxx", "@123xxxxxxxx"],
-"links": ["https://github.com/zeative/zaileys"],
+  "mentions": ["@628xxxxxxxx", "@123xxxxxxxx"],
+  "links": ["https://github.com/zeative/zaileys"],
 
-"isBot": false,
-"isFromMe": false,
-"isPrefix": false,
-"isTagMe": false,
+  "isBot": false,
+  "isFromMe": false,
+  "isPrefix": false,
+  "isTagMe": false,
 
-"isStatusMention": false,
-"isGroupStatusMention": false,
-"isHideTags": true,
+  "isStatusMention": false,
+  "isGroupStatusMention": false,
+  "isHideTags": true,
 
-"isSpam": false,
-"isGroup": true,
-"isNewsletter": false,
-"isQuestion": false,
-"isStory": false,
+  "isSpam": false,
+  "isGroup": true,
+  "isNewsletter": false,
+  "isQuestion": false,
+  "isStory": false,
 
-"isViewOnce": false,
-"isEdited": false,
-"isDeleted": false,
-"isPinned": false,
-"isUnPinned": false,
+  "isViewOnce": false,
+  "isEdited": false,
+  "isDeleted": false,
+  "isPinned": false,
+  "isUnPinned": false,
 
-"isBroadcast": false,
-"isEphemeral": false,
-"isForwarded": false,
+  "isBroadcast": false,
+  "isEphemeral": false,
+  "isForwarded": false,
 
-"citation": {
-"authors": [AsyncFunction (anonymous)],
-"banned": [AsyncFunction (anonymous)]  
- },
+  "citation": {
+    "authors": [AsyncFunction (anonymous)],
+    "banned": [AsyncFunction (anonymous)]  
+  },
 
-"media": {
-// ...
-// buffer promise
-// stream promise
-},
+  "media": {
+  // ...
+  // buffer promise
+  // stream promise
+  },
 
-"message": [Function (anonymous)],
-"replied": {} // MessagesContext
+  "message": [Function (anonymous)],
+  "replied": {} // MessagesContext
 }
 
 ````

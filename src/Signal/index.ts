@@ -5,7 +5,7 @@ import { MESSAGES_VERIFIED_TYPE } from '../Config/media';
 import { store } from '../Modules/store';
 import { parseZod } from '../Modules/zod';
 import { ButtonOptionsType, SignalOptionsType, SignalType } from '../Types/Signal/signal';
-import { extractJids, getMediaThumbnail, getWaAudio, getWaDocument, getWaImage, getWaSticker, ignoreLint, pickKeysFromArray } from '../Utils';
+import { extractJids, getMediaThumbnail, getWaAudio, getWaDocument, getWaImage, getWaSticker, getWaVideo, ignoreLint, pickKeysFromArray } from '../Utils';
 import { InteractiveButtons } from '../Classes/button';
 import { Client } from '../Classes/client';
 
@@ -123,7 +123,7 @@ export class Signal {
 
         output = {
           ...output,
-          video: content,
+          video: await getWaVideo(media),
           ptv: isPtv,
           jpegThumbnail: await getMediaThumbnail(media),
         };

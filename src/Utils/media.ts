@@ -278,6 +278,60 @@ export class VideoProcessor {
   static async getDuration(filePath: string): Promise<number> {
     return FFmpegProcessor.getDuration(filePath);
   }
+
+  static async getWaVideo(input: MediaInput): Promise<Buffer> {
+    const buffer = await BufferConverter.toBuffer(input);
+    const fileType = await fileTypeFromBuffer(buffer);
+
+    MimeValidator.validate(fileType, CONSTANTS.MIME.VIDEO);
+
+    const tempIn = FileManager.createTempPath('video_in', 'mp4');
+    const tempOut = FileManager.createTempPath('video_out', 'mp4');
+
+    await FileManager.safeWriteFile(tempIn, buffer);
+
+    let outputBuffer: Buffer;
+
+    try {
+      // Re-encode to highly compatible H.264/AAC MP4
+      const options = [
+        '-c:v',
+        'libx264',
+        '-preset',
+        'ultrafast',
+        '-crf',
+        '28',
+        '-c:a',
+        'aac',
+        '-b:a',
+        '128k',
+        '-movflags',
+        '+faststart',
+        '-pix_fmt',
+        'yuv420p',
+        '-f',
+        'mp4',
+      ];
+
+      await FFmpegProcessor.process({
+        input: tempIn,
+        output: tempOut,
+        options,
+        onEnd: async () => {
+          outputBuffer = await FileManager.safeReadFile(tempOut);
+        },
+        onError: async () => {
+          await FileManager.cleanup([tempIn, tempOut]);
+        },
+      });
+
+      await FileManager.cleanup([tempIn, tempOut]);
+      return outputBuffer!;
+    } catch (error) {
+      await FileManager.cleanup([tempIn, tempOut]);
+      throw new Error(`Video re-encoding failed: ${error.message}`);
+    }
+  }
 }
 
 export class ImageProcessor {
@@ -491,6 +545,7 @@ export class DocumentProcessor {
 export const toBuffer = BufferConverter.toBuffer.bind(BufferConverter);
 export const getWaAudio = AudioProcessor.getWaAudio.bind(AudioProcessor);
 export const getWaImage = ImageProcessor.getWaImage.bind(ImageProcessor);
+export const getWaVideo = VideoProcessor.getWaVideo.bind(VideoProcessor);
 export const getVideoThumbnail = VideoProcessor.getThumbnail.bind(VideoProcessor);
 export const getVideoDuration = VideoProcessor.getDuration.bind(VideoProcessor);
 export const getMediaThumbnail = MediaProcessor.getThumbnail.bind(MediaProcessor);

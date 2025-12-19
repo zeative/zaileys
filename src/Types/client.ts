@@ -22,9 +22,9 @@ export const StickerShapeType = z.enum(['default', 'rounded', 'circle', 'oval'])
 
 export const StickerMetadataType = z
   .object({
-    packageName: z.string(),
-    authorName: z.string(),
-    quality: z.number(),
+    packageName: z.string().optional(),
+    authorName: z.string().optional(),
+    quality: z.number().optional(),
     shape: StickerShapeType.optional(),
   })
   .optional();

@@ -4,6 +4,7 @@ import { store } from '../Modules/store';
 import { Calls } from './calls';
 import { Connection } from './connection';
 import { Messages } from './messages';
+import { pickKeysFromArray } from '../Utils';
 
 export class Listener {
   connection: Connection;
@@ -64,6 +65,8 @@ export class Listener {
         // Skip messages older than 24 hours
         const timestamp = Number(message.messageTimestamp) * 1000;
         if (Date.now() - timestamp > 24 * 60 * 60 * 1000) continue;
+
+        const senderLid = pickKeysFromArray([message?.key], ['participant', 'remoteJid']) || null;
 
         await this.client.db('messages').upsert(message.key.remoteJid, message, 'key.id');
       }

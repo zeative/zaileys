@@ -71,7 +71,16 @@ export class Group {
 
   async metadata(roomId: string) {
     const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
-    return await socket.groupMetadata(roomId);
+
+    const cached = store.groupCache.get(roomId) as any;
+    if (cached) return cached;
+
+    const metadata = await socket.groupMetadata(roomId);
+    if (metadata) {
+      store.groupCache.set(roomId, metadata);
+    }
+
+    return metadata;
   }
 
   async requestJoin(roomId: string, participants: string[], type: 'approve' | 'reject') {

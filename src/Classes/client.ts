@@ -57,7 +57,7 @@ export class Client {
     await this.plugins.load();
 
     this.listener = new Listener(client || this);
-    
+
     if (!this.logs) {
       this.logs = new Logs(this);
     }
@@ -65,7 +65,7 @@ export class Client {
     if (this.health) {
       this.health.stop();
     }
-    
+
     this.health = new HealthManager(client || this);
     this.health.start();
   }
@@ -91,25 +91,6 @@ export class Client {
     return store.get('socket') as ReturnType<typeof makeWASocket>;
   }
 
-  async getMessageByChatId(chatId: string, media?: proto.IMessage) {
-    const allEntries = await this.db('messages').all();
-
-    for (const [roomId] of allEntries) {
-      let message = await this.db('messages').query(roomId).where('key.id', '=', chatId).first();
-
-      if (message) {
-        message = {
-          ...message,
-          message: media,
-        };
-
-        return await this.listener.messages.parse(message);
-      }
-    }
-
-    return null;
-  }
-
   async getRoomName(roomId: string) {
     const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
     const isGroup = roomId.endsWith('@g.us');
@@ -117,8 +98,16 @@ export class Client {
     let roomName = null;
 
     if (isGroup) {
-      const metadata = await socket.groupMetadata(roomId);
-      roomName = metadata?.subject || null;
+      const cached = store.groupCache.get(roomId) as any;
+      if (cached) {
+        roomName = cached.subject;
+      } else {
+        const metadata = await socket.groupMetadata(roomId);
+        if (metadata) {
+          store.groupCache.set(roomId, metadata);
+          roomName = metadata.subject;
+        }
+      }
     }
 
     return normalizeText(roomName);

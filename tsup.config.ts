@@ -41,4 +41,8 @@ export default defineConfig({
 
   // tsconfig: './tsconfig.json',
   noExternal: [],
+  define: {
+    'process.env.PACKAGE_VERSION': JSON.stringify(pkg.version),
+    'process.env.PACKAGE_AUTHOR': JSON.stringify(pkg.author),
+  },
 });

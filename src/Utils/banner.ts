@@ -16,13 +16,16 @@ export const autoDisplayBanner = async () => {
   console.clear();
   store.spinner.start(' Checking for updates...');
 
+  const version = process.env.PACKAGE_VERSION || pkg.version;
+  const author = process.env.PACKAGE_AUTHOR || pkg.author;
+
   const latestVersion = await getLatestLibVersion();
-  const isLatest = pkg.version === latestVersion;
+  const isLatest = version === latestVersion;
 
   store.spinner.stop();
 
   const logoLabel = 'Zaileys';
-  const copyright = `\nby ${pkg.author} · v${pkg.version}`;
+  const copyright = `\nby ${author} · v${version}`;
 
   const updateLabel = `${isLatest ? 'Already using latest version!' : `Update available! (v${latestVersion})`} \n`;
   const updateColor = isLatest ? 'lime' : 'orange';

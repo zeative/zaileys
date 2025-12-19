@@ -1,4 +1,4 @@
-import makeWASocket, { downloadMediaMessage, getDevice, jidNormalizedUser, WAMessage } from 'baileys';
+import makeWASocket, { downloadMediaMessage, getDevice, jidDecode, jidNormalizedUser, WAMessage } from 'baileys';
 import _ from 'lodash';
 import { Client } from '../Classes';
 import { MESSAGE_MEDIA_TYPES } from '../Config/media';
@@ -59,6 +59,8 @@ export class Messages {
   }
 
   async parse(message: WAMessage, type?: 'replied') {
+    console.log(JSON.stringify(message, null, 2));
+
     if (message?.category === 'peer') return;
     if (!message?.message || !message?.key?.id) return;
     if (message?.messageStubType || !!message?.messageStubParameters?.length) return;
@@ -119,8 +121,8 @@ export class Messages {
 
     output.roomName = await this.client.getRoomName(output.roomId);
 
-    output.senderLid = pickKeysFromArray([message?.key], ['participant', 'remoteJid']) || null;
-    output.senderId = jidNormalizedUser(message?.key?.participant || message?.key?.remoteJid);
+    output.senderLid = jidNormalizedUser(message?.key?.participant || message?.key?.remoteJid) || null;
+    output.senderId = jidNormalizedUser(message?.key?.participantAlt || message?.key?.remoteJidAlt) || null;
 
     output.senderName = normalizeText(message?.pushName || message?.verifiedBizName);
 
@@ -245,18 +247,35 @@ export class Messages {
     const isViewOnce = findGlobalWord(toString(isReplied), 'viewOnce');
 
     const repliedId = content?.contextInfo?.stanzaId;
+    const repliedRoom = content?.contextInfo?.participant;
 
     if (isReplied && this.maxReplies) {
       this.maxReplies--;
 
-      const replied = await this.client.getMessageByChatId(repliedId, isReplied);
+      const decoded = jidDecode(output.receiverId);
+      console.log('🔍 ~ parse ~ src/Listener/messages.ts:253 ~ decoded:', decoded);
 
-      if (replied) {
-        output.replied = replied as never;
+      const oldMessage = await this.client
+        .db('messages')
+        .query(isViewOnce ? repliedRoom : output.roomId)
+        .where('key.id', '=', repliedId)
+        .first();
 
-        if (isViewOnce) {
-          output.replied.isViewOnce = true;
-        }
+      let replied;
+
+      if (isViewOnce) {
+        replied = {
+          ...oldMessage,
+          message: isReplied,
+        };
+      } else {
+        replied = oldMessage;
+      }
+
+      output.replied = (await this.parse(replied, 'replied')) as never;
+
+      if (output.replied) {
+        output.replied.isViewOnce = true;
       }
 
       this.maxReplies = 3;

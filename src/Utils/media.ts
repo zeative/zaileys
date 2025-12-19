@@ -329,6 +329,21 @@ export class ImageProcessor {
 
     return sharpInstance.webp({ quality }).toBuffer();
   }
+
+  static async getWaImage(input: MediaInput): Promise<Buffer> {
+    const buffer = await BufferConverter.toBuffer(input);
+    const fileType = await fileTypeFromBuffer(buffer);
+
+    if (!fileType || !fileType.mime.startsWith(CONSTANTS.MIME.IMAGE)) {
+      throw new Error('Invalid image type');
+    }
+
+    if (fileType.mime === 'image/webp') {
+      return await sharp(buffer).jpeg().toBuffer();
+    }
+
+    return buffer;
+  }
 }
 
 export class MediaProcessor {
@@ -475,6 +490,7 @@ export class DocumentProcessor {
 
 export const toBuffer = BufferConverter.toBuffer.bind(BufferConverter);
 export const getWaAudio = AudioProcessor.getWaAudio.bind(AudioProcessor);
+export const getWaImage = ImageProcessor.getWaImage.bind(ImageProcessor);
 export const getVideoThumbnail = VideoProcessor.getThumbnail.bind(VideoProcessor);
 export const getVideoDuration = VideoProcessor.getDuration.bind(VideoProcessor);
 export const getMediaThumbnail = MediaProcessor.getThumbnail.bind(MediaProcessor);

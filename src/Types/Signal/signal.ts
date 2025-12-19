@@ -48,16 +48,20 @@ export const MessageLocationType = z
   })
   .passthrough();
 
-export const MessageContactType = z.object({
-  title: z.string().optional(),
-  contacts: z
-    .object({
-      fullname: z.string(),
-      phoneNumber: z.number(),
-      organization: z.string().optional(),
-    })
-    .array(),
-});
+export const MessageContactType = z
+  .object({
+    contacts: z.object({
+      title: z.string().optional(),
+      contacts: z
+        .object({
+          fullname: z.string(),
+          phoneNumber: z.number(),
+          organization: z.string().optional(),
+        })
+        .array(),
+    }),
+  })
+  .passthrough();
 
 export const MessagePollCreateType = z.object({
   poll: z.object({

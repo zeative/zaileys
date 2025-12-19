@@ -510,18 +510,20 @@ Send one or multiple contacts.
 
 ```typescript
 await wa.send(ctx.roomId, {
-  title: 'My Contacts',
-  contacts: [
-    {
-      fullname: 'John Doe',
-      phoneNumber: 6281234567890,
-      organization: 'Company Inc.',
-    },
-    {
-      fullname: 'Jane Smith',
-      phoneNumber: 6289876543210,
-    },
-  ],
+  contacts: {
+    title: 'My Contacts',
+    contacts: [
+      {
+        fullname: 'John Doe',
+        phoneNumber: 6281234567890,
+        organization: 'Company Inc.',
+      },
+      {
+        fullname: 'Jane Smith',
+        phoneNumber: 6289876543210,
+      },
+    ],
+  },
 });
 ```
 

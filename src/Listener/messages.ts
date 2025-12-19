@@ -87,6 +87,7 @@ export class Messages {
 
     if (!output.chatType) return;
 
+    output.receiverLid = jidNormalizedUser(socket?.user?.lid || '');
     output.receiverId = jidNormalizedUser(socket?.user?.id || '');
     output.receiverName = normalizeText(socket?.user?.name || socket?.user?.verifiedName);
 
@@ -167,7 +168,7 @@ export class Messages {
     output.isBot = output.chatId.startsWith('BAE5') || output.chatId.startsWith('3EB0') || output.chatId.startsWith('Z4D3FC');
     output.isFromMe = isFromMe;
     output.isPrefix = output.text?.startsWith(this.client.options?.prefix) || false;
-    output.isTagMe = output.mentions?.includes(output.receiverId.split('@')[0]);
+    output.isTagMe = output.mentions?.includes(output.receiverId.split('@')[0]) || output.mentions?.includes(output.receiverLid.split('@')[0]);
 
     output.isStatusMention = !!message?.message?.statusMentionMessage;
     output.isGroupStatusMention = !!message?.message?.groupStatusMentionMessage;

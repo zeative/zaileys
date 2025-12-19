@@ -72,6 +72,7 @@ export const BaseMessagesType = z.object({
   chatId: z.string(),
   chatType: MESSAGE_ENUM_TYPES,
 
+  receiverLid: z.string(),
   receiverId: z.string(),
   receiverName: z.string(),
 

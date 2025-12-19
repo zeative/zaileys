@@ -59,8 +59,6 @@ export class Messages {
   }
 
   async parse(message: WAMessage, type?: 'replied') {
-    console.log(JSON.stringify(message, null, 2));
-
     if (message?.category === 'peer') return;
     if (!message?.message || !message?.key?.id) return;
     if (message?.messageStubType || !!message?.messageStubParameters?.length) return;
@@ -251,9 +249,6 @@ export class Messages {
 
     if (isReplied && this.maxReplies) {
       this.maxReplies--;
-
-      const decoded = jidDecode(output.receiverId);
-      console.log('🔍 ~ parse ~ src/Listener/messages.ts:253 ~ decoded:', decoded);
 
       const oldMessage = await this.client
         .db('messages')

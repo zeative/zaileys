@@ -6,13 +6,19 @@ import { Client } from './client';
 
 export type PluginsHandlerType = (wa: Client, ctx: MiddlewareContextType) => Promise<void> | void;
 export type PluginsConfigType = {
-  matcher: string[];
+  matcher: (string | RegExp)[];
   metadata?: Record<string, any>;
 };
 
 export type PluginDefinition = {
   handler: PluginsHandlerType;
   config: PluginsConfigType;
+  parent: string | null;
+};
+
+type FileInfo = {
+  filePath: string;
+  parent: string | null;
 };
 
 export class Plugins {
@@ -23,47 +29,71 @@ export class Plugins {
     this.pluginsDir = pluginsDir;
   }
 
-  /**
-   * Rekursif membaca semua file di direktori dan subdirektori
-   */
-  private getAllFiles(dir: string, fileList: string[] = []): string[] {
-    if (!fs.existsSync(dir)) return fileList;
-
-    const files = fs.readdirSync(dir);
-
-    for (const file of files) {
-      const filePath = path.join(dir, file);
-      const stat = fs.statSync(filePath);
-
-      if (stat.isDirectory()) {
-        this.getAllFiles(filePath, fileList);
-      } else if ((file.endsWith('.ts') || file.endsWith('.js')) && !file.endsWith('.d.ts')) {
-        fileList.push(filePath);
-      }
+  private async getAllFiles(dir: string, baseDir: string = dir): Promise<FileInfo[]> {
+    try {
+      await fs.promises.access(dir);
+    } catch {
+      return [];
     }
 
-    return fileList;
+    const entries = await fs.promises.readdir(dir, { withFileTypes: true });
+
+    const results = await Promise.all(
+      entries.map(async (entry): Promise<FileInfo[]> => {
+        const filePath = path.join(dir, entry.name);
+
+        if (entry.isDirectory()) {
+          return this.getAllFiles(filePath, baseDir);
+        }
+
+        const isValidFile =
+          (entry.name.endsWith('.ts') || entry.name.endsWith('.js')) &&
+          !entry.name.endsWith('.d.ts');
+
+        if (isValidFile) {
+          const relativePath = path.relative(baseDir, dir);
+          const parent = relativePath === '' 
+            ? null 
+            : relativePath.split(path.sep)[0];
+          
+          return [{ filePath, parent }];
+        }
+
+        return [];
+      })
+    );
+
+    return results.flat();
   }
 
   async load(): Promise<void> {
-    if (!fs.existsSync(this.pluginsDir)) return;
-
-    const files = this.getAllFiles(this.pluginsDir);
-
-    for (const filePath of files) {
-      try {
-        const pluginModule = await import(pathToFileURL(filePath).href);
-        let plugin = pluginModule.default;
-
-        if (plugin?.default) {
-          plugin = plugin.default;
-        }
-
-        if (plugin?.handler && plugin?.config) {
-          this.plugins.push(plugin);
-        }
-      } catch {}
+    try {
+      await fs.promises.access(this.pluginsDir);
+    } catch {
+      return;
     }
+
+    const files = await this.getAllFiles(this.pluginsDir);
+
+    const loadResults = await Promise.all(
+      files.map(async ({ filePath, parent }): Promise<PluginDefinition | null> => {
+        try {
+          const pluginModule = await import(pathToFileURL(filePath).href);
+          let plugin = pluginModule.default;
+
+          if (plugin?.default) {
+            plugin = plugin.default;
+          }
+
+          if (plugin?.handler && plugin?.config) {
+            return { ...plugin, parent };
+          }
+        } catch {}
+        return null;
+      })
+    );
+
+    this.plugins = loadResults.filter((p): p is PluginDefinition => p !== null);
   }
 
   async execute(wa: Client, ctx: MiddlewareContextType): Promise<void> {
@@ -80,16 +110,29 @@ export class Plugins {
     }
   }
 
-  private match(text: string, matchers: string[]): boolean {
-    return matchers.some((m) => text === m || text.startsWith(m + ' '));
+  private match(text: string, matchers: (string | RegExp)[]): boolean {
+    return matchers.some((matcher) => {
+      if (matcher instanceof RegExp) {
+        return matcher.test(text);
+      }
+      return text === matcher || text.startsWith(matcher + ' ');
+    });
   }
 
   getLoadedPlugins(): PluginDefinition[] {
     return this.plugins;
   }
 
-  getPluginsInfo(): { matcher: string[]; metadata?: Record<string, any> }[] {
-    return this.plugins.map((p) => ({ matcher: p.config.matcher, metadata: p.config.metadata }));
+  getPluginsInfo(): { 
+    matcher: (string | RegExp)[]; 
+    metadata?: Record<string, any>; 
+    parent: string | null;
+  }[] {
+    return this.plugins.map((p) => ({
+      matcher: p.config.matcher,
+      metadata: p.config.metadata,
+      parent: p.parent,
+    }));
   }
 
   async reload(): Promise<void> {
@@ -98,7 +141,10 @@ export class Plugins {
   }
 }
 
-export const definePlugins = (handler: PluginsHandlerType, config: PluginsConfigType): PluginDefinition => {
+export const definePlugins = (
+  handler: PluginsHandlerType,
+  config: PluginsConfigType
+): Omit<PluginDefinition, 'parent'> => {
   return {
     handler,
     config,

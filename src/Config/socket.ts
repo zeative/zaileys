@@ -25,6 +25,8 @@ export const socketConfig = (client: Client, state: AuthenticationState): Parame
 
     shouldIgnoreJid: () => false,
 
+    shouldSyncHistoryMessage: () => client.options.syncFullHistory,
+
     patchMessageBeforeSending: (msg) => msg,
 
     getMessage: async (key) => {

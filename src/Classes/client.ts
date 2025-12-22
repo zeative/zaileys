@@ -1,7 +1,8 @@
-import makeWASocket, { proto } from 'baileys';
+import makeWASocket from 'baileys';
 import { JetDB } from 'jetdb';
 import z from 'zod';
 import { registerAuthCreds } from '../Auth';
+import { ClassProxy } from '../Library/class-proxy';
 import { Listener } from '../Listener';
 import { store } from '../Modules/store';
 import { parseZod } from '../Modules/zod';
@@ -19,7 +20,6 @@ import { HealthManager } from './health';
 import { Logs } from './logs';
 import { Middleware, MiddlewareHandler } from './middleware';
 import { Plugins } from './plugins';
-import { NativeProxy } from './proxy';
 
 export interface Client extends Signal, SignalGroup, SignalPrivacy, SignalNewsletter, SignalCommunity {}
 
@@ -37,7 +37,7 @@ export class Client {
   constructor(public options: z.infer<typeof ClientOptionsType>) {
     this.options = parseZod(ClientOptionsType, options);
 
-    const proxy = new NativeProxy().classInjection(this, [
+    const proxy = new ClassProxy().classInjection(this, [
       new Signal(this),
       new SignalGroup(this),
       new SignalPrivacy(this),

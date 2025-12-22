@@ -1,13 +1,17 @@
 node_modules
-pnpm-lock*
+media
 dist
+
+pnpm-lock*
+yarn-lock*
 rolldown*
 
-test*
+index.js
+
+.rolldownrc
+
 .session
 .temp
-tsup*
-tsup.config.ts
+.github
 
-example/test*
-media
+test*

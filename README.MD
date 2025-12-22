@@ -66,19 +66,17 @@ Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essentia
 
 ## 🪶 Features
 
-- ✅ **Auto-Cleanup** - Automatically delete old messages to keep database light
-- ✅ **Intelligent Health Manager** - Auto-recovery and connection monitoring
-- ✅ **History Filtering** - Smart filtering of old history sync messages
 - ✅ **Type-Safe** - Full TypeScript + Zod validation with autocomplete
 - ✅ **Middleware** - Intercept and process events globally
-- ✅ **Plugin System** - Drop-in file-based plugins
-- ✅ **State Management** - Built-in `JetDB` for data persistence with **auto chunking**
-- ✅ **Event-Driven** - Clean listeners for `connection`, `messages`, `calls`
+- ✅ **Plugin System** - Drop-in file-based plugins with on/off controls
+- ✅ **State Management** - Built-in [JetDB](https://github.com/zeative/jetdb) for data persistence with **auto chunking**
 - ✅ **Rate Limiting** - Anti-spam protection out of the box
-- ✅ **Auto-Everything** - Auto-read, auto-reject calls, auto-mentions
 - ✅ **Multi-Device** - QR code or Pairing Code authentication
 - ✅ **Built-in FFmpeg** - No external dependencies for media processing
 - ✅ **Interactive Buttons** - Simple buttons, URL, copy code, call buttons, and lists
+- ✅ **Context Injection** - Universal data injection accessible anywhere in ctx
+- ✅ **Fancy Logs** - Beautiful, detailed logging with emoji indicators
+- ✅ **Fire and Forget** - Background task processing for lightning-fast responses
 
 ## 🎨 Concepts & Architecture
 
@@ -133,6 +131,9 @@ const wa = new Client({
   // pairing code
   authType: 'pairing',
   phoneNumber: 6280000000,
+
+  // for detailed logs
+  // fancyLogs: true,
 
   // if you want to disable built-in ffmpeg
   // disableFFmpeg: true,
@@ -236,6 +237,7 @@ These options apply to both authentication methods:
 | `session`         | `string`  | `'zaileys'` | Name of the session folder.             |
 | `prefix`          | `string`  | `undefined` | Command prefix (e.g., `'/'`).           |
 | `showLogs`        | `boolean` | `true`      | Enable internal logging.                |
+| `fancyLogs`       | `boolean` | `false`     | Enable detailed, fancy log output.      |
 | `ignoreMe`        | `boolean` | `true`      | Ignore messages sent by the bot itself. |
 | `syncFullHistory` | `boolean` | `true`      | Sync full chat history on startup.      |
 | `cleanupDays`     | `number`  | `7`         | Days to keep messages before auto-deletion. |
@@ -277,19 +279,13 @@ wa.use(async (ctx, next) => {
 });
 ````
 
-### 🛠️ Maintenance & Health
-
-Zaileys includes built-in tools to keep your bot running smoothly and your database light.
-
-- **Auto-Cleanup**: Automatically deletes messages older than `cleanupDays` (default 7) every hour.
-- **Intelligent Recovery**: Automatically detects and repairs session issues or connection drops.
-- **History Filtering**: Prevents database bloat by ignoring extremely old messages during the initial history sync.
-
 ### 🧩 Plugins
 
 Zaileys features a built-in file-based plugin system. By default, it looks for plugins in the `plugins` directory of your project root.
 
 **1. Create a plugin file** (e.g., `plugins/hello.ts`):
+
+also nested file `plugins/nested1/nested2/hello.ts`
 
 ```typescript
 import { definePlugins } from 'zaileys';
@@ -307,9 +303,7 @@ export default definePlugins(
 );
 ```
 
-**2. That's it!** The client automatically loads and executes plugins that match the incoming message.
-
-**3. Extract plugin information** (optional):
+**2. Extract plugin information** (optional):
 
 ```typescript
 const pluginsInfo = wa.plugins.getPluginsInfo();
@@ -327,6 +321,31 @@ const pluginsInfo = wa.plugins.getPluginsInfo();
 ```
 
 This returns an array of all loaded plugins with their `matcher` and `metadata`, useful for generating help menus or listing available commands.
+
+**3. Plugin Controls:**
+
+```typescript
+// Disable all plugins
+wa.plugins.disableAll();
+
+// Enable all plugins
+wa.plugins.enableAll();
+
+// Disable specific plugin by matcher
+wa.plugins.disable('/hello');
+
+// Enable specific plugin
+wa.plugins.enable('/hello');
+
+// Disable all plugins in a folder (e.g., plugins/admin/)
+wa.plugins.disableByParent('admin');
+
+// Enable all plugins in a folder
+wa.plugins.enableByParent('admin');
+
+// Check if plugins are globally enabled
+wa.plugins.isEnabled(); // true/false
+```
 
 ### 🔐 Citation (Custom Authorization)
 
@@ -375,6 +394,42 @@ Citation functions return an array of phone numbers, group id and lid Internally
 - `senderLid` - The sender's LID
 
 If any of these match a number in your returned array, the citation check returns `true`. This makes it flexible for both individual chats and group scenarios.
+
+### 🔌 Context Injection
+
+Context Injection allows you to inject custom data that is accessible in every message context.
+
+**1. Inject data:**
+
+```typescript
+// Inject data anywhere in your app
+wa.inject('user', { name: 'Kejaa', role: 'admin' });
+wa.inject('config', { debug: true, version: '1.0.0' });
+```
+
+**2. Access injected data in handlers:**
+
+```typescript
+wa.on('messages', async (ctx) => {
+  console.log(ctx.injection.user); // { name: 'John', role: 'admin' }
+  console.log(ctx.injection.config); // { debug: true, version: '1.0.0' }
+});
+```
+
+**3. Manage injections:**
+
+```typescript
+// Get injection value
+const user = wa.getInjection('user');
+
+// Remove specific injection
+wa.removeInjection('user');
+
+// Clear all injections
+wa.clearInjections();
+```
+
+This is perfect for sharing database connections, user sessions, or configuration across all handlers.
 
 ## 📫 Sending Messages
 

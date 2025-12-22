@@ -165,7 +165,11 @@ export class Messages {
 
     output.isBot = output.chatId.startsWith('BAE5') || output.chatId.startsWith('3EB0') || output.chatId.startsWith('Z4D3FC');
     output.isFromMe = isFromMe;
-    output.isPrefix = output.text?.startsWith(this.client.options?.prefix) || false;
+
+    const prefixes = _.castArray(this.client.options?.prefix);
+
+    output.isPrefix = !!prefixes.find((prefix) => output.text?.startsWith(prefix));
+
     output.isTagMe = output.mentions?.includes(output.receiverId.split('@')[0]) || output.mentions?.includes(output.receiverLid.split('@')[0]);
 
     output.isStatusMention = !!message?.message?.statusMentionMessage;
@@ -179,7 +183,7 @@ export class Messages {
     output.isSpam = await this.limiter.isSpam(output.channelId);
 
     if (output.isPrefix) {
-      output.text = output.text.replace(new RegExp(`^${this.client.options?.prefix}`), '');
+      output.text = output.text.replace(new RegExp(`^${_.escapeRegExp(prefixes.find((prefix) => output.text?.startsWith(prefix)) || '')}`), '');
     }
 
     output.isGroup = output.roomId?.includes('@g.us');

@@ -32,7 +32,7 @@
     "javascript-typescript"
   ],
   "scripts": {
-    "test": "tsx --watch examples/test.ts",
+    "dev": "tsx --watch examples/test.ts",
     "build": "tsup",
     "r:patch": "npm run build && npm version patch && npm publish",
     "r:minor": "npm run build && npm version minor && npm publish",

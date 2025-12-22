@@ -31,7 +31,7 @@ export const StickerMetadataType = z
 
 export const ClientBaseType = z.object({
   session: z.string().default('zaileys').optional(),
-  prefix: z.string().optional(),
+  prefix: z.union([z.string(), z.array(z.string())]).optional(),
 
   ignoreMe: z.boolean().default(true).optional(),
   showLogs: z.boolean().default(true).optional(),

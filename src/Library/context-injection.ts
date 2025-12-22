@@ -1,11 +1,13 @@
 import { Mutex } from 'async-mutex';
+import { injectionCache } from '../Config/cache';
 
 class ContextInjectionStore {
-  private store = new Map<string, any>();
+  private store = injectionCache;
   private mutex = new Mutex();
 
   async inject<T>(key: string, value: T): Promise<void> {
     const release = await this.mutex.acquire();
+
     try {
       this.store.set(key, value);
     } finally {
@@ -15,6 +17,7 @@ class ContextInjectionStore {
 
   async get<T>(key: string): Promise<T | undefined> {
     const release = await this.mutex.acquire();
+
     try {
       return this.store.get(key) as T | undefined;
     } finally {
@@ -27,17 +30,15 @@ class ContextInjectionStore {
   }
 
   getAll(): Record<string, any> {
-    const result: Record<string, any> = {};
-    for (const [key, value] of this.store.entries()) {
-      result[key] = value;
-    }
-    return result;
+    const keys = this.store.keys();
+    return this.store.mget(keys);
   }
 
   async remove(key: string): Promise<boolean> {
     const release = await this.mutex.acquire();
+
     try {
-      return this.store.delete(key);
+      return this.store.del(key) > 0;
     } finally {
       release();
     }
@@ -45,8 +46,9 @@ class ContextInjectionStore {
 
   async clear(): Promise<void> {
     const release = await this.mutex.acquire();
+
     try {
-      this.store.clear();
+      this.store.flushAll();
     } finally {
       release();
     }
@@ -57,11 +59,11 @@ class ContextInjectionStore {
   }
 
   get size(): number {
-    return this.store.size;
+    return this.store.getStats().keys;
   }
 
   keys(): string[] {
-    return Array.from(this.store.keys());
+    return this.store.keys();
   }
 }
 

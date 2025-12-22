@@ -1,10 +1,14 @@
-import * as fs from 'fs';
-import * as path from 'path';
+import { promises as fs } from 'fs';
+import { join, relative, sep } from 'path';
 import { pathToFileURL } from 'url';
-import { MiddlewareContextType } from '../Types/middleware';
-import { Client } from './client';
+import type { MiddlewareContextType } from '../Types/middleware';
+import type { Client } from './client';
 
-export type PluginsHandlerType = (wa: Client, ctx: MiddlewareContextType) => Promise<void> | void;
+export type PluginsHandlerType = (
+  wa: Client,
+  ctx: MiddlewareContextType
+) => Promise<void> | void;
+
 export type PluginsConfigType = {
   matcher: (string | RegExp)[];
   metadata?: Record<string, any>;
@@ -16,128 +20,84 @@ export type PluginDefinition = {
   parent: string | null;
 };
 
-type FileInfo = {
-  filePath: string;
+export type PluginInfo = {
+  matcher: (string | RegExp)[];
+  metadata?: Record<string, any>;
   parent: string | null;
 };
 
 export class Plugins {
   private plugins: PluginDefinition[] = [];
-  private pluginsDir: string;
 
-  constructor(pluginsDir: string = path.join(process.cwd(), 'plugins')) {
-    this.pluginsDir = pluginsDir;
-  }
-
-  private async getAllFiles(dir: string, baseDir: string = dir): Promise<FileInfo[]> {
-    try {
-      await fs.promises.access(dir);
-    } catch {
-      return [];
-    }
-
-    const entries = await fs.promises.readdir(dir, { withFileTypes: true });
-
-    const results = await Promise.all(
-      entries.map(async (entry): Promise<FileInfo[]> => {
-        const filePath = path.join(dir, entry.name);
-
-        if (entry.isDirectory()) {
-          return this.getAllFiles(filePath, baseDir);
-        }
-
-        const isValidFile =
-          (entry.name.endsWith('.ts') || entry.name.endsWith('.js')) &&
-          !entry.name.endsWith('.d.ts');
-
-        if (isValidFile) {
-          const relativePath = path.relative(baseDir, dir);
-          const parent = relativePath === '' 
-            ? null 
-            : relativePath.split(path.sep)[0];
-          
-          return [{ filePath, parent }];
-        }
-
-        return [];
-      })
-    );
-
-    return results.flat();
-  }
+  constructor(private readonly dir = join(process.cwd(), 'plugins')) {}
 
   async load(): Promise<void> {
-    try {
-      await fs.promises.access(this.pluginsDir);
-    } catch {
-      return;
-    }
+    const entries = await fs
+      .readdir(this.dir, { withFileTypes: true, recursive: true })
+      .catch(() => []);
 
-    const files = await this.getAllFiles(this.pluginsDir);
+    const files = entries
+      .filter((e) => e.isFile() && /(?<!\.d)\.[jt]s$/.test(e.name))
+      .map((e) => ({ fullPath: join(e.parentPath, e.name), parentPath: e.parentPath }))
 
-    const loadResults = await Promise.all(
-      files.map(async ({ filePath, parent }): Promise<PluginDefinition | null> => {
+    const loaded = await Promise.all(
+      files.map(async ({ fullPath, parentPath }) => {
         try {
-          const pluginModule = await import(pathToFileURL(filePath).href);
-          let plugin = pluginModule.default;
-
-          if (plugin?.default) {
-            plugin = plugin.default;
-          }
+          const { mtimeMs } = await fs.stat(fullPath);
+          const url = `${pathToFileURL(fullPath).href}?v=${Math.floor(mtimeMs)}`;
+          const mod = await import(url);
+          const plugin = mod.default?.default ?? mod.default;
 
           if (plugin?.handler && plugin?.config) {
-            return { ...plugin, parent };
+            const rel = relative(this.dir, parentPath);
+            return {
+              handler: plugin.handler,
+              config: plugin.config,
+              parent: rel ? rel.split(sep)[0] : null,
+            } as PluginDefinition;
           }
         } catch {}
         return null;
       })
     );
 
-    this.plugins = loadResults.filter((p): p is PluginDefinition => p !== null);
+    this.plugins = loaded.filter((p): p is PluginDefinition => p !== null);
   }
 
   async execute(wa: Client, ctx: MiddlewareContextType): Promise<void> {
-    const messageText = ctx.messages.text || '';
+    const text = ctx.messages.text ?? '';
 
-    for (const plugin of this.plugins) {
+    for (const { handler, config } of this.plugins) {
       try {
-        const isMatch = this.match(messageText, plugin.config.matcher);
-
-        if (isMatch) {
-          await plugin.handler(wa, ctx);
+        if (this.matches(text, config.matcher)) {
+          await handler(wa, ctx);
         }
       } catch {}
     }
   }
 
-  private match(text: string, matchers: (string | RegExp)[]): boolean {
-    return matchers.some((matcher) => {
-      if (matcher instanceof RegExp) {
-        return matcher.test(text);
-      }
-      return text === matcher || text.startsWith(matcher + ' ');
-    });
+  private matches(text: string, matchers: (string | RegExp)[]): boolean {
+    return matchers.some((matcher) =>
+      matcher instanceof RegExp
+        ? matcher.test(text)
+        : text === matcher || text.startsWith(matcher + ' ')
+    );
   }
 
   getLoadedPlugins(): PluginDefinition[] {
     return this.plugins;
   }
 
-  getPluginsInfo(): { 
-    matcher: (string | RegExp)[]; 
-    metadata?: Record<string, any>; 
-    parent: string | null;
-  }[] {
-    return this.plugins.map((p) => ({
-      matcher: p.config.matcher,
-      metadata: p.config.metadata,
-      parent: p.parent,
+  getPluginsInfo(): PluginInfo[] {
+    return this.plugins.map(({ config: { matcher, metadata }, parent }) => ({
+      matcher,
+      metadata,
+      parent,
     }));
   }
 
-  async reload(): Promise<void> {
-    this.plugins = [];
-    await this.load();
+  reload(): Promise<void> {
+    return this.load();
   }
 }
 

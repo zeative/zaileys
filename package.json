@@ -70,7 +70,8 @@
     "rate-limiter-flexible": "^9.0.0",
     "sharp": "^0.34.5",
     "unorm": "^1.6.0",
-    "zod": "^4.1.13"
+    "zod": "^4.1.13",
+    "zod-validation-error": "^5.0.0"
   },
   "packageManager": "pnpm@10.24.0",
   "engines": {

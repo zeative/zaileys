@@ -35,6 +35,7 @@ export const ClientBaseType = z.object({
 
   ignoreMe: z.boolean().default(true).optional(),
   showLogs: z.boolean().default(true).optional(),
+  fancyLogs: z.boolean().default(false).optional(),
 
   syncFullHistory: z.boolean().default(true).optional(),
   disableFFmpeg: z.boolean().default(false).optional(),

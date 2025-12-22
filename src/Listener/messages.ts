@@ -3,6 +3,8 @@ import _ from 'lodash';
 import { Client } from '../Classes';
 import { MESSAGE_MEDIA_TYPES } from '../Config/media';
 import { store } from '../Library/center-store';
+import { contextInjection } from '../Library/context-injection';
+import { fireForget } from '../Library/fire-forget';
 import { RateLimiter } from '../Library/rate-limiter';
 import { MessagesContext } from '../Types/messages';
 import { extractUrls, findGlobalWord, ignoreLint, normalizeText, toJson, toString } from '../Utils';
@@ -34,14 +36,14 @@ export class Messages {
             const parsed = await this.parse(message);
 
             if (parsed) {
-              await this.client.middleware.run({ messages: parsed });
-              await this.client.plugins.execute(this.client, { messages: parsed });
+              fireForget.add(async () => this.client.middleware.run({ messages: parsed }));
+              fireForget.add(async () => this.client.plugins.execute(this.client, { messages: parsed }));
 
               store.set('message', parsed);
               store.events.emit('messages', parsed);
 
               if (this.client.options.autoRead) {
-                await socket.readMessages([parsed.message().key]);
+                fireForget.add(async () => socket.readMessages([parsed.message().key]));
               }
             }
           } catch (err) {
@@ -271,6 +273,8 @@ export class Messages {
     if (type != 'replied') {
       this.client.logs.message(output);
     }
+
+    output.injection = contextInjection.getAll();
 
     return output;
   }

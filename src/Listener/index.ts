@@ -24,13 +24,17 @@ export class Listener {
     const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
 
     socket.ev.on('groups.update', async ([event]) => {
-      const metadata = await socket.groupMetadata(event.id);
-      groupCache.set(event.id, metadata);
+      fireForget.add(async () => {
+        const metadata = await socket.groupMetadata(event.id);
+        groupCache.set(event.id, metadata);
+      });
     });
 
     socket.ev.on('group-participants.update', async (event) => {
-      const metadata = await socket.groupMetadata(event.id);
-      groupCache.set(event.id, metadata);
+      fireForget.add(async () => {
+        const metadata = await socket.groupMetadata(event.id);
+        groupCache.set(event.id, metadata);
+      });
     });
 
     socket?.ev.on('messaging-history.set', async (update) => {

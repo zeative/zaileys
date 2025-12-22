@@ -14,6 +14,7 @@ export type PluginDefinition = {
   handler: PluginsHandlerType;
   config: PluginsConfigType;
   parent: string | null;
+  enabled: boolean;
 };
 
 type FileInfo = {
@@ -24,6 +25,8 @@ type FileInfo = {
 export class Plugins {
   private plugins: PluginDefinition[] = [];
   private pluginsDir: string;
+  private globalEnabled = true;
+  private disabledPlugins = new Set<string>();
 
   constructor(pluginsDir: string = path.join(process.cwd(), 'plugins')) {
     this.pluginsDir = pluginsDir;
@@ -86,7 +89,12 @@ export class Plugins {
           }
 
           if (plugin?.handler && plugin?.config) {
-            return { ...plugin, parent };
+            const pluginId = this.getPluginId(plugin.config.matcher);
+            return { 
+              ...plugin, 
+              parent, 
+              enabled: !this.disabledPlugins.has(pluginId) 
+            };
           }
         } catch {}
         return null;
@@ -96,10 +104,18 @@ export class Plugins {
     this.plugins = loadResults.filter((p): p is PluginDefinition => p !== null);
   }
 
+  private getPluginId(matcher: (string | RegExp)[]): string {
+    return matcher.map(m => m.toString()).join('|');
+  }
+
   async execute(wa: Client, ctx: MiddlewareContextType): Promise<void> {
+    if (!this.globalEnabled) return;
+
     const messageText = ctx.messages.text || '';
 
     for (const plugin of this.plugins) {
+      if (!plugin.enabled) continue;
+
       try {
         const isMatch = this.match(messageText, plugin.config.matcher);
 
@@ -119,6 +135,72 @@ export class Plugins {
     });
   }
 
+  enableAll(): void {
+    this.globalEnabled = true;
+    this.plugins.forEach(p => p.enabled = true);
+    this.disabledPlugins.clear();
+  }
+
+  disableAll(): void {
+    this.globalEnabled = false;
+  }
+
+  enable(matcher: string | RegExp): boolean {
+    const matcherStr = matcher.toString();
+    const plugin = this.plugins.find(p => 
+      p.config.matcher.some(m => m.toString() === matcherStr)
+    );
+    
+    if (plugin) {
+      plugin.enabled = true;
+      this.disabledPlugins.delete(this.getPluginId(plugin.config.matcher));
+      return true;
+    }
+    return false;
+  }
+
+  disable(matcher: string | RegExp): boolean {
+    const matcherStr = matcher.toString();
+    const plugin = this.plugins.find(p => 
+      p.config.matcher.some(m => m.toString() === matcherStr)
+    );
+    
+    if (plugin) {
+      plugin.enabled = false;
+      this.disabledPlugins.add(this.getPluginId(plugin.config.matcher));
+      return true;
+    }
+    return false;
+  }
+
+  enableByParent(parent: string): number {
+    let count = 0;
+    this.plugins.forEach(p => {
+      if (p.parent === parent) {
+        p.enabled = true;
+        this.disabledPlugins.delete(this.getPluginId(p.config.matcher));
+        count++;
+      }
+    });
+    return count;
+  }
+
+  disableByParent(parent: string): number {
+    let count = 0;
+    this.plugins.forEach(p => {
+      if (p.parent === parent) {
+        p.enabled = false;
+        this.disabledPlugins.add(this.getPluginId(p.config.matcher));
+        count++;
+      }
+    });
+    return count;
+  }
+
+  isEnabled(): boolean {
+    return this.globalEnabled;
+  }
+
   getLoadedPlugins(): PluginDefinition[] {
     return this.plugins;
   }
@@ -127,11 +209,13 @@ export class Plugins {
     matcher: (string | RegExp)[]; 
     metadata?: Record<string, any>; 
     parent: string | null;
+    enabled: boolean;
   }[] {
     return this.plugins.map((p) => ({
       matcher: p.config.matcher,
       metadata: p.config.metadata,
       parent: p.parent,
+      enabled: p.enabled,
     }));
   }
 
@@ -144,7 +228,7 @@ export class Plugins {
 export const definePlugins = (
   handler: PluginsHandlerType,
   config: PluginsConfigType
-): Omit<PluginDefinition, 'parent'> => {
+): Omit<PluginDefinition, 'parent' | 'enabled'> => {
   return {
     handler,
     config,

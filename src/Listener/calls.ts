@@ -1,6 +1,7 @@
 import makeWASocket, { jidNormalizedUser, WACallEvent } from 'baileys';
 import { Client } from '../Classes';
 import { store } from '../Library/center-store';
+import { fireForget } from '../Library/fire-forget';
 import { CallsContext } from '../Types/calls';
 import { normalizeText } from '../Utils';
 
@@ -17,13 +18,13 @@ export class Calls {
         const parsed = await this.parse(call);
 
         if (parsed) {
-          await this.client.middleware.run({ calls: parsed });
-          await this.client.plugins.execute(this.client, { messages: parsed });
+          fireForget.add(async () => this.client.middleware.run({ calls: parsed }));
+          fireForget.add(async () => this.client.plugins.execute(this.client, { messages: parsed }));
 
           store.events.emit('calls', parsed);
 
           if (this.client.options?.autoRejectCall) {
-            await socket.rejectCall(parsed.callId, parsed.callerId);
+            fireForget.add(async () => socket.rejectCall(parsed.callId, parsed.callerId));
           }
         }
       }
@@ -37,8 +38,6 @@ export class Calls {
 
     output.callId = caller.id;
     output.callerId = jidNormalizedUser(caller.from);
-
-    output.callerName = await this.client.getRoomName(output.callerId);
 
     output.roomId = jidNormalizedUser(caller.chatId);
     output.roomName = normalizeText(socket?.user?.name || socket?.user?.verifiedName);

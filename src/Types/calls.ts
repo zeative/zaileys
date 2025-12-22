@@ -3,7 +3,6 @@ import z from 'zod';
 export const ListenerCallsType = z.object({
   callId: z.string(),
   callerId: z.string(),
-  callerName: z.string(),
 
   roomId: z.string(),
   roomName: z.string(),

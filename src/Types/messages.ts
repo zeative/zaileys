@@ -125,6 +125,8 @@ export const BaseMessagesType = z.object({
     .loose()
     .nullable(),
 
+  injection: z.record(z.string(), z.any()).default({}),
+
   message: z.function({
     input: [],
     output: z.custom<WAMessage>(),

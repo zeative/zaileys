@@ -6,6 +6,8 @@ import { groupCache } from '../Config/cache';
 import { WaDatabase } from '../Config/database';
 import { store } from '../Library/center-store';
 import { ClassProxy } from '../Library/class-proxy';
+import { contextInjection } from '../Library/context-injection';
+import { initializeFFmpeg } from '../Library/ffmpeg';
 import { parseZod } from '../Library/zod';
 import { Listener } from '../Listener';
 import { Signal } from '../Signal';
@@ -16,7 +18,6 @@ import { SignalPrivacy } from '../Signal/privacy';
 import { ClientOptionsType, EventCallbackType, EventEnumType } from '../Types';
 import { normalizeText } from '../Utils';
 import { autoDisplayBanner } from '../Utils/banner';
-import { initializeFFmpeg } from '../Library/ffmpeg';
 import { Logs } from './logs';
 import { Middleware, MiddlewareHandler } from './middleware';
 import { Plugins } from './plugins';
@@ -103,5 +104,21 @@ export class Client {
     }
 
     return normalizeText(roomName);
+  }
+
+  inject<T = any>(key: string, value: T): void {
+    contextInjection.inject(key, value);
+  }
+
+  getInjection<T = any>(key: string): T | undefined {
+    return contextInjection.getSync<T>(key);
+  }
+
+  removeInjection(key: string): void {
+    contextInjection.remove(key);
+  }
+
+  clearInjections(): void {
+    contextInjection.clear();
   }
 }

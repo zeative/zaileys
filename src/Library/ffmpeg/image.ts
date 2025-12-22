@@ -43,7 +43,7 @@ export class ImageProcessor {
   static async resizeForSticker(buffer: Buffer, quality: number, shape: string = 'default'): Promise<Buffer> {
     const size = FFMPEG_CONSTANTS.STICKER.SIZE;
     const image = await Jimp.read(buffer);
-    image.cover({ w: size, h: size });
+    image.contain({ w: size, h: size });
 
     if (shape !== 'default') {
       const mask = new Jimp({ width: size, height: size, color: 0x00000000 });

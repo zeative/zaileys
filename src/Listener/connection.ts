@@ -3,7 +3,7 @@ import { cristal } from 'gradient-string';
 import { Client } from '../Classes';
 import { store } from '../Library/center-store';
 import { ConnectionContext } from '../Types/connection';
-import { ignoreLint, removeAuthCreds, repairSessionKeys } from '../Utils';
+import { ignoreLint, removeAuthCreds } from '../Utils';
 import { autoDisplayQRCode } from '../Utils/banner';
 
 export class Connection {
@@ -86,17 +86,8 @@ export class Connection {
         const error = lastDisconnect?.error?.message || '';
 
         const isReconnect = typeof code === 'number' && code !== DisconnectReason.loggedOut;
-        const isPrekeyError = code === 515 || error.toLowerCase().includes('prekey');
 
         store.spinner.error(` [${code} - Closed] ${error}`);
-
-        if (isPrekeyError) {
-          store.spinner.warn(' Session key mismatch detected, attempting repair...');
-          await repairSessionKeys(this.client.options.session);
-          await delay(1000);
-          await reload();
-          return;
-        }
 
         if (code === 401 || code === 405) {
           store.spinner.warn(' Session may be used by another device/instance.');

@@ -2,7 +2,7 @@ import makeWASocket, { ParticipantAction } from 'baileys';
 import { Client } from '../Classes';
 import { groupCache } from '../Config/cache';
 import { store } from '../Library/center-store';
-import { toBuffer } from '../Utils';
+import { mediaModifier } from '../Library/media-modifier';
 
 export class Group {
   constructor(protected client: Client) {}
@@ -27,7 +27,7 @@ export class Group {
       case 'description':
         if (!isBuffer) return await socket.groupUpdateDescription(roomId, update);
       case 'picture':
-        return await socket.updateProfilePicture(roomId, toBuffer(update));
+        return await socket.updateProfilePicture(roomId, await mediaModifier.toBuffer(update));
     }
   }
 

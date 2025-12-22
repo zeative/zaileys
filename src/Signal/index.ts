@@ -3,9 +3,10 @@ import _ from 'lodash';
 import z from 'zod';
 import { MESSAGES_VERIFIED_TYPE } from '../Config/media';
 import { store } from '../Library/center-store';
+import { mediaModifier } from '../Library/media-modifier';
 import { parseZod } from '../Library/zod';
 import { ButtonOptionsType, SignalOptionsType, SignalType } from '../Types/Signal/signal';
-import { extractJids, getMediaThumbnail, getWaAudio, getWaDocument, getWaImage, getWaSticker, getWaVideo, ignoreLint, pickKeysFromArray } from '../Utils';
+import { extractJids, ignoreLint, pickKeysFromArray } from '../Utils';
 import { InteractiveButtons } from '../Classes/button';
 import { Client } from '../Classes/client';
 
@@ -106,15 +107,12 @@ export class Signal {
 
     if (isMedia) {
       const media = pickKeysFromArray([options], ['image', 'video', 'audio', 'sticker', 'document']);
-      const isUrl = _.isString(media);
-
-      const content = isUrl ? { url: media } : media;
 
       if (hasImage) {
         output = {
           ...output,
-          image: await getWaImage(media),
-          jpegThumbnail: await getMediaThumbnail(media),
+          image: await mediaModifier.image(media).toJpeg(),
+          jpegThumbnail: await mediaModifier.thumbnail(media).get(),
         };
       }
 
@@ -123,9 +121,9 @@ export class Signal {
 
         output = {
           ...output,
-          video: await getWaVideo(media),
+          video: await mediaModifier.video(media).toMp4(),
           ptv: isPtv,
-          jpegThumbnail: await getMediaThumbnail(media),
+          jpegThumbnail: await mediaModifier.thumbnail(media).get(),
         };
       }
 
@@ -134,7 +132,7 @@ export class Signal {
 
         output = {
           ...output,
-          audio: await getWaAudio(media),
+          audio: await mediaModifier.audio(media).toOpus(),
           ptt: isPtt,
           mimetype: isPtt ? 'audio/ogg; codecs=opus' : 'audio/mpeg',
         };
@@ -144,12 +142,12 @@ export class Signal {
         const shape = ignoreLint(options)?.shape;
         output = {
           ...output,
-          sticker: await getWaSticker(media, { ...this.client.options?.sticker, shape }),
+          sticker: await mediaModifier.sticker(media, { ...this.client.options?.sticker, shape }).create(),
         };
       }
 
       if (hasDocument) {
-        const data = await getWaDocument(media);
+        const data = await mediaModifier.document(media).create();
 
         output = {
           ...output,

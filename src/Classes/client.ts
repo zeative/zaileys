@@ -16,7 +16,7 @@ import { SignalPrivacy } from '../Signal/privacy';
 import { ClientOptionsType, EventCallbackType, EventEnumType } from '../Types';
 import { normalizeText } from '../Utils';
 import { autoDisplayBanner } from '../Utils/banner';
-import { configureFFmpeg } from '../Utils/media';
+import { initializeFFmpeg } from '../Library/ffmpeg';
 import { Logs } from './logs';
 import { Middleware, MiddlewareHandler } from './middleware';
 import { Plugins } from './plugins';
@@ -48,7 +48,7 @@ export class Client {
 
   async initialize(client?: Client) {
     await autoDisplayBanner();
-    await configureFFmpeg(this.options.disableFFmpeg);
+    await initializeFFmpeg(this.options.disableFFmpeg);
     await registerAuthCreds(this);
 
     await this.plugins.load();

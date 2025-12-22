@@ -1,17 +1,10 @@
 import makeWASocket from 'baileys';
 import { Client } from '../Classes';
 import { socketConfig } from '../Config/socket';
-import { store } from '../Modules/store';
+import { store } from '../Library/center-store';
 import { useAuthState } from './state';
-import { cleanupSocket, getExistingSocket } from '../Utils/session';
 
 export const registerAuthCreds = async (client: Client) => {
-  const existingSocket = getExistingSocket();
-
-  if (existingSocket) {
-    cleanupSocket(existingSocket);
-  }
-
   const SESSION_PATH = `.session/${client.options.session}`;
 
   console.info = () => {};

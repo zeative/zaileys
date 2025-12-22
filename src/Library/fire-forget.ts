@@ -59,12 +59,6 @@ export class FireAndForget {
     this.closeResolve = null;
   }
 
-  /**
-   * Add task to queue (fire and forget)
-   * @param {Function} fn - Async function to execute
-   * @param {Object} options - Task options
-   * @returns {string} Task ID
-   */
   add(fn: () => Promise<any>, options?: TaskOptions) {
     if (this.isClosing) {
       throw new Error('Queue is closing, cannot add new tasks');
@@ -92,16 +86,10 @@ export class FireAndForget {
     return task.id;
   }
 
-  /**
-   * Add multiple tasks at once
-   */
   addBulk(tasks: BulkTask[]) {
     return tasks.map(({ fn, options }) => this.add(fn, options));
   }
 
-  /**
-   * Process queue
-   */
   async _process() {
     while (this.running.size < this.concurrency && this.queue.length > 0) {
       const task = this.queue.shift();
@@ -115,9 +103,6 @@ export class FireAndForget {
     }
   }
 
-  /**
-   * Execute single task with timeout and retry
-   */
   async _executeTask(task: Task) {
     try {
       await this._withTimeout(task.fn(), task.timeout);
@@ -137,18 +122,10 @@ export class FireAndForget {
     }
   }
 
-  /**
-   * Execute with timeout
-   */
   _withTimeout(promise: Promise<any>, ms: number) {
     return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error('Task timeout')), ms))]);
   }
 
-  /**
-   * Graceful shutdown - wait for all tasks
-   * @param {number} maxWait - Maximum wait time in ms (0 = infinite)
-   * @returns {Promise<void>}
-   */
   async close(maxWait = 0) {
     this.isClosing = true;
 
@@ -169,9 +146,6 @@ export class FireAndForget {
     }
   }
 
-  /**
-   * Force shutdown - kill all tasks immediately
-   */
   forceClose() {
     this.queue = [];
     this.running.clear();
@@ -179,9 +153,6 @@ export class FireAndForget {
     this.closeResolve?.();
   }
 
-  /**
-   * Get queue stats
-   */
   getStats() {
     return {
       queued: this.queue.length,
@@ -192,33 +163,25 @@ export class FireAndForget {
     };
   }
 
-  /**
-   * Check if queue is idle
-   */
   isIdle() {
     return this.queue.length === 0 && this.running.size === 0;
   }
 
-  /**
-   * Wait until idle
-   */
   async waitUntilIdle(checkInterval = 100) {
     while (!this.isIdle()) {
       await new Promise((resolve) => setTimeout(resolve, checkInterval));
     }
   }
 
-  /**
-   * Default error handler
-   */
   _defaultErrorHandler(err: Error, task: Task) {
     console.error(`[FireAndForget] Task ${task.id} failed:`, err);
   }
 
-  /**
-   * Generate unique ID
-   */
   _generateId() {
     return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   }
 }
+
+export const fireForget = new FireAndForget();
+
+process.on('SIGTERM', () => fireForget.close());

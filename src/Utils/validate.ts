@@ -1,6 +1,6 @@
 import _ from 'lodash';
 import fs from 'node:fs/promises';
-import { store } from '../Modules/store';
+import { store } from '../Library/center-store';
 import unorm from 'unorm';
 
 export const ignoreLint = (data: any) => data;

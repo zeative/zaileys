@@ -1,6 +1,6 @@
-import { generateMessageIDV2, generateWAMessageFromContent, isJidGroup, MessageGenerationOptionsFromContent, proto } from 'baileys';
+import makeWASocket, { generateMessageIDV2, generateWAMessageFromContent, isJidGroup, MessageGenerationOptionsFromContent, proto } from 'baileys';
 import z from 'zod';
-import { store } from '../Modules/store';
+import { store } from '../Library/center-store';
 import { SignalOptionsType } from '../Types/Signal/signal';
 import { ignoreLint } from '../Utils';
 
@@ -42,9 +42,9 @@ export class InteractiveButtons {
   }
 
   async send(roomId: string, payload: z.infer<typeof SignalOptionsType>, options: Partial<MessageGenerationOptionsFromContent>) {
-    const socket = store.get('socket');
+    const socket = store.get('socket') as ReturnType<typeof makeWASocket> & { config: any };
 
-    const userJid = socket.authState?.creds?.me?.id || socket.user?.id;
+    const userJid = socket?.authState?.creds?.me?.id || socket?.user?.id;
     const content = this.build(payload);
 
     const msg = generateWAMessageFromContent(

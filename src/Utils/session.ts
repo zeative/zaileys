@@ -1,5 +1,5 @@
 import { promises as fs } from 'node:fs';
-import { store } from '../Modules/store';
+import { store } from '../Library/center-store';
 
 type WASocket = {
   ev?: { removeAllListeners: () => void };

@@ -1,4 +1,4 @@
-import { store } from '../Modules/store';
+import { store } from '../Library/center-store';
 import { CallsContext } from '../Types/calls';
 import { MessagesContext } from '../Types/messages';
 import { cleanJid, ignoreLint, logColor } from '../Utils';
@@ -30,7 +30,7 @@ export class Logs {
     const connectionListener = async ({ status }) => {
       if (status === 'open') {
         this.isReady = true;
-        
+
         if (!this.logsDisplayed) {
           setTimeout(() => {
             this.displayIndicator();
@@ -83,7 +83,7 @@ export class Logs {
   }
 
   call(call: Partial<CallsContext>) {
-    if (!store.get('logs')?.ready) return;
+    if (!this.isReady) return;
 
     const color = ignoreLint(this.getRoomColor(call));
 

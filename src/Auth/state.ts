@@ -1,44 +1,12 @@
-import { AuthenticationCreds, AuthenticationState, BufferJSON, initAuthCreds, proto, SignalDataTypeMap } from 'baileys';
-import { mkdir, stat } from 'node:fs/promises';
-import { createJetDB } from 'jetdb';
-import { store } from '../Modules/store';
+import { AuthenticationCreds, AuthenticationState, initAuthCreds, proto, SignalDataTypeMap } from 'baileys';
+import { CredsDatabase, KeysDatabase } from '../Config/database';
+import { store } from '../Library/center-store';
 
 export const useAuthState = async (folder: string): Promise<{ state: AuthenticationState; saveCreds: () => Promise<void> }> => {
   store.spinner.start(' Initializing auth state...');
 
-  const folderInfo = await stat(folder).catch(() => {});
-
-  if (folderInfo) {
-    if (!folderInfo.isDirectory()) {
-      store.spinner.error(' Failed to open credentials\n');
-      throw `found something that is not a directory at ${folder}, either delete it or specify a different location`;
-    }
-  } else {
-    await mkdir(folder, { recursive: true });
-  }
-
-  // Optimized configuration for auth credentials (small, critical data)
-  const credsDb = createJetDB(`${folder}/auth/creds.json`, {
-    BufferJSON,
-    cacheSize: 100, // Small cache for small auth data
-    flushMode: 'sync', // Immediate flush for critical auth data
-    compression: 'none', // No compression for small files
-    enableIndexing: false, // No indexing needed for creds
-  });
-
-  // Optimized configuration for auth keys (larger, frequently accessed)
-  const keysDb = createJetDB(`${folder}/auth/keys.json`, {
-    BufferJSON,
-    size: 512 * 1024, // 512KB chunks
-    cacheSize: 1000, // Larger cache for auth keys
-    flushMode: 'debounce', // Debounce for performance
-    debounceMs: 500, // Longer debounce for batch updates
-    compression: 'deflate', // Compress keys file (can be large)
-    enableIndexing: false, // Direct key access, no indexing needed
-    hotThreshold: 3, // Aggressive caching for frequently used keys
-  });
-
-  await Promise.all([credsDb.read(), keysDb.read()]);
+  const credsDb = CredsDatabase(folder);
+  const keysDb = KeysDatabase(folder);
 
   const creds: AuthenticationCreds = (await credsDb.get('creds')) || initAuthCreds();
 
@@ -97,7 +65,6 @@ export const useAuthState = async (folder: string): Promise<{ state: Authenticat
     },
     saveCreds: async () => {
       await credsDb.set('creds', creds);
-      await credsDb.write();
     },
   };
 };

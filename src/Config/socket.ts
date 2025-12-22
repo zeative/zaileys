@@ -1,27 +1,30 @@
-import makeWASocket, { AuthenticationState, makeCacheableSignalKeyStore } from 'baileys';
-import NodeCache from 'node-cache';
+import makeWASocket, { AuthenticationState, Browsers, makeCacheableSignalKeyStore, proto } from 'baileys';
 import { Client } from '../Classes';
-import { store } from '../Modules/store';
-
-const cache = new NodeCache();
+import { store } from '../Library/center-store';
+import { groupCache, mediaCache, msgRetryCache } from './cache';
 
 export const socketConfig = (client: Client, state: AuthenticationState): Parameters<typeof makeWASocket>[0] => {
   return {
     logger: store.logger,
     printQRInTerminal: false,
+    enableRecentMessageCache: true,
+    emitOwnEvents: true,
+    keepAliveIntervalMs: 30000,
+
+    browser: Browsers.ubuntu('Chrome'),
 
     markOnlineOnConnect: client.options.autoOnline,
     syncFullHistory: client.options.syncFullHistory,
 
-    msgRetryCounterCache: new NodeCache(),
-    mediaCache: new NodeCache({ stdTTL: 60 }),
-
-    cachedGroupMetadata: async (jid: string) => cache.get(jid),
+    msgRetryCounterCache: msgRetryCache,
+    mediaCache: mediaCache,
 
     auth: {
       creds: state.creds,
       keys: makeCacheableSignalKeyStore(state.keys, store.logger),
     },
+
+    cachedGroupMetadata: async (jid: string) => groupCache.get(jid),
 
     shouldIgnoreJid: () => false,
 
@@ -30,10 +33,10 @@ export const socketConfig = (client: Client, state: AuthenticationState): Parame
     patchMessageBeforeSending: (msg) => msg,
 
     getMessage: async (key) => {
-      if (!key?.remoteJid) return undefined;
+      if (!key?.remoteJid) return proto.Message.fromObject({});
 
-      const message = await client.db('messages').query(key.remoteJid).where('key.id', '=', key.id).first();
-      return message;
+      const message = await client.db('messages').getByIndex('messages', 'key.id', key.id);
+      return proto.Message.fromObject(message[0]);
     },
   };
 };

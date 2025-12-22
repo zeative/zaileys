@@ -1,11 +1,11 @@
-import makeWASocket, { downloadMediaMessage, getDevice, jidDecode, jidNormalizedUser, WAMessage } from 'baileys';
+import makeWASocket, { downloadMediaMessage, getDevice, jidNormalizedUser, WAMessage } from 'baileys';
 import _ from 'lodash';
 import { Client } from '../Classes';
 import { MESSAGE_MEDIA_TYPES } from '../Config/media';
-import { RateLimiter } from '../Modules/limiter';
-import { store } from '../Modules/store';
+import { store } from '../Library/center-store';
+import { RateLimiter } from '../Library/rate-limiter';
 import { MessagesContext } from '../Types/messages';
-import { extractUrls, findGlobalWord, ignoreLint, normalizeText, pickKeysFromArray, toJson, toString } from '../Utils';
+import { extractUrls, findGlobalWord, ignoreLint, normalizeText, toJson, toString } from '../Utils';
 import { cleanJid, cleanMediaObject, generateId, getDeepContent, getUsersMentions } from '../Utils/message';
 
 export class Messages {
@@ -34,15 +34,11 @@ export class Messages {
             const parsed = await this.parse(message);
 
             if (parsed) {
-              const collected = this.client.collector.push(parsed);
+              await this.client.middleware.run({ messages: parsed });
+              await this.client.plugins.execute(this.client, { messages: parsed });
 
-              if (!collected) {
-                await this.client.middleware.run({ messages: parsed });
-                await this.client.plugins.execute(this.client, { messages: parsed });
-
-                store.set('message', parsed);
-                store.events.emit('messages', parsed);
-              }
+              store.set('message', parsed);
+              store.events.emit('messages', parsed);
 
               if (this.client.options.autoRead) {
                 await socket.readMessages([parsed.message().key]);
@@ -246,26 +242,21 @@ export class Messages {
     const isViewOnce = findGlobalWord(toString(isReplied), 'viewOnce');
 
     const repliedId = content?.contextInfo?.stanzaId;
-    const repliedRoom = content?.contextInfo?.participant;
 
     if (isReplied && this.maxReplies) {
       this.maxReplies--;
 
-      const oldMessage = await this.client
-        .db('messages')
-        .query(isViewOnce ? repliedRoom : output.roomId)
-        .where('key.id', '=', repliedId)
-        .first();
+      const oldMessage = await this.client.db('messages').getByIndex('messages', 'key.id', repliedId);
 
       let replied;
 
       if (isViewOnce) {
         replied = {
-          ...oldMessage,
+          ...oldMessage[0],
           message: isReplied,
         };
       } else {
-        replied = oldMessage;
+        replied = oldMessage[0];
       }
 
       output.replied = (await this.parse(replied, 'replied')) as never;

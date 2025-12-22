@@ -2,7 +2,7 @@ import figlet from 'figlet';
 import { cristal } from 'gradient-string';
 import qrcode from 'qrcode-terminal';
 import pkg from '../../package.json' assert { type: 'json' };
-import { store } from '../Modules/store';
+import { store } from '../Library/center-store';
 import { logColor } from './helper';
 import { getLatestLibVersion } from './validate';
 

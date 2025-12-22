@@ -1,6 +1,6 @@
 import makeWASocket, { jidNormalizedUser, WACallEvent } from 'baileys';
 import { Client } from '../Classes';
-import { store } from '../Modules/store';
+import { store } from '../Library/center-store';
 import { CallsContext } from '../Types/calls';
 import { normalizeText } from '../Utils';
 

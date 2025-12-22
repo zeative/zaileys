@@ -1,6 +1,6 @@
 import makeWASocket from 'baileys';
 import { Client } from '../Classes';
-import { store } from '../Modules/store';
+import { store } from '../Library/center-store';
 import { ignoreLint } from '../Utils';
 
 export class Community {

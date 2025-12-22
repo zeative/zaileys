@@ -1,6 +1,6 @@
 import makeWASocket, { WAPrivacyGroupAddValue, WAPrivacyOnlineValue, WAPrivacyValue, WAReadReceiptsValue } from 'baileys';
 import { Client } from '../Classes';
-import { store } from '../Modules/store';
+import { store } from '../Library/center-store';
 
 export class Privacy {
   constructor(protected client: Client) {}

@@ -1,6 +1,7 @@
 import makeWASocket, { ParticipantAction } from 'baileys';
 import { Client } from '../Classes';
-import { store } from '../Modules/store';
+import { groupCache } from '../Config/cache';
+import { store } from '../Library/center-store';
 import { toBuffer } from '../Utils';
 
 export class Group {
@@ -72,12 +73,12 @@ export class Group {
   async metadata(roomId: string) {
     const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
 
-    const cached = store.groupCache.get(roomId) as any;
+    const cached = groupCache.get(roomId) as any;
     if (cached) return cached;
 
     const metadata = await socket.groupMetadata(roomId);
     if (metadata) {
-      store.groupCache.set(roomId, metadata);
+      groupCache.set(roomId, metadata);
     }
 
     return metadata;

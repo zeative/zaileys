@@ -1,7 +1,7 @@
 import makeWASocket, { delay, DisconnectReason, jidNormalizedUser } from 'baileys';
 import { cristal } from 'gradient-string';
 import { Client } from '../Classes';
-import { store } from '../Modules/store';
+import { store } from '../Library/center-store';
 import { ConnectionContext } from '../Types/connection';
 import { ignoreLint, removeAuthCreds, repairSessionKeys } from '../Utils';
 import { autoDisplayQRCode } from '../Utils/banner';

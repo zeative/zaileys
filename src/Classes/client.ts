@@ -20,6 +20,7 @@ import { normalizeText } from '../Utils';
 import { autoDisplayBanner } from '../Utils/banner';
 import { Logs } from './logs';
 import { Middleware, MiddlewareHandler } from './middleware';
+import { HealthManager } from '../Library/health-manager';
 import { Plugins } from './plugins';
 
 export interface Client extends Signal, SignalGroup, SignalPrivacy, SignalNewsletter, SignalCommunity {}
@@ -31,6 +32,7 @@ export class Client {
 
   middleware = new Middleware<any>();
   plugins = new Plugins();
+  health: HealthManager;
 
   constructor(public options: z.infer<typeof ClientOptionsType>) {
     this.options = parseZod(ClientOptionsType, options);
@@ -50,6 +52,9 @@ export class Client {
   async initialize(client?: Client) {
     await autoDisplayBanner();
     await initializeFFmpeg(this.options.disableFFmpeg);
+
+    this.health = new HealthManager(this);
+
     await registerAuthCreds(this);
 
     await this.plugins.load();

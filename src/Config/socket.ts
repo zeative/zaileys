@@ -5,7 +5,7 @@ import { groupCache, mediaCache, msgRetryCache } from './cache';
 
 export const socketConfig = (client: Client, state: AuthenticationState): Parameters<typeof makeWASocket>[0] => {
   return {
-    logger: store.logger,
+    logger: client.health.logger,
     printQRInTerminal: false,
     enableRecentMessageCache: true,
     emitOwnEvents: true,

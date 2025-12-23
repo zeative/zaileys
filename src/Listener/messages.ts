@@ -53,6 +53,8 @@ export class Messages {
   }
 
   async parse(message: WAMessage, type?: 'replied') {
+    // console.log(JSON.stringify(message, null, 2)/*  */)
+
     if (message?.category === 'peer') return;
     if (!message?.message || !message?.key?.id) return;
     if (message?.messageStubType || !!message?.messageStubParameters?.length) return;
@@ -189,6 +191,14 @@ export class Messages {
 
     if (!output.isGroup && !output.roomName) {
       output.roomName = output.senderName;
+    }
+
+    if (!output.isGroup) {
+      const id = output.senderId;
+      const lid = output.senderLid;
+
+      output.senderId = lid;
+      output.senderLid = id;
     }
 
     output.isViewOnce = false;

@@ -8,9 +8,14 @@ export const useAuthState = async (folder: string): Promise<{ state: Authenticat
   const credsDb = CredsDatabase(folder);
   const keysDb = KeysDatabase(folder);
 
-  const creds: AuthenticationCreds = (await credsDb.get('creds')) || initAuthCreds();
+  const credsData = await credsDb.get('creds');
+  const creds: AuthenticationCreds = credsData || initAuthCreds();
 
-  store.spinner.success(' Generate auth successfully');
+  if (credsData) {
+    store.spinner.success(' Auth credentials loaded successfully');
+  } else {
+    store.spinner.success(' Initialized new auth session');
+  }
 
   return {
     state: {
@@ -65,6 +70,7 @@ export const useAuthState = async (folder: string): Promise<{ state: Authenticat
     },
     saveCreds: async () => {
       await credsDb.set('creds', creds);
+      await credsDb.flush();
     },
   };
 };

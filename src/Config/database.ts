@@ -16,7 +16,7 @@ export const KeysDatabase = (session: string) =>
     size: 1024 * 1024,
     cacheSize: 2000,
     flushMode: 'sync',
-    compression: 'deflate',
+    compression: 'none',
     enableIndexing: false,
     hotThreshold: 5,
   });

@@ -1,8 +1,9 @@
-import { Jimp } from 'jimp';
 import { fileTypeFromBuffer } from 'file-type';
+import { Jimp } from 'jimp';
 import { BufferConverter, FFMPEG_CONSTANTS, FileManager, type MediaInput } from './core';
 
 let sharp: any;
+
 try {
   sharp = require('sharp');
 } catch {

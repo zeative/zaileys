@@ -47,7 +47,7 @@ export class FireAndForget {
   closeResolve: ((value: void | PromiseLike<void>) => void) | null;
 
   constructor(options?: FireAndForgetOptions) {
-    this.concurrency = options?.concurrency || 30;
+    this.concurrency = options?.concurrency || 20;
     this.timeout = options?.timeout || 30000; // 30s default
     this.onError = options?.onError || this._defaultErrorHandler;
 
@@ -173,9 +173,7 @@ export class FireAndForget {
     }
   }
 
-  _defaultErrorHandler(err: Error, task: Task) {
-    console.error(`[FireAndForget] Task ${task.id} failed:`, err);
-  }
+  _defaultErrorHandler(err: Error, task: Task) {}
 
   _generateId() {
     return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;

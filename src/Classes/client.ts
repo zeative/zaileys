@@ -32,7 +32,7 @@ export class Client {
   logs: Logs;
 
   middleware = new Middleware<any>();
-  plugins = new Plugins();
+  plugins: Plugins;
   health: HealthManager;
   cleanup: CleanUpManager;
 
@@ -46,6 +46,8 @@ export class Client {
       new SignalNewsletter(this),
       new SignalCommunity(this),
     ]);
+
+    this.plugins = new Plugins(this.options.pluginsDir, this.options.pluginsHmr);
 
     this._ready = this.initialize(proxy);
     return proxy;
@@ -65,6 +67,7 @@ export class Client {
     await registerAuthCreds(this);
 
     await this.plugins.load();
+    this.plugins.setupHmr();
 
     new Listener(client || this);
 

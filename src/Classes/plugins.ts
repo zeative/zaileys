@@ -27,9 +27,12 @@ export class Plugins {
   private pluginsDir: string;
   private globalEnabled = true;
   private disabledPlugins = new Set<string>();
+  private hmr = false;
+  private watcher: fs.FSWatcher | null = null;
 
-  constructor(pluginsDir: string = path.join(process.cwd(), 'plugins')) {
-    this.pluginsDir = pluginsDir;
+  constructor(pluginsDir: string = 'plugins', hmr = false) {
+    this.pluginsDir = path.isAbsolute(pluginsDir) ? pluginsDir : path.join(process.cwd(), pluginsDir);
+    this.hmr = hmr;
   }
 
   private async getAllFiles(dir: string, baseDir: string = dir): Promise<FileInfo[]> {
@@ -49,21 +52,17 @@ export class Plugins {
           return this.getAllFiles(filePath, baseDir);
         }
 
-        const isValidFile =
-          (entry.name.endsWith('.ts') || entry.name.endsWith('.js')) &&
-          !entry.name.endsWith('.d.ts');
+        const isValidFile = (entry.name.endsWith('.ts') || entry.name.endsWith('.js')) && !entry.name.endsWith('.d.ts');
 
         if (isValidFile) {
           const relativePath = path.relative(baseDir, dir);
-          const parent = relativePath === '' 
-            ? null 
-            : relativePath.split(path.sep)[0];
-          
+          const parent = relativePath === '' ? null : relativePath.split(path.sep)[0];
+
           return [{ filePath, parent }];
         }
 
         return [];
-      })
+      }),
     );
 
     return results.flat();
@@ -81,7 +80,10 @@ export class Plugins {
     const loadResults = await Promise.all(
       files.map(async ({ filePath, parent }): Promise<PluginDefinition | null> => {
         try {
-          const pluginModule = await import(pathToFileURL(filePath).href);
+          const fileUrl = pathToFileURL(filePath).href;
+          const finalUrl = this.hmr ? `${fileUrl}?t=${Date.now()}` : fileUrl;
+
+          const pluginModule = await import(finalUrl);
           let plugin = pluginModule.default;
 
           if (plugin?.default) {
@@ -90,28 +92,48 @@ export class Plugins {
 
           if (plugin?.handler && plugin?.config) {
             const pluginId = this.getPluginId(plugin.config.matcher);
-            return { 
-              ...plugin, 
-              parent, 
-              enabled: !this.disabledPlugins.has(pluginId) 
+            return {
+              ...plugin,
+              parent,
+              enabled: !this.disabledPlugins.has(pluginId),
             };
           }
-        } catch {}
+        } catch (error) {
+          console.error(`[Plugins] Failed to load plugin ${filePath}:`, error);
+        }
         return null;
-      })
+      }),
     );
 
     this.plugins = loadResults.filter((p): p is PluginDefinition => p !== null);
   }
 
+  setupHmr(): void {
+    if (!this.hmr || this.watcher) return;
+
+    try {
+      if (!fs.existsSync(this.pluginsDir)) {
+        return;
+      }
+
+      this.watcher = fs.watch(this.pluginsDir, { recursive: true }, async (event, filename) => {
+        if (filename && (filename.endsWith('.ts') || filename.endsWith('.js'))) {
+          await this.reload();
+        }
+      });
+    } catch (error) {
+      console.error('[Plugins] Failed to setup HMR:', error);
+    }
+  }
+
   private getPluginId(matcher: (string | RegExp)[]): string {
-    return matcher.map(m => m.toString()).join('|');
+    return matcher.map((m) => m.toString()).join('|');
   }
 
   async execute(wa: Client, ctx: MiddlewareContextType): Promise<void> {
     if (!this.globalEnabled) return;
 
-    const messageText = ctx.messages.text || '';
+    const messageText = ctx.messages?.text || '';
 
     for (const plugin of this.plugins) {
       if (!plugin.enabled) continue;
@@ -122,7 +144,9 @@ export class Plugins {
         if (isMatch) {
           await plugin.handler(wa, ctx);
         }
-      } catch {}
+      } catch (error) {
+        console.error(`[Plugins] Error executing plugin:`, error);
+      }
     }
   }
 
@@ -137,7 +161,7 @@ export class Plugins {
 
   enableAll(): void {
     this.globalEnabled = true;
-    this.plugins.forEach(p => p.enabled = true);
+    this.plugins.forEach((p) => (p.enabled = true));
     this.disabledPlugins.clear();
   }
 
@@ -147,10 +171,8 @@ export class Plugins {
 
   enable(matcher: string | RegExp): boolean {
     const matcherStr = matcher.toString();
-    const plugin = this.plugins.find(p => 
-      p.config.matcher.some(m => m.toString() === matcherStr)
-    );
-    
+    const plugin = this.plugins.find((p) => p.config.matcher.some((m) => m.toString() === matcherStr));
+
     if (plugin) {
       plugin.enabled = true;
       this.disabledPlugins.delete(this.getPluginId(plugin.config.matcher));
@@ -161,10 +183,8 @@ export class Plugins {
 
   disable(matcher: string | RegExp): boolean {
     const matcherStr = matcher.toString();
-    const plugin = this.plugins.find(p => 
-      p.config.matcher.some(m => m.toString() === matcherStr)
-    );
-    
+    const plugin = this.plugins.find((p) => p.config.matcher.some((m) => m.toString() === matcherStr));
+
     if (plugin) {
       plugin.enabled = false;
       this.disabledPlugins.add(this.getPluginId(plugin.config.matcher));
@@ -175,7 +195,8 @@ export class Plugins {
 
   enableByParent(parent: string): number {
     let count = 0;
-    this.plugins.forEach(p => {
+
+    this.plugins.forEach((p) => {
       if (p.parent === parent) {
         p.enabled = true;
         this.disabledPlugins.delete(this.getPluginId(p.config.matcher));
@@ -187,7 +208,8 @@ export class Plugins {
 
   disableByParent(parent: string): number {
     let count = 0;
-    this.plugins.forEach(p => {
+
+    this.plugins.forEach((p) => {
       if (p.parent === parent) {
         p.enabled = false;
         this.disabledPlugins.add(this.getPluginId(p.config.matcher));
@@ -205,9 +227,9 @@ export class Plugins {
     return this.plugins;
   }
 
-  getPluginsInfo(): { 
-    matcher: (string | RegExp)[]; 
-    metadata?: Record<string, any>; 
+  getPluginsInfo(): {
+    matcher: (string | RegExp)[];
+    metadata?: Record<string, any>;
     parent: string | null;
     enabled: boolean;
   }[] {
@@ -222,13 +244,18 @@ export class Plugins {
   async reload(): Promise<void> {
     this.plugins = [];
     await this.load();
+    console.log(`[Plugins] Successfully reloaded ${this.plugins.length} plugins.`);
+  }
+
+  stopHmr(): void {
+    if (this.watcher) {
+      this.watcher.close();
+      this.watcher = null;
+    }
   }
 }
 
-export const definePlugins = (
-  handler: PluginsHandlerType,
-  config: PluginsConfigType
-): Omit<PluginDefinition, 'parent' | 'enabled'> => {
+export const definePlugins = (handler: PluginsHandlerType, config: PluginsConfigType): Omit<PluginDefinition, 'parent' | 'enabled'> => {
   return {
     handler,
     config,

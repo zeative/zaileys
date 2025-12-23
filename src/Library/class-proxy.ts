@@ -14,7 +14,7 @@ export class ClassProxy {
         for (let i = 0; i < len; i++) {
           const src = mixins[i];
           if (prop in src) {
-            const v = Reflect.get(src, prop, receiver);
+            const v = Reflect.get(src, prop, src);
             return typeof v === 'function' ? (v as Function).bind(src) : v;
           }
         }

@@ -10,7 +10,8 @@ export class VideoProcessor {
 
     MimeValidator.validate(fileType, FFMPEG_CONSTANTS.MIME.VIDEO);
 
-    const tempIn = FileManager.createTempPath('video_in', 'mp4');
+    const inputExt = await BufferConverter.getExtension(buffer);
+    const tempIn = FileManager.createTempPath('video_in', inputExt);
     const tempOut = FileManager.createTempPath('video_out', 'mp4');
 
     await FileManager.safeWriteFile(tempIn, buffer);
@@ -55,7 +56,8 @@ export class VideoProcessor {
 
     MimeValidator.validate(fileType, FFMPEG_CONSTANTS.MIME.VIDEO);
 
-    const tempIn = FileManager.createTempPath('video', 'mp4');
+    const inputExt = await BufferConverter.getExtension(buffer);
+    const tempIn = FileManager.createTempPath('video', inputExt);
     const tempThumb = FileManager.createTempPath('thumb', 'jpg');
 
     await FileManager.safeWriteFile(tempIn, buffer);

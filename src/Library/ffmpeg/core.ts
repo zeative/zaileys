@@ -99,6 +99,13 @@ export class BufferConverter {
     if (input.startsWith('http://') || input.startsWith('https://')) {
       return this.fromUrl(input);
     }
+    
+    try {
+      if (await fs.stat(input).then(s => s.isFile()).catch(() => false)) {
+        return await fs.readFile(input);
+      }
+    } catch {}
+
     return Buffer.from(input, 'base64');
   }
 
@@ -113,6 +120,16 @@ export class BufferConverter {
     } catch (error: any) {
       throw new Error(`Failed to fetch URL: ${error.message}`);
     }
+  }
+
+  static async getExtension(buffer: Buffer): Promise<FileExtension> {
+    const { fileTypeFromBuffer } = await import('file-type');
+    const type = await fileTypeFromBuffer(buffer);
+    if (!type) return 'tmp';
+    
+    const ext = type.ext.toLowerCase();
+    const validExtensions: FileExtension[] = ['wav', 'ogg', 'mp4', 'gif', 'jpg', 'webp', 'tmp', 'mp3', 'png'];
+    return validExtensions.includes(ext as FileExtension) ? (ext as FileExtension) : 'tmp';
   }
 }
 

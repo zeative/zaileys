@@ -17,8 +17,9 @@ export class AudioProcessor {
     const fileType = await fileTypeFromBuffer(buffer);
 
     MimeValidator.validate(fileType, FFMPEG_CONSTANTS.MIME.AUDIO);
-
-    const tempIn = FileManager.createTempPath('audio_in', 'wav');
+    
+    const inputExt = await BufferConverter.getExtension(buffer);
+    const tempIn = FileManager.createTempPath('audio_in', inputExt);
     const extension = type === 'opus' ? 'ogg' : 'mp3';
     const tempOut = FileManager.createTempPath('audio_out', extension);
 

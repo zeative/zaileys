@@ -2,12 +2,28 @@ import { Jimp } from 'jimp';
 import { fileTypeFromBuffer } from 'file-type';
 import { BufferConverter, FFMPEG_CONSTANTS, FileManager, type MediaInput } from './core';
 
+let sharp: any;
+try {
+  sharp = require('sharp');
+} catch {
+  sharp = null;
+}
+
 export class ImageProcessor {
   static async thumbnail(buffer: Buffer): Promise<string> {
     const fileType = await fileTypeFromBuffer(buffer);
     const size = FFMPEG_CONSTANTS.THUMBNAIL.SIZE;
 
-    const image = await Jimp.read(buffer);
+    if (sharp) {
+      const sharpImg = sharp(buffer).resize(size, size, { fit: 'cover' });
+      if (fileType?.mime === FFMPEG_CONSTANTS.MIME.GIF) {
+        sharpImg.resize(size, size);
+      }
+      const jpegBuffer = await sharpImg.jpeg({ quality: FFMPEG_CONSTANTS.THUMBNAIL.QUALITY }).toBuffer();
+      return jpegBuffer.toString('base64');
+    }
+
+    const image = await Jimp.read(buffer as any);
     image.cover({ w: size, h: size });
 
     if (fileType?.mime === FFMPEG_CONSTANTS.MIME.GIF) {
@@ -19,7 +35,11 @@ export class ImageProcessor {
   }
 
   static async resize(buffer: Buffer, width: number, height: number): Promise<Buffer> {
-    const image = await Jimp.read(buffer);
+    if (sharp) {
+      return await sharp(buffer).resize(width, height, { fit: 'cover' }).png().toBuffer();
+    }
+
+    const image = await Jimp.read(buffer as any);
     image.cover({ w: width, h: height });
     return await image.getBuffer('image/png');
   }
@@ -33,7 +53,10 @@ export class ImageProcessor {
     }
 
     if (fileType.mime === 'image/webp') {
-      const image = await Jimp.read(buffer);
+      if (sharp) {
+        return await sharp(buffer).jpeg().toBuffer();
+      }
+      const image = await Jimp.read(buffer as any);
       return await image.getBuffer('image/jpeg');
     }
 
@@ -42,7 +65,16 @@ export class ImageProcessor {
 
   static async resizeForSticker(buffer: Buffer, quality: number, shape: string = 'default'): Promise<Buffer> {
     const size = FFMPEG_CONSTANTS.STICKER.SIZE;
-    const image = await Jimp.read(buffer);
+
+    if (sharp && shape === 'default') {
+      const webpBuffer = await sharp(buffer)
+        .resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+        .webp({ quality })
+        .toBuffer();
+      return webpBuffer;
+    }
+
+    const image = await Jimp.read(buffer as any);
     image.contain({ w: size, h: size });
 
     if (shape !== 'default') {

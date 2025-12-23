@@ -75,5 +75,13 @@
   "packageManager": "pnpm@10.24.0",
   "engines": {
     "node": ">=20.0.0"
+  },
+  "peerDependencies": {
+    "sharp": "^0.33.0"
+  },
+  "peerDependenciesMeta": {
+    "sharp": {
+      "optional": true
+    }
   }
 }

@@ -6,8 +6,10 @@ import { groupCache } from '../Config/cache';
 import { WaDatabase } from '../Config/database';
 import { store } from '../Library/center-store';
 import { ClassProxy } from '../Library/class-proxy';
+import { CleanUpManager } from '../Library/cleanup-manager';
 import { contextInjection } from '../Library/context-injection';
 import { initializeFFmpeg } from '../Library/ffmpeg';
+import { HealthManager } from '../Library/health-manager';
 import { parseZod } from '../Library/zod';
 import { Listener } from '../Listener';
 import { Signal } from '../Signal';
@@ -20,8 +22,6 @@ import { normalizeText } from '../Utils';
 import { autoDisplayBanner } from '../Utils/banner';
 import { Logs } from './logs';
 import { Middleware, MiddlewareHandler } from './middleware';
-import { CleanUpManager } from '../Library/cleanup-manager';
-import { HealthManager } from '../Library/health-manager';
 import { Plugins } from './plugins';
 
 export interface Client extends Signal, SignalGroup, SignalPrivacy, SignalNewsletter, SignalCommunity {}
@@ -91,11 +91,11 @@ export class Client {
   }
 
   get socket(): ReturnType<typeof makeWASocket> {
-    return (store as any).get('socket');
+    return store.get('socket');
   }
 
   async getRoomName(roomId: string) {
-    const socket = (store as any).get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
     const isGroup = roomId.endsWith('@g.us');
 
     let roomName = null;

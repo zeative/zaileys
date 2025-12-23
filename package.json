@@ -34,9 +34,9 @@
   "scripts": {
     "dev": "tsx --watch examples/test.ts",
     "build": "tsup",
-    "r:patch": "npm run build && npm version patch && npm publish",
-    "r:minor": "npm run build && npm version minor && npm publish",
-    "r:major": "npm run build && npm version major && npm publish"
+    "r:patch": "npm version patch && npm run build && npm publish",
+    "r:minor": "npm version minor && npm run build && npm publish",
+    "r:major": "npm version major && npm run build && npm publish"
   },
   "devDependencies": {
     "@types/lodash": "^4.17.21",

@@ -75,7 +75,6 @@ Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essentia
 - ✅ **Built-in FFmpeg** - No external dependencies for media processing
 - ✅ **Interactive Buttons** - Simple buttons, URL, copy code, call buttons, and lists
 - ✅ **Context Injection** - Universal data injection accessible anywhere in ctx
-- ✅ **Fancy Logs** - Beautiful, detailed logging with emoji indicators
 - ✅ **Fire and Forget** - Background task processing for lightning-fast responses
 - ✅ **Auto-Healing** - Intelligent connection monitoring and session repair
 - ✅ **Auto Clean Up** - Periodic database maintenance to save space

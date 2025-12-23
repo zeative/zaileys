@@ -140,6 +140,10 @@ const wa = new Client({
   // if you want to disable built-in ffmpeg
   // disableFFmpeg: true,
 
+  // plugin configuration
+  pluginsDir: 'plugins', // default
+  pluginsHmr: true, // default: true (auto reload plugins on change)
+
   sticker: {
     authorName: 'your name',
     packageName: 'package name',
@@ -242,6 +246,8 @@ These options apply to both authentication methods:
 | `fancyLogs`       | `boolean` | `false`     | Enable detailed, fancy log output.      |
 | `ignoreMe`        | `boolean` | `true`      | Ignore messages sent by the bot itself. |
 | `syncFullHistory` | `boolean` | `true`      | Sync full chat history on startup.      |
+| `pluginsDir`      | `string`  | `'plugins'` | Directory where plugins are located.    |
+| `pluginsHmr`      | `boolean` | `true`      | Enable Hot Module Replacement for plugins. |
 | `cleanupDays`     | `number`  | `7`         | Days to keep messages before auto-deletion. |
 | `autoCleanUp`     | `object`  | `undefined` | Configuration for periodic database cleanup. |
 | `disableFFmpeg`   | `boolean` | `false`     | Disable built-in FFmpeg installers.     |
@@ -284,7 +290,17 @@ wa.use(async (ctx, next) => {
 
 ### 🧩 Plugins
 
-Zaileys features a built-in file-based plugin system. By default, it looks for plugins in the `plugins` directory of your project root.
+Zaileys features a built-in file-based plugin system with **Hot Module Replacement (HMR)** support. By default, it looks for plugins in the `plugins` directory of your project root and automatically reloads them when you make changes.
+
+**0. Configuration:**
+You can customize the plugin directory and HMR behavior in the `Client` constructor:
+
+```typescript
+const wa = new Client({
+  pluginsDir: 'my-plugins', // Custom plugins directory
+  pluginsHmr: true, // Enable/disable HMR (default: true)
+});
+```
 
 **1. Create a plugin file** (e.g., `plugins/hello.ts`):
 

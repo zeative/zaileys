@@ -46,13 +46,9 @@ export class Messages {
                 fireForget.add(async () => socket.readMessages([parsed.message().key]));
               }
             }
-          } catch (err) {
-            console.error(`❌ [Messages] Error processing message ${message.key?.id}:`, err);
-          }
+          } catch {}
         }
-      } catch (err) {
-        console.error('❌ [Messages] Critical error in upsert listener:', err);
-      }
+      } catch {}
     });
   }
 

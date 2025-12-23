@@ -8,6 +8,7 @@ export const registerAuthCreds = async (client: Client) => {
   const SESSION_PATH = `.session/${client.options.session}`;
 
   console.info = () => {};
+  console.warn = () => {};
 
   const { state, saveCreds } = await useAuthState(SESSION_PATH);
 

@@ -28,7 +28,7 @@ export const autoDisplayBanner = async () => {
   const copyright = `\nby ${author} · v${version}`;
   const discordUrl = `— discord.gg/KBHhTTVUc5`
   
-  const updateLabel = `${isLatest ? 'Already using latest version!' : `Update available! (v${latestVersion})`} \n`;
+  const updateLabel = `${isLatest ? '— Already using latest version!' : `— Update available! (v${latestVersion})`} \n`;
   const updateColor = isLatest ? 'lime' : 'orange';
 
   const logo = await figlet.text(logoLabel);

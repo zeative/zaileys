@@ -26,7 +26,8 @@ export const autoDisplayBanner = async () => {
 
   const logoLabel = 'Zaileys';
   const copyright = `\nby ${author} · v${version}`;
-
+  const discordUrl = `— discord.gg/KBHhTTVUc5`
+  
   const updateLabel = `${isLatest ? 'Already using latest version!' : `Update available! (v${latestVersion})`} \n`;
   const updateColor = isLatest ? 'lime' : 'orange';
 
@@ -35,5 +36,6 @@ export const autoDisplayBanner = async () => {
 
   console.log(fancy);
   console.log(logColor(copyright, 'dimgray'));
+  console.log(logColor(discordUrl, 'purple'));
   console.log(logColor(updateLabel, updateColor));
 };

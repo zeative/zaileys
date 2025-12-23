@@ -7,8 +7,9 @@ import { ClassProxy } from './class-proxy';
 
 export interface CenterStore extends NodeCache {}
 
-export class CenterStore {
+export class CenterStore extends NodeCache {
   constructor() {
+    super({ useClones: false });
     return new ClassProxy().classInjection(this, [centerStoreCache]);
   }
 

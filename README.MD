@@ -77,6 +77,8 @@ Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essentia
 - ✅ **Context Injection** - Universal data injection accessible anywhere in ctx
 - ✅ **Fancy Logs** - Beautiful, detailed logging with emoji indicators
 - ✅ **Fire and Forget** - Background task processing for lightning-fast responses
+- ✅ **Auto-Healing** - Intelligent connection monitoring and session repair
+- ✅ **Auto Clean Up** - Periodic database maintenance to save space
 
 ## 🎨 Concepts & Architecture
 
@@ -241,6 +243,7 @@ These options apply to both authentication methods:
 | `ignoreMe`        | `boolean` | `true`      | Ignore messages sent by the bot itself. |
 | `syncFullHistory` | `boolean` | `true`      | Sync full chat history on startup.      |
 | `cleanupDays`     | `number`  | `7`         | Days to keep messages before auto-deletion. |
+| `autoCleanUp`     | `object`  | `undefined` | Configuration for periodic database cleanup. |
 | `disableFFmpeg`   | `boolean` | `false`     | Disable built-in FFmpeg installers.     |
 
 ### Automation Options
@@ -430,6 +433,31 @@ wa.clearInjections();
 ```
 
 This is perfect for sharing database connections, user sessions, or configuration across all handlers.
+
+### 🛡️ Auto-Healing
+
+Zaileys includes an intelligent `HealthManager` that monitors your connection and automatically repairs corrupted sessions.
+
+- **Bad MAC Repair**: Automatically detects "Bad MAC" errors and repairs the affected session keys without requiring a full logout.
+- **Log Suppression**: Silences noisy stack traces and internal error messages from `libsignal-node` to keep your terminal clean.
+- **Zero Config**: Enabled by default and works silently in the background.
+
+### 🧹 Auto Clean Up
+
+Keep your database lean and performant by enabling automatic cleanup of old messages.
+
+```typescript
+const wa = new Client({
+  autoCleanUp: {
+    enabled: true,
+    intervalMs: 60 * 60 * 1000, // Run every 1 hour
+    maxAgeMs: 24 * 60 * 60 * 1000, // Delete messages older than 24 hours
+    scopes: ['messages'], // Database scopes to clean
+  },
+});
+```
+
+The `CleanUpManager` runs in the background and ensures your storage usage stays within limits.
 
 ## 📫 Sending Messages
 

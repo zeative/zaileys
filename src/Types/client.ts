@@ -29,6 +29,15 @@ export const StickerMetadataType = z
   })
   .optional();
 
+export const autoCleanUp = z
+  .object({
+    enabled: z.boolean().default(false).optional(),
+    intervalMs: z.number().default(60 * 60 * 1000).optional(), // How often to run cleanup (default 1 hour)
+    maxAgeMs: z.number().default(24 * 60 * 60 * 1000).optional(), // Max age of messages before deletion (default 24 hours)
+    scopes: z.array(z.string()).default(['messages']).optional(), // Database scopes to clean up
+  })
+  .optional();
+
 export const ClientBaseType = z.object({
   session: z.string().default('zaileys').optional(),
   prefix: z.union([z.string(), z.array(z.string())]).optional(),
@@ -46,6 +55,8 @@ export const ClientBaseType = z.object({
   autoRead: z.boolean().default(true).optional(),
   autoPresence: z.boolean().default(true).optional(),
   autoRejectCall: z.boolean().default(true).optional(),
+
+  autoCleanUp,
 
   limiter: LimiterType,
   citation: CitationType,

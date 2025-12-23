@@ -20,6 +20,7 @@ import { normalizeText } from '../Utils';
 import { autoDisplayBanner } from '../Utils/banner';
 import { Logs } from './logs';
 import { Middleware, MiddlewareHandler } from './middleware';
+import { CleanUpManager } from '../Library/cleanup-manager';
 import { HealthManager } from '../Library/health-manager';
 import { Plugins } from './plugins';
 
@@ -33,6 +34,7 @@ export class Client {
   middleware = new Middleware<any>();
   plugins = new Plugins();
   health: HealthManager;
+  cleanup: CleanUpManager;
 
   constructor(public options: z.infer<typeof ClientOptionsType>) {
     this.options = parseZod(ClientOptionsType, options);
@@ -54,6 +56,11 @@ export class Client {
     await initializeFFmpeg(this.options.disableFFmpeg);
 
     this.health = new HealthManager(this);
+    this.cleanup = new CleanUpManager(this);
+
+    if (this.options.autoCleanUp?.enabled) {
+      this.cleanup.start();
+    }
 
     await registerAuthCreds(this);
 
@@ -84,11 +91,11 @@ export class Client {
   }
 
   get socket(): ReturnType<typeof makeWASocket> {
-    return store.get('socket');
+    return (store as any).get('socket');
   }
 
   async getRoomName(roomId: string) {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = (store as any).get('socket') as ReturnType<typeof makeWASocket>;
     const isGroup = roomId.endsWith('@g.us');
 
     let roomName = null;

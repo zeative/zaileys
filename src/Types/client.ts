@@ -1,7 +1,7 @@
-import { z } from 'zod';
-import { CallsContext } from './calls';
-import { ConnectionContext } from './connection';
-import { MessagesContext } from './messages';
+import { z } from "zod";
+import { CallsContext } from "./calls";
+import { ConnectionContext } from "./connection";
+import { MessagesContext } from "./messages";
 
 export const LimiterType = z
   .object({
@@ -10,15 +10,21 @@ export const LimiterType = z
   })
   .optional();
 
-export const CitationType = z.record(z.string(), z.function({ output: z.promise(z.array(z.number())) })).optional();
+export const CitationType = z
+  .record(z.string(), z.function({ output: z.promise(z.array(z.number())) }))
+  .optional();
 
 export const FakeReplyType = z
   .object({
-    provider: z.enum(['whatsapp', 'meta', 'chatgpt', 'copilot', 'instagram', 'tiktok']).or(z.number()),
+    provider: z
+      .enum(["whatsapp", "meta", "chatgpt", "copilot", "instagram", "tiktok"])
+      .or(z.number()),
   })
   .optional();
 
-export const StickerShapeType = z.enum(['default', 'rounded', 'circle', 'oval']).default('default');
+export const StickerShapeType = z
+  .enum(["default", "rounded", "circle", "oval"])
+  .default("default");
 
 export const StickerMetadataType = z
   .object({
@@ -40,17 +46,18 @@ export const autoCleanUp = z
       .number()
       .default(24 * 60 * 60 * 1000)
       .optional(),
-    scopes: z.array(z.string()).default(['messages']).optional(),
+    scopes: z.array(z.string()).default(["messages"]).optional(),
   })
   .optional();
 
 export const ClientBaseType = z.object({
-  session: z.string().default('zaileys').optional(),
+  session: z.string().default("zaileys").optional(),
   prefix: z.union([z.string(), z.array(z.string())]).optional(),
 
   ignoreMe: z.boolean().default(true).optional(),
   showLogs: z.boolean().default(true).optional(),
   fancyLogs: z.boolean().default(false).optional(),
+  showSpinner: z.boolean().default(true).optional(),
 
   syncFullHistory: z.boolean().default(true).optional(),
   disableFFmpeg: z.boolean().default(false).optional(),
@@ -62,7 +69,7 @@ export const ClientBaseType = z.object({
   autoPresence: z.boolean().default(true).optional(),
   autoRejectCall: z.boolean().default(true).optional(),
 
-  pluginsDir: z.string().default('plugins').optional(),
+  pluginsDir: z.string().default("plugins").optional(),
   pluginsHmr: z.boolean().default(true).optional(),
 
   autoCleanUp,
@@ -74,17 +81,20 @@ export const ClientBaseType = z.object({
 });
 
 export const ClientAuthPairingType = z.object({
-  authType: z.literal('pairing'),
+  authType: z.literal("pairing"),
   phoneNumber: z.number(),
 });
 
 export const ClientAuthQRType = z.object({
-  authType: z.literal('qr'),
+  authType: z.literal("qr"),
 });
 
-export const ClientOptionsType = z.union([ClientAuthPairingType.extend(ClientBaseType.shape), ClientAuthQRType.extend(ClientBaseType.shape)]);
+export const ClientOptionsType = z.union([
+  ClientAuthPairingType.extend(ClientBaseType.shape),
+  ClientAuthQRType.extend(ClientBaseType.shape),
+]);
 
-export const EventEnumType = z.enum(['connection', 'messages', 'calls']);
+export const EventEnumType = z.enum(["connection", "messages", "calls"]);
 
 export type EventCallbackType = {
   connection: (ctx: ConnectionContext) => void;

@@ -17,11 +17,6 @@ export type PluginDefinition = {
   enabled: boolean;
 };
 
-type FileInfo = {
-  filePath: string;
-  parent: string | null;
-};
-
 export class Plugins {
   private plugins: PluginDefinition[] = [];
   private pluginsDir: string;
@@ -35,55 +30,25 @@ export class Plugins {
     this.hmr = hmr;
   }
 
-  private async getAllFiles(dir: string, baseDir: string = dir): Promise<FileInfo[]> {
-    try {
-      await fs.promises.access(dir);
-    } catch {
-      return [];
-    }
-
-    const entries = await fs.promises.readdir(dir, { withFileTypes: true });
-
-    const results = await Promise.all(
-      entries.map(async (entry): Promise<FileInfo[]> => {
-        const filePath = path.join(dir, entry.name);
-
-        if (entry.isDirectory()) {
-          return this.getAllFiles(filePath, baseDir);
-        }
-
-        const isValidFile = (entry.name.endsWith('.ts') || entry.name.endsWith('.js')) && !entry.name.endsWith('.d.ts');
-
-        if (isValidFile) {
-          const relativePath = path.relative(baseDir, dir);
-          const parent = relativePath === '' ? null : relativePath.split(path.sep)[0];
-
-          return [{ filePath, parent }];
-        }
-
-        return [];
-      }),
-    );
-
-    return results.flat();
-  }
-
   async load(): Promise<void> {
-    try {
-      await fs.promises.access(this.pluginsDir);
-    } catch {
-      return;
-    }
+    const entries = await fs.promises
+      .readdir(this.pluginsDir, { withFileTypes: true, recursive: true })
+      .catch(() => []);
 
-    const files = await this.getAllFiles(this.pluginsDir);
+    const files = entries
+      .filter((entry) => entry.isFile() && /(?<!\.d)\.[jt]s$/.test(entry.name))
+      .map((entry) => ({
+        filePath: path.join(entry.parentPath, entry.name),
+        parent: path.relative(this.pluginsDir, entry.parentPath).split(path.sep)[0] || null,
+      }));
 
     const loadResults = await Promise.all(
       files.map(async ({ filePath, parent }): Promise<PluginDefinition | null> => {
         try {
-          const fileUrl = pathToFileURL(filePath).href;
-          const finalUrl = this.hmr ? `${fileUrl}?t=${Date.now()}` : fileUrl;
+          const { mtimeMs } = await fs.promises.stat(filePath);
+          const fileUrl = `${pathToFileURL(filePath).href}?v=${Math.floor(mtimeMs)}`;
 
-          const pluginModule = await import(finalUrl);
+          const pluginModule = await import(fileUrl);
           let plugin = pluginModule.default;
 
           if (plugin?.default) {
@@ -117,7 +82,7 @@ export class Plugins {
       }
 
       this.watcher = fs.watch(this.pluginsDir, { recursive: true }, async (event, filename) => {
-        if (filename && (filename.endsWith('.ts') || filename.endsWith('.js'))) {
+        if (filename && /\.[jt]s$/.test(filename)) {
           await this.reload();
         }
       });
@@ -242,7 +207,6 @@ export class Plugins {
   }
 
   async reload(): Promise<void> {
-    this.plugins = [];
     await this.load();
     console.log(`[Plugins] Successfully reloaded ${this.plugins.length} plugins.`);
   }

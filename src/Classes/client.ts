@@ -19,7 +19,6 @@ import { SignalNewsletter } from "../Signal/newsletter";
 import { SignalPrivacy } from "../Signal/privacy";
 import { ClientOptionsType, EventCallbackType, EventEnumType } from "../Types";
 import { normalizeText } from "../Utils";
-import { autoDisplayBanner } from "../Utils/banner";
 import { Logs } from "./logs";
 import { Middleware, MiddlewareHandler } from "./middleware";
 import { Plugins } from "./plugins";
@@ -63,8 +62,6 @@ export class Client {
   }
 
   async initialize(client?: Client) {
-    await autoDisplayBanner();
-
     store.spinner = new SpinnerManager(this.options.showSpinner !== false);
 
     await initializeFFmpeg(this.options.disableFFmpeg);

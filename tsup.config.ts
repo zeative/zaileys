@@ -1,24 +1,9 @@
-import { defineConfig } from 'tsup';
-import pkg from './package.json' assert { type: 'json' };
-
-const banner = `
-/*
- * Copyright (c) ${new Date().getFullYear()} zaadevofc.
- * All rights reserved.
- * Licensed under the MIT License.
- * See LICENSE file for details.
-
- * Author: zaadevofc
- * Last build time: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}
- * 
- * Repository: ${pkg.repository.url}
- */
-`;
+import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: ['src/index.ts'],
-  format: ['cjs', 'esm'],
-  outDir: 'dist',
+  entry: ["src/index.ts"],
+  format: ["cjs", "esm"],
+  outDir: "dist",
 
   dts: true,
   splitting: false,
@@ -29,20 +14,11 @@ export default defineConfig({
   legacyOutput: false,
   shims: true,
 
-  footer: {
-    js: banner,
-  },
-
   outExtension({ format }) {
     return {
-      js: format === 'cjs' ? '.js' : '.mjs',
+      js: format === "cjs" ? ".js" : ".mjs",
     };
   },
 
-  // tsconfig: './tsconfig.json',
   noExternal: [],
-  define: {
-    'process.env.PACKAGE_VERSION': JSON.stringify(pkg.version),
-    'process.env.PACKAGE_AUTHOR': JSON.stringify(pkg.author),
-  },
 });

@@ -2,7 +2,7 @@ import { createSpinner } from "nanospinner";
 
 export class SpinnerManager {
   private spinnerEnabled = true;
-  private spinner;
+  private spinner: any;
 
   constructor(initialEnabled: boolean = true) {
     this.spinnerEnabled = initialEnabled;
@@ -30,7 +30,11 @@ export class SpinnerManager {
   // --- Spinner Proxy Methods ---
 
   start(message?: string): void {
-    if (this.spinnerEnabled) this.spinner.start(message);
+    if (this.spinnerEnabled) {
+      this.spinner.start(message);
+    } else {
+      console.log(message);
+    }
   }
 
   stop(): void {
@@ -38,23 +42,43 @@ export class SpinnerManager {
   }
 
   success(message?: string): void {
-    if (this.spinnerEnabled) this.spinner.success(message);
+    if (this.spinnerEnabled) {
+      this.spinner.success(message);
+    } else {
+      console.log(message);
+    }
   }
 
   error(message?: string): void {
-    if (this.spinnerEnabled) this.spinner.error(message);
+    if (this.spinnerEnabled) {
+      this.spinner.error(message);
+    } else {
+      console.log(message);
+    }
   }
 
   warn(message?: string): void {
-    if (this.spinnerEnabled) this.spinner.warn(message);
+    if (this.spinnerEnabled) {
+      this.spinner.warn(message);
+    } else {
+      console.log(message);
+    }
   }
 
   info(message?: string): void {
-    if (this.spinnerEnabled) this.spinner.info(message);
+    if (this.spinnerEnabled) {
+      this.spinner.info(message);
+    } else {
+      console.log(message);
+    }
   }
 
   update(message?: string): void {
-    if (this.spinnerEnabled) this.spinner.update(message);
+    if (this.spinnerEnabled) {
+      this.spinner.update(message);
+    } else {
+      console.log(message);
+    }
   }
 
   reset(): void {
@@ -74,7 +98,11 @@ export class SpinnerManager {
   }
 
   write(message: string): void {
-    if (this.spinnerEnabled) this.spinner.write(message);
+    if (this.spinnerEnabled) {
+      this.spinner.write(message);
+    } else {
+      console.log(message);
+    }
   }
 
   render(): void {

@@ -1,10 +1,14 @@
-import makeWASocket, { delay, DisconnectReason, jidNormalizedUser } from 'baileys';
-import { cristal } from 'gradient-string';
-import { Client } from '../Classes';
-import { store } from '../Library/center-store';
-import { ConnectionContext } from '../Types/connection';
-import { ignoreLint, removeAuthCreds } from '../Utils';
-import { autoDisplayQRCode } from '../Utils/banner';
+import makeWASocket, {
+  delay,
+  DisconnectReason,
+  jidNormalizedUser,
+} from "baileys";
+import { cristal } from "gradient-string";
+import { Client } from "../Classes";
+import { store } from "../Library/center-store";
+import { ConnectionContext } from "../Types/connection";
+import { ignoreLint, removeAuthCreds } from "../Utils";
+import { autoDisplayQRCode } from "../Utils/banner";
 
 export class Connection {
   constructor(private client: Client) {
@@ -12,18 +16,18 @@ export class Connection {
   }
 
   async initialize() {
-    store.spinner.start(' Initializing connection...');
+    store.spinner.start(" Initializing connection...");
 
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = store.get("socket") as ReturnType<typeof makeWASocket>;
 
     const output: Partial<ConnectionContext> = {};
 
     // Reload client
     const reload = async () => {
-      output.status = 'reload';
-      store.spinner.warn(' Connection lost. Attempting auto-reload...');
+      output.status = "reload";
+      store.spinner.warn(" Connection lost. Attempting auto-reload...");
 
-      await this.client.initialize();
+      await this.client.initialize(this.client);
     };
 
     // Retry handler
@@ -38,8 +42,12 @@ export class Connection {
     };
 
     // Pairing handler
-    if (this.client.options.authType === 'pairing' && this.client.options.phoneNumber && !socket.authState.creds.registered) {
-      store.spinner.update(' Generating pairing code...');
+    if (
+      this.client.options.authType === "pairing" &&
+      this.client.options.phoneNumber &&
+      !socket.authState.creds.registered
+    ) {
+      store.spinner.update(" Generating pairing code...");
 
       await delay(3500);
 
@@ -47,7 +55,9 @@ export class Connection {
         output.authTimeout = Date.now() + 60_000;
 
         const expired = new Date(output.authTimeout).toLocaleTimeString();
-        const code = await socket.requestPairingCode(this.client.options.phoneNumber.toString());
+        const code = await socket.requestPairingCode(
+          this.client.options.phoneNumber.toString(),
+        );
 
         store.spinner.warn(` Pairing expired at ${cristal(expired)}`);
         store.spinner.warn(` Pairing code: ${code}`);
@@ -58,16 +68,16 @@ export class Connection {
       }
     }
 
-    socket.ev.on('connection.update', async (ctx) => {
+    socket.ev.on("connection.update", async (ctx) => {
       const { connection, lastDisconnect, qr } = ctx;
 
-      output.status = connection || 'connecting';
+      output.status = connection || "connecting";
       output.authType = this.client.options.authType;
 
-      store.spinner.update(' Connection status: ' + cristal(output.status));
+      store.spinner.update(" Connection status: " + cristal(output.status));
 
       // QR handler
-      if (this.client.options.authType === 'qr' && qr) {
+      if (this.client.options.authType === "qr" && qr) {
         output.authTimeout = Date.now() + 60_000;
 
         const expired = new Date(output.authTimeout).toLocaleTimeString();
@@ -81,23 +91,32 @@ export class Connection {
         return;
       }
 
-      if (connection === 'close') {
+      if (connection === "close") {
         const code = ignoreLint(lastDisconnect?.error)?.output?.statusCode;
-        const error = lastDisconnect?.error?.message || '';
+        const error = lastDisconnect?.error?.message || "";
 
-        const isReconnect = typeof code === 'number' && code !== DisconnectReason.loggedOut;
+        const isReconnect =
+          typeof code === "number" && code !== DisconnectReason.loggedOut;
 
         store.spinner.error(` [${code} - Closed] ${error}`);
 
         if (code === 401 || code === 405) {
-          store.spinner.warn(' Session may be used by another device/instance.');
-          store.spinner.warn(` If you want to connect here, close the other connection first.`);
-          store.spinner.warn(` Or use a different session name in your Client options.\n`);
+          store.spinner.warn(
+            " Session may be used by another device/instance.",
+          );
+          store.spinner.warn(
+            ` If you want to connect here, close the other connection first.`,
+          );
+          store.spinner.warn(
+            ` Or use a different session name in your Client options.\n`,
+          );
           return;
         }
 
         if (code === 500) {
-          store.spinner.error(' Server error occurred, attempting reconnect...');
+          store.spinner.error(
+            " Server error occurred, attempting reconnect...",
+          );
           await reload();
           return;
         }
@@ -107,9 +126,9 @@ export class Connection {
         }
       }
 
-      if (connection === 'open') {
+      if (connection === "open") {
         if (socket.user?.id) {
-          const id = jidNormalizedUser(socket.user.id).split('@')[0];
+          const id = jidNormalizedUser(socket.user.id).split("@")[0];
           const name = socket.user.name || socket.user.verifiedName;
 
           store.spinner.success(` Connected as ${cristal(name || id)}`);
@@ -118,17 +137,17 @@ export class Connection {
         }
       }
 
-      store.events.emit('connection', output);
+      store.events.emit("connection", output);
     });
 
-    socket.ev.on('messaging-history.set', ({ progress }) => {
-      output.status = 'syncing';
+    socket.ev.on("messaging-history.set", ({ progress }) => {
+      output.status = "syncing";
       output.syncProgress = progress;
 
       store.spinner.start(` Syncing messages history...`);
 
       if (progress) {
-        store.spinner.update(` Syncing messages history ${progress + '%'}`);
+        store.spinner.update(` Syncing messages history ${progress + "%"}`);
       }
 
       if (progress == 100) {
@@ -136,7 +155,7 @@ export class Connection {
         output.syncCompleted = true;
       }
 
-      store.events.emit('connection', output);
+      store.events.emit("connection", output);
     });
   }
 }

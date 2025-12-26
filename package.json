@@ -1,7 +1,7 @@
 {
-  "name": "zaileys",
-  "description": "Zaileys - Simplified WhatsApp Node.js TypeScript/JavaScript API",
-  "version": "2.2.7",
+  "name": "@lzif/wa",
+  "description": "Baileys wrapper",
+  "version": "0.1.1",
   "license": "MIT",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -13,19 +13,15 @@
       "import": "./dist/index.mjs"
     }
   },
-  "author": "zaadevofc",
+  "author": "lzif",
   "repository": {
-    "url": "git+https://github.com/zeative/zaileys.git"
+    "url": ""
   },
   "keywords": [
     "baileys",
-    "zaileys",
     "whatsapp",
-    "whatsapp-api",
     "whatsapp-web",
     "whatsapp-bot",
-    "multi-device",
-    "simplified",
     "automation",
     "modern-library",
     "nodejs",
@@ -33,10 +29,9 @@
   ],
   "scripts": {
     "dev": "tsx --watch examples/test.ts",
-    "build": "tsup",
-    "r:patch": "npm version patch && npm run build && npm publish",
-    "r:minor": "npm version minor && npm run build && npm publish",
-    "r:major": "npm version major && npm run build && npm publish"
+    "build": "rm -rf dist/ && tsup",
+    "publish": "pnpm publish --access public --no-git-checks",
+    "prepublishOnly": "pnpm run build"
   },
   "devDependencies": {
     "@types/lodash": "^4.17.21",

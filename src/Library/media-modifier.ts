@@ -1,4 +1,4 @@
-import z from 'zod';
+import * as v from 'valibot';
 import { StickerMetadataType } from '../Types';
 import {
   AudioProcessor,
@@ -74,9 +74,9 @@ class ImageModifier {
 
 class StickerModifier {
   private input: MediaInput;
-  private metadata?: z.infer<typeof StickerMetadataType>;
+  private metadata?: v.InferInput<typeof StickerMetadataType>;
 
-  constructor(input: MediaInput, metadata?: z.infer<typeof StickerMetadataType>) {
+  constructor(input: MediaInput, metadata?: v.InferInput<typeof StickerMetadataType>) {
     this.input = input;
     this.metadata = metadata;
   }
@@ -134,7 +134,7 @@ export class MediaModifier {
     return new ImageModifier(input);
   }
 
-  sticker(input: MediaInput, metadata?: z.infer<typeof StickerMetadataType>): StickerModifier {
+  sticker(input: MediaInput, metadata?: v.InferInput<typeof StickerMetadataType>): StickerModifier {
     return new StickerModifier(input, metadata);
   }
 

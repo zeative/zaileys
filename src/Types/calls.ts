@@ -1,19 +1,19 @@
-import z from 'zod';
+import * as v from 'valibot';
 
-export const ListenerCallsType = z.object({
-  callId: z.string(),
-  callerId: z.string(),
+export const ListenerCallsType = v.object({
+  callId: v.string(),
+  callerId: v.string(),
 
-  roomId: z.string(),
-  roomName: z.string(),
+  roomId: v.string(),
+  roomName: v.string(),
 
-  date: z.date(),
+  date: v.date(),
 
-  offline: z.boolean(),
-  status: z.enum(['accept', 'offer', 'reject', 'ringing', 'terminate', 'timeout']),
+  offline: v.boolean(),
+  status: v.picklist(['accept', 'offer', 'reject', 'ringing', 'terminate', 'timeout']),
 
-  isVideo: z.boolean(),
-  isGroup: z.boolean(),
+  isVideo: v.boolean(),
+  isGroup: v.boolean(),
 });
 
-export type CallsContext = z.infer<typeof ListenerCallsType>;
+export type CallsContext = v.InferOutput<typeof ListenerCallsType>;

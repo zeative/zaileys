@@ -1,6 +1,6 @@
 import { fileTypeFromBuffer } from 'file-type';
 import webp from 'node-webpmux';
-import z from 'zod';
+import * as v from 'valibot';
 import { StickerMetadataType } from '../../Types';
 import { generateId } from '../../Utils/message';
 import { ignoreLint } from '../../Utils/validate';
@@ -11,7 +11,7 @@ import { VideoProcessor } from './video';
 type FileExtension = 'gif' | 'mp4' | 'tmp';
 
 export class StickerProcessor {
-  static async create(input: MediaInput, metadata?: z.infer<typeof StickerMetadataType>): Promise<Buffer> {
+  static async create(input: MediaInput, metadata?: v.InferInput<typeof StickerMetadataType>): Promise<Buffer> {
     try {
       const buffer = await BufferConverter.toBuffer(input);
       const fileType = await fileTypeFromBuffer(buffer);
@@ -38,7 +38,7 @@ export class StickerProcessor {
     }
   }
 
-  private static createExifMetadata(metadata?: z.infer<typeof StickerMetadataType>): Buffer {
+  private static createExifMetadata(metadata?: v.InferInput<typeof StickerMetadataType>): Buffer {
     const json = {
       'sticker-pack-id': generateId(Date.now().toString()),
       'sticker-pack-name': metadata?.packageName || 'Zaileys Library',

@@ -1,10 +1,10 @@
 import makeWASocket, { AnyMessageContent, MiscMessageGenerationOptions, WAMessage } from 'baileys';
 
-import z from 'zod';
+import * as v from 'valibot';
 import { MESSAGES_VERIFIED_TYPE } from '../Config/media';
 import { store } from '../Library/center-store';
 import { mediaModifier } from '../Library/media-modifier';
-import { parseZod } from '../Library/zod';
+import { parseValibot } from '../Library/valibot';
 import { ButtonOptionsType, SignalOptionsType, SignalType } from '../Types/Signal/signal';
 import { extractJids, ignoreLint, pickKeysFromArray } from '../Utils';
 import { InteractiveButtons } from '../Classes/button';
@@ -13,12 +13,12 @@ import { Client } from '../Classes/client';
 export class Signal {
   constructor(protected client: Client) {}
 
-  protected async signal(roomId: string, options: z.infer<typeof SignalOptionsType>, type?: z.infer<typeof SignalType>, message?: WAMessage) {
+  protected async signal(roomId: string, options: v.InferInput<typeof SignalOptionsType> | any, type?: v.InferInput<typeof SignalType>, message?: WAMessage) {
     if (type != 'delete') {
       if (type == 'button') {
-        options = parseZod(ButtonOptionsType, options);
+        options = parseValibot(ButtonOptionsType, options);
       } else {
-        options = parseZod(SignalOptionsType, options);
+        options = parseValibot(SignalOptionsType, options);
       }
     }
 
@@ -249,20 +249,20 @@ export class Signal {
     }
   }
 
-  async send(roomId: string, options: z.infer<typeof SignalOptionsType>) {
+  async send(roomId: string, options: v.InferInput<typeof SignalOptionsType>) {
     return await this.signal(roomId, options);
   }
 
-  async forward(roomId: string, options: z.infer<typeof SignalOptionsType>) {
+  async forward(roomId: string, options: v.InferInput<typeof SignalOptionsType>) {
     return await this.signal(roomId, options, 'forward');
   }
 
-  async button(roomId: string, options: z.infer<typeof ButtonOptionsType>) {
+  async button(roomId: string, options: v.InferInput<typeof ButtonOptionsType>) {
     return await this.signal(roomId, options, 'button');
   }
 
-  async edit(message: WAMessage, options: z.infer<typeof SignalOptionsType>) {
-    return await this.signal(message.key.remoteJid, options, 'edit', message);
+  async edit(message: WAMessage, options: v.InferInput<typeof SignalOptionsType>) {
+    return await this.signal(message.key.remoteJid as string, options, 'edit', message);
   }
 
   async delete(message: WAMessage | WAMessage[]) {

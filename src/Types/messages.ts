@@ -1,10 +1,10 @@
 import { WAMessage } from 'baileys';
 import Stream from 'stream';
-import z from 'zod';
+import * as v from 'valibot';
 
-export const DEVICE_ENUM_TYPES = z.enum(['unknown', 'android', 'ios', 'desktop', 'web']);
+export const DEVICE_ENUM_TYPES = v.picklist(['unknown', 'android', 'ios', 'desktop', 'web']);
 
-export const MESSAGE_ENUM_TYPES = z.enum([
+export const MESSAGE_ENUM_TYPES = v.picklist([
   'text',
   'album',
   'image',
@@ -36,22 +36,14 @@ export const MESSAGE_ENUM_TYPES = z.enum([
   'paymentInvite',
   'interactive',
   'reaction',
-  'sticker',
   'interactiveResponse',
   'pollCreation',
   'pollUpdate',
   'keepInChat',
-  'document',
   'requestPhoneNumber',
-  'viewOnce',
-  'reaction',
-  'text',
-  'viewOnce',
-  'pollCreation',
   'scheduledCallCreation',
   'groupMentioned',
   'pinInChat',
-  'pollCreation',
   'scheduledCallEdit',
   'ptv',
   'botInvoke',
@@ -65,76 +57,71 @@ export const MESSAGE_ENUM_TYPES = z.enum([
   'encEventUpdate',
 ]);
 
-export const BaseMessagesType = z.object({
-  channelId: z.string(),
-  uniqueId: z.string(),
+export const BaseMessagesType = v.object({
+  channelId: v.string(),
+  uniqueId: v.string(),
 
-  chatId: z.string(),
+  chatId: v.string(),
   chatType: MESSAGE_ENUM_TYPES,
 
-  receiverLid: z.string(),
-  receiverId: z.string(),
-  receiverName: z.string(),
+  receiverLid: v.string(),
+  receiverId: v.string(),
+  receiverName: v.string(),
 
-  roomId: z.string(),
-  roomName: z.string(),
+  roomId: v.string(),
+  roomName: v.string(),
 
-  senderLid: z.string(),
-  senderId: z.string(),
-  senderName: z.string(),
+  senderLid: v.string(),
+  senderId: v.string(),
+  senderName: v.string(),
   senderDevice: DEVICE_ENUM_TYPES,
 
-  timestamp: z.number(),
+  timestamp: v.number(),
 
-  text: z.string().nullable(),
-  mentions: z.string().array(),
-  links: z.string().array(),
+  text: v.nullable(v.string()),
+  mentions: v.array(v.string()),
+  links: v.array(v.string()),
 
-  isBot: z.boolean(),
-  isFromMe: z.boolean(),
-  isPrefix: z.boolean(),
-  isSpam: z.boolean(),
-  isTagMe: z.boolean(),
+  isBot: v.boolean(),
+  isFromMe: v.boolean(),
+  isPrefix: v.boolean(),
+  isSpam: v.boolean(),
+  isTagMe: v.boolean(),
 
-  isStatusMention: z.boolean(),
-  isGroupStatusMention: z.boolean(),
-  isHideTags: z.boolean(),
+  isStatusMention: v.boolean(),
+  isGroupStatusMention: v.boolean(),
+  isHideTags: v.boolean(),
 
-  isGroup: z.boolean(),
-  isNewsletter: z.boolean(),
-  isQuestion: z.boolean(),
-  isStory: z.boolean(),
+  isGroup: v.boolean(),
+  isNewsletter: v.boolean(),
+  isQuestion: v.boolean(),
+  isStory: v.boolean(),
 
-  isViewOnce: z.boolean(),
-  isEdited: z.boolean(),
-  isDeleted: z.boolean(),
-  isPinned: z.boolean(),
-  isUnPinned: z.boolean(),
+  isViewOnce: v.boolean(),
+  isEdited: v.boolean(),
+  isDeleted: v.boolean(),
+  isPinned: v.boolean(),
+  isUnPinned: v.boolean(),
 
-  isBroadcast: z.boolean(),
-  isEphemeral: z.boolean(),
-  isForwarded: z.boolean(),
+  isBroadcast: v.boolean(),
+  isEphemeral: v.boolean(),
+  isForwarded: v.boolean(),
 
-  citation: z.record(z.string(), z.function({ output: z.promise(z.boolean()) })).nullable(),
+  citation: v.nullable(v.record(v.string(), v.custom<(...args: unknown[]) => Promise<boolean>>((val) => typeof val === 'function'))),
 
-  media: z
-    .object({
-      buffer: z.function({ output: z.promise(z.instanceof(Buffer)) }),
-      stream: z.function({ output: z.promise(z.instanceof(Stream)) }),
-    })
-    .loose()
-    .nullable(),
+  media: v.nullable(v.looseObject({
+    buffer: v.custom<() => Promise<Buffer>>((val) => typeof val === 'function'),
+    stream: v.custom<() => Promise<Stream>>((val) => typeof val === 'function'),
+  })),
 
-  injection: z.record(z.string(), z.any()).default({}),
+  injection: v.optional(v.record(v.string(), v.any()), {}),
 
-  message: z.function({
-    input: [],
-    output: z.custom<WAMessage>(),
-  }),
+  message: v.custom<() => WAMessage>((val) => typeof val === 'function'),
 });
 
-export const ListenerMessagesType = BaseMessagesType.extend({
-  replied: BaseMessagesType.nullable(),
+export const ListenerMessagesType = v.object({
+  ...BaseMessagesType.entries,
+  replied: v.nullable(BaseMessagesType),
 });
 
-export type MessagesContext = z.infer<typeof ListenerMessagesType>;
+export type MessagesContext = v.InferOutput<typeof ListenerMessagesType>;

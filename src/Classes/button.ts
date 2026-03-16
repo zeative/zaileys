@@ -1,5 +1,5 @@
 import makeWASocket, { generateMessageIDV2, generateWAMessageFromContent, isJidGroup, MessageGenerationOptionsFromContent, proto } from 'baileys';
-import z from 'zod';
+import * as v from 'valibot';
 import { store } from '../Library/center-store';
 import { SignalOptionsType } from '../Types/Signal/signal';
 import { ignoreLint } from '../Utils';
@@ -27,7 +27,7 @@ export class InteractiveButtons {
     }));
   }
 
-  private build(payload: z.infer<typeof SignalOptionsType>): proto.Message.IInteractiveMessage {
+  private build(payload: v.InferOutput<typeof SignalOptionsType>): proto.Message.IInteractiveMessage {
     const buttons = ignoreLint(payload).buttons;
     const data = buttons?.data || [];
 
@@ -41,7 +41,7 @@ export class InteractiveButtons {
     };
   }
 
-  async send(roomId: string, payload: z.infer<typeof SignalOptionsType>, options: Partial<MessageGenerationOptionsFromContent>) {
+  async send(roomId: string, payload: v.InferInput<typeof SignalOptionsType>, options: Partial<MessageGenerationOptionsFromContent>) {
     const socket = store.get('socket') as ReturnType<typeof makeWASocket> & { config: any };
 
     const userJid = socket?.authState?.creds?.me?.id || socket?.user?.id;

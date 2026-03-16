@@ -1,6 +1,6 @@
 import makeWASocket from 'baileys';
 import { RootDatabase } from 'lmdb';
-import z from 'zod';
+import * as v from 'valibot';
 import { registerAuthCreds } from '../Auth';
 import { groupCache } from '../Config/cache';
 import { WaDatabase } from '../Config/database';
@@ -10,7 +10,7 @@ import { CleanUpManager } from '../Library/cleanup-manager';
 import { contextInjection } from '../Library/context-injection';
 import { initializeFFmpeg } from '../Library/ffmpeg';
 import { HealthManager } from '../Library/health-manager';
-import { parseZod } from '../Library/zod';
+import { parseValibot } from '../Library/valibot';
 import { Listener } from '../Listener';
 import { Signal } from '../Signal';
 import { SignalCommunity } from '../Signal/community';
@@ -36,8 +36,10 @@ export class Client {
   health: HealthManager;
   cleanup: CleanUpManager;
 
-  constructor(public options: z.infer<typeof ClientOptionsType>) {
-    this.options = parseZod(ClientOptionsType, options);
+  public options: v.InferOutput<typeof ClientOptionsType>;
+
+  constructor(options: v.InferInput<typeof ClientOptionsType>) {
+    this.options = parseValibot(ClientOptionsType, options);
 
     const proxy = new ClassProxy().classInjection(this, [
       new Signal(this),
@@ -99,7 +101,7 @@ export class Client {
     return WaDatabase(this.options.session, scope);
   }
 
-  on<T extends z.infer<typeof EventEnumType>>(event: T, handler: EventCallbackType[T]): void {
+  on<T extends v.InferOutput<typeof EventEnumType>>(event: T, handler: EventCallbackType[T]): void {
     store.events.on(event, handler);
   }
 

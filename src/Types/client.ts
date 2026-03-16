@@ -61,6 +61,8 @@ export const ClientBaseType = z.object({
   autoRead: z.boolean().default(true).optional(),
   autoPresence: z.boolean().default(true).optional(),
   autoRejectCall: z.boolean().default(true).optional(),
+  
+  deleteSessionOnLogout: z.boolean().default(false).optional(),
 
   pluginsDir: z.string().default('plugins').optional(),
   pluginsHmr: z.boolean().default(true).optional(),

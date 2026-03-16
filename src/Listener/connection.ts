@@ -106,9 +106,13 @@ export class Connection {
           store.spinner.warn(` Connection marked for reconnect (${code}). Wait a moment...`);
           setTimeout(() => reload(), 3000);
         } else {
-          store.spinner.warn(` Session logged out or invalidated. Self-healing...`);
-          await removeAuthCreds(this.client.options.session);
-          setTimeout(() => reload(), 3000);
+          if (this.client.options.deleteSessionOnLogout) {
+            store.spinner.warn(` Session logged out or invalidated. Self-healing...`);
+            await removeAuthCreds(this.client.options.session);
+            setTimeout(() => reload(), 3000);
+          } else {
+            store.spinner.warn(` Session logged out or invalidated. Automatic session deletion is disabled.`);
+          }
         }
       }
 

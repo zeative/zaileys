@@ -36,13 +36,15 @@
     "build": "tsup",
     "r:patch": "npm version patch && npm run build && npm publish",
     "r:minor": "npm version minor && npm run build && npm publish",
-    "r:major": "npm version major && npm run build && npm publish"
+    "r:major": "npm version major && npm run build && npm publish",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@types/lodash": "^4.17.21",
     "@types/lz4": "^0.6.4",
     "@types/node": "^24.10.1",
     "@types/qrcode-terminal": "^0.12.2",
+    "husky": "^9.1.7",
     "rolldown": "1.0.0-beta.52",
     "rolldown-plugin-dts": "^0.18.1",
     "tsup": "^8.5.1",

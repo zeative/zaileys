@@ -41,40 +41,41 @@ export class Listener {
       const { chats, contacts, messages } = update;
 
       fireForget.add(async () => {
-        await this.client.db('chats').batchUpsert('chats', chats, 'id');
+        const promises = chats.map(item => this.client.db('chats').put(item.id, item));
+        await Promise.all(promises);
       });
 
       fireForget.add(async () => {
-        await this.client.db('contacts').batchUpsert('contacts', contacts, 'id');
+        const promises = contacts.map(item => this.client.db('contacts').put(item.id, item));
+        await Promise.all(promises);
       });
 
       fireForget.add(async () => {
-        await this.client.db('messages').batchUpsert('messages', messages, 'key.id');
+        const promises = messages.map(item => this.client.db('messages').put(item.key.id, item));
+        await Promise.all(promises);
       });
     });
 
     socket?.ev.on('messages.upsert', async ({ messages }) => {
       fireForget.add(async () => {
-        await this.client.db('messages').batchUpsert('messages', messages, 'key.id');
+        const promises = messages.map(item => this.client.db('messages').put(item.key.id, item));
+        await Promise.all(promises);
       });
     });
 
     socket?.ev.on('chats.upsert', async (chats) => {
       fireForget.add(async () => {
-        await this.client.db('chats').batchUpsert('chats', chats, 'id');
+        const promises = chats.map(item => this.client.db('chats').put(item.id, item));
+        await Promise.all(promises);
       });
     });
 
     socket?.ev.on('contacts.upsert', async (contacts) => {
       fireForget.add(async () => {
-        await this.client.db('contacts').batchUpsert('contacts', contacts, 'id');
+        const promises = contacts.map(item => this.client.db('contacts').put(item.id, item));
+        await Promise.all(promises);
       });
     });
 
-    await this.client.db('messages').createIndex('messages', 'key.remoteJid');
-    await this.client.db('messages').createIndex('messages', 'key.id');
-
-    await this.client.db('chats').createIndex('chats', 'id');
-    await this.client.db('contacts').createIndex('contacts', 'id');
   }
 }

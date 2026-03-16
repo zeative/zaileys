@@ -104,7 +104,8 @@ export class Messages {
     const universalId = content?.key?.id;
 
     if (isRevoke || isPin || isUnPin) {
-      const universal = await this.client.db('messages').query(output.roomId).where('key.id', '=', universalId).first();
+      if (!universalId) return;
+      const universal = await this.client.db('messages').get(universalId);
 
       if (!universal) return;
       message = universal;
@@ -258,17 +259,18 @@ export class Messages {
     if (isReplied && this.maxReplies) {
       this.maxReplies--;
 
-      const oldMessage = await this.client.db('messages').getByIndex('messages', 'key.id', repliedId);
+      if (!repliedId) return output; // should logically continue actually, but if it evaluates to true it has stanzaId
+      const oldMessage = await this.client.db('messages').get(repliedId);
 
       let replied;
 
       if (isViewOnce) {
         replied = {
-          ...oldMessage[0],
+          ...oldMessage,
           message: isReplied,
         };
       } else {
-        replied = oldMessage[0];
+        replied = oldMessage;
       }
 
       output.replied = (await this.parse(replied, 'replied')) as never;

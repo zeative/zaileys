@@ -40,8 +40,7 @@ export const useAuthState = async (folder: string): Promise<{ state: Authenticat
           return data;
         },
         set: async (data) => {
-          const setOperations: { key: string; value: any }[] = [];
-          const deleteKeys: string[] = [];
+          const promises: Promise<any>[] = [];
 
           for (const category in data) {
             for (const id in data[category as keyof SignalDataTypeMap]) {
@@ -49,28 +48,19 @@ export const useAuthState = async (folder: string): Promise<{ state: Authenticat
               const key = `${category}:${id}`;
 
               if (value) {
-                setOperations.push({ key, value });
+                promises.push(keysDb.put(key, value));
               } else {
-                deleteKeys.push(key);
+                promises.push(keysDb.remove(key));
               }
             }
           }
 
-          // Batch operations for better performance
-          if (setOperations.length) {
-            await keysDb.batchSet(setOperations);
-          }
-          if (deleteKeys.length) {
-            await keysDb.batchDelete(deleteKeys);
-          }
-
-          await keysDb.flush();
+          await Promise.all(promises);
         },
       },
     },
     saveCreds: async () => {
-      await credsDb.set('creds', creds);
-      await credsDb.flush();
+      await credsDb.put('creds', creds);
     },
   };
 };

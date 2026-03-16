@@ -33,10 +33,10 @@ export const socketConfig = (client: Client, state: AuthenticationState): Parame
     patchMessageBeforeSending: (msg) => msg,
 
     getMessage: async (key) => {
-      if (!key?.remoteJid) return proto.Message.fromObject({});
+      if (!key?.remoteJid || !key?.id) return proto.Message.fromObject({});
 
-      const message = await client.db('messages').getByIndex('messages', 'key.id', key.id);
-      return proto.Message.fromObject(message[0]);
+      const message = await client.db('messages').get(key.id);
+      return proto.Message.fromObject(message || {});
     },
   };
 };

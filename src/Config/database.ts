@@ -1,35 +1,19 @@
-import { BufferJSON } from 'baileys';
-import { createJetDB } from 'jetdb';
+import { open } from 'lmdb';
 
 export const CredsDatabase = (session: string) =>
-  createJetDB(`${session}/auth/creds.json`, {
-    BufferJSON,
-    cacheSize: 100,
-    flushMode: 'sync',
-    compression: 'none',
-    enableIndexing: false,
+  open({
+    path: `${session}/auth/creds`,
+    compression: false,
   });
 
 export const KeysDatabase = (session: string) =>
-  createJetDB(`${session}/auth/keys.json`, {
-    BufferJSON,
-    size: 1024 * 1024,
-    cacheSize: 2000,
-    flushMode: 'sync',
-    compression: 'none',
-    enableIndexing: false,
-    hotThreshold: 5,
+  open({
+    path: `${session}/auth/keys`,
+    compression: false,
   });
 
 export const WaDatabase = (session: string, scope: string) =>
-  createJetDB(`.session/${session}/store/${scope}.json`, {
-    BufferJSON,
-    cacheSize: 20000,
-    debounceMs: 1000,
-    flushMode: 'debounce',
-    compression: 'deflate',
-    serialization: 'json',
-    enableIndexing: true,
-    hotThreshold: 2,
-    size: 5 * 1024 * 1024,
+  open({
+    path: `.session/${session}/store/${scope}`,
+    compression: true,
   });

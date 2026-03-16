@@ -34,11 +34,17 @@ export class CleanUpManager {
       try {
         const db = this.client.db(scope);
 
-        const oldItems = await db.query(scope).where('timestamp', '<', threshold).get();
+        const oldItems: any[] = [];
+        for (const { value } of db.getRange()) {
+          if (value && value.timestamp !== undefined && value.timestamp < threshold) {
+            oldItems.push(value);
+          }
+        }
 
         if (oldItems.length > 0) {
           const ids = oldItems.map((item: any) => item.key?.id || item.id);
-          await db.batchDelete(ids);
+          const promises = ids.map((id: any) => db.remove(id));
+          await Promise.all(promises);
 
           store.spinner.info(` [CleanUpManager] Cleaned up ${oldItems.length} items from ${scope}`);
         }

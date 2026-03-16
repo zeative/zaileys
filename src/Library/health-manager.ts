@@ -44,8 +44,8 @@ export class HealthManager {
     const keys = [`session:${jid}`, `sender-key:${jid}`];
 
     try {
-      await this.keysDb.batchDelete(keys);
-      await this.keysDb.flush();
+      const promises = keys.map(key => this.keysDb.remove(key));
+      await Promise.all(promises);
 
       store.spinner.warn(` [HealthManager] Repaired session for ${jid} due to Bad MAC`);
     } catch {

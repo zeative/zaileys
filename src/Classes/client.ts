@@ -1,5 +1,5 @@
 import makeWASocket from 'baileys';
-import { JetDB } from 'jetdb';
+import { RootDatabase } from 'lmdb';
 import z from 'zod';
 import { registerAuthCreds } from '../Auth';
 import { groupCache } from '../Config/cache';
@@ -80,7 +80,7 @@ export class Client {
     return this._ready;
   }
 
-  db(scope: string): JetDB {
+  db(scope: string): RootDatabase {
     return WaDatabase(this.options.session, scope);
   }
 

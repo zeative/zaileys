@@ -13,15 +13,21 @@ export class HealthManager {
   async repair(jid: string) {
     if (!jid) return;
 
-    const keys = [`session:${jid}`, `sender-key:${jid}`];
-
     try {
-      const promises = keys.map(key => this.keysDb.remove(key));
-      await Promise.all(promises);
-
-      store.spinner.warn(` [HealthManager] Repaired session for ${jid} due to Bad MAC`);
-    } catch {
-      // ignore
+      const socket = this.client.socket;
+      if (socket && socket.authState) {
+         // Fix the Bad MAC properly by routing the deletion through Baileys' 
+         // makeCacheableSignalKeyStore memory cache. This wipes the corrupted key 
+         // from RAM and propagates the delete down to LMDB natively.
+         await socket.authState.keys.set({
+           'session': { [jid]: null },
+           'sender-key': { [jid]: null }
+         });
+         
+         store.spinner.warn(` [HealthManager] Repaired session for ${jid} due to Bad MAC by clearing auth cache`);
+      }
+    } catch (err) {
+      this.logger.error({ err }, 'Failed to repair session');
     }
   }
 

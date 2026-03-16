@@ -1,6 +1,6 @@
 import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs/promises';
-import _ from 'lodash';
+
 import { tmpdir } from 'os';
 import path from 'path';
 

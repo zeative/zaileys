@@ -1,5 +1,5 @@
 import makeWASocket, { downloadMediaMessage, getDevice, jidNormalizedUser, WAMessage } from 'baileys';
-import _ from 'lodash';
+import * as _ from 'radashi';
 import { Client } from '../Classes';
 import { MESSAGE_MEDIA_TYPES } from '../Config/media';
 import { store } from '../Library/center-store';
@@ -7,7 +7,7 @@ import { contextInjection } from '../Library/context-injection';
 import { fireForget } from '../Library/fire-forget';
 import { RateLimiter } from '../Library/rate-limiter';
 import { MessagesContext } from '../Types/messages';
-import { extractUrls, findGlobalWord, ignoreLint, normalizeText, toJson, toString } from '../Utils';
+import { escapeRegExp, extractUrls, findGlobalWord, ignoreLint, normalizeText, toJson, toString } from '../Utils';
 import { cleanJid, cleanMediaObject, generateId, getDeepContent, getUsersMentions } from '../Utils/message';
 
 export class Messages {
@@ -165,7 +165,8 @@ export class Messages {
     output.isBot = output.chatId.startsWith('BAE5') || output.chatId.startsWith('3EB0') || output.chatId.startsWith('Z4D3FC');
     output.isFromMe = isFromMe;
 
-    const prefixes = _.castArray(this.client.options?.prefix);
+    const optPrefix = this.client.options?.prefix;
+    const prefixes = Array.isArray(optPrefix) ? optPrefix : [optPrefix];
 
     output.isPrefix = !!prefixes.find((prefix) => output.text?.startsWith(prefix));
 
@@ -175,14 +176,14 @@ export class Messages {
     output.isGroupStatusMention = !!message?.message?.groupStatusMentionMessage;
     output.isHideTags = false;
 
-    if (_.isEmpty(output.text) && content?.contextInfo?.mentionedJid?.length) {
+    if (!output.text?.trim() && content?.contextInfo?.mentionedJid?.length) {
       output.isHideTags = true;
     }
 
     output.isSpam = await this.limiter.isSpam(output.channelId);
 
     if (output.isPrefix) {
-      output.text = output.text.replace(new RegExp(`^${_.escapeRegExp(prefixes.find((prefix) => output.text?.startsWith(prefix)) || '')}`), '');
+      output.text = output.text.replace(new RegExp(`^${escapeRegExp(prefixes.find((prefix) => output.text?.startsWith(prefix)) || '')}`), '');
     }
 
     output.isGroup = output.roomId?.includes('@g.us');
@@ -226,7 +227,7 @@ export class Messages {
           const result = await method();
 
           const compare = [cleanJid(output.roomId), cleanJid(output.senderLid), cleanJid(output.senderId)];
-          return Boolean(_.intersection(compare, result).length);
+          return Boolean(compare.some(val => result.includes(val)));
         };
       }
     }

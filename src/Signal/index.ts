@@ -1,5 +1,5 @@
 import makeWASocket, { AnyMessageContent, MiscMessageGenerationOptions, WAMessage } from 'baileys';
-import _ from 'lodash';
+
 import z from 'zod';
 import { MESSAGES_VERIFIED_TYPE } from '../Config/media';
 import { store } from '../Library/center-store';
@@ -27,26 +27,27 @@ export class Signal {
     let output: Partial<AnyMessageContent> = {};
     let misc: Partial<MiscMessageGenerationOptions> = {};
 
-    const isText = _.isString(options);
+    const isText = typeof options === 'string';
+    const hasKey = (obj: any, key: string) => typeof obj === 'object' && obj !== null && key in obj;
 
     const isFakeReply = this.client.options?.fakeReply?.provider;
     const isAutoMentions = this.client.options?.autoMentions;
     const isAutoPresence = this.client.options?.autoPresence;
 
-    const isReplied = _.has(options, 'replied');
-    const isBanner = _.has(options, 'banner');
-    const isViewOnce = _.has(options, 'isViewOnce');
+    const isReplied = hasKey(options, 'replied');
+    const isBanner = hasKey(options, 'banner');
+    const isViewOnce = hasKey(options, 'isViewOnce');
     const isButton = type == 'button';
 
-    const hasImage = _.has(options, 'image');
-    const hasVideo = _.has(options, 'video');
-    const hasAudio = _.has(options, 'audio');
-    const hasSticker = _.has(options, 'sticker');
-    const hasDocument = _.has(options, 'document');
+    const hasImage = hasKey(options, 'image');
+    const hasVideo = hasKey(options, 'video');
+    const hasAudio = hasKey(options, 'audio');
+    const hasSticker = hasKey(options, 'sticker');
+    const hasDocument = hasKey(options, 'document');
 
-    const hasLocation = _.has(options, 'location');
-    const hasContacts = _.has(options, 'contacts');
-    const hasPoll = _.has(options, 'poll');
+    const hasLocation = hasKey(options, 'location');
+    const hasContacts = hasKey(options, 'contacts');
+    const hasPoll = hasKey(options, 'poll');
 
     const isMedia = hasImage || hasVideo || hasAudio || hasSticker || hasDocument;
 
@@ -265,7 +266,7 @@ export class Signal {
   }
 
   async delete(message: WAMessage | WAMessage[]) {
-    if (_.isArray(message)) {
+    if (Array.isArray(message)) {
       return Promise.all(
         message.map((message) => {
           return this.signal(message.key.remoteJid, {}, 'delete', message);

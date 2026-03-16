@@ -1,7 +1,6 @@
 
 import fs from 'node:fs/promises';
 import { store } from '../Library/center-store';
-import unorm from 'unorm';
 
 export const ignoreLint = (data: any) => data;
 
@@ -41,9 +40,7 @@ export const normalizeText = (text = '') => {
 
     .replace(/[\uFE00-\uFE0F]/gu, '')
 
-    .split('')
-    .map((char) => unorm.nfkd(char))
-    .join('')
+    .normalize('NFKD')
 
     .replace(/[\u0300-\u036F]/gu, '')
     .replace(/[\u1AB0-\u1AFF]/gu, '')
@@ -61,10 +58,7 @@ export const normalizeText = (text = '') => {
     .replace(/[\u2028\u2029]/gu, ' ')
     .replace(/[\t\r\n\f\v]/g, ' ')
 
-    .split('')
-    .map((char) => unorm.nfkc(char))
-    .join('')
-
+    .normalize('NFKC')
     .normalize('NFC')
 
     .replace(/\s+/g, ' ')

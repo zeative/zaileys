@@ -74,6 +74,21 @@ export class Client {
     if (!this.logs) {
       this.logs = new Logs(this);
     }
+
+    // Graceful socket termination to prevent 440 Conflicts on WhatsApp servers
+    const cleanup = () => {
+      try {
+        if (this.socket) {
+          this.socket.end(new Error('Process Terminated'));
+        }
+      } catch {
+        // Safe exit
+      }
+      process.exit();
+    };
+
+    process.on('SIGINT', cleanup);
+    process.on('SIGTERM', cleanup);
   }
 
   ready() {

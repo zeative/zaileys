@@ -98,12 +98,13 @@ export class Connection {
 
         if (code === 500) {
           store.spinner.error(' Server error occurred, attempting reconnect...');
-          await reload();
+          setTimeout(() => reload(), 3000);
           return;
         }
 
         if (isReconnect) {
-          await reload();
+          store.spinner.warn(` Connection marked for reconnect (${code}). Wait a moment...`);
+          setTimeout(() => reload(), 3000);
         }
       }
 

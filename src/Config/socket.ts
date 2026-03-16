@@ -11,7 +11,7 @@ export const socketConfig = (client: Client, state: AuthenticationState): Parame
     emitOwnEvents: true,
     keepAliveIntervalMs: 30000,
 
-    browser: Browsers.ubuntu('Chrome'),
+    browser: Browsers.macOS('Desktop'),
 
     markOnlineOnConnect: client.options.autoOnline,
     syncFullHistory: client.options.syncFullHistory,

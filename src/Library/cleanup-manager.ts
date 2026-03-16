@@ -43,8 +43,12 @@ export class CleanUpManager {
 
         if (oldItems.length > 0) {
           const ids = oldItems.map((item: any) => item.key?.id || item.id);
-          const promises = ids.map((id: any) => db.remove(id));
-          await Promise.all(promises);
+          
+          const chunkSize = 500;
+          for (let i = 0; i < ids.length; i += chunkSize) {
+            const chunk = ids.slice(i, i + chunkSize);
+            await Promise.all(chunk.map((id: any) => db.remove(id)));
+          }
 
           store.spinner.info(` [CleanUpManager] Cleaned up ${oldItems.length} items from ${scope}`);
         }

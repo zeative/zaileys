@@ -37,43 +37,45 @@ export class Listener {
       });
     });
 
+    const processInChunks = async <T>(items: T[], action: (item: T) => Promise<any>) => {
+      const chunkSize = 500;
+      for (let i = 0; i < items.length; i += chunkSize) {
+        const chunk = items.slice(i, i + chunkSize);
+        await Promise.all(chunk.map(action));
+      }
+    };
+
     socket?.ev.on('messaging-history.set', async (update) => {
       const { chats, contacts, messages } = update;
 
       fireForget.add(async () => {
-        const promises = chats.map(item => this.client.db('chats').put(item.id, item));
-        await Promise.all(promises);
+        await processInChunks(chats, (item) => this.client.db('chats').put(item.id, item));
       });
 
       fireForget.add(async () => {
-        const promises = contacts.map(item => this.client.db('contacts').put(item.id, item));
-        await Promise.all(promises);
+        await processInChunks(contacts, (item) => this.client.db('contacts').put(item.id, item));
       });
 
       fireForget.add(async () => {
-        const promises = messages.map(item => this.client.db('messages').put(item.key.id, item));
-        await Promise.all(promises);
+        await processInChunks(messages, (item) => this.client.db('messages').put(item.key.id, item));
       });
     });
 
     socket?.ev.on('messages.upsert', async ({ messages }) => {
       fireForget.add(async () => {
-        const promises = messages.map(item => this.client.db('messages').put(item.key.id, item));
-        await Promise.all(promises);
+        await processInChunks(messages, (item) => this.client.db('messages').put(item.key.id, item));
       });
     });
 
     socket?.ev.on('chats.upsert', async (chats) => {
       fireForget.add(async () => {
-        const promises = chats.map(item => this.client.db('chats').put(item.id, item));
-        await Promise.all(promises);
+        await processInChunks(chats, (item) => this.client.db('chats').put(item.id, item));
       });
     });
 
     socket?.ev.on('contacts.upsert', async (contacts) => {
       fireForget.add(async () => {
-        const promises = contacts.map(item => this.client.db('contacts').put(item.id, item));
-        await Promise.all(promises);
+        await processInChunks(contacts, (item) => this.client.db('contacts').put(item.id, item));
       });
     });
 

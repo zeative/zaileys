@@ -40,22 +40,29 @@ export const useAuthState = async (folder: string): Promise<{ state: Authenticat
           return data;
         },
         set: async (data) => {
-          const promises: Promise<any>[] = [];
+          const operations: { key: string, value: any }[] = [];
 
           for (const category in data) {
             for (const id in data[category as keyof SignalDataTypeMap]) {
               const value = data[category as keyof SignalDataTypeMap]![id];
               const key = `${category}:${id}`;
-
-              if (value) {
-                promises.push(keysDb.put(key, value));
-              } else {
-                promises.push(keysDb.remove(key));
-              }
+              operations.push({ key, value });
             }
           }
 
-          await Promise.all(promises);
+          const chunkSize = 500;
+          for (let i = 0; i < operations.length; i += chunkSize) {
+            const chunk = operations.slice(i, i + chunkSize);
+            await Promise.all(
+              chunk.map(({ key, value }) => {
+                if (value) {
+                  return keysDb.put(key, value);
+                } else {
+                  return keysDb.remove(key);
+                }
+              })
+            );
+          }
         },
       },
     },

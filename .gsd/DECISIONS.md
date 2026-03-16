@@ -1,3 +1,0 @@
-# DECISIONS.md
-
-## Decision Record

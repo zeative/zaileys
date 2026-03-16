@@ -4,13 +4,15 @@
 > **Milestone**: v1.0 (Husky Integration)
 
 ## Must-Haves (from SPEC)
-- [ ] Install Husky as dev dependency
-- [ ] Add `prepare` script for husky
-- [ ] Add `pre-commit` hook
+- [x] Install Husky as dev dependency
+- [x] Add `prepare` script for husky
+- [x] Add `pre-commit` hook
+- [ ] Install Commitlint
+- [ ] Configure `commit-msg` hook
 
 ## Phases
 
-### Phase 1: Setup Husky
+### Phase 1: Setup Husky and Commitlint
 **Status**: 🏃 In Progress
-**Objective**: Install and configure Husky git hooks for the project.
+**Objective**: Install and configure Husky git hooks and Commitlint for the project.
 **Requirements**: N/A (Simple setup)

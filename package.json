@@ -40,6 +40,8 @@
     "prepare": "husky"
   },
   "devDependencies": {
+    "@commitlint/cli": "^20.5.0",
+    "@commitlint/config-conventional": "^20.5.0",
     "@types/lodash": "^4.17.21",
     "@types/lz4": "^0.6.4",
     "@types/node": "^24.10.1",

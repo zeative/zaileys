@@ -25,3 +25,4 @@ Zaileys is an established simplified WhatsApp Node.js TypeScript/JavaScript API 
 ## Success Criteria
 - [ ] Husky is installed and `prepare` script is added.
 - [ ] Pre-commit hook is operational and runs basic validations or checks before commit.
+- [ ] Commitlint is installed and configured with `commit-msg` hook to ensure conventional commits.

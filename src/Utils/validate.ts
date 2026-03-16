@@ -18,11 +18,10 @@ export const getLatestLibVersion = async () => {
 
 export const removeAuthCreds = async (session: string) => {
   try {
-    const SESSION_PATH = `.session/${session}/auth/creds.json`;
-    await fs.unlink(SESSION_PATH);
+    const SESSION_PATH = `.session/${session}`;
+    await fs.rm(SESSION_PATH, { recursive: true, force: true });
   } catch (error) {
     store.spinner.error(`Failed to remove auth creds for session "${session}"!`);
-    throw error;
   }
 };
 

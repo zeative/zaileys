@@ -16,13 +16,13 @@ const getOrOpenDB = (path: string, options: any): RootDatabase => {
 };
 
 export const CredsDatabase = (session: string) =>
-  getOrOpenDB(`${session}/auth/creds`, {
+  getOrOpenDB(`.session/${session}/auth/creds`, {
     compression: false,
     encoder,
   });
 
 export const KeysDatabase = (session: string) =>
-  getOrOpenDB(`${session}/auth/keys`, {
+  getOrOpenDB(`.session/${session}/auth/keys`, {
     compression: false,
     encoder,
   });

@@ -5,11 +5,9 @@ import { store } from '../Library/center-store';
 import { useAuthState } from './state';
 
 export const registerAuthCreds = async (client: Client) => {
-  const SESSION_PATH = `.session/${client.options.session}`;
+  const SESSION_ID = client.options.session || 'zaileys';
 
-
-
-  const { state, saveCreds } = await useAuthState(SESSION_PATH);
+  const { state, saveCreds } = await useAuthState(SESSION_ID);
   const { version } = await fetchLatestBaileysVersion();
 
   const config = socketConfig(client, state);

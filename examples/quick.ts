@@ -1,4 +1,4 @@
-import { Client } from 'zaileys';
+import { Client } from '../src';
 
 const wa = new Client({
   authType: 'qr',

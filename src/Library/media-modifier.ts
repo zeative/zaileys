@@ -14,141 +14,74 @@ import {
 } from './ffmpeg';
 import { fileTypeFromBuffer } from 'file-type';
 
-class AudioModifier {
+export class Media {
   private input: MediaInput;
 
   constructor(input: MediaInput) {
     this.input = input;
   }
 
-  async toOpus(): Promise<Buffer> {
-    return AudioProcessor.toOpus(this.input);
+  public get audio() {
+    return {
+      toOpus: () => AudioProcessor.toOpus(this.input),
+      toMp3: () => AudioProcessor.toMp3(this.input),
+      convert: (type: AudioType = 'opus') => AudioProcessor.convert(this.input, type),
+    };
   }
 
-  async toMp3(): Promise<Buffer> {
-    return AudioProcessor.toMp3(this.input);
+  public get video() {
+    return {
+      toMp4: () => VideoProcessor.toMp4(this.input),
+      thumbnail: () => VideoProcessor.thumbnail(this.input),
+    };
   }
 
-  async convert(type: AudioType = 'opus'): Promise<Buffer> {
-    return AudioProcessor.convert(this.input, type);
-  }
-}
-
-class VideoModifier {
-  private input: MediaInput;
-
-  constructor(input: MediaInput) {
-    this.input = input;
-  }
-
-  async toMp4(): Promise<Buffer> {
-    return VideoProcessor.toMp4(this.input);
+  public get image() {
+    return {
+      toJpeg: () => ImageProcessor.toJpeg(this.input),
+      thumbnail: async () => {
+        const buffer = await BufferConverter.toBuffer(this.input);
+        return ImageProcessor.thumbnail(buffer);
+      },
+      resize: async (width: number, height: number) => {
+        const buffer = await BufferConverter.toBuffer(this.input);
+        return ImageProcessor.resize(buffer, width, height);
+      },
+    };
   }
 
-  async thumbnail(): Promise<string> {
-    return VideoProcessor.thumbnail(this.input);
-  }
-}
-
-class ImageModifier {
-  private input: MediaInput;
-
-  constructor(input: MediaInput) {
-    this.input = input;
+  public get sticker() {
+    return {
+      create: (metadata?: v.InferInput<typeof StickerMetadataType>) => StickerProcessor.create(this.input, metadata),
+    };
   }
 
-  async toJpeg(): Promise<Buffer> {
-    return ImageProcessor.toJpeg(this.input);
+  public get document() {
+    return {
+      create: () => DocumentProcessor.create(this.input),
+    };
   }
 
-  async thumbnail(): Promise<string> {
-    const buffer = await BufferConverter.toBuffer(this.input);
-    return ImageProcessor.thumbnail(buffer);
+  public get thumbnail() {
+    return {
+      get: async () => {
+        const buffer = await BufferConverter.toBuffer(this.input);
+        const fileType = await fileTypeFromBuffer(buffer);
+
+        if (!fileType || !MimeValidator.isMedia(fileType.mime)) {
+          throw new Error('Invalid media type: expected image or video');
+        }
+
+        if (fileType.mime.startsWith(FFMPEG_CONSTANTS.MIME.VIDEO)) {
+          return VideoProcessor.thumbnail(this.input);
+        }
+
+        return ImageProcessor.thumbnail(buffer);
+      },
+    };
   }
 
-  async resize(width: number, height: number): Promise<Buffer> {
-    const buffer = await BufferConverter.toBuffer(this.input);
-    return ImageProcessor.resize(buffer, width, height);
-  }
-}
-
-class StickerModifier {
-  private input: MediaInput;
-  private metadata?: v.InferInput<typeof StickerMetadataType>;
-
-  constructor(input: MediaInput, metadata?: v.InferInput<typeof StickerMetadataType>) {
-    this.input = input;
-    this.metadata = metadata;
-  }
-
-  async create(): Promise<Buffer> {
-    return StickerProcessor.create(this.input, this.metadata);
-  }
-}
-
-class DocumentModifier {
-  private input: MediaInput;
-
-  constructor(input: MediaInput) {
-    this.input = input;
-  }
-
-  async create() {
-    return DocumentProcessor.create(this.input);
+  public async toBuffer(): Promise<Buffer> {
+    return BufferConverter.toBuffer(this.input);
   }
 }
-
-class MediaThumbnailModifier {
-  private input: MediaInput;
-
-  constructor(input: MediaInput) {
-    this.input = input;
-  }
-
-  async get(): Promise<string> {
-    const buffer = await BufferConverter.toBuffer(this.input);
-    const fileType = await fileTypeFromBuffer(buffer);
-
-    if (!fileType || !MimeValidator.isMedia(fileType.mime)) {
-      throw new Error('Invalid media type: expected image or video');
-    }
-
-    if (fileType.mime.startsWith(FFMPEG_CONSTANTS.MIME.VIDEO)) {
-      return VideoProcessor.thumbnail(this.input);
-    }
-
-    return ImageProcessor.thumbnail(buffer);
-  }
-}
-
-export class MediaModifier {
-  audio(input: MediaInput): AudioModifier {
-    return new AudioModifier(input);
-  }
-
-  video(input: MediaInput): VideoModifier {
-    return new VideoModifier(input);
-  }
-
-  image(input: MediaInput): ImageModifier {
-    return new ImageModifier(input);
-  }
-
-  sticker(input: MediaInput, metadata?: v.InferInput<typeof StickerMetadataType>): StickerModifier {
-    return new StickerModifier(input, metadata);
-  }
-
-  document(input: MediaInput): DocumentModifier {
-    return new DocumentModifier(input);
-  }
-
-  thumbnail(input: MediaInput): MediaThumbnailModifier {
-    return new MediaThumbnailModifier(input);
-  }
-
-  async toBuffer(input: MediaInput): Promise<Buffer> {
-    return BufferConverter.toBuffer(input);
-  }
-}
-
-export const mediaModifier = new MediaModifier();

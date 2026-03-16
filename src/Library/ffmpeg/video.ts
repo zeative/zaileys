@@ -26,6 +26,7 @@ export class VideoProcessor {
         '-c:a', 'aac',
         '-b:a', '128k',
         '-movflags', '+faststart',
+        '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
         '-pix_fmt', 'yuv420p',
         '-f', 'mp4',
       ];

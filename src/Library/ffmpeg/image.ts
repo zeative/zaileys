@@ -1,64 +1,34 @@
-import { fileTypeFromBuffer } from 'file-type';
-import { Jimp } from 'jimp';
+import sharp from 'sharp';
 import { BufferConverter, FFMPEG_CONSTANTS, FileManager, type MediaInput } from './core';
-
-let sharp: any;
-
-try {
-  sharp = require('sharp');
-} catch {
-  sharp = null;
-}
 
 export class ImageProcessor {
   static async thumbnail(buffer: Buffer): Promise<string> {
-    const fileType = await fileTypeFromBuffer(buffer);
-    const size = FFMPEG_CONSTANTS.THUMBNAIL.SIZE;
-
-    if (sharp) {
-      const sharpImg = sharp(buffer).resize(size, size, { fit: 'cover' });
-      if (fileType?.mime === FFMPEG_CONSTANTS.MIME.GIF) {
-        sharpImg.resize(size, size);
-      }
-      const jpegBuffer = await sharpImg.jpeg({ quality: FFMPEG_CONSTANTS.THUMBNAIL.QUALITY }).toBuffer();
-      return jpegBuffer.toString('base64');
+    let sharpImg = sharp(buffer).resize(FFMPEG_CONSTANTS.THUMBNAIL.SIZE, FFMPEG_CONSTANTS.THUMBNAIL.SIZE, { fit: 'cover' });
+    
+    // For GIFs, we still resize without cover to retain frame bounds properly (or pick first frame)
+    const metadata = await sharpImg.metadata();
+    if (metadata.format === 'gif') {
+      sharpImg = sharp(buffer, { pages: 1 }).resize(FFMPEG_CONSTANTS.THUMBNAIL.SIZE, FFMPEG_CONSTANTS.THUMBNAIL.SIZE);
     }
 
-    const image = await Jimp.read(buffer as any);
-    image.cover({ w: size, h: size });
-
-    if (fileType?.mime === FFMPEG_CONSTANTS.MIME.GIF) {
-      image.resize({ w: size, h: size });
-    }
-
-    const jpegBuffer = await image.getBuffer('image/jpeg', { quality: FFMPEG_CONSTANTS.THUMBNAIL.QUALITY });
+    const jpegBuffer = await sharpImg.jpeg({ quality: FFMPEG_CONSTANTS.THUMBNAIL.QUALITY }).toBuffer();
     return jpegBuffer.toString('base64');
   }
 
   static async resize(buffer: Buffer, width: number, height: number): Promise<Buffer> {
-    if (sharp) {
-      return await sharp(buffer).resize(width, height, { fit: 'cover' }).png().toBuffer();
-    }
-
-    const image = await Jimp.read(buffer as any);
-    image.cover({ w: width, h: height });
-    return await image.getBuffer('image/png');
+    return sharp(buffer).resize(width, height, { fit: 'cover' }).png().toBuffer();
   }
 
   static async toJpeg(input: MediaInput): Promise<Buffer> {
     const buffer = await BufferConverter.toBuffer(input);
-    const fileType = await fileTypeFromBuffer(buffer);
+    const metadata = await sharp(buffer).metadata();
 
-    if (!fileType || !fileType.mime.startsWith(FFMPEG_CONSTANTS.MIME.IMAGE)) {
-      throw new Error('Invalid image type');
+    if (!metadata.format) {
+      throw new Error('Invalid image type: format could not be determined');
     }
 
-    if (fileType.mime === 'image/webp') {
-      if (sharp) {
-        return await sharp(buffer).jpeg().toBuffer();
-      }
-      const image = await Jimp.read(buffer as any);
-      return await image.getBuffer('image/jpeg');
+    if (metadata.format === 'webp' || metadata.format === 'png') {
+      return sharp(buffer).jpeg().toBuffer();
     }
 
     return buffer;
@@ -66,21 +36,11 @@ export class ImageProcessor {
 
   static async resizeForSticker(buffer: Buffer, quality: number, shape: string = 'default'): Promise<Buffer> {
     const size = FFMPEG_CONSTANTS.STICKER.SIZE;
-
-    if (sharp && shape === 'default') {
-      const webpBuffer = await sharp(buffer)
-        .resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-        .webp({ quality })
-        .toBuffer();
-      return webpBuffer;
-    }
-
-    const image = await Jimp.read(buffer as any);
-    image.contain({ w: size, h: size });
+    let img = sharp(buffer).resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } });
 
     if (shape !== 'default') {
-      const mask = new Jimp({ width: size, height: size, color: 0x00000000 });
-
+      const mask = Buffer.alloc(size * size);
+      
       for (let y = 0; y < size; y++) {
         for (let x = 0; x < size; x++) {
           let isInShape = false;
@@ -129,43 +89,16 @@ export class ImageProcessor {
             }
           }
 
-          if (isInShape) {
-            mask.setPixelColor(0xffffffff, x, y);
-          }
+          mask[y * size + x] = isInShape ? 255 : 0;
         }
       }
 
-      image.mask(mask);
+      // Convert mask array to sharp image
+      const maskImg = sharp(mask, { raw: { width: size, height: size, channels: 1 } });
+      img = img.joinChannel(await maskImg.toBuffer());
     }
 
-    const tempIn = FileManager.createTempPath('sticker_img', 'png');
-    const tempOut = FileManager.createTempPath('sticker_out', 'webp');
-
-    const pngBuffer = await image.getBuffer('image/png');
-    await FileManager.safeWriteFile(tempIn, pngBuffer);
-
-    const { FFmpegProcessor } = await import('./core');
-
-    let webpBuffer: Buffer;
-
-    try {
-      await FFmpegProcessor.process({
-        input: tempIn,
-        output: tempOut,
-        options: ['-vf', `scale=${size}:${size}`, '-quality', String(quality), '-f', 'webp'],
-        onEnd: async () => {
-          webpBuffer = await FileManager.safeReadFile(tempOut);
-        },
-        onError: async () => {
-          await FileManager.cleanup([tempIn, tempOut]);
-        },
-      });
-
-      await FileManager.cleanup([tempIn, tempOut]);
-      return webpBuffer!;
-    } catch (error: any) {
-      await FileManager.cleanup([tempIn, tempOut]);
-      throw new Error(`Sticker resize failed: ${error.message}`);
-    }
+    // Force transparency & generate webp
+    return img.webp({ quality }).toBuffer();
   }
 }

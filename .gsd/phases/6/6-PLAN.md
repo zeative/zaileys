@@ -41,6 +41,6 @@ The current `mediaModifier` singleton object API forces manual type branching an
 </task>
 
 ## Success Criteria
-- [ ] `Media` class provides a beautiful DX chain API.
-- [ ] No `any` casting is required to circumvent type breakages.
-- [ ] Type tests execute securely without warnings.
+- [x] `Media` class provides a beautiful DX chain API.
+- [x] No `any` casting is required to circumvent type breakages.
+- [x] Type tests execute securely without warnings.

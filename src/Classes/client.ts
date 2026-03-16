@@ -24,7 +24,7 @@ import { Logs } from './logs';
 import { Middleware, MiddlewareHandler } from './middleware';
 import { Plugins } from './plugins';
 
-export interface Client extends Signal, SignalGroup, SignalPrivacy, SignalNewsletter, SignalCommunity {}
+export interface Client extends Signal, SignalGroup, SignalPrivacy, SignalNewsletter, SignalCommunity { }
 
 export class Client {
   private _ready: Promise<void>;
@@ -59,6 +59,23 @@ export class Client {
     await autoDisplayBanner();
     await initializeFFmpeg(this.options.disableFFmpeg);
 
+    this.plugins = new Plugins(this.options.pluginsDir, this.options.pluginsHmr);
+
+    const originalInfo = console.info;
+    console.info = (...args: any[]) => {
+      const isLibsignalSpam = args.some(arg =>
+        typeof arg === 'string' && (arg.includes('Closing session:') || arg.includes('Opening session:'))
+      );
+
+      if (isLibsignalSpam) {
+        if (this.options.showLogs) {
+          store.spinner.info('Encryption session rotated securely.');
+        }
+        return;
+      }
+      originalInfo(...args);
+    };
+
     this.health = new HealthManager(this);
     this.cleanup = new CleanUpManager(this);
 
@@ -77,8 +94,7 @@ export class Client {
       this.logs = new Logs(this);
     }
 
-    // Graceful socket termination to prevent 440 Conflicts on WhatsApp servers
-    const cleanup = () => {
+    const cleanup = (code: any) => {
       try {
         if (this.socket) {
           this.socket.end(new Error('Process Terminated'));
@@ -91,6 +107,10 @@ export class Client {
 
     process.on('SIGINT', cleanup);
     process.on('SIGTERM', cleanup);
+    process.on('uncaughtException', (err) => {
+      console.error("FATAL UNCAUGHT:", err);
+      cleanup('UNCAUGHT');
+    });
   }
 
   ready() {

@@ -90,7 +90,7 @@ export class StickerProcessor {
           `-vf ${videoFilter}`,
           `-q:v ${qualityValue}`,
           '-loop 0',
-          '-preset default',
+          '-preset picture',
           '-an',
           '-vsync 0',
           `-t ${duration}`,

@@ -3,7 +3,7 @@ import makeWASocket, { AnyMessageContent, MiscMessageGenerationOptions, WAMessag
 import * as v from 'valibot';
 import { MESSAGES_VERIFIED_TYPE } from '../Config/media';
 import { store } from '../Library/center-store';
-import { mediaModifier } from '../Library/media-modifier';
+import { Media } from '../Library/media-modifier';
 import { parseValibot } from '../Library/valibot';
 import { ButtonOptionsType, SignalOptionsType, SignalType } from '../Types/Signal/signal';
 import { extractJids, ignoreLint, pickKeysFromArray } from '../Utils';
@@ -112,8 +112,8 @@ export class Signal {
       if (hasImage) {
         output = {
           ...output,
-          image: await mediaModifier.image(media).toJpeg(),
-          jpegThumbnail: await mediaModifier.thumbnail(media).get(),
+          image: await new Media(media).image.toJpeg(),
+          jpegThumbnail: await new Media(media).thumbnail.get(),
         };
       }
 
@@ -122,9 +122,9 @@ export class Signal {
 
         output = {
           ...output,
-          video: await mediaModifier.video(media).toMp4(),
+          video: await new Media(media).video.toMp4(),
           ptv: isPtv,
-          jpegThumbnail: await mediaModifier.thumbnail(media).get(),
+          jpegThumbnail: await new Media(media).thumbnail.get(),
         };
       }
 
@@ -133,7 +133,7 @@ export class Signal {
 
         output = {
           ...output,
-          audio: await mediaModifier.audio(media).toOpus(),
+          audio: await new Media(media).audio.toOpus(),
           ptt: isPtt,
           mimetype: isPtt ? 'audio/ogg; codecs=opus' : 'audio/mpeg',
         };
@@ -143,12 +143,12 @@ export class Signal {
         const shape = ignoreLint(options)?.shape;
         output = {
           ...output,
-          sticker: await mediaModifier.sticker(media, { ...this.client.options?.sticker, shape }).create(),
+          sticker: await new Media(media).sticker.create({ ...this.client.options?.sticker, shape }),
         };
       }
 
       if (hasDocument) {
-        const data = await mediaModifier.document(media).create();
+        const data = await new Media(media).document.create();
 
         output = {
           ...output,

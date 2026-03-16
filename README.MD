@@ -66,7 +66,7 @@ Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essentia
 
 ## 🪶 Features
 
-- ✅ **Type-Safe** - Full TypeScript + Zod validation with autocomplete
+- ✅ **Type-Safe** - Full TypeScript + Valibot validation with autocomplete
 - ✅ **Middleware** - Intercept and process events globally
 - ✅ **Plugin System** - Drop-in file-based plugins with on/off controls
 - ✅ **State Management** - Built-in [LMDB](https://github.com/kriszyp/lmdb-js) for blazing-fast database persistence with **auto chunking** for heap safety

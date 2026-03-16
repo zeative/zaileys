@@ -30,7 +30,7 @@ export class AudioProcessor {
     try {
       const options =
         type === 'opus'
-          ? ['-vn', '-c:a', 'libopus', '-b:a', '48k', '-ac', '1', '-avoid_negative_ts', 'make_zero', '-map_metadata', '-1', '-f', 'opus']
+          ? ['-vn', '-c:a', 'libopus', '-b:a', '48k', '-ac', '1', '-avoid_negative_ts', 'make_zero', '-map_metadata', '-1', '-f', 'ogg']
           : ['-vn', '-c:a', 'libmp3lame', '-b:a', '128k', '-ac', '2', '-avoid_negative_ts', 'make_zero', '-map_metadata', '-1', '-f', 'mp3'];
 
       await FFmpegProcessor.process({

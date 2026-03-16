@@ -1,7 +1,7 @@
 import makeWASocket from 'baileys';
 import { Client } from '../Classes';
 import { store } from '../Library/center-store';
-import { mediaModifier } from '../Library/media-modifier';
+import { Media } from '../Library/media-modifier';
 
 export class Newsletter {
   constructor(protected client: Client) {}
@@ -38,7 +38,7 @@ export class Newsletter {
       case 'description':
         if (!isBuffer) return await socket.newsletterUpdateDescription(roomId, update);
       case 'picture':
-        return await socket.newsletterUpdatePicture(roomId, await mediaModifier.toBuffer(update));
+        return await socket.newsletterUpdatePicture(roomId, await new Media(update).toBuffer());
     }
   }
 

@@ -83,9 +83,11 @@ export class Connection {
 
       if (connection === 'close') {
         const code = ignoreLint(lastDisconnect?.error)?.output?.statusCode;
-        const error = lastDisconnect?.error?.message || '';
+        const error = lastDisconnect?.error?.message || 'Unknown Error';
 
-        store.spinner.error(` [${code} - Closed] ${error}`);
+        const displayCode = code ?? 'Internal';
+        
+        store.spinner.error(` [${displayCode} - Closed] ${error}`);
 
         if (code === DisconnectReason.loggedOut) {
           if (this.client.options.deleteSessionOnLogout) {

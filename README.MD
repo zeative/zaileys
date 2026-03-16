@@ -69,7 +69,7 @@ Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essentia
 - ✅ **Type-Safe** - Full TypeScript + Zod validation with autocomplete
 - ✅ **Middleware** - Intercept and process events globally
 - ✅ **Plugin System** - Drop-in file-based plugins with on/off controls
-- ✅ **State Management** - Built-in [JetDB](https://github.com/zeative/jetdb) for data persistence with **auto chunking**
+- ✅ **State Management** - Built-in [LMDB](https://github.com/kriszyp/lmdb-js) for blazing-fast database persistence with **auto chunking** for heap safety
 - ✅ **Rate Limiting** - Anti-spam protection out of the box
 - ✅ **Multi-Device** - QR code or Pairing Code authentication
 - ✅ **Built-in FFmpeg** - No external dependencies for media processing
@@ -89,7 +89,7 @@ Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essentia
 
 **Plugins** - Drop files in `plugins/` directory. Auto-loaded, zero config.
 
-**Store** - JSON database (`JetDB`) that auto-syncs chats, contacts, and messages.
+**Store** - Lightning-fast database (`LMDB`) that auto-syncs chats, contacts, messages, and cryptographic keys.
 
 ## 📦 Installation
 
@@ -250,6 +250,7 @@ These options apply to both authentication methods:
 | `cleanupDays`     | `number`  | `7`         | Days to keep messages before auto-deletion. |
 | `autoCleanUp`     | `object`  | `undefined` | Configuration for periodic database cleanup. |
 | `disableFFmpeg`   | `boolean` | `false`     | Disable built-in FFmpeg installers.     |
+| `deleteSessionOnLogout`| `boolean`| `false`     | Automatically deletes invalid `.session` state and forces a fresh QR scan if connection expires (loggedOut code 401). |
 
 ### Automation Options
 

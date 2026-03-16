@@ -85,11 +85,20 @@ export class Connection {
         const code = ignoreLint(lastDisconnect?.error)?.output?.statusCode;
         const error = lastDisconnect?.error?.message || '';
 
-        const isReconnect = typeof code === 'number' && code !== DisconnectReason.loggedOut;
-
         store.spinner.error(` [${code} - Closed] ${error}`);
 
-        if (code === 401 || code === 405) {
+        if (code === DisconnectReason.loggedOut) {
+          if (this.client.options.deleteSessionOnLogout) {
+            store.spinner.warn(` Session logged out or invalidated. Self-healing...`);
+            await removeAuthCreds(this.client.options.session);
+            setTimeout(() => reload(), 3000);
+          } else {
+            store.spinner.warn(` Session logged out or invalidated. Automatic session deletion is disabled.`);
+          }
+          return;
+        }
+
+        if (code === 405) {
           store.spinner.warn(' Session may be used by another device/instance.');
           store.spinner.warn(` If you want to connect here, close the other connection first.`);
           store.spinner.warn(` Or use a different session name in your Client options.\n`);
@@ -102,17 +111,11 @@ export class Connection {
           return;
         }
 
+        const isReconnect = typeof code === 'number';
+
         if (isReconnect) {
           store.spinner.warn(` Connection marked for reconnect (${code}). Wait a moment...`);
           setTimeout(() => reload(), 3000);
-        } else {
-          if (this.client.options.deleteSessionOnLogout) {
-            store.spinner.warn(` Session logged out or invalidated. Self-healing...`);
-            await removeAuthCreds(this.client.options.session);
-            setTimeout(() => reload(), 3000);
-          } else {
-            store.spinner.warn(` Session logged out or invalidated. Automatic session deletion is disabled.`);
-          }
         }
       }
 

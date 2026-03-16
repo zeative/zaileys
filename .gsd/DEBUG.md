@@ -1,20 +1,20 @@
-# Debug Session: 405 Connection Closed
+# Debug Session: Libsignal Logging Override
 
 ## Symptom
-The Baileys WhatsApp client is failing to connect and throws a "405 - Closed" connection failure immediately upon initialization with a warning that the session may be used by another device/instance.
+The `src/Auth/creds.ts` file employs a hacky overwrite of the global `console.info` and `console.warn` methods to suppress spammy logs originating from Baileys' internal `libsignal` dependencies (like invalid pre-key warnings).
 
-**When:** During connection initialization (`bun dev` running `examples/test.ts`) after migrating `jetdb` to `lmdb`.
-**Expected:** The client connects successfully and restores the session.
-**Actual:** The client throws a 405 Connection Closed error.
+**When:** During client initialization.
+**Expected:** The application should suppress these specific libsignal/Baileys warnings through a proper logging configuration or Pino logger transport filter, preserving global console behavior.
+**Actual:** Global `console.info` and `console.warn` are entirely muted.
 
 ## Evidence
-- The Auth config (`src/Auth/state.ts`) was recently migrated to use LMDB.
-- `jetdb` previously used `BufferJSON` from `baileys` to serialize and deserialize the keys and creds properly, converting buffers to and from base64 strings or arrays in JSON.
-- `lmdb` uses `msgpack` by default. It's highly probable the deserialized keys/creds format does not match what Baileys expects (e.g. nested Buffers being restored as `Uint8Array` rather than `Buffer`, or `proto` properties missing).
+- `src/Auth/creds.ts:10-11` contains `console.info = () => {}; console.warn = () => {};`
+- Baileys uses `pino` for logging, but `libsignal` might use native `console` objects or pass them through Baileys' Pino logger instances.
+- HealthManager (`src/Library/health-manager.ts`) already has some `console.error` and `console.log` interceptors specifically checking for 'Bad MAC' and 'Session error'.
 
-## Resolution
+## Hypotheses
 
-**Root Cause:** WhatsApp periodically deprecates old Web API versions. The connection configuration in `src/Config/socket.ts` neglected to fetch or provide a dynamic `version` param arrays to `makeWASocket`, causing Baileys to fallback to a hardcoded version. WhatsApp actively refused this outdated version by immediately firing a `405 Connection Closed` exception on any new pairing attempts.
-**Fix:** Modified `src/Auth/creds.ts` to asynchronously call `fetchLatestBaileysVersion()` and feed the retrieved `{ version }` property dynamically into the socket configuration `makeWASocket({...config, version })`. Also verified and fixed the LMDB transition encoding by tightly coupling `BufferJSON.replacer` and `reviver`.
-**Verified:** Ran `bun dev` after purging old sessions and successfully generated standard WhatsApp pairing QR codes instead of connection closures.
-**Regression Check:** Verified compilation via `pnpm build` assuring type compatibility isn't compromised.
+| # | Hypothesis | Likelihood | Status |
+|---|------------|------------|--------|
+| 1 | Libsignal logs bypass Pino and use `console.warn / info` directly, meaning we need to refine the interceptor in HealthManager to catch them without muting globally. | 80% | UNTESTED |
+| 2 | These logs are actually emitted by Baileys' Pino logger, and setting the logger level higher (e.g., `error` or `silent`) would suppress them properly. | 50% | UNTESTED |

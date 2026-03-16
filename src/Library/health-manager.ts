@@ -8,34 +8,6 @@ export class HealthManager {
 
   constructor(private client: Client) {
     this.keysDb = KeysDatabase(client.options.session);
-    this.setupLogFilters();
-  }
-
-  private setupLogFilters() {
-    const originalError = console.error;
-    const originalLog = console.log;
-
-    const filter = (args: any[]) => {
-      const msg = args.join(' ');
-      const blacklisted = [
-        'Bad MAC',
-        'Session error:',
-        'Closing open session in favor of incoming prekey bundle',
-        'Error: Bad MAC',
-      ];
-
-      return blacklisted.some((term) => msg.includes(term));
-    };
-
-    console.error = (...args: any[]) => {
-      if (filter(args)) return;
-      originalError.apply(console, args);
-    };
-
-    console.log = (...args: any[]) => {
-      if (filter(args)) return;
-      originalLog.apply(console, args);
-    };
   }
 
   async repair(jid: string) {
@@ -56,16 +28,32 @@ export class HealthManager {
   get logger() {
     return pino(
       {
-        level: 'debug',
+        level: 'silent', // Setting level to silent globally for Baileys to silence libsignal noise
       },
       {
         write: (msg: string) => {
           try {
             const data = JSON.parse(msg);
-            if (data.msg?.includes('Bad MAC')) {
+            const rawMsg = data.msg || '';
+            const blacklisted = [
+              'Bad MAC',
+              'Session error:',
+              'Closing open session in favor of incoming prekey bundle',
+              'Error: Bad MAC',
+            ];
+
+            // Trigger Bad MAC repairs if found
+            if (rawMsg.includes('Bad MAC')) {
               const jid = data.jid || data.remoteJid;
               if (jid) {
                 this.repair(jid);
+              }
+            }
+
+            // Expose meaningful non-blacklisted logs locally if the log level is debug locally (otherwise muted)
+            if (!blacklisted.some(term => rawMsg.includes(term))) {
+              if (data.level >= 50 && data.err) { // Error level
+                console.error(data.err);
               }
             }
           } catch {

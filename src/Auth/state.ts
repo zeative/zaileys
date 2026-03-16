@@ -1,4 +1,5 @@
 import { AuthenticationCreds, AuthenticationState, initAuthCreds, proto, SignalDataTypeMap } from 'baileys';
+import * as _ from 'radashi';
 import { CredsDatabase, KeysDatabase } from '../Config/database';
 import { store } from '../Library/center-store';
 
@@ -50,9 +51,7 @@ export const useAuthState = async (folder: string): Promise<{ state: Authenticat
             }
           }
 
-          const chunkSize = 500;
-          for (let i = 0; i < operations.length; i += chunkSize) {
-            const chunk = operations.slice(i, i + chunkSize);
+          for (const chunk of _.cluster(operations, 500)) {
             await Promise.all(
               chunk.map(({ key, value }) => {
                 if (value) {

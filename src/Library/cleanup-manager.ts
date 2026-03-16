@@ -1,4 +1,5 @@
 import { Client } from '../Classes/client';
+import * as _ from 'radashi';
 import { store } from './center-store';
 
 export class CleanUpManager {
@@ -44,9 +45,7 @@ export class CleanUpManager {
         if (oldItems.length > 0) {
           const ids = oldItems.map((item: any) => item.key?.id || item.id);
           
-          const chunkSize = 500;
-          for (let i = 0; i < ids.length; i += chunkSize) {
-            const chunk = ids.slice(i, i + chunkSize);
+          for (const chunk of _.cluster(ids, 500)) {
             await Promise.all(chunk.map((id: any) => db.remove(id)));
           }
 

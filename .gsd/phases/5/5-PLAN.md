@@ -42,6 +42,6 @@ Refactor the media execution pipes for Video and Audio. Video needs strict pixel
 </task>
 
 ## Success Criteria
-- [ ] Voice notes trigger Opus over OGG correctly.
-- [ ] Video parsing scales safely without YUV offset crashes.
+- [x] Voice notes trigger Opus over OGG correctly.
+- [x] Video parsing scales safely without YUV offset crashes.
 - [ ] All `src/Library/ffmpeg/*` modules pass Type checking.

@@ -17,6 +17,7 @@
 <div align="center">
   <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/license/zeative/zaileys" alt="GitHub License"></a>
   <a href="https://discord.gg/KBHhTTVUc5"><img alt="Discord" src="https://img.shields.io/discord/1105833273415962654?logo=discord&label=discord&link=https%3A%2F%2Fgithub.com%2Fzeative%2Fzaileys"></a>
+  <a href="https://chat.whatsapp.com/GlQfvc83mSH3F6ov06vuCt"><img alt="WhatsApp" src="https://img.shields.io/badge/WhatsApp-Group-25D366?logo=whatsapp&logoColor=white"></a>
   <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/stars/zeative/zaileys" alt="GitHub Stars"></a>
   <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/forks/zeative/zaileys" alt="GitHub Forks"></a>
   <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/watchers/zeative/zaileys" alt="GitHub Watchers"></a>
@@ -776,7 +777,7 @@ await wa.button(ctx.roomId, {
 
 **Carousel Buttons:**
 
-> ✅ Carousel button is **fully supported on all devices** — Android, iOS, and **WhatsApp Desktop/Web**. Each card can include an image or video header with native flow buttons.
+> ⚠️ Carousel button is supported on **Android** and **WhatsApp Desktop/Web** only. iOS is currently not supported. Each card can include an image or video header with native flow buttons.
 
 ```typescript
 await wa.button(ctx.roomId, {

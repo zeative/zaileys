@@ -2,7 +2,7 @@ import makeWASocket from 'baileys';
 import { Client } from '../Classes';
 import { groupCache } from '../Config/cache';
 import { store } from '../Library/center-store';
-import { fireForget } from '../Library/fire-forget';
+import { fireForget, Priority } from '../Library/fire-forget';
 import { Calls } from './calls';
 import { Connection } from './connection';
 import { Messages } from './messages';
@@ -27,14 +27,14 @@ export class Listener {
       fireForget.add(async () => {
         const metadata = await socket.groupMetadata(event.id);
         groupCache.set(event.id, metadata);
-      });
+      }, { priority: Priority.LOW, timeout: 10000 });
     });
 
     socket.ev.on('group-participants.update', async (event) => {
       fireForget.add(async () => {
         const metadata = await socket.groupMetadata(event.id);
         groupCache.set(event.id, metadata);
-      });
+      }, { priority: Priority.LOW, timeout: 10000 });
     });
 
     const processInChunks = async <T>(items: T[], action: (item: T) => Promise<any>) => {
@@ -50,33 +50,33 @@ export class Listener {
 
       fireForget.add(async () => {
         await processInChunks(chats, (item) => this.client.db('chats').put(item.id, item));
-      });
+      }, { priority: Priority.LOW, timeout: 30000 });
 
       fireForget.add(async () => {
         await processInChunks(contacts, (item) => this.client.db('contacts').put(item.id, item));
-      });
+      }, { priority: Priority.LOW, timeout: 30000 });
 
       fireForget.add(async () => {
         await processInChunks(messages, (item) => this.client.db('messages').put(item.key.id, item));
-      });
+      }, { priority: Priority.LOW, timeout: 30000 });
     });
 
     socket?.ev.on('messages.upsert', async ({ messages }) => {
       fireForget.add(async () => {
         await processInChunks(messages, (item) => this.client.db('messages').put(item.key.id, item));
-      });
+      }, { priority: Priority.LOW, timeout: 30000 });
     });
 
     socket?.ev.on('chats.upsert', async (chats) => {
       fireForget.add(async () => {
         await processInChunks(chats, (item) => this.client.db('chats').put(item.id, item));
-      });
+      }, { priority: Priority.LOW, timeout: 30000 });
     });
 
     socket?.ev.on('contacts.upsert', async (contacts) => {
       fireForget.add(async () => {
         await processInChunks(contacts, (item) => this.client.db('contacts').put(item.id, item));
-      });
+      }, { priority: Priority.LOW, timeout: 30000 });
     });
 
   }

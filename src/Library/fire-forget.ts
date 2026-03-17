@@ -1,5 +1,12 @@
 import crypto from 'node:crypto';
 
+export const Priority = {
+  CRITICAL: 20,  // time-sensitive
+  HIGH:     10,  // user-facing
+  NORMAL:    0,  // default
+  LOW:      -10, // background
+} as const;
+
 export interface FireAndForgetOptions {
   concurrency?: number;
   timeout?: number;
@@ -115,7 +122,6 @@ export class FireAndForget {
       await this._withTimeout(task.fn(), task.timeout);
       this.completed++;
     } catch (err) {
-      // Retry logic
       if (task.retries < task.maxRetries) {
         task.retries++;
         const delay = Math.min(500 * (2 ** task.retries), 30000);
@@ -191,7 +197,9 @@ export class FireAndForget {
     });
   }
 
-  _defaultErrorHandler(err: Error, task: Task) { }
+  _defaultErrorHandler(err: Error, task: Task) {
+    console.error(`[FireForget] Task ${task.id} failed:`, err.message);
+  }
 
   _generateId() {
     return crypto.randomUUID();

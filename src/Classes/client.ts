@@ -8,6 +8,7 @@ import { store } from '../Library/center-store';
 import { ClassProxy } from '../Library/class-proxy';
 import { CleanUpManager } from '../Library/cleanup-manager';
 import { contextInjection } from '../Library/context-injection';
+import { fireForget } from '../Library/fire-forget';
 import { initializeFFmpeg } from '@zaadevofc/media-process';
 import { HealthManager } from '../Library/health-manager';
 import { parseValibot } from '../Library/valibot';
@@ -94,11 +95,12 @@ export class Client {
       this.logs = new Logs(this);
     }
 
-    const cleanup = (code: any) => {
+    const cleanup = async (code: any) => {
       try {
         if (this.socket) {
           this.socket.end(new Error('Process Terminated'));
         }
+        await fireForget.close(5000); 
       } catch {
         // Safe exit
       }

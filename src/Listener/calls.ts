@@ -1,7 +1,7 @@
 import makeWASocket, { jidNormalizedUser, WACallEvent } from 'baileys';
 import { Client } from '../Classes';
 import { store } from '../Library/center-store';
-import { fireForget } from '../Library/fire-forget';
+import { fireForget, Priority } from '../Library/fire-forget';
 import { CallsContext } from '../Types/calls';
 import { normalizeText } from '../Utils';
 
@@ -18,13 +18,17 @@ export class Calls {
         const parsed = await this.parse(call);
 
         if (parsed) {
-          fireForget.add(async () => this.client.middleware.run({ calls: parsed }));
-          fireForget.add(async () => this.client.plugins.execute(this.client, { messages: parsed }));
+          fireForget.add(async () => {
+            await Promise.all([
+              this.client.middleware.run({ calls: parsed }),
+              this.client.plugins.execute(this.client, { messages: parsed }),
+            ]);
+          }, { priority: Priority.NORMAL, timeout: 5000 });
 
           store.events.emit('calls', parsed);
 
           if (this.client.options?.autoRejectCall) {
-            fireForget.add(async () => socket.rejectCall(parsed.callId, parsed.callerId));
+            fireForget.add(async () => socket.rejectCall(parsed.callId!, parsed.callerId!), { priority: Priority.CRITICAL, timeout: 3000 });
           }
         }
       }

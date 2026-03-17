@@ -4,7 +4,7 @@ import { Client } from '../Classes';
 import { MESSAGE_MEDIA_TYPES } from '../Config/media';
 import { store } from '../Library/center-store';
 import { contextInjection } from '../Library/context-injection';
-import { fireForget } from '../Library/fire-forget';
+import { fireForget, Priority } from '../Library/fire-forget';
 import { RateLimiter } from '../Library/rate-limiter';
 import { MessagesContext } from '../Types/messages';
 import { escapeRegExp, extractUrls, findGlobalWord, ignoreLint, normalizeText, toJson, toString } from '../Utils';
@@ -36,14 +36,18 @@ export class Messages {
             const parsed = await this.parse(message);
 
             if (parsed) {
-              fireForget.add(async () => this.client.middleware.run({ messages: parsed }));
-              fireForget.add(async () => this.client.plugins.execute(this.client, { messages: parsed }));
+              fireForget.add(async () => {
+                await Promise.all([
+                  this.client.middleware.run({ messages: parsed }),
+                  this.client.plugins.execute(this.client, { messages: parsed }),
+                ]);
+              }, { priority: Priority.NORMAL, timeout: 5000 });
 
               store.set('message', parsed);
               store.events.emit('messages', parsed);
 
               if (this.client.options.autoRead) {
-                fireForget.add(async () => socket.readMessages([parsed.message().key]));
+                fireForget.add(async () => socket.readMessages([parsed.message().key]), { priority: Priority.NORMAL, timeout: 5000 });
               }
             }
           } catch {}

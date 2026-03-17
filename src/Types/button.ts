@@ -55,4 +55,22 @@ export const ButtonSimpleType = v.object({
   })),
 });
 
-export const ButtonType = v.union([ButtonSimpleType, ButtonInteractiveType]);
+export const ButtonCarouselCardType = v.object({
+  body: v.string(),
+  footer: v.optional(v.string()),
+  header: v.optional(v.object({
+    title: v.optional(v.string()),
+    subtitle: v.optional(v.string()),
+    hasMediaAttachment: v.optional(v.boolean()),
+    image: v.optional(v.string()),
+    video: v.optional(v.string()),
+  })),
+  nativeFlow: v.array(v.union([ButtonInteractiveReplyType, ButtonInteractiveUrlType, ButtonInteractiveCopyType, ButtonInteractiveCallType])),
+});
+
+export const ButtonCarouselType = v.object({
+  type: v.literal('carousel'),
+  data: v.array(ButtonCarouselCardType),
+});
+
+export const ButtonType = v.union([ButtonSimpleType, ButtonInteractiveType, ButtonCarouselType]);

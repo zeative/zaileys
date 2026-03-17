@@ -81,7 +81,7 @@ Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essentia
 - ✅ **Rate Limiting** - Anti-spam protection powered by lightning-fast native LRU bounds
 - ✅ **Multi-Device** - QR code or Pairing Code authentication
 - ✅ **Built-in FFmpeg** - No external dependencies for media processing
-- ✅ **Interactive Buttons** - Simple buttons, URL, copy code, call buttons, and lists
+- ✅ **Interactive Buttons** - Simple buttons, URL, copy code, call buttons, multi-card carousel and lists
 - ✅ **Auto Clean Up** - Periodic database maintenance to save space
 
 ## 🎨 Concepts & Architecture
@@ -767,6 +767,47 @@ await wa.button(ctx.roomId, {
               { id: 'btn3', title: 'Option 3' },
             ],
           },
+        ],
+      },
+    ],
+  },
+});
+```
+
+**Carousel Buttons:**
+
+> ✅ Carousel is the only button type that is **fully supported on all devices** — Android, iOS, and **WhatsApp Desktop/Web**. Each card can include an image or video header with native flow buttons.
+
+```typescript
+await wa.button(ctx.roomId, {
+  text: 'Check out our products!',
+  buttons: {
+    type: 'carousel',
+    data: [
+      {
+        body: 'Product A - Premium quality',
+        footer: 'Starting from $9.99',
+        header: {
+          title: 'Product A',
+          image: 'https://example.com/product-a.jpg',
+          hasMediaAttachment: true,
+        },
+        nativeFlow: [
+          { type: 'cta_url', text: 'Buy Now', url: 'https://example.com/product-a' },
+          { type: 'quick_reply', id: 'fav_a', text: '❤️ Favorite' },
+        ],
+      },
+      {
+        body: 'Product B - Best value',
+        footer: 'Starting from $4.99',
+        header: {
+          title: 'Product B',
+          image: 'https://example.com/product-b.jpg',
+          hasMediaAttachment: true,
+        },
+        nativeFlow: [
+          { type: 'cta_url', text: 'Buy Now', url: 'https://example.com/product-b' },
+          { type: 'cta_copy', id: 'code_b', text: 'Copy Promo Code', copy: 'SAVE20' },
         ],
       },
     ],

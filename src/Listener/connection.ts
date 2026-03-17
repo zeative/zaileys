@@ -101,9 +101,9 @@ export class Connection {
         }
 
         if (code === 405) {
-          store.spinner.warn(' Session may be used by another device/instance.');
-          store.spinner.warn(` If you want to connect here, close the other connection first.`);
-          store.spinner.warn(` Or use a different session name in your Client options.\n`);
+          store.spinner.warn(' Session invalid/stale or used by another device (405).');
+          store.spinner.warn(` Automatic reconnecting...`);
+          setTimeout(() => reload(), 3000);
           return;
         }
 

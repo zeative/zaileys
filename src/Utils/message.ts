@@ -1,4 +1,4 @@
-import { extractMessageContent, getContentType, proto } from 'baileys';
+import { extractMessageContent, getContentType, jidNormalizedUser, proto } from 'baileys';
 import * as _ from 'radashi';
 
 export const generateId = (input: string | string[]) => {
@@ -39,6 +39,17 @@ export const extractJids = (text = '') => {
     if (match[1].length <= 15) ids.add(match[1]);
   }
   return [...ids].flatMap((id) => [`${id}@s.whatsapp.net`, `${id}@g.us`, `${id}@lid`]);
+};
+
+export const resolveJids = (jids: (string | null | undefined)[]) => {
+  const normalized = jids.filter(Boolean).map((j) => jidNormalizedUser(j!));
+  const idMatch = normalized.find((j) => !j.includes('@lid'));
+  const lidMatch = normalized.find((j) => j.includes('@lid'));
+
+  return {
+    id: idMatch || lidMatch || null,
+    lid: lidMatch || null,
+  };
 };
 
 export const numbersToJids = (numbers: number[]) => {

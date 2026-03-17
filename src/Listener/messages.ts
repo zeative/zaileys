@@ -1,13 +1,12 @@
 import makeWASocket, { downloadMediaMessage, getDevice, jidNormalizedUser, WAMessage } from 'baileys';
-import * as _ from 'radashi';
 import { Client } from '../Classes';
 import { MESSAGE_MEDIA_TYPES } from '../Config/media';
-import { store, contextStore, centerStore } from '../Store';
 import { fireForget, Priority } from '../Library/fire-forget';
 import { RateLimiter } from '../Library/rate-limiter';
+import { centerStore, contextStore, store } from '../Store';
 import { MessagesContext } from '../Types/messages';
 import { escapeRegExp, extractUrls, findGlobalWord, ignoreLint, normalizeText, toJson, toString } from '../Utils';
-import { cleanJid, cleanMediaObject, generateId, getDeepContent, getUsersMentions } from '../Utils/message';
+import { cleanJid, cleanMediaObject, generateId, getDeepContent, getUsersMentions, resolveJids } from '../Utils/message';
 
 export class Messages {
   private limiter: RateLimiter;
@@ -50,9 +49,9 @@ export class Messages {
                 fireForget.add(async () => socket.readMessages([parsed.message().key]), { priority: Priority.NORMAL, timeout: 5000 });
               }
             }
-          } catch {}
+          } catch { }
         }
-      } catch {}
+      } catch { }
     });
   }
 
@@ -87,15 +86,14 @@ export class Messages {
 
     if (!output.chatType) return;
 
-    const r1 = jidNormalizedUser(socket?.user?.lid || '');
-    const r2 = jidNormalizedUser(socket?.user?.id || '');
-
-    output.receiverLid = r1.includes('@lid') ? r1 : r2.includes('@lid') ? r2 : null;
-    output.receiverId = r1.includes('@s.whatsapp.net') ? r1 : r2.includes('@s.whatsapp.net') ? r2 : null;
+    const receiver = resolveJids([socket?.user?.id, socket?.user?.lid]);
+    output.receiverId = receiver.id || receiver.lid || '';
+    output.receiverLid = receiver.lid || receiver.id || '';
     output.receiverName = normalizeText(socket?.user?.name || socket?.user?.verifiedName);
 
-    output.roomId = r1.includes('@s.whatsapp.net') && !output.isGroup ? r1 : jidNormalizedUser(message?.key?.remoteJid);
-    output.roomLid = r1.includes('@lid') ? r1 : null;
+    const room = resolveJids([message?.key?.remoteJid]);
+    output.roomId = room.id || room.lid || '';
+    output.roomLid = room.lid || room.id || '';
 
     const isRevoke = content?.type === 0;
     const isPin = content?.type === 1;
@@ -125,11 +123,15 @@ export class Messages {
 
     output.roomName = await this.client.getRoomName(output.roomId);
 
-    const s1 = jidNormalizedUser(message?.key?.participant || message?.key?.remoteJid) || '';
-    const s2 = jidNormalizedUser(message?.key?.participantAlt || message?.key?.remoteJidAlt) || '';
+    const sender = resolveJids([
+      message?.key?.participant,
+      message?.key?.remoteJid,
+      (message?.key as any)?.participantAlt,
+      (message?.key as any)?.remoteJidAlt
+    ]);
 
-    output.senderLid = s1.includes('@lid') ? s1 : s2.includes('@lid') ? s2 : null;
-    output.senderId = s1.includes('@s.whatsapp.net') ? s1 : s2.includes('@s.whatsapp.net') ? s2 : null;
+    output.senderId = sender.id || sender.lid || '';
+    output.senderLid = sender.lid || sender.id || '';
 
     output.senderName = normalizeText(message?.pushName || message?.verifiedBizName);
 
@@ -173,7 +175,7 @@ export class Messages {
     output.mentions = getUsersMentions(output.text);
     output.links = extractUrls(output.text || '');
 
-    output.isBot = output.chatId.startsWith('BAE5') || output.chatId.startsWith('3EB0') || output.chatId.startsWith('Z4D3FC');
+    output.isBot = output.chatId.startsWith('BAE5') || output.chatId.startsWith('3EB0');
     output.isFromMe = isFromMe;
 
     const optPrefix = this.client.options?.prefix;

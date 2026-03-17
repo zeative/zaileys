@@ -18,3 +18,10 @@ index.js
 
 test*
 tsup*
+
+.gsd
+.gemini
+.agent
+.husky
+
+commitlint.config.js

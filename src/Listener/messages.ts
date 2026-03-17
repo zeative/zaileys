@@ -92,8 +92,8 @@ export class Messages {
     output.receiverName = normalizeText(socket?.user?.name || socket?.user?.verifiedName);
 
     const room = resolveJids([message?.key?.remoteJid]);
-    output.roomId = room.id || room.lid || '';
-    output.roomLid = room.lid || room.id || '';
+    output.roomId = room.id;
+    output.roomLid = room.lid;
 
     const isRevoke = content?.type === 0;
     const isPin = content?.type === 1;
@@ -126,12 +126,12 @@ export class Messages {
     const sender = resolveJids([
       message?.key?.participant,
       message?.key?.remoteJid,
-      (message?.key as any)?.participantAlt,
-      (message?.key as any)?.remoteJidAlt
+      message?.key?.participantAlt,
+      message?.key?.remoteJidAlt
     ]);
 
-    output.senderId = sender.id || sender.lid || '';
-    output.senderLid = sender.lid || sender.id || '';
+    output.senderId = sender.id;
+    output.senderLid = sender.lid;
 
     output.senderName = normalizeText(message?.pushName || message?.verifiedBizName);
 

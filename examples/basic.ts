@@ -1,20 +1,9 @@
-/**
- * Zaileys — Basic Example
- *
- * A clean, complete starter that covers all core features:
- * messaging, media, buttons, carousel, polls, and more.
- *
- * Run: npx tsx examples/basic.ts
- */
-
-import { Client } from 'zaileys';
+import { Client } from '../src';
 
 const wa = new Client({
   authType: 'qr',
   prefix: '!',
 });
-
-// ─── Message Handler ───────────────────────────────────────────
 
 wa.on('messages', async (ctx) => {
   if (ctx.isStatusMention || ctx.isStory || ctx.isFromMe) return;

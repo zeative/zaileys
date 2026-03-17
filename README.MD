@@ -64,13 +64,19 @@
 
 Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essential features like rate limiting, session management, and input validation out of the box.
 
+### 🌟 What's New in v3 (Performance & Stability Core)
+- **Dependency Slim-Down**: Dropped `zod`, `lodash`, `jimp`, `unorm`, and `node-cache` in favor of incredibly lightweight & modern choices like `valibot`, `radashi`, `sharp`, native V8 algorithms, and `lru-cache`.
+- **Decoupled Media Engine**: FFmpeg components have been ripped out into a standalone and extremely robust workspace package (`@zaadevofc/media-process`).
+- **FireAndForget v3**: The background task orchestrator is now event-based, backed with Priority channels (`CRITICAL`, `HIGH`, `BACKGROUND`), Promise unification strategies, exponential backoff retries, and Graceful Shutdowns.
+- **Lightning Database**: Replaced `jetdb` with raw `lmdb` for extreme performance and auto-chunking.
+
 ## 🪶 Features
 
-- ✅ **Type-Safe** - Full TypeScript + Valibot validation with autocomplete
+- ✅ **Type-Safe** - Full TypeScript + `Valibot` validation with autocomplete
 - ✅ **Middleware** - Intercept and process events globally
 - ✅ **Plugin System** - Drop-in file-based plugins with on/off controls
 - ✅ **State Management** - Built-in [LMDB](https://github.com/kriszyp/lmdb-js) for blazing-fast database persistence with **auto chunking** for heap safety
-- ✅ **Rate Limiting** - Anti-spam protection out of the box
+- ✅ **Rate Limiting** - Anti-spam protection powered by lightning-fast native LRU bounds
 - ✅ **Multi-Device** - QR code or Pairing Code authentication
 - ✅ **Built-in FFmpeg** - No external dependencies for media processing
 - ✅ **Interactive Buttons** - Simple buttons, URL, copy code, call buttons, and lists

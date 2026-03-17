@@ -1,6 +1,7 @@
 import { AuthenticationCreds, AuthenticationState, initAuthCreds, proto, SignalDataTypeMap } from 'baileys';
+import * as _ from 'radashi';
 import { CredsDatabase, KeysDatabase } from '../Config/database';
-import { store } from '../Library/center-store';
+import { store, centerStore } from '../Store';
 
 export const useAuthState = async (folder: string): Promise<{ state: AuthenticationState; saveCreds: () => Promise<void> }> => {
   store.spinner.start(' Initializing auth state...');
@@ -40,37 +41,32 @@ export const useAuthState = async (folder: string): Promise<{ state: Authenticat
           return data;
         },
         set: async (data) => {
-          const setOperations: { key: string; value: any }[] = [];
-          const deleteKeys: string[] = [];
+          const operations: { key: string, value: any }[] = [];
 
           for (const category in data) {
             for (const id in data[category as keyof SignalDataTypeMap]) {
               const value = data[category as keyof SignalDataTypeMap]![id];
               const key = `${category}:${id}`;
-
-              if (value) {
-                setOperations.push({ key, value });
-              } else {
-                deleteKeys.push(key);
-              }
+              operations.push({ key, value });
             }
           }
 
-          // Batch operations for better performance
-          if (setOperations.length) {
-            await keysDb.batchSet(setOperations);
+          for (const chunk of _.cluster(operations, 500)) {
+            await Promise.all(
+              chunk.map(({ key, value }) => {
+                if (value) {
+                  return keysDb.put(key, value);
+                } else {
+                  return keysDb.remove(key);
+                }
+              })
+            );
           }
-          if (deleteKeys.length) {
-            await keysDb.batchDelete(deleteKeys);
-          }
-
-          await keysDb.flush();
         },
       },
     },
     saveCreds: async () => {
-      await credsDb.set('creds', creds);
-      await credsDb.flush();
+      await credsDb.put('creds', creds);
     },
   };
 };

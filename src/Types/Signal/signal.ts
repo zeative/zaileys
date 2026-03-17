@@ -1,88 +1,78 @@
 import { proto, WAMessage } from 'baileys';
-import z from 'zod';
+import * as v from 'valibot';
 import { ButtonType } from '../button';
-import { StickerShapeType } from '../client';
+import { ClientStickerShapeType } from '../client';
 
-const MediaType = z.url().or(z.base64()).or(z.instanceof(Buffer));
+const MediaType = v.union([
+  v.pipe(v.string(), v.url()), 
+  v.pipe(v.string(), v.base64()), 
+  v.custom<Buffer>((val) => val instanceof Buffer)
+]);
 
-const MessageTextType = z.object({ text: z.string() }).passthrough();
-const MessageImageType = z.object({ image: MediaType, caption: z.string().optional() }).passthrough();
+const MessageTextType = v.looseObject({ text: v.string() });
+const MessageImageType = v.looseObject({ image: MediaType, caption: v.optional(v.string()) });
 
-const MessageAudioType = z
-  .object({
-    audio: MediaType,
-    caption: z.string().optional(),
-    ptt: z.boolean().optional(),
-  })
-  .passthrough();
+const MessageAudioType = v.looseObject({
+  audio: MediaType,
+  caption: v.optional(v.string()),
+  ptt: v.optional(v.boolean()),
+});
 
-const MessageVideoType = z
-  .object({
-    video: MediaType,
-    caption: z.string().optional(),
-    ptv: z.boolean().optional(),
-  })
-  .passthrough();
+const MessageVideoType = v.looseObject({
+  video: MediaType,
+  caption: v.optional(v.string()),
+  ptv: v.optional(v.boolean()),
+});
 
-const MessageStickerType = z
-  .object({
-    sticker: MediaType,
-    shape: StickerShapeType.optional(),
-    caption: z.string().optional(),
-  })
-  .passthrough();
+const MessageStickerType = v.looseObject({
+  sticker: MediaType,
+  shape: v.optional(ClientStickerShapeType),
+  caption: v.optional(v.string()),
+});
 
-const MessageDocumentType = z.object({ document: MediaType, caption: z.string().optional(), fileName: z.string().optional() }).passthrough();
+const MessageDocumentType = v.looseObject({ document: MediaType, caption: v.optional(v.string()), fileName: v.optional(v.string()) });
 
-export const MessageLocationType = z
-  .object({
-    location: z
-      .object({
-        latitude: z.number(),
-        longitude: z.number(),
-        url: z.url().optional(),
-        title: z.string().optional(),
-        footer: z.string().optional(),
-      })
-      .optional(),
-  })
-  .passthrough();
+export const MessageLocationType = v.looseObject({
+  location: v.optional(v.object({
+    latitude: v.number(),
+    longitude: v.number(),
+    url: v.optional(v.pipe(v.string(), v.url())),
+    title: v.optional(v.string()),
+    footer: v.optional(v.string()),
+  })),
+});
 
-export const MessageContactType = z
-  .object({
-    contacts: z.object({
-      title: z.string().optional(),
-      contacts: z
-        .object({
-          fullname: z.string(),
-          phoneNumber: z.number(),
-          organization: z.string().optional(),
-        })
-        .array(),
-    }),
-  })
-  .passthrough();
-
-export const MessagePollCreateType = z.object({
-  poll: z.object({
-    name: z.string(),
-    answers: z.string().array(),
-    isMultiple: z.boolean().default(false).optional(),
+export const MessageContactType = v.looseObject({
+  contacts: v.object({
+    title: v.optional(v.string()),
+    contacts: v.array(v.object({
+        fullname: v.string(),
+        phoneNumber: v.number(),
+        organization: v.optional(v.string()),
+    })),
   }),
 });
 
-export const SignalBaseType = z.object({
-  replied: z.custom<WAMessage>().optional(),
-  isForwardedMany: z.boolean().optional(),
-  isViewOnce: z.boolean().optional(),
-
-  banner: z.custom<proto.ContextInfo.IExternalAdReplyInfo>().optional(),
-  buttons: ButtonType.optional(),
+export const MessagePollCreateType = v.object({
+  poll: v.object({
+    name: v.string(),
+    answers: v.array(v.string()),
+    isMultiple: v.optional(v.boolean(), false),
+  }),
 });
 
-export const SignalType = z.enum(['forward', 'button', 'edit', 'delete']);
+export const SignalBaseType = v.object({
+  replied: v.optional(v.custom<WAMessage>((val) => typeof val === 'object' && val !== null)),
+  isForwardedMany: v.optional(v.boolean()),
+  isViewOnce: v.optional(v.boolean()),
 
-export const SignalOptionsUnionType = z.union([
+  banner: v.optional(v.custom<proto.ContextInfo.IExternalAdReplyInfo>((val) => typeof val === 'object' && val !== null)),
+  buttons: v.optional(ButtonType),
+});
+
+export const SignalType = v.picklist(['forward', 'button', 'edit', 'delete']);
+
+export const SignalOptionsUnionType = v.union([
   MessageTextType,
   MessageImageType,
   MessageAudioType,
@@ -94,5 +84,8 @@ export const SignalOptionsUnionType = z.union([
   MessagePollCreateType,
 ]);
 
-export const SignalOptionsType = z.string().or(z.intersection(SignalOptionsUnionType, SignalBaseType.omit({ buttons: true })));
-export const ButtonOptionsType = z.intersection(MessageTextType, SignalBaseType.omit({ banner: true }));
+export const SignalOptionsType = v.union([
+  v.string(), 
+  v.intersect([SignalOptionsUnionType, v.omit(SignalBaseType, ['buttons'])])
+]);
+export const ButtonOptionsType = v.intersect([MessageTextType, v.omit(SignalBaseType, ['banner'])]);

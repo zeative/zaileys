@@ -1,5 +1,6 @@
 import { Client } from '../Classes/client';
-import { store } from './center-store';
+import * as _ from 'radashi';
+import { store } from '../Store';
 
 export class CleanUpManager {
   private interval: NodeJS.Timeout | null = null;
@@ -34,11 +35,19 @@ export class CleanUpManager {
       try {
         const db = this.client.db(scope);
 
-        const oldItems = await db.query(scope).where('timestamp', '<', threshold).get();
+        const oldItems: any[] = [];
+        for (const { value } of db.getRange()) {
+          if (value && value.timestamp !== undefined && value.timestamp < threshold) {
+            oldItems.push(value);
+          }
+        }
 
         if (oldItems.length > 0) {
           const ids = oldItems.map((item: any) => item.key?.id || item.id);
-          await db.batchDelete(ids);
+          
+          for (const chunk of _.cluster(ids, 500)) {
+            await Promise.all(chunk.map((id: any) => db.remove(id)));
+          }
 
           store.spinner.info(` [CleanUpManager] Cleaned up ${oldItems.length} items from ${scope}`);
         }

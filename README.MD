@@ -17,6 +17,7 @@
 <div align="center">
   <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/license/zeative/zaileys" alt="GitHub License"></a>
   <a href="https://discord.gg/KBHhTTVUc5"><img alt="Discord" src="https://img.shields.io/discord/1105833273415962654?logo=discord&label=discord&link=https%3A%2F%2Fgithub.com%2Fzeative%2Fzaileys"></a>
+  <a href="https://chat.whatsapp.com/GlQfvc83mSH3F6ov06vuCt"><img alt="WhatsApp" src="https://img.shields.io/badge/WhatsApp-Group-25D366?logo=whatsapp&logoColor=white"></a>
   <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/stars/zeative/zaileys" alt="GitHub Stars"></a>
   <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/forks/zeative/zaileys" alt="GitHub Forks"></a>
   <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/watchers/zeative/zaileys" alt="GitHub Watchers"></a>
@@ -64,19 +65,24 @@
 
 Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essential features like rate limiting, session management, and input validation out of the box.
 
+### 🌟 What's New in v3 (Performance & Stability Core)
+
+- 🚀 **Unified Store Architecture**: Say goodbye to messy caches! We've elegantly grouped all scattered memory into a single, highly-optimized **Registry Pattern**. Enjoy zero memory leaks and strict namespaces for absolute peace of mind.
+- ⚡ **FireAndForget v3 Engine**: Background tasks just got superpowers! Now fully event-based with smart priority channels (`CRITICAL` to `LOW`). It automatically prevents queue clogs, handles smart retries, and shuts down gracefully.
+- 🛡️ **Auto-Healing Connections**: Maximum uptime, zero headaches! Zaileys now brilliantly catches nasty connection drops (like those sneaky `405` stale sessions) and seamlessly auto-reconnects behind the scenes instead of crashing.
+- 🎬 **Decoupled Media Processing**: We've trimmed the fat! All FFmpeg and image magic are now safely housed in an ultra-robust standalone package (`@zaadevofc/media-process`), making the core platform incredibly lightweight.
+- 🏎️ **Lightning Database & Slim Dependencies**: Speed is everything. We crushed bloat by upgrading to blazing-fast `lmdb` and swapping heavy libraries (`zod`, `lodash`) for modern speed demons like `valibot` and `radashi`.
+
 ## 🪶 Features
 
-- ✅ **Type-Safe** - Full TypeScript + Zod validation with autocomplete
+- ✅ **Type-Safe** - Full TypeScript + `Valibot` validation with autocomplete
 - ✅ **Middleware** - Intercept and process events globally
 - ✅ **Plugin System** - Drop-in file-based plugins with on/off controls
-- ✅ **State Management** - Built-in [JetDB](https://github.com/zeative/jetdb) for data persistence with **auto chunking**
-- ✅ **Rate Limiting** - Anti-spam protection out of the box
+- ✅ **State Management** - Built-in [LMDB](https://github.com/kriszyp/lmdb-js) for blazing-fast database persistence with **auto chunking** for heap safety
+- ✅ **Rate Limiting** - Anti-spam protection powered by lightning-fast native LRU bounds
 - ✅ **Multi-Device** - QR code or Pairing Code authentication
 - ✅ **Built-in FFmpeg** - No external dependencies for media processing
-- ✅ **Interactive Buttons** - Simple buttons, URL, copy code, call buttons, and lists
-- ✅ **Context Injection** - Universal data injection accessible anywhere in ctx
-- ✅ **Fire and Forget** - Background task processing for lightning-fast responses
-- ✅ **Auto-Healing** - Intelligent connection monitoring and session repair
+- ✅ **Interactive Buttons** - Simple buttons, URL, copy code, call buttons, multi-card carousel and lists
 - ✅ **Auto Clean Up** - Periodic database maintenance to save space
 
 ## 🎨 Concepts & Architecture
@@ -89,7 +95,7 @@ Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essentia
 
 **Plugins** - Drop files in `plugins/` directory. Auto-loaded, zero config.
 
-**Store** - JSON database (`JetDB`) that auto-syncs chats, contacts, and messages.
+**Store** - Lightning-fast database (`LMDB`) that auto-syncs chats, contacts, messages, and cryptographic keys.
 
 ## 📦 Installation
 
@@ -109,9 +115,9 @@ yarn add zaileys
 
 ## 🏁 Starter Kit
 
-Prefer a ready-to-run setup? We provide an official **Starter Kit** that includes a fully configured environment, example commands, and best practices.
+Prefer a ready-to-run setup? We provide a complete example that covers messages, media, buttons, carousel, polls, and more — ready to copy and go.
 
-👉 [**Zaileys Example**](https://github.com/zeative/starter-zaileys)
+👉 [**examples/basic.ts**](./examples/basic.ts) — Clean, comprehensive starter with all features demonstrated
 
 ## ⚡ Quick Start
 
@@ -247,9 +253,12 @@ These options apply to both authentication methods:
 | `syncFullHistory` | `boolean` | `true`      | Sync full chat history on startup.      |
 | `pluginsDir`      | `string`  | `'plugins'` | Directory where plugins are located.    |
 | `pluginsHmr`      | `boolean` | `true`      | Enable Hot Module Replacement for plugins. |
+| `showSpinner`     | `boolean` | `true`      | Shows a loading console spinner for internal system events. |
+| `maxReplies`      | `number`  | `3`         | Restricts recursive payload parsing for nested replied chains. |
 | `cleanupDays`     | `number`  | `7`         | Days to keep messages before auto-deletion. |
 | `autoCleanUp`     | `object`  | `undefined` | Configuration for periodic database cleanup. |
 | `disableFFmpeg`   | `boolean` | `false`     | Disable built-in FFmpeg installers.     |
+| `deleteSessionOnLogout`| `boolean`| `false`     | Automatically deletes invalid `.session` state and forces a fresh QR scan if connection expires (loggedOut code 401). |
 
 ### Automation Options
 
@@ -699,7 +708,7 @@ Send messages with interactive buttons.
 
 **Simple Buttons:**
 
-> ✅ Simple button has support Android/iPhone/Desktop
+> ✅ Simple button type is **fully supported on all devices** — Android, iOS, and **WhatsApp Desktop/Web**.
 
 ```typescript
 await wa.button(ctx.roomId, {
@@ -759,6 +768,47 @@ await wa.button(ctx.roomId, {
               { id: 'btn3', title: 'Option 3' },
             ],
           },
+        ],
+      },
+    ],
+  },
+});
+```
+
+**Carousel Buttons:**
+
+> ⚠️ Carousel button is supported on **Android** and **WhatsApp Desktop/Web** only. iOS is currently not supported. Each card can include an image or video header with native flow buttons.
+
+```typescript
+await wa.button(ctx.roomId, {
+  text: 'Check out our products!',
+  buttons: {
+    type: 'carousel',
+    data: [
+      {
+        body: 'Product A - Premium quality',
+        footer: 'Starting from $9.99',
+        header: {
+          title: 'Product A',
+          image: 'https://example.com/product-a.jpg',
+          hasMediaAttachment: true,
+        },
+        nativeFlow: [
+          { type: 'cta_url', text: 'Buy Now', url: 'https://example.com/product-a' },
+          { type: 'quick_reply', id: 'fav_a', text: '❤️ Favorite' },
+        ],
+      },
+      {
+        body: 'Product B - Best value',
+        footer: 'Starting from $4.99',
+        header: {
+          title: 'Product B',
+          image: 'https://example.com/product-b.jpg',
+          hasMediaAttachment: true,
+        },
+        nativeFlow: [
+          { type: 'cta_url', text: 'Buy Now', url: 'https://example.com/product-b' },
+          { type: 'cta_copy', id: 'code_b', text: 'Copy Promo Code', copy: 'SAVE20' },
         ],
       },
     ],

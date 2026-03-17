@@ -1,7 +1,6 @@
-import _ from 'lodash';
+
 import fs from 'node:fs/promises';
-import { store } from '../Library/center-store';
-import unorm from 'unorm';
+import { store, centerStore } from '../Store';
 
 export const ignoreLint = (data: any) => data;
 
@@ -18,11 +17,10 @@ export const getLatestLibVersion = async () => {
 
 export const removeAuthCreds = async (session: string) => {
   try {
-    const SESSION_PATH = `.session/${session}/auth/creds.json`;
-    await fs.unlink(SESSION_PATH);
+    const SESSION_PATH = `.session/${session}`;
+    await fs.rm(SESSION_PATH, { recursive: true, force: true });
   } catch (error) {
     store.spinner.error(`Failed to remove auth creds for session "${session}"!`);
-    throw error;
   }
 };
 
@@ -42,9 +40,7 @@ export const normalizeText = (text = '') => {
 
     .replace(/[\uFE00-\uFE0F]/gu, '')
 
-    .split('')
-    .map((char) => unorm.nfkd(char))
-    .join('')
+    .normalize('NFKD')
 
     .replace(/[\u0300-\u036F]/gu, '')
     .replace(/[\u1AB0-\u1AFF]/gu, '')
@@ -62,10 +58,7 @@ export const normalizeText = (text = '') => {
     .replace(/[\u2028\u2029]/gu, ' ')
     .replace(/[\t\r\n\f\v]/g, ' ')
 
-    .split('')
-    .map((char) => unorm.nfkc(char))
-    .join('')
-
+    .normalize('NFKC')
     .normalize('NFC')
 
     .replace(/\s+/g, ' ')

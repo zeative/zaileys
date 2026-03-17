@@ -1,90 +1,84 @@
-import { z } from 'zod';
+import * as v from 'valibot';
 import { CallsContext } from './calls';
 import { ConnectionContext } from './connection';
 import { MessagesContext } from './messages';
 
-export const LimiterType = z
-  .object({
-    maxMessages: z.number().default(20),
-    durationMs: z.number().default(10_000),
-  })
-  .optional();
+export const LimiterType = v.optional(v.object({
+  maxMessages: v.optional(v.number(), 20),
+  durationMs: v.optional(v.number(), 10_000),
+}));
 
-export const CitationType = z.record(z.string(), z.function({ output: z.promise(z.array(z.number())) })).optional();
+export const CitationType = v.optional(v.record(v.string(), v.custom<(...args: unknown[]) => Promise<number[]>>((val) => typeof val === 'function')));
 
-export const FakeReplyType = z
-  .object({
-    provider: z.enum(['whatsapp', 'meta', 'chatgpt', 'copilot', 'instagram', 'tiktok']).or(z.number()),
-  })
-  .optional();
+export const FakeReplyType = v.optional(v.object({
+  provider: v.union([v.picklist(['whatsapp', 'meta', 'chatgpt', 'copilot', 'instagram', 'tiktok']), v.number()]),
+}));
 
-export const StickerShapeType = z.enum(['default', 'rounded', 'circle', 'oval']).default('default');
+export const ClientStickerShapeType = v.optional(v.picklist(['default', 'rounded', 'circle', 'oval']), 'default');
 
-export const StickerMetadataType = z
-  .object({
-    packageName: z.string().optional(),
-    authorName: z.string().optional(),
-    quality: z.number().optional(),
-    shape: StickerShapeType.optional(),
-  })
-  .optional();
+export const ClientStickerOptionsType = v.optional(v.object({
+  packageName: v.optional(v.string()),
+  authorName: v.optional(v.string()),
+  quality: v.optional(v.number()),
+  shape: v.optional(ClientStickerShapeType),
+}));
 
-export const autoCleanUp = z
-  .object({
-    enabled: z.boolean().default(false).optional(),
-    intervalMs: z
-      .number()
-      .default(60 * 60 * 1000)
-      .optional(),
-    maxAgeMs: z
-      .number()
-      .default(24 * 60 * 60 * 1000)
-      .optional(),
-    scopes: z.array(z.string()).default(['messages']).optional(),
-  })
-  .optional();
+export const autoCleanUp = v.optional(v.object({
+  enabled: v.optional(v.boolean(), false),
+  intervalMs: v.optional(v.number(), 60 * 60 * 1000),
+  maxAgeMs: v.optional(v.number(), 24 * 60 * 60 * 1000),
+  scopes: v.optional(v.array(v.string()), ['messages']),
+}));
 
-export const ClientBaseType = z.object({
-  session: z.string().default('zaileys').optional(),
-  prefix: z.union([z.string(), z.array(z.string())]).optional(),
+export const ClientBaseType = v.object({
+  session: v.optional(v.string(), 'zaileys'),
+  prefix: v.optional(v.union([v.string(), v.array(v.string())])),
 
-  ignoreMe: z.boolean().default(true).optional(),
-  showLogs: z.boolean().default(true).optional(),
-  fancyLogs: z.boolean().default(false).optional(),
+  ignoreMe: v.optional(v.boolean(), true),
+  showLogs: v.optional(v.boolean(), true),
+  fancyLogs: v.optional(v.boolean(), false),
 
-  syncFullHistory: z.boolean().default(true).optional(),
-  disableFFmpeg: z.boolean().default(false).optional(),
+  syncFullHistory: v.optional(v.boolean(), true),
+  disableFFmpeg: v.optional(v.boolean(), false),
 
-  autoMarkAI: z.boolean().default(true).optional(),
-  autoMentions: z.boolean().default(true).optional(),
-  autoOnline: z.boolean().default(true).optional(),
-  autoRead: z.boolean().default(true).optional(),
-  autoPresence: z.boolean().default(true).optional(),
-  autoRejectCall: z.boolean().default(true).optional(),
+  autoMarkAI: v.optional(v.boolean(), true),
+  autoMentions: v.optional(v.boolean(), true),
+  autoOnline: v.optional(v.boolean(), true),
+  autoRead: v.optional(v.boolean(), true),
+  autoPresence: v.optional(v.boolean(), true),
+  autoRejectCall: v.optional(v.boolean(), true),
+  
+  showSpinner: v.optional(v.boolean(), true),
+  maxReplies: v.optional(v.number(), 3),
+  
+  deleteSessionOnLogout: v.optional(v.boolean(), false),
 
-  pluginsDir: z.string().default('plugins').optional(),
-  pluginsHmr: z.boolean().default(true).optional(),
+  pluginsDir: v.optional(v.string(), 'plugins'),
+  pluginsHmr: v.optional(v.boolean(), true),
 
   autoCleanUp,
 
   limiter: LimiterType,
   citation: CitationType,
   fakeReply: FakeReplyType,
-  sticker: StickerMetadataType,
+  sticker: ClientStickerOptionsType,
 });
 
-export const ClientAuthPairingType = z.object({
-  authType: z.literal('pairing'),
-  phoneNumber: z.number(),
+export const ClientAuthPairingType = v.object({
+  authType: v.literal('pairing'),
+  phoneNumber: v.number(),
 });
 
-export const ClientAuthQRType = z.object({
-  authType: z.literal('qr'),
+export const ClientAuthQRType = v.object({
+  authType: v.literal('qr'),
 });
 
-export const ClientOptionsType = z.union([ClientAuthPairingType.extend(ClientBaseType.shape), ClientAuthQRType.extend(ClientBaseType.shape)]);
+export const ClientOptionsType = v.union([
+  v.object({ ...ClientAuthPairingType.entries, ...ClientBaseType.entries }),
+  v.object({ ...ClientAuthQRType.entries, ...ClientBaseType.entries })
+]);
 
-export const EventEnumType = z.enum(['connection', 'messages', 'calls']);
+export const EventEnumType = v.picklist(['connection', 'messages', 'calls']);
 
 export type EventCallbackType = {
   connection: (ctx: ConnectionContext) => void;

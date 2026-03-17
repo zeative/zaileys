@@ -1,6 +1,6 @@
-import makeWASocket, { generateMessageIDV2, generateWAMessageFromContent, isJidGroup, MessageGenerationOptionsFromContent, proto } from 'baileys';
-import z from 'zod';
-import { store } from '../Library/center-store';
+import makeWASocket, { generateMessageIDV2, generateWAMessageFromContent, isJidGroup, MessageGenerationOptionsFromContent, proto, prepareWAMessageMedia } from 'baileys';
+import * as v from 'valibot';
+import { centerStore } from '../Store';
 import { SignalOptionsType } from '../Types/Signal/signal';
 import { ignoreLint } from '../Utils';
 
@@ -27,11 +27,44 @@ export class InteractiveButtons {
     }));
   }
 
-  private build(payload: z.infer<typeof SignalOptionsType>): proto.Message.IInteractiveMessage {
+  private async build(payload: v.InferOutput<typeof SignalOptionsType>, socket: any): Promise<proto.Message.IInteractiveMessage> {
     const buttons = ignoreLint(payload).buttons;
     const data = buttons?.data || [];
-
     const type = buttons?.type;
+
+    if (type === 'carousel') {
+      const cards = [];
+      for (const card of data) {
+        let media = {};
+        if (card.header?.image || card.header?.video) {
+          media = await prepareWAMessageMedia(
+            card.header.image ? { image: { url: card.header.image } } : { video: { url: card.header.video } },
+            { upload: socket.waUploadToServer }
+          );
+        }
+
+        cards.push({
+          body: proto.Message.InteractiveMessage.Body.fromObject({ text: card.body }),
+          footer: card.footer ? proto.Message.InteractiveMessage.Footer.fromObject({ text: card.footer }) : undefined,
+          header: proto.Message.InteractiveMessage.Header.fromObject({
+            title: card.header?.title || '',
+            subtitle: card.header?.subtitle || '',
+            hasMediaAttachment: !!(card.header?.image || card.header?.video || card.header?.hasMediaAttachment),
+            ...media
+          }),
+          nativeFlowMessage: proto.Message.InteractiveMessage.NativeFlowMessage.fromObject({
+            buttons: this.toNativeInteractive(card.nativeFlow)
+          })
+        });
+      }
+
+      return {
+        body: proto.Message.InteractiveMessage.Body.fromObject({ text: ignoreLint(payload).text }),
+        footer: buttons.footer ? proto.Message.InteractiveMessage.Footer.fromObject({ text: buttons.footer }) : undefined,
+        carouselMessage: proto.Message.InteractiveMessage.CarouselMessage.fromObject({ cards })
+      };
+    }
+
     const native = type == 'simple' ? this.toNativeSimple(data) : this.toNativeInteractive(data);
 
     return {
@@ -41,15 +74,29 @@ export class InteractiveButtons {
     };
   }
 
-  async send(roomId: string, payload: z.infer<typeof SignalOptionsType>, options: Partial<MessageGenerationOptionsFromContent>) {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket> & { config: any };
+  async send(roomId: string, payload: v.InferInput<typeof SignalOptionsType>, options: Partial<MessageGenerationOptionsFromContent>) {
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket> & { config: any, waUploadToServer: any };
 
     const userJid = socket?.authState?.creds?.me?.id || socket?.user?.id;
-    const content = this.build(payload);
+    const content = await this.build(payload, socket);
+
+    const isCarousel = ignoreLint(payload).buttons?.type === 'carousel';
 
     const msg = generateWAMessageFromContent(
       roomId,
-      { interactiveMessage: content },
+      isCarousel
+        ? {
+            viewOnceMessage: {
+              message: {
+                messageContextInfo: {
+                  deviceListMetadata: {},
+                  deviceListMetadataVersion: 2,
+                },
+                interactiveMessage: content,
+              },
+            },
+          }
+        : { interactiveMessage: content },
       {
         userJid,
         messageId: generateMessageIDV2(userJid),

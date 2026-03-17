@@ -1,71 +1,60 @@
 import pino from 'pino';
 import { Client } from '../Classes/client';
 import { KeysDatabase } from '../Config/database';
-import { store } from './center-store';
+import { store } from '../Store';
 
 export class HealthManager {
   private keysDb: ReturnType<typeof KeysDatabase>;
 
   constructor(private client: Client) {
     this.keysDb = KeysDatabase(client.options.session);
-    this.setupLogFilters();
-  }
-
-  private setupLogFilters() {
-    const originalError = console.error;
-    const originalLog = console.log;
-
-    const filter = (args: any[]) => {
-      const msg = args.join(' ');
-      const blacklisted = [
-        'Bad MAC',
-        'Session error:',
-        'Closing open session in favor of incoming prekey bundle',
-        'Error: Bad MAC',
-      ];
-
-      return blacklisted.some((term) => msg.includes(term));
-    };
-
-    console.error = (...args: any[]) => {
-      if (filter(args)) return;
-      originalError.apply(console, args);
-    };
-
-    console.log = (...args: any[]) => {
-      if (filter(args)) return;
-      originalLog.apply(console, args);
-    };
   }
 
   async repair(jid: string) {
     if (!jid) return;
 
-    const keys = [`session:${jid}`, `sender-key:${jid}`];
-
     try {
-      await this.keysDb.batchDelete(keys);
-      await this.keysDb.flush();
+      const socket = this.client.socket;
+      if (socket && socket.authState) {
+        await socket.authState.keys.set({
+          'session': { [jid]: null },
+          'sender-key': { [jid]: null }
+        });
 
-      store.spinner.warn(` [HealthManager] Repaired session for ${jid} due to Bad MAC`);
-    } catch {
-      // ignore
+        store.spinner.warn(` [HealthManager] Repaired session for ${jid} due to Bad MAC by clearing auth cache`);
+      }
+    } catch (err) {
+      this.logger.error({ err }, 'Failed to repair session');
     }
   }
 
   get logger() {
     return pino(
       {
-        level: 'debug',
+        level: 'silent',
       },
       {
         write: (msg: string) => {
           try {
             const data = JSON.parse(msg);
-            if (data.msg?.includes('Bad MAC')) {
+            const rawMsg = data.msg || '';
+            const blacklisted = [
+              'Bad MAC',
+              'Session error:',
+              'Closing open session in favor of incoming prekey bundle',
+              'Error: Bad MAC',
+            ];
+
+            if (rawMsg.includes('Bad MAC')) {
               const jid = data.jid || data.remoteJid;
               if (jid) {
                 this.repair(jid);
+              }
+            }
+
+            if (!blacklisted.some(term => rawMsg.includes(term))) {
+              if (data.level >= 50 && data.err) { // Error level
+                console.error(data.err);
               }
             }
           } catch {

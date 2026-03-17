@@ -1,7 +1,7 @@
 import makeWASocket, { delay, DisconnectReason, jidNormalizedUser } from 'baileys';
 import { cristal } from 'gradient-string';
 import { Client } from '../Classes';
-import { store } from '../Library/center-store';
+import { store, centerStore } from '../Store';
 import { ConnectionContext } from '../Types/connection';
 import { ignoreLint, removeAuthCreds } from '../Utils';
 import { autoDisplayQRCode } from '../Utils/banner';
@@ -14,7 +14,7 @@ export class Connection {
   async initialize() {
     store.spinner.start(' Initializing connection...');
 
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
 
     const output: Partial<ConnectionContext> = {};
 
@@ -83,27 +83,41 @@ export class Connection {
 
       if (connection === 'close') {
         const code = ignoreLint(lastDisconnect?.error)?.output?.statusCode;
-        const error = lastDisconnect?.error?.message || '';
+        const error = lastDisconnect?.error?.message || 'Unknown Error';
 
-        const isReconnect = typeof code === 'number' && code !== DisconnectReason.loggedOut;
+        const displayCode = code ?? 'Internal';
 
-        store.spinner.error(` [${code} - Closed] ${error}`);
+        store.spinner.error(` [${displayCode} - Closed] ${error}`);
 
-        if (code === 401 || code === 405) {
-          store.spinner.warn(' Session may be used by another device/instance.');
-          store.spinner.warn(` If you want to connect here, close the other connection first.`);
-          store.spinner.warn(` Or use a different session name in your Client options.\n`);
+        if (code === DisconnectReason.loggedOut) {
+          if (this.client.options.deleteSessionOnLogout) {
+            store.spinner.warn(` Session logged out or invalidated. Self-healing...`);
+            await removeAuthCreds(this.client.options.session);
+            setTimeout(() => reload(), 3000);
+          } else {
+            store.spinner.warn(` Session logged out or invalidated. Automatic session deletion is disabled.`);
+          }
+          return;
+        }
+
+        if (code === 405) {
+          store.spinner.warn(' Session invalid/stale or used by another device (405).');
+          store.spinner.warn(` Automatic reconnecting...`);
+          setTimeout(() => reload(), 3000);
           return;
         }
 
         if (code === 500) {
           store.spinner.error(' Server error occurred, attempting reconnect...');
-          await reload();
+          setTimeout(() => reload(), 3000);
           return;
         }
 
+        const isReconnect = typeof code === 'number';
+
         if (isReconnect) {
-          await reload();
+          store.spinner.warn(` Connection marked for reconnect (${code}). Wait a moment...`);
+          setTimeout(() => reload(), 3000);
         }
       }
 

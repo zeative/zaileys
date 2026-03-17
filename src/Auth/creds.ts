@@ -1,21 +1,22 @@
-import makeWASocket from 'baileys';
+import makeWASocket, { fetchLatestBaileysVersion } from 'baileys';
 import { Client } from '../Classes';
 import { socketConfig } from '../Config/socket';
-import { store } from '../Library/center-store';
+import { centerStore } from '../Store';
 import { useAuthState } from './state';
 
 export const registerAuthCreds = async (client: Client) => {
-  const SESSION_PATH = `.session/${client.options.session}`;
+  const SESSION_ID = client.options.session || 'zaileys';
 
-  console.info = () => {};
-  console.warn = () => {};
-
-  const { state, saveCreds } = await useAuthState(SESSION_PATH);
+  const { state, saveCreds } = await useAuthState(SESSION_ID);
+  const { version } = await fetchLatestBaileysVersion();
 
   const config = socketConfig(client, state);
-  const socket = makeWASocket(config);
+  const socket = makeWASocket({
+    ...config,
+    version,
+  });
 
   socket.ev.on('creds.update', saveCreds);
 
-  store.set('socket', socket);
+  centerStore.set('socket', socket);
 };

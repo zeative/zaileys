@@ -1,22 +1,23 @@
-import { RateLimiterMemory } from 'rate-limiter-flexible';
 import { Client } from '../Classes';
+import { rateStore } from '../Store';
 
 export class RateLimiter {
-  private limiter: RateLimiterMemory;
+  private maxMessages: number;
 
   constructor(private client: Client) {
-    this.limiter = new RateLimiterMemory({
-      points: this.client.options.limiter?.maxMessages,
-      duration: this.client.options.limiter?.durationMs / 1000,
-    });
+    this.maxMessages = this.client.options.limiter?.maxMessages || 20;
+    // Note: TTL is now handled by the rateStore namespace configuration globally.
   }
 
-  async isSpam(key: string) {
-    try {
-      await this.limiter.consume(key);
-      return false;
-    } catch {
+  async isSpam(key: string): Promise<boolean> {
+    const current = rateStore.get<number>(key) || 0;
+
+    if (current >= this.maxMessages) {
       return true;
     }
+
+    rateStore.set(key, current + 1);
+    return false;
   }
 }
+

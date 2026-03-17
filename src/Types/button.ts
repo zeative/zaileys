@@ -1,64 +1,76 @@
-import z from 'zod';
+import * as v from 'valibot';
 
-export const ButtonInteractiveReplyType = z.object({
-  type: z.literal('quick_reply'),
-  text: z.string(),
+export const ButtonInteractiveReplyType = v.object({
+  type: v.literal('quick_reply'),
+  id: v.string(),
+  text: v.string(),
 });
 
-export const ButtonInteractiveUrlType = z.object({
-  type: z.literal('cta_url'),
-  url: z.url(),
-  text: z.string(),
+export const ButtonInteractiveUrlType = v.object({
+  type: v.literal('cta_url'),
+  url: v.pipe(v.string(), v.url()),
+  text: v.string(),
 });
 
-export const ButtonInteractiveCopyType = z.object({
-  type: z.literal('cta_copy'),
-  copy: z.string(),
-  text: z.string(),
+export const ButtonInteractiveCopyType = v.object({
+  type: v.literal('cta_copy'),
+  id: v.string(),
+  copy: v.string(),
+  text: v.string(),
 });
 
-export const ButtonInteractiveCallType = z.object({
-  type: z.literal('cta_call'),
-  text: z.string(),
-  phoneNumber: z.string(),
+export const ButtonInteractiveCallType = v.object({
+  type: v.literal('cta_call'),
+  text: v.string(),
+  phoneNumber: v.string(),
 });
 
-export const ButtonInteractiveSingleSelectType = z.object({
-  type: z.literal('single_select'),
-  text: z.string(),
-  section: z
-    .object({
-      title: z.string(),
-      highlight_label: z.string().optional(),
-      rows: z
-        .object({
-          id: z.string(),
-          title: z.string(),
-          header: z.string().optional(),
-          description: z.string().optional(),
-        })
-        .array(),
-    })
-    .array(),
+export const ButtonInteractiveSingleSelectType = v.object({
+  type: v.literal('single_select'),
+  text: v.string(),
+  section: v.array(v.object({
+    title: v.string(),
+    highlight_label: v.optional(v.string()),
+    rows: v.array(v.object({
+      id: v.string(),
+      title: v.string(),
+      header: v.optional(v.string()),
+      description: v.optional(v.string()),
+    })),
+  })),
 });
 
-export const ButtonInteractiveType = z.object({
-  type: z.literal('interactive'),
-  footer: z.string().optional(),
-  data: z
-    .union([ButtonInteractiveReplyType, ButtonInteractiveUrlType, ButtonInteractiveCopyType, ButtonInteractiveCallType, ButtonInteractiveSingleSelectType])
-    .array(),
+export const ButtonInteractiveType = v.object({
+  type: v.literal('interactive'),
+  footer: v.optional(v.string()),
+  data: v.array(v.union([ButtonInteractiveReplyType, ButtonInteractiveUrlType, ButtonInteractiveCopyType, ButtonInteractiveCallType, ButtonInteractiveSingleSelectType])),
 });
 
-export const ButtonSimpleType = z.object({
-  type: z.literal('simple'),
-  footer: z.string().optional(),
-  data: z
-    .object({
-      id: z.string(),
-      text: z.string(),
-    })
-    .array(),
+export const ButtonSimpleType = v.object({
+  type: v.literal('simple'),
+  footer: v.optional(v.string()),
+  data: v.array(v.object({
+      id: v.string(),
+      text: v.string(),
+  })),
 });
 
-export const ButtonType = z.union([ButtonSimpleType, ButtonInteractiveType]);
+export const ButtonCarouselCardType = v.object({
+  body: v.string(),
+  footer: v.optional(v.string()),
+  header: v.optional(v.object({
+    title: v.optional(v.string()),
+    subtitle: v.optional(v.string()),
+    hasMediaAttachment: v.optional(v.boolean()),
+    image: v.optional(v.string()),
+    video: v.optional(v.string()),
+  })),
+  nativeFlow: v.array(v.union([ButtonInteractiveReplyType, ButtonInteractiveUrlType, ButtonInteractiveCopyType, ButtonInteractiveCallType])),
+});
+
+export const ButtonCarouselType = v.object({
+  type: v.literal('carousel'),
+  data: v.array(ButtonCarouselCardType),
+});
+
+export const ButtonType = v.union([ButtonSimpleType, ButtonInteractiveType, ButtonCarouselType]);

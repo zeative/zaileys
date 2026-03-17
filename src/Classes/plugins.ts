@@ -4,15 +4,18 @@ import { pathToFileURL } from 'url';
 import { MiddlewareContextType } from '../Types/middleware';
 import { Client } from './client';
 
+const PLUGIN_TIMEOUT = 10_000;
+
 export type PluginsHandlerType = (wa: Client, ctx: MiddlewareContextType) => Promise<void> | void;
 export type PluginsConfigType = {
   matcher: (string | RegExp)[];
-  metadata?: Record<string, any>;
+  metadata?: Record<string, unknown>;
 };
 
 export type PluginDefinition = {
   handler: PluginsHandlerType;
   config: PluginsConfigType;
+  filePath: string;
   parent: string | null;
   enabled: boolean;
 };
@@ -24,10 +27,15 @@ export class Plugins {
   private disabledPlugins = new Set<string>();
   private hmr = false;
   private watcher: fs.FSWatcher | null = null;
+  private reloadTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(pluginsDir: string = 'plugins', hmr = false) {
     this.pluginsDir = path.isAbsolute(pluginsDir) ? pluginsDir : path.join(process.cwd(), pluginsDir);
     this.hmr = hmr;
+  }
+
+  private getPluginId(filePath: string): string {
+    return path.relative(this.pluginsDir, filePath);
   }
 
   async load(): Promise<void> {
@@ -37,10 +45,13 @@ export class Plugins {
 
     const files = entries
       .filter((entry) => entry.isFile() && /(?<!\.d)\.[jt]s$/.test(entry.name))
-      .map((entry) => ({
-        filePath: path.join(entry.parentPath, entry.name),
-        parent: path.relative(this.pluginsDir, entry.parentPath).split(path.sep)[0] || null,
-      }));
+      .map((entry) => {
+        const dir = (entry as any).parentPath ?? (entry as any).path ?? this.pluginsDir;
+        return {
+          filePath: path.join(dir, entry.name),
+          parent: path.relative(this.pluginsDir, dir).split(path.sep)[0] || null,
+        };
+      });
 
     const loadResults = await Promise.all(
       files.map(async ({ filePath, parent }): Promise<PluginDefinition | null> => {
@@ -56,9 +67,10 @@ export class Plugins {
           }
 
           if (plugin?.handler && plugin?.config) {
-            const pluginId = this.getPluginId(plugin.config.matcher);
+            const pluginId = this.getPluginId(filePath);
             return {
               ...plugin,
+              filePath,
               parent,
               enabled: !this.disabledPlugins.has(pluginId),
             };
@@ -81,18 +93,20 @@ export class Plugins {
         return;
       }
 
-      this.watcher = fs.watch(this.pluginsDir, { recursive: true }, async (event, filename) => {
-        if (filename && /\.[jt]s$/.test(filename)) {
+      this.watcher = fs.watch(this.pluginsDir, { recursive: true }, (event, filename) => {
+        if (!filename) return;
+        if (!/(?<!\.d)\.[jt]s$/.test(filename)) return;
+        if (filename.includes('node_modules')) return;
+
+        if (this.reloadTimer) clearTimeout(this.reloadTimer);
+        this.reloadTimer = setTimeout(async () => {
           await this.reload();
-        }
+          this.reloadTimer = null;
+        }, 300);
       });
     } catch (error) {
       console.error('[Plugins] Failed to setup HMR:', error);
     }
-  }
-
-  private getPluginId(matcher: (string | RegExp)[]): string {
-    return matcher.map((m) => m.toString()).join('|');
   }
 
   async execute(wa: Client, ctx: MiddlewareContextType): Promise<void> {
@@ -107,7 +121,12 @@ export class Plugins {
         const isMatch = this.match(messageText, plugin.config.matcher);
 
         if (isMatch) {
-          await plugin.handler(wa, ctx);
+          await Promise.race([
+            plugin.handler(wa, ctx),
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error(`Plugin timeout: ${this.getPluginId(plugin.filePath)}`)), PLUGIN_TIMEOUT),
+            ),
+          ]);
         }
       } catch (error) {
         console.error(`[Plugins] Error executing plugin:`, error);
@@ -134,28 +153,32 @@ export class Plugins {
     this.globalEnabled = false;
   }
 
-  enable(matcher: string | RegExp): boolean {
+  enable(matcher: string | RegExp): number {
     const matcherStr = matcher.toString();
-    const plugin = this.plugins.find((p) => p.config.matcher.some((m) => m.toString() === matcherStr));
+    let count = 0;
 
-    if (plugin) {
-      plugin.enabled = true;
-      this.disabledPlugins.delete(this.getPluginId(plugin.config.matcher));
-      return true;
+    for (const plugin of this.plugins) {
+      if (plugin.config.matcher.some((m) => m.toString() === matcherStr)) {
+        plugin.enabled = true;
+        this.disabledPlugins.delete(this.getPluginId(plugin.filePath));
+        count++;
+      }
     }
-    return false;
+    return count;
   }
 
-  disable(matcher: string | RegExp): boolean {
+  disable(matcher: string | RegExp): number {
     const matcherStr = matcher.toString();
-    const plugin = this.plugins.find((p) => p.config.matcher.some((m) => m.toString() === matcherStr));
+    let count = 0;
 
-    if (plugin) {
-      plugin.enabled = false;
-      this.disabledPlugins.add(this.getPluginId(plugin.config.matcher));
-      return true;
+    for (const plugin of this.plugins) {
+      if (plugin.config.matcher.some((m) => m.toString() === matcherStr)) {
+        plugin.enabled = false;
+        this.disabledPlugins.add(this.getPluginId(plugin.filePath));
+        count++;
+      }
     }
-    return false;
+    return count;
   }
 
   enableByParent(parent: string): number {
@@ -164,7 +187,7 @@ export class Plugins {
     this.plugins.forEach((p) => {
       if (p.parent === parent) {
         p.enabled = true;
-        this.disabledPlugins.delete(this.getPluginId(p.config.matcher));
+        this.disabledPlugins.delete(this.getPluginId(p.filePath));
         count++;
       }
     });
@@ -177,7 +200,7 @@ export class Plugins {
     this.plugins.forEach((p) => {
       if (p.parent === parent) {
         p.enabled = false;
-        this.disabledPlugins.add(this.getPluginId(p.config.matcher));
+        this.disabledPlugins.add(this.getPluginId(p.filePath));
         count++;
       }
     });
@@ -194,7 +217,7 @@ export class Plugins {
 
   getPluginsInfo(): {
     matcher: (string | RegExp)[];
-    metadata?: Record<string, any>;
+    metadata?: Record<string, unknown>;
     parent: string | null;
     enabled: boolean;
   }[] {
@@ -207,11 +230,21 @@ export class Plugins {
   }
 
   async reload(): Promise<void> {
-    await this.load();
-    console.log(`[Plugins] Successfully reloaded ${this.plugins.length} plugins.`);
+    const previous = this.plugins;
+    try {
+      await this.load();
+      console.log(`[Plugins] Reloaded ${this.plugins.length} plugins.`);
+    } catch (error) {
+      this.plugins = previous;
+      console.error('[Plugins] Reload failed, keeping previous plugins:', error);
+    }
   }
 
   stopHmr(): void {
+    if (this.reloadTimer) {
+      clearTimeout(this.reloadTimer);
+      this.reloadTimer = null;
+    }
     if (this.watcher) {
       this.watcher.close();
       this.watcher = null;
@@ -219,7 +252,7 @@ export class Plugins {
   }
 }
 
-export const definePlugins = (handler: PluginsHandlerType, config: PluginsConfigType): Omit<PluginDefinition, 'parent' | 'enabled'> => {
+export const definePlugins = (handler: PluginsHandlerType, config: PluginsConfigType): Omit<PluginDefinition, 'parent' | 'enabled' | 'filePath'> => {
   return {
     handler,
     config,

@@ -1,22 +1,21 @@
+import { initializeFFmpeg } from '@zaadevofc/media-process';
 import makeWASocket from 'baileys';
-import { JetDB } from 'jetdb';
-import z from 'zod';
+import { RootDatabase } from 'lmdb';
+import * as v from 'valibot';
 import { registerAuthCreds } from '../Auth';
-import { groupCache } from '../Config/cache';
 import { WaDatabase } from '../Config/database';
-import { store } from '../Library/center-store';
-import { ClassProxy } from '../Library/class-proxy';
+import { classInjection } from '../Library/class-proxy';
 import { CleanUpManager } from '../Library/cleanup-manager';
-import { contextInjection } from '../Library/context-injection';
-import { initializeFFmpeg } from '../Library/ffmpeg';
+import { fireForget } from '../Library/fire-forget';
 import { HealthManager } from '../Library/health-manager';
-import { parseZod } from '../Library/zod';
+import { parseValibot } from '../Library/valibot';
 import { Listener } from '../Listener';
 import { Signal } from '../Signal';
 import { SignalCommunity } from '../Signal/community';
 import { SignalGroup } from '../Signal/group';
 import { SignalNewsletter } from '../Signal/newsletter';
 import { SignalPrivacy } from '../Signal/privacy';
+import { store, contextStore, groupStore, centerStore } from '../Store';
 import { ClientOptionsType, EventCallbackType, EventEnumType } from '../Types';
 import { normalizeText } from '../Utils';
 import { autoDisplayBanner } from '../Utils/banner';
@@ -24,7 +23,7 @@ import { Logs } from './logs';
 import { Middleware, MiddlewareHandler } from './middleware';
 import { Plugins } from './plugins';
 
-export interface Client extends Signal, SignalGroup, SignalPrivacy, SignalNewsletter, SignalCommunity {}
+export interface Client extends Signal, SignalGroup, SignalPrivacy, SignalNewsletter, SignalCommunity { }
 
 export class Client {
   private _ready: Promise<void>;
@@ -36,10 +35,12 @@ export class Client {
   health: HealthManager;
   cleanup: CleanUpManager;
 
-  constructor(public options: z.infer<typeof ClientOptionsType>) {
-    this.options = parseZod(ClientOptionsType, options);
+  public options: v.InferOutput<typeof ClientOptionsType>;
 
-    const proxy = new ClassProxy().classInjection(this, [
+  constructor(options: v.InferInput<typeof ClientOptionsType>) {
+    this.options = parseValibot(ClientOptionsType, options);
+
+    const proxy = classInjection(this, [
       new Signal(this),
       new SignalGroup(this),
       new SignalPrivacy(this),
@@ -57,8 +58,31 @@ export class Client {
     await autoDisplayBanner();
     await initializeFFmpeg(this.options.disableFFmpeg);
 
+    this.plugins = new Plugins(this.options.pluginsDir, this.options.pluginsHmr);
+
+    const originalInfo = console.info;
+    console.info = (...args: any[]) => {
+      const isLibsignalSpam = args.some(arg =>
+        typeof arg === 'string' && (arg.includes('Closing session:') || arg.includes('Opening session:'))
+      );
+
+      if (isLibsignalSpam) {
+        if (this.options.showLogs) {
+          store.spinner.info('Encryption session rotated securely.');
+        }
+        return;
+      }
+      originalInfo(...args);
+    };
+
     this.health = new HealthManager(this);
     this.cleanup = new CleanUpManager(this);
+
+    if (!this.options.showSpinner) {
+      store.spinner = new Proxy(store.spinner, {
+        get: (target, prop) => (typeof target[prop as keyof typeof target] === 'function' ? () => target : target[prop as keyof typeof target]),
+      });
+    }
 
     if (this.options.autoCleanUp?.enabled) {
       this.cleanup.start();
@@ -74,17 +98,36 @@ export class Client {
     if (!this.logs) {
       this.logs = new Logs(this);
     }
+
+    const cleanup = async (code: any) => {
+      try {
+        if (this.socket) {
+          this.socket.end(new Error('Process Terminated'));
+        }
+        await fireForget.close(5000);
+      } catch {
+        // Safe exit
+      }
+      process.exit();
+    };
+
+    process.on('SIGINT', cleanup);
+    process.on('SIGTERM', cleanup);
+    process.on('uncaughtException', (err) => {
+      console.error("FATAL UNCAUGHT:", err);
+      cleanup('UNCAUGHT');
+    });
   }
 
   ready() {
     return this._ready;
   }
 
-  db(scope: string): JetDB {
+  db(scope: string): RootDatabase {
     return WaDatabase(this.options.session, scope);
   }
 
-  on<T extends z.infer<typeof EventEnumType>>(event: T, handler: EventCallbackType[T]): void {
+  on<T extends v.InferOutput<typeof EventEnumType>>(event: T, handler: EventCallbackType[T]): void {
     store.events.on(event, handler);
   }
 
@@ -94,17 +137,17 @@ export class Client {
   }
 
   get socket(): ReturnType<typeof makeWASocket> {
-    return store.get('socket');
+    return centerStore.get('socket');
   }
 
   async getRoomName(roomId: string) {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
     const isGroup = roomId.endsWith('@g.us');
 
     let roomName = null;
 
     if (isGroup) {
-      const cached = groupCache.get(roomId) as any;
+      const cached = groupStore.get(roomId) as any;
 
       if (cached) {
         roomName = cached.subject;
@@ -112,7 +155,7 @@ export class Client {
         const metadata = await socket.groupMetadata(roomId);
 
         if (metadata) {
-          groupCache.set(roomId, metadata);
+          groupStore.set(roomId, metadata);
           roomName = metadata.subject;
         }
       }
@@ -122,18 +165,18 @@ export class Client {
   }
 
   inject<T = any>(key: string, value: T): void {
-    contextInjection.inject(key, value);
+    contextStore.set(key, value);
   }
 
   getInjection<T = any>(key: string): T | undefined {
-    return contextInjection.getSync<T>(key);
+    return contextStore.get<T>(key);
   }
 
   removeInjection(key: string): void {
-    contextInjection.remove(key);
+    contextStore.delete(key);
   }
 
   clearInjections(): void {
-    contextInjection.clear();
+    contextStore.clear();
   }
 }

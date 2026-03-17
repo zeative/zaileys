@@ -1,16 +1,16 @@
-import z from 'zod';
+import * as v from 'valibot';
 
-export const ListenerConnectionType = z.object({
-  status: z.enum(['connecting', 'open', 'close', 'reload', 'syncing']),
+export const ListenerConnectionType = v.object({
+  status: v.picklist(['connecting', 'open', 'close', 'reload', 'syncing']),
 
-  authType: z.enum(['pairing', 'qr']),
-  authTimeout: z.number().optional(),
+  authType: v.picklist(['pairing', 'qr']),
+  authTimeout: v.optional(v.number()),
 
-  syncProgress: z.number().optional(),
-  syncCompleted: z.boolean().default(false).optional(),
+  syncProgress: v.optional(v.number()),
+  syncCompleted: v.optional(v.boolean(), false),
 
-  qr: z.string().optional(),
-  code: z.string().optional(),
+  qr: v.optional(v.string()),
+  code: v.optional(v.string()),
 });
 
-export type ConnectionContext = z.infer<typeof ListenerConnectionType>;
+export type ConnectionContext = v.InferOutput<typeof ListenerConnectionType>;

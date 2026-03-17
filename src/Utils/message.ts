@@ -1,5 +1,5 @@
-import { extractMessageContent, getContentType, proto } from 'baileys';
-import _ from 'lodash';
+import { extractMessageContent, getContentType, jidNormalizedUser, proto } from 'baileys';
+import * as _ from 'radashi';
 
 export const generateId = (input: string | string[]) => {
   let combinedString;
@@ -29,7 +29,7 @@ export const getUsersMentions = (text = '') => {
   for (const match of text.matchAll(/@(\d+)/g)) {
     ids.add(match[1]);
   }
-  return _.toArray(ids) as string[];
+  return Array.from(ids) as string[];
 };
 
 export const extractJids = (text = '') => {
@@ -38,12 +38,23 @@ export const extractJids = (text = '') => {
   for (const match of text.matchAll(/@(\d+)/g)) {
     if (match[1].length <= 15) ids.add(match[1]);
   }
-  return _.flatMap([...ids], (id) => [`${id}@s.whatsapp.net`, `${id}@g.us`, `${id}@lid`]);
+  return [...ids].flatMap((id) => [`${id}@s.whatsapp.net`, `${id}@g.us`, `${id}@lid`]);
+};
+
+export const resolveJids = (jids: (string | null | undefined)[]) => {
+  const normalized = jids.filter(Boolean).map((j) => jidNormalizedUser(j!));
+  const idMatch = normalized.find((j) => !j.includes('@lid'));
+  const lidMatch = normalized.find((j) => j.includes('@lid'));
+
+  return {
+    id: idMatch || lidMatch || null,
+    lid: lidMatch || null,
+  };
 };
 
 export const numbersToJids = (numbers: number[]) => {
-  if (_.isEmpty(numbers)) return [];
-  return _.map([...numbers], (id) => `${id}@s.whatsapp.net`);
+  if (!numbers?.length) return [];
+  return [...numbers].map((id) => `${id}@s.whatsapp.net`);
 };
 
 export const cleanMediaObject = (object: any) => {

@@ -2,7 +2,7 @@ import figlet from 'figlet';
 import { cristal } from 'gradient-string';
 import qrcode from 'qrcode-terminal';
 import pkg from '../../package.json' assert { type: 'json' };
-import { store } from '../Library/center-store';
+import { store, centerStore } from '../Store';
 import { logColor } from './helper';
 import { getLatestLibVersion } from './validate';
 
@@ -27,9 +27,10 @@ export const autoDisplayBanner = async () => {
   const logoLabel = 'Zaileys';
   const copyright = `\nby ${author} · v${version}`;
   const discordUrl = `— discord.gg/KBHhTTVUc5`
-  
-  const updateLabel = `${isLatest ? '— Already using latest version!' : `— Update available! (v${latestVersion})`} \n`;
-  const updateColor = isLatest ? 'lime' : 'orange';
+  const waGroupUrl = `— chat.whatsapp.com/GlQfvc83mSH3F6ov06vuCt`
+
+  const updateLabel = `${isLatest ? '✔ Already using latest version!' : `✔ Update available! (v${latestVersion})`} \n`;
+  const updateColor = isLatest ? 'blue' : 'orange';
 
   const logo = await figlet.text(logoLabel);
   const fancy = cristal(logo);
@@ -37,5 +38,6 @@ export const autoDisplayBanner = async () => {
   console.log(fancy);
   console.log(logColor(copyright, 'dimgray'));
   console.log(logColor(discordUrl, 'purple'));
+  console.log(logColor(waGroupUrl, 'green'));
   console.log(logColor(updateLabel, updateColor));
 };

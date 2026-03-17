@@ -1,26 +1,25 @@
 import makeWASocket, { downloadMediaMessage, getDevice, jidNormalizedUser, WAMessage } from 'baileys';
-import _ from 'lodash';
 import { Client } from '../Classes';
 import { MESSAGE_MEDIA_TYPES } from '../Config/media';
-import { store } from '../Library/center-store';
-import { contextInjection } from '../Library/context-injection';
-import { fireForget } from '../Library/fire-forget';
+import { fireForget, Priority } from '../Library/fire-forget';
 import { RateLimiter } from '../Library/rate-limiter';
+import { centerStore, contextStore, store } from '../Store';
 import { MessagesContext } from '../Types/messages';
-import { extractUrls, findGlobalWord, ignoreLint, normalizeText, toJson, toString } from '../Utils';
-import { cleanJid, cleanMediaObject, generateId, getDeepContent, getUsersMentions } from '../Utils/message';
+import { escapeRegExp, extractUrls, findGlobalWord, ignoreLint, normalizeText, toJson, toString } from '../Utils';
+import { cleanJid, cleanMediaObject, generateId, getDeepContent, getUsersMentions, resolveJids } from '../Utils/message';
 
 export class Messages {
   private limiter: RateLimiter;
-  private maxReplies = 3;
+  private maxReplies: number;
 
   constructor(private client: Client) {
     this.limiter = new RateLimiter(client);
+    this.maxReplies = this.client.options?.maxReplies ?? 3;
     this.initialize();
   }
 
   async initialize() {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
 
     if (!socket?.ev) {
       console.warn('⚠️ [Messages] Socket or socket.ev is not available during initialization');
@@ -36,19 +35,23 @@ export class Messages {
             const parsed = await this.parse(message);
 
             if (parsed) {
-              fireForget.add(async () => this.client.middleware.run({ messages: parsed }));
-              fireForget.add(async () => this.client.plugins.execute(this.client, { messages: parsed }));
+              fireForget.add(async () => {
+                await Promise.all([
+                  this.client.middleware.run({ messages: parsed }),
+                  this.client.plugins.execute(this.client, { messages: parsed }),
+                ]);
+              }, { priority: Priority.NORMAL, timeout: 5000 });
 
-              store.set('message', parsed);
+              centerStore.set('message', parsed);
               store.events.emit('messages', parsed);
 
               if (this.client.options.autoRead) {
-                fireForget.add(async () => socket.readMessages([parsed.message().key]));
+                fireForget.add(async () => socket.readMessages([parsed.message().key]), { priority: Priority.NORMAL, timeout: 5000 });
               }
             }
-          } catch {}
+          } catch { }
         }
-      } catch {}
+      } catch { }
     });
   }
 
@@ -62,7 +65,7 @@ export class Messages {
 
     const original = message;
 
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
     const output: Partial<MessagesContext> = {};
 
     let contentExtract = getDeepContent(message.message);
@@ -83,11 +86,14 @@ export class Messages {
 
     if (!output.chatType) return;
 
-    output.receiverLid = jidNormalizedUser(socket?.user?.lid || '');
-    output.receiverId = jidNormalizedUser(socket?.user?.id || '');
+    const receiver = resolveJids([socket?.user?.id, socket?.user?.lid]);
+    output.receiverId = receiver.id || receiver.lid || '';
+    output.receiverLid = receiver.lid || receiver.id || '';
     output.receiverName = normalizeText(socket?.user?.name || socket?.user?.verifiedName);
 
-    output.roomId = jidNormalizedUser(message?.key?.remoteJid);
+    const room = resolveJids([message?.key?.remoteJid]);
+    output.roomId = room.id;
+    output.roomLid = room.lid;
 
     const isRevoke = content?.type === 0;
     const isPin = content?.type === 1;
@@ -104,7 +110,8 @@ export class Messages {
     const universalId = content?.key?.id;
 
     if (isRevoke || isPin || isUnPin) {
-      const universal = await this.client.db('messages').query(output.roomId).where('key.id', '=', universalId).first();
+      if (!universalId) return;
+      const universal = await this.client.db('messages').get(universalId);
 
       if (!universal) return;
       message = universal;
@@ -116,8 +123,15 @@ export class Messages {
 
     output.roomName = await this.client.getRoomName(output.roomId);
 
-    output.senderLid = jidNormalizedUser(message?.key?.participant || message?.key?.remoteJid) || null;
-    output.senderId = jidNormalizedUser(message?.key?.participantAlt || message?.key?.remoteJidAlt) || null;
+    const sender = resolveJids([
+      message?.key?.participant,
+      message?.key?.remoteJid,
+      message?.key?.participantAlt,
+      message?.key?.remoteJidAlt
+    ]);
+
+    output.senderId = sender.id;
+    output.senderLid = sender.lid;
 
     output.senderName = normalizeText(message?.pushName || message?.verifiedBizName);
 
@@ -137,7 +151,7 @@ export class Messages {
     }
 
     if (isFromMe) {
-      output.senderLid = jidNormalizedUser(socket.user.lid);
+      output.senderLid = output.receiverLid;
       output.senderId = output.receiverId;
       output.senderName = output.receiverName;
     }
@@ -161,10 +175,11 @@ export class Messages {
     output.mentions = getUsersMentions(output.text);
     output.links = extractUrls(output.text || '');
 
-    output.isBot = output.chatId.startsWith('BAE5') || output.chatId.startsWith('3EB0') || output.chatId.startsWith('Z4D3FC');
+    output.isBot = output.chatId.startsWith('BAE5') || output.chatId.startsWith('3EB0');
     output.isFromMe = isFromMe;
 
-    const prefixes = _.castArray(this.client.options?.prefix);
+    const optPrefix = this.client.options?.prefix;
+    const prefixes = Array.isArray(optPrefix) ? optPrefix : [optPrefix];
 
     output.isPrefix = !!prefixes.find((prefix) => output.text?.startsWith(prefix));
 
@@ -174,14 +189,14 @@ export class Messages {
     output.isGroupStatusMention = !!message?.message?.groupStatusMentionMessage;
     output.isHideTags = false;
 
-    if (_.isEmpty(output.text) && content?.contextInfo?.mentionedJid?.length) {
+    if (!output.text?.trim() && content?.contextInfo?.mentionedJid?.length) {
       output.isHideTags = true;
     }
 
     output.isSpam = await this.limiter.isSpam(output.channelId);
 
     if (output.isPrefix) {
-      output.text = output.text.replace(new RegExp(`^${_.escapeRegExp(prefixes.find((prefix) => output.text?.startsWith(prefix)) || '')}`), '');
+      output.text = output.text.replace(new RegExp(`^${escapeRegExp(prefixes.find((prefix) => output.text?.startsWith(prefix)) || '')}`), '');
     }
 
     output.isGroup = output.roomId?.includes('@g.us');
@@ -191,14 +206,6 @@ export class Messages {
 
     if (!output.isGroup && !output.roomName) {
       output.roomName = output.senderName;
-    }
-
-    if (!output.isGroup) {
-      const id = output.senderId;
-      const lid = output.senderLid;
-
-      output.senderId = lid;
-      output.senderLid = id;
     }
 
     output.isViewOnce = false;
@@ -225,7 +232,7 @@ export class Messages {
           const result = await method();
 
           const compare = [cleanJid(output.roomId), cleanJid(output.senderLid), cleanJid(output.senderId)];
-          return Boolean(_.intersection(compare, result).length);
+          return Boolean(compare.some(val => result.includes(val)));
         };
       }
     }
@@ -258,17 +265,18 @@ export class Messages {
     if (isReplied && this.maxReplies) {
       this.maxReplies--;
 
-      const oldMessage = await this.client.db('messages').getByIndex('messages', 'key.id', repliedId);
+      if (!repliedId) return output; // should logically continue actually, but if it evaluates to true it has stanzaId
+      const oldMessage = await this.client.db('messages').get(repliedId);
 
       let replied;
 
       if (isViewOnce) {
         replied = {
-          ...oldMessage[0],
+          ...oldMessage,
           message: isReplied,
         };
       } else {
-        replied = oldMessage[0];
+        replied = oldMessage;
       }
 
       output.replied = (await this.parse(replied, 'replied')) as never;
@@ -277,14 +285,14 @@ export class Messages {
         output.replied.isViewOnce = true;
       }
 
-      this.maxReplies = 3;
+      this.maxReplies = this.client.options?.maxReplies ?? 3;
     }
 
     if (type != 'replied') {
       this.client.logs.message(output);
     }
 
-    output.injection = contextInjection.getAll();
+    output.injection = contextStore.getAll();
 
     return output;
   }

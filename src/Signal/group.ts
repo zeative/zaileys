@@ -1,24 +1,24 @@
 import makeWASocket, { ParticipantAction } from 'baileys';
 import { Client } from '../Classes';
-import { groupCache } from '../Config/cache';
-import { store } from '../Library/center-store';
-import { mediaModifier } from '../Library/media-modifier';
+import { groupStore } from '../Store';
+import { centerStore } from '../Store';
+import { Media } from '@zaadevofc/media-process';
 
 export class Group {
-  constructor(protected client: Client) {}
+  constructor(protected client: Client) { }
 
   async create(name: string, participants: string[]) {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
     return await socket.groupCreate(name, participants);
   }
 
   async participant(roomId: string, participants: string[], action: ParticipantAction) {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
     return await socket.groupParticipantsUpdate(roomId, participants, action);
   }
 
   async profile(roomId: string, update: string | Buffer, type: 'subject' | 'description' | 'picture') {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
     const isBuffer = Buffer.isBuffer(update);
 
     switch (type) {
@@ -27,12 +27,12 @@ export class Group {
       case 'description':
         if (!isBuffer) return await socket.groupUpdateDescription(roomId, update);
       case 'picture':
-        return await socket.updateProfilePicture(roomId, await mediaModifier.toBuffer(update));
+        return await socket.updateProfilePicture(roomId, await new Media(update).toBuffer());
     }
   }
 
   async setting(roomId: string, type: 'open' | 'close' | 'locked' | 'unlocked' | 'all_member_add' | 'admin_add') {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
 
     switch (type) {
       case 'open':
@@ -51,12 +51,12 @@ export class Group {
   }
 
   async leave(roomId: string) {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
     return await socket.groupLeave(roomId);
   }
 
   async inviteCode(roomId: string, type: 'code' | 'revoke' | 'accept' | 'info') {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
 
     switch (type) {
       case 'code':
@@ -71,21 +71,21 @@ export class Group {
   }
 
   async metadata(roomId: string) {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
 
-    const cached = groupCache.get(roomId) as any;
+    const cached = groupStore.get(roomId) as any;
     if (cached) return cached;
 
     const metadata = await socket.groupMetadata(roomId);
     if (metadata) {
-      groupCache.set(roomId, metadata);
+      groupStore.set(roomId, metadata);
     }
 
     return metadata;
   }
 
   async requestJoin(roomId: string, participants: string[], type: 'approve' | 'reject') {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
 
     switch (type) {
       case 'approve':
@@ -96,17 +96,17 @@ export class Group {
   }
 
   async requestJoinList(roomId: string) {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
     return await socket.groupRequestParticipantsList(roomId);
   }
 
   async fetchAllGroups() {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
     return await socket.groupFetchAllParticipating();
   }
 
   async ephemeral(roomId: string, type: 'off' | '24h' | '7d' | '90d') {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
 
     const options = {
       off: 0,

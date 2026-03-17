@@ -1,7 +1,7 @@
 import makeWASocket, { AuthenticationState, Browsers, makeCacheableSignalKeyStore, proto } from 'baileys';
 import { Client } from '../Classes';
-import { store } from '../Library/center-store';
-import { groupCache, mediaCache, msgRetryCache } from './cache';
+import { LRUCacheAdapter } from '../Library/lru-adapter';
+import { store, groupStore, cacheStore, msgStore } from '../Store';
 
 export const socketConfig = (client: Client, state: AuthenticationState): Parameters<typeof makeWASocket>[0] => {
   return {
@@ -11,20 +11,20 @@ export const socketConfig = (client: Client, state: AuthenticationState): Parame
     emitOwnEvents: true,
     keepAliveIntervalMs: 30000,
 
-    browser: Browsers.ubuntu('Chrome'),
+    browser: Browsers.macOS('Desktop'),
 
     markOnlineOnConnect: client.options.autoOnline,
     syncFullHistory: client.options.syncFullHistory,
 
-    msgRetryCounterCache: msgRetryCache,
-    mediaCache: mediaCache,
+    msgRetryCounterCache: new LRUCacheAdapter(msgStore),
+    mediaCache: new LRUCacheAdapter(cacheStore),
 
     auth: {
       creds: state.creds,
       keys: makeCacheableSignalKeyStore(state.keys, store.logger),
     },
 
-    cachedGroupMetadata: async (jid: string) => groupCache.get(jid),
+    cachedGroupMetadata: async (jid: string) => groupStore.get(jid),
 
     shouldIgnoreJid: () => false,
 
@@ -33,10 +33,10 @@ export const socketConfig = (client: Client, state: AuthenticationState): Parame
     patchMessageBeforeSending: (msg) => msg,
 
     getMessage: async (key) => {
-      if (!key?.remoteJid) return proto.Message.fromObject({});
+      if (!key?.remoteJid || !key?.id) return proto.Message.fromObject({});
 
-      const message = await client.db('messages').getByIndex('messages', 'key.id', key.id);
-      return proto.Message.fromObject(message[0]);
+      const message = await client.db('messages').get(key.id);
+      return proto.Message.fromObject(message || {});
     },
   };
 };

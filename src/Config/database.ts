@@ -1,35 +1,34 @@
 import { BufferJSON } from 'baileys';
-import { createJetDB } from 'jetdb';
+import { open, RootDatabase } from 'lmdb';
+
+const encoder = {
+  encode: (obj: any) => JSON.stringify(obj, BufferJSON.replacer),
+  decode: (str: string) => JSON.parse(str, BufferJSON.reviver),
+};
+
+const _dbCache = new Map<string, RootDatabase>();
+
+const getOrOpenDB = (path: string, options: any): RootDatabase => {
+  if (!_dbCache.has(path)) {
+    _dbCache.set(path, open({ path, ...options }));
+  }
+  return _dbCache.get(path)!;
+};
 
 export const CredsDatabase = (session: string) =>
-  createJetDB(`${session}/auth/creds.json`, {
-    BufferJSON,
-    cacheSize: 100,
-    flushMode: 'sync',
-    compression: 'none',
-    enableIndexing: false,
+  getOrOpenDB(`.session/${session}/auth/creds`, {
+    compression: false,
+    encoder,
   });
 
 export const KeysDatabase = (session: string) =>
-  createJetDB(`${session}/auth/keys.json`, {
-    BufferJSON,
-    size: 1024 * 1024,
-    cacheSize: 2000,
-    flushMode: 'sync',
-    compression: 'none',
-    enableIndexing: false,
-    hotThreshold: 5,
+  getOrOpenDB(`.session/${session}/auth/keys`, {
+    compression: false,
+    encoder,
   });
 
 export const WaDatabase = (session: string, scope: string) =>
-  createJetDB(`.session/${session}/store/${scope}.json`, {
-    BufferJSON,
-    cacheSize: 20000,
-    debounceMs: 1000,
-    flushMode: 'debounce',
-    compression: 'deflate',
-    serialization: 'json',
-    enableIndexing: true,
-    hotThreshold: 2,
-    size: 5 * 1024 * 1024,
+  getOrOpenDB(`.session/${session}/store/${scope}`, {
+    compression: true,
+    encoder,
   });

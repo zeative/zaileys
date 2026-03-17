@@ -1,7 +1,7 @@
 import { AuthenticationCreds, AuthenticationState, initAuthCreds, proto, SignalDataTypeMap } from 'baileys';
 import * as _ from 'radashi';
 import { CredsDatabase, KeysDatabase } from '../Config/database';
-import { store } from '../Library/center-store';
+import { store, centerStore } from '../Store';
 
 export const useAuthState = async (folder: string): Promise<{ state: AuthenticationState; saveCreds: () => Promise<void> }> => {
   store.spinner.start(' Initializing auth state...');

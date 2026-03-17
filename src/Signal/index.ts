@@ -2,7 +2,7 @@ import makeWASocket, { AnyMessageContent, MiscMessageGenerationOptions, WAMessag
 
 import * as v from 'valibot';
 import { MESSAGES_VERIFIED_TYPE } from '../Config/media';
-import { store } from '../Library/center-store';
+import { store, centerStore } from '../Store';
 import { Media } from '@zaadevofc/media-process';
 import { parseValibot } from '../Library/valibot';
 import { ButtonOptionsType, SignalOptionsType, SignalType } from '../Types/Signal/signal';
@@ -22,7 +22,7 @@ export class Signal {
       }
     }
 
-    let socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    let socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
 
     let output: Partial<AnyMessageContent> = {};
     let misc: Partial<MiscMessageGenerationOptions> = {};
@@ -280,7 +280,7 @@ export class Signal {
   }
 
   async presence(roomId: string, type: 'typing' | 'recording' | 'online' | 'offline' | 'paused') {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
 
     const options = {
       typing: 'composing',
@@ -294,12 +294,12 @@ export class Signal {
   }
 
   async reaction(message: WAMessage, reaction: string) {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
     return await socket.sendMessage(message.key.remoteJid, { react: { text: reaction, key: message?.key } });
   }
 
   async memberLabel(roomId: string, label: string) {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
 
     return await socket.relayMessage(
       roomId,

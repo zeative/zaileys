@@ -1,7 +1,7 @@
 import makeWASocket from 'baileys';
 import { Client } from '../Classes';
-import { groupCache } from '../Config/cache';
-import { store } from '../Library/center-store';
+import { groupStore } from '../Store';
+import { store, centerStore } from '../Store';
 import { fireForget, Priority } from '../Library/fire-forget';
 import { Calls } from './calls';
 import { Connection } from './connection';
@@ -21,19 +21,19 @@ export class Listener {
   }
 
   async initialize() {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
 
     socket.ev.on('groups.update', async ([event]) => {
       fireForget.add(async () => {
         const metadata = await socket.groupMetadata(event.id);
-        groupCache.set(event.id, metadata);
+        groupStore.set(event.id, metadata);
       }, { priority: Priority.LOW, timeout: 10000 });
     });
 
     socket.ev.on('group-participants.update', async (event) => {
       fireForget.add(async () => {
         const metadata = await socket.groupMetadata(event.id);
-        groupCache.set(event.id, metadata);
+        groupStore.set(event.id, metadata);
       }, { priority: Priority.LOW, timeout: 10000 });
     });
 

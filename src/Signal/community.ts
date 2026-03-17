@@ -1,33 +1,33 @@
 import makeWASocket from 'baileys';
 import { Client } from '../Classes';
-import { store } from '../Library/center-store';
+import { store, centerStore } from '../Store';
 import { ignoreLint } from '../Utils';
 
 export class Community {
   constructor(protected client: Client) {}
 
   async create(subject: string, description: string) {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
     return await socket.communityCreate(subject, description);
   }
 
   async createGroup(subject: string, participants: string[], parentId: string) {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
     return await socket.communityCreateGroup(subject, participants, parentId);
   }
 
   async leave(id: string) {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
     return await socket.communityLeave(id);
   }
 
   async metadata(id: string) {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
     return await socket.communityMetadata(id);
   }
 
   async update(id: string, type: 'subject' | 'description', value: string) {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
 
     switch (type) {
       case 'subject':
@@ -38,7 +38,7 @@ export class Community {
   }
 
   async group(id: string, type: 'link' | 'unlink' | 'linked', groupJid?: string) {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
 
     switch (type) {
       case 'link':
@@ -58,7 +58,7 @@ export class Community {
     action?: 'add' | 'remove' | 'promote' | 'demote' | 'approve' | 'reject',
     participants?: string[],
   ) {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
 
     switch (type) {
       case 'list':
@@ -74,7 +74,7 @@ export class Community {
   }
 
   async invite(target: string | any, type: 'code' | 'revoke' | 'accept' | 'info' | 'revokeV4' | 'acceptV4', ...args: any[]) {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
 
     switch (type) {
       case 'code':
@@ -93,7 +93,7 @@ export class Community {
   }
 
   async settings(id: string, type: 'ephemeral' | 'update' | 'memberAdd' | 'approval', value?: any) {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
 
     switch (type) {
       case 'ephemeral':

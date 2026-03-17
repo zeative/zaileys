@@ -1,6 +1,6 @@
 import { Client } from '../Classes/client';
 import * as _ from 'radashi';
-import { store } from './center-store';
+import { store } from '../Store';
 
 export class CleanUpManager {
   private interval: NodeJS.Timeout | null = null;

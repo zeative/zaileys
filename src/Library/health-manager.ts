@@ -1,7 +1,7 @@
 import pino from 'pino';
 import { Client } from '../Classes/client';
 import { KeysDatabase } from '../Config/database';
-import { store } from './center-store';
+import { store } from '../Store';
 
 export class HealthManager {
   private keysDb: ReturnType<typeof KeysDatabase>;

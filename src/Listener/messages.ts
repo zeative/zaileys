@@ -2,8 +2,7 @@ import makeWASocket, { downloadMediaMessage, getDevice, jidNormalizedUser, WAMes
 import * as _ from 'radashi';
 import { Client } from '../Classes';
 import { MESSAGE_MEDIA_TYPES } from '../Config/media';
-import { store } from '../Library/center-store';
-import { contextInjection } from '../Library/context-injection';
+import { store, contextStore, centerStore } from '../Store';
 import { fireForget, Priority } from '../Library/fire-forget';
 import { RateLimiter } from '../Library/rate-limiter';
 import { MessagesContext } from '../Types/messages';
@@ -21,7 +20,7 @@ export class Messages {
   }
 
   async initialize() {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
 
     if (!socket?.ev) {
       console.warn('⚠️ [Messages] Socket or socket.ev is not available during initialization');
@@ -44,7 +43,7 @@ export class Messages {
                 ]);
               }, { priority: Priority.NORMAL, timeout: 5000 });
 
-              store.set('message', parsed);
+              centerStore.set('message', parsed);
               store.events.emit('messages', parsed);
 
               if (this.client.options.autoRead) {
@@ -67,7 +66,7 @@ export class Messages {
 
     const original = message;
 
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
     const output: Partial<MessagesContext> = {};
 
     let contentExtract = getDeepContent(message.message);
@@ -292,7 +291,7 @@ export class Messages {
       this.client.logs.message(output);
     }
 
-    output.injection = contextInjection.getAll();
+    output.injection = contextStore.getAll();
 
     return output;
   }

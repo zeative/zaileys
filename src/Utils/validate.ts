@@ -1,6 +1,6 @@
 
 import fs from 'node:fs/promises';
-import { store } from '../Library/center-store';
+import { store, centerStore } from '../Store';
 
 export const ignoreLint = (data: any) => data;
 

@@ -3,12 +3,9 @@ import makeWASocket from 'baileys';
 import { RootDatabase } from 'lmdb';
 import * as v from 'valibot';
 import { registerAuthCreds } from '../Auth';
-import { groupCache } from '../Config/cache';
 import { WaDatabase } from '../Config/database';
-import { store } from '../Library/center-store';
 import { classInjection } from '../Library/class-proxy';
 import { CleanUpManager } from '../Library/cleanup-manager';
-import { contextInjection } from '../Library/context-injection';
 import { fireForget } from '../Library/fire-forget';
 import { HealthManager } from '../Library/health-manager';
 import { parseValibot } from '../Library/valibot';
@@ -18,6 +15,7 @@ import { SignalCommunity } from '../Signal/community';
 import { SignalGroup } from '../Signal/group';
 import { SignalNewsletter } from '../Signal/newsletter';
 import { SignalPrivacy } from '../Signal/privacy';
+import { store, contextStore, groupStore, centerStore } from '../Store';
 import { ClientOptionsType, EventCallbackType, EventEnumType } from '../Types';
 import { normalizeText } from '../Utils';
 import { autoDisplayBanner } from '../Utils/banner';
@@ -139,17 +137,17 @@ export class Client {
   }
 
   get socket(): ReturnType<typeof makeWASocket> {
-    return store.get('socket');
+    return centerStore.get('socket');
   }
 
   async getRoomName(roomId: string) {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
     const isGroup = roomId.endsWith('@g.us');
 
     let roomName = null;
 
     if (isGroup) {
-      const cached = groupCache.get(roomId) as any;
+      const cached = groupStore.get(roomId) as any;
 
       if (cached) {
         roomName = cached.subject;
@@ -157,7 +155,7 @@ export class Client {
         const metadata = await socket.groupMetadata(roomId);
 
         if (metadata) {
-          groupCache.set(roomId, metadata);
+          groupStore.set(roomId, metadata);
           roomName = metadata.subject;
         }
       }
@@ -167,18 +165,18 @@ export class Client {
   }
 
   inject<T = any>(key: string, value: T): void {
-    contextInjection.inject(key, value);
+    contextStore.set(key, value);
   }
 
   getInjection<T = any>(key: string): T | undefined {
-    return contextInjection.getSync<T>(key);
+    return contextStore.get<T>(key);
   }
 
   removeInjection(key: string): void {
-    contextInjection.remove(key);
+    contextStore.delete(key);
   }
 
   clearInjections(): void {
-    contextInjection.clear();
+    contextStore.clear();
   }
 }

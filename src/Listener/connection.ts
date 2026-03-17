@@ -1,7 +1,7 @@
 import makeWASocket, { delay, DisconnectReason, jidNormalizedUser } from 'baileys';
 import { cristal } from 'gradient-string';
 import { Client } from '../Classes';
-import { store } from '../Library/center-store';
+import { store, centerStore } from '../Store';
 import { ConnectionContext } from '../Types/connection';
 import { ignoreLint, removeAuthCreds } from '../Utils';
 import { autoDisplayQRCode } from '../Utils/banner';
@@ -14,7 +14,7 @@ export class Connection {
   async initialize() {
     store.spinner.start(' Initializing connection...');
 
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
 
     const output: Partial<ConnectionContext> = {};
 

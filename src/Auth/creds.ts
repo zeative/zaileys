@@ -1,7 +1,7 @@
 import makeWASocket, { fetchLatestBaileysVersion } from 'baileys';
 import { Client } from '../Classes';
 import { socketConfig } from '../Config/socket';
-import { store } from '../Library/center-store';
+import { store, centerStore } from '../Store';
 import { useAuthState } from './state';
 
 export const registerAuthCreds = async (client: Client) => {
@@ -18,5 +18,5 @@ export const registerAuthCreds = async (client: Client) => {
 
   socket.ev.on('creds.update', saveCreds);
 
-  store.set('socket', socket);
+  centerStore.set('socket', socket);
 };

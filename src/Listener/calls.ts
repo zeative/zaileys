@@ -1,6 +1,6 @@
 import makeWASocket, { jidNormalizedUser, WACallEvent } from 'baileys';
 import { Client } from '../Classes';
-import { store } from '../Library/center-store';
+import { store, centerStore } from '../Store';
 import { fireForget, Priority } from '../Library/fire-forget';
 import { CallsContext } from '../Types/calls';
 import { normalizeText } from '../Utils';
@@ -11,7 +11,7 @@ export class Calls {
   }
 
   async initialize() {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
 
     socket.ev.on('call', async (calls) => {
       for (const call of calls) {
@@ -36,7 +36,7 @@ export class Calls {
   }
 
   async parse(caller: WACallEvent) {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket>;
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
 
     const output: Partial<CallsContext> = {};
 

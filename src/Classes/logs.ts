@@ -1,4 +1,4 @@
-import { store } from '../Library/center-store';
+import { store, centerStore } from '../Store';
 import { CallsContext } from '../Types/calls';
 import { MessagesContext } from '../Types/messages';
 import { cleanJid, ignoreLint, logColor } from '../Utils';

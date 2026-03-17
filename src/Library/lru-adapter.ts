@@ -1,11 +1,11 @@
-import { LRUCache } from 'lru-cache';
 import { CacheStore } from 'baileys';
+import { NamespacedStore } from '../Store/unified-store';
 
 export class LRUCacheAdapter implements CacheStore {
-  constructor(private cache: LRUCache<string, any>) {}
+  constructor(private cache: NamespacedStore) {}
 
   get<T>(key: string): T | undefined {
-    return this.cache.get(key) as T | undefined;
+    return this.cache.get<T>(key);
   }
 
   set<T>(key: string, value: T): void {

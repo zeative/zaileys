@@ -1,6 +1,6 @@
 import makeWASocket, { generateMessageIDV2, generateWAMessageFromContent, isJidGroup, MessageGenerationOptionsFromContent, proto } from 'baileys';
 import * as v from 'valibot';
-import { store } from '../Library/center-store';
+import { store, centerStore } from '../Store';
 import { SignalOptionsType } from '../Types/Signal/signal';
 import { ignoreLint } from '../Utils';
 
@@ -42,7 +42,7 @@ export class InteractiveButtons {
   }
 
   async send(roomId: string, payload: v.InferInput<typeof SignalOptionsType>, options: Partial<MessageGenerationOptionsFromContent>) {
-    const socket = store.get('socket') as ReturnType<typeof makeWASocket> & { config: any };
+    const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket> & { config: any };
 
     const userJid = socket?.authState?.creds?.me?.id || socket?.user?.id;
     const content = this.build(payload);

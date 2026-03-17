@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+
 export interface FireAndForgetOptions {
   concurrency?: number;
   timeout?: number;
@@ -5,7 +7,6 @@ export interface FireAndForgetOptions {
 }
 
 export interface TaskOptions {
-  [x: string]: number;
   priority?: number;
   timeout?: number;
   maxRetries?: number;
@@ -45,6 +46,7 @@ export class FireAndForget {
   failed: number;
   isClosing: boolean;
   closeResolve: ((value: void | PromiseLike<void>) => void) | null;
+  private _idleResolvers: Array<() => void> = [];
 
   constructor(options?: FireAndForgetOptions) {
     this.concurrency = options?.concurrency || 20;
@@ -69,7 +71,7 @@ export class FireAndForget {
       fn,
       priority: options?.priority || 0,
       timeout: options?.timeout || this.timeout,
-      retries: options?.retries || 0,
+      retries: 0,
       maxRetries: options?.maxRetries || 0,
       createdAt: Date.now(),
     };
@@ -82,7 +84,7 @@ export class FireAndForget {
       this.queue.splice(idx, 0, task);
     }
 
-    this._process();
+    void this._process();
     return task.id;
   }
 
@@ -101,6 +103,11 @@ export class FireAndForget {
     if (this.isClosing && this.running.size === 0 && this.queue.length === 0) {
       this.closeResolve?.();
     }
+
+    if (this.isIdle()) {
+      this._idleResolvers.forEach((r) => r());
+      this._idleResolvers = [];
+    }
   }
 
   async _executeTask(task: Task) {
@@ -111,19 +118,29 @@ export class FireAndForget {
       // Retry logic
       if (task.retries < task.maxRetries) {
         task.retries++;
-        this.queue.unshift(task); // Add to front
+        const delay = Math.min(500 * (2 ** task.retries), 30000);
+        setTimeout(() => {
+          if (!this.isClosing) {
+            this.queue.unshift(task);
+            void this._process();
+          }
+        }, delay);
       } else {
         this.failed++;
-        this.onError(err, task);
+        this.onError(err as Error, task);
       }
     } finally {
       this.running.delete(task);
-      this._process();
+      void this._process();
     }
   }
 
-  _withTimeout(promise: Promise<any>, ms: number) {
-    return Promise.race([promise, new Promise((_, reject) => setTimeout(() => reject(new Error('Task timeout')), ms))]);
+  _withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+    let timer: ReturnType<typeof setTimeout>;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = setTimeout(() => reject(new Error('Task timeout')), ms);
+    });
+    return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
   }
 
   async close(maxWait = 0) {
@@ -167,19 +184,18 @@ export class FireAndForget {
     return this.queue.length === 0 && this.running.size === 0;
   }
 
-  async waitUntilIdle(checkInterval = 100) {
-    while (!this.isIdle()) {
-      await new Promise((resolve) => setTimeout(resolve, checkInterval));
-    }
+  async waitUntilIdle(): Promise<void> {
+    if (this.isIdle()) return;
+    return new Promise<void>((resolve) => {
+      this._idleResolvers.push(resolve);
+    });
   }
 
-  _defaultErrorHandler(err: Error, task: Task) {}
+  _defaultErrorHandler(err: Error, task: Task) { }
 
   _generateId() {
-    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    return crypto.randomUUID();
   }
 }
 
 export const fireForget = new FireAndForget();
-
-process.on('SIGTERM', () => fireForget.close());

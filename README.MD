@@ -65,10 +65,12 @@
 Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essential features like rate limiting, session management, and input validation out of the box.
 
 ### 🌟 What's New in v3 (Performance & Stability Core)
-- **Dependency Slim-Down**: Dropped `zod`, `lodash`, `jimp`, `unorm`, and `node-cache` in favor of incredibly lightweight & modern choices like `valibot`, `radashi`, `sharp`, native V8 algorithms, and `lru-cache`.
-- **Decoupled Media Engine**: FFmpeg components have been ripped out into a standalone and extremely robust workspace package (`@zaadevofc/media-process`).
-- **FireAndForget v3**: The background task orchestrator is now event-based, backed with Priority channels (`CRITICAL`, `HIGH`, `BACKGROUND`), Promise unification strategies, exponential backoff retries, and Graceful Shutdowns.
-- **Lightning Database**: Replaced `jetdb` with raw `lmdb` for extreme performance and auto-chunking.
+
+- **Unified Store Architecture**: Replaced scattered instances of `LRUCache` with a central **Registry Pattern**. All caching (`context`, `media`, `rate-limits`, `groups`, `messages`) and global states are now securely isolated under strict namespaces, eliminating memory leaks and cache collisions.
+- **FireAndForget v3 Engine**: The background job orchestrator is now fully event-based. Introduces strict Priority channels (`CRITICAL`, `HIGH`, `NORMAL`, `LOW`), unified promise execution to prevent queue clogging, auto-backoff retries, and safe graceful shutdowns.
+- **Auto-Healing Connections**: Connection drops (including undocumented `405` stale sessions) are intelligently caught and auto-reconnected instead of killing the process, ensuring maximum bot uptime.
+- **Decoupled Media Processing**: FFmpeg and image manipulation logic have been isolated into a standalone robust package (`@zaadevofc/media-process`), ensuring the core platform remains exceptionally lightweight.
+- **Lightning Database & Slim Dependencies**: Swapped `jetdb` for raw `lmdb` enabling blazing-fast auto-chunking. Ditched heavy dependencies (`zod`, `lodash`, `jimp`) for modern, lightweight alternatives (`valibot`, `radashi`, `sharp`).
 
 ## 🪶 Features
 

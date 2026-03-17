@@ -50,7 +50,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@zeative/media-process": "workspace:*",
+    "@zeative/media-process": "link:../media-process",
     "async-mutex": "^0.5.0",
     "audio-decode": "^2.2.3",
     "baileys": "^7.0.0-rc.9",

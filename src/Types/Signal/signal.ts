@@ -1,7 +1,7 @@
 import { proto, WAMessage } from 'baileys';
 import * as v from 'valibot';
 import { ButtonType } from '../button';
-import { StickerShapeType } from '../client';
+import { ClientStickerShapeType } from '../client';
 
 const MediaType = v.union([
   v.pipe(v.string(), v.url()), 
@@ -26,7 +26,7 @@ const MessageVideoType = v.looseObject({
 
 const MessageStickerType = v.looseObject({
   sticker: MediaType,
-  shape: v.optional(StickerShapeType),
+  shape: v.optional(ClientStickerShapeType),
   caption: v.optional(v.string()),
 });
 

@@ -14,13 +14,13 @@ export const FakeReplyType = v.optional(v.object({
   provider: v.union([v.picklist(['whatsapp', 'meta', 'chatgpt', 'copilot', 'instagram', 'tiktok']), v.number()]),
 }));
 
-export const StickerShapeType = v.optional(v.picklist(['default', 'rounded', 'circle', 'oval']), 'default');
+export const ClientStickerShapeType = v.optional(v.picklist(['default', 'rounded', 'circle', 'oval']), 'default');
 
 export const ClientStickerOptionsType = v.optional(v.object({
   packageName: v.optional(v.string()),
   authorName: v.optional(v.string()),
   quality: v.optional(v.number()),
-  shape: v.optional(StickerShapeType),
+  shape: v.optional(ClientStickerShapeType),
 }));
 
 export const autoCleanUp = v.optional(v.object({

@@ -66,11 +66,11 @@ Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essentia
 
 ### 🌟 What's New in v3 (Performance & Stability Core)
 
-- **Unified Store Architecture**: Replaced scattered instances of `LRUCache` with a central **Registry Pattern**. All caching (`context`, `media`, `rate-limits`, `groups`, `messages`) and global states are now securely isolated under strict namespaces, eliminating memory leaks and cache collisions.
-- **FireAndForget v3 Engine**: The background job orchestrator is now fully event-based. Introduces strict Priority channels (`CRITICAL`, `HIGH`, `NORMAL`, `LOW`), unified promise execution to prevent queue clogging, auto-backoff retries, and safe graceful shutdowns.
-- **Auto-Healing Connections**: Connection drops (including undocumented `405` stale sessions) are intelligently caught and auto-reconnected instead of killing the process, ensuring maximum bot uptime.
-- **Decoupled Media Processing**: FFmpeg and image manipulation logic have been isolated into a standalone robust package (`@zaadevofc/media-process`), ensuring the core platform remains exceptionally lightweight.
-- **Lightning Database & Slim Dependencies**: Swapped `jetdb` for raw `lmdb` enabling blazing-fast auto-chunking. Ditched heavy dependencies (`zod`, `lodash`, `jimp`) for modern, lightweight alternatives (`valibot`, `radashi`, `sharp`).
+- 🚀 **Unified Store Architecture**: Say goodbye to messy caches! We've elegantly grouped all scattered memory into a single, highly-optimized **Registry Pattern**. Enjoy zero memory leaks and strict namespaces for absolute peace of mind.
+- ⚡ **FireAndForget v3 Engine**: Background tasks just got superpowers! Now fully event-based with smart priority channels (`CRITICAL` to `LOW`). It automatically prevents queue clogs, handles smart retries, and shuts down gracefully.
+- 🛡️ **Auto-Healing Connections**: Maximum uptime, zero headaches! Zaileys now brilliantly catches nasty connection drops (like those sneaky `405` stale sessions) and seamlessly auto-reconnects behind the scenes instead of crashing.
+- 🎬 **Decoupled Media Processing**: We've trimmed the fat! All FFmpeg and image magic are now safely housed in an ultra-robust standalone package (`@zaadevofc/media-process`), making the core platform incredibly lightweight.
+- 🏎️ **Lightning Database & Slim Dependencies**: Speed is everything. We crushed bloat by upgrading to blazing-fast `lmdb` and swapping heavy libraries (`zod`, `lodash`) for modern speed demons like `valibot` and `radashi`.
 
 ## 🪶 Features
 
@@ -82,9 +82,6 @@ Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essentia
 - ✅ **Multi-Device** - QR code or Pairing Code authentication
 - ✅ **Built-in FFmpeg** - No external dependencies for media processing
 - ✅ **Interactive Buttons** - Simple buttons, URL, copy code, call buttons, and lists
-- ✅ **Context Injection** - Universal data injection accessible anywhere in ctx
-- ✅ **Fire and Forget** - Background task processing for lightning-fast responses
-- ✅ **Auto-Healing** - Intelligent connection monitoring and session repair
 - ✅ **Auto Clean Up** - Periodic database maintenance to save space
 
 ## 🎨 Concepts & Architecture

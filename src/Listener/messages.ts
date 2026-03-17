@@ -12,10 +12,11 @@ import { cleanJid, cleanMediaObject, generateId, getDeepContent, getUsersMention
 
 export class Messages {
   private limiter: RateLimiter;
-  private maxReplies = 3;
+  private maxReplies: number;
 
   constructor(private client: Client) {
     this.limiter = new RateLimiter(client);
+    this.maxReplies = this.client.options?.maxReplies ?? 3;
     this.initialize();
   }
 
@@ -284,7 +285,7 @@ export class Messages {
         output.replied.isViewOnce = true;
       }
 
-      this.maxReplies = 3;
+      this.maxReplies = this.client.options?.maxReplies ?? 3;
     }
 
     if (type != 'replied') {

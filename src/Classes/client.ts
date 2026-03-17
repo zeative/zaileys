@@ -80,6 +80,12 @@ export class Client {
     this.health = new HealthManager(this);
     this.cleanup = new CleanUpManager(this);
 
+    if (!this.options.showSpinner) {
+      store.spinner = new Proxy(store.spinner, {
+        get: (target, prop) => (typeof target[prop as keyof typeof target] === 'function' ? () => target : target[prop as keyof typeof target]),
+      });
+    }
+
     if (this.options.autoCleanUp?.enabled) {
       this.cleanup.start();
     }

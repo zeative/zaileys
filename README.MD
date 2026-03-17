@@ -253,6 +253,8 @@ These options apply to both authentication methods:
 | `syncFullHistory` | `boolean` | `true`      | Sync full chat history on startup.      |
 | `pluginsDir`      | `string`  | `'plugins'` | Directory where plugins are located.    |
 | `pluginsHmr`      | `boolean` | `true`      | Enable Hot Module Replacement for plugins. |
+| `showSpinner`     | `boolean` | `true`      | Shows a loading console spinner for internal system events. |
+| `maxReplies`      | `number`  | `3`         | Restricts recursive payload parsing for nested replied chains. |
 | `cleanupDays`     | `number`  | `7`         | Days to keep messages before auto-deletion. |
 | `autoCleanUp`     | `object`  | `undefined` | Configuration for periodic database cleanup. |
 | `disableFFmpeg`   | `boolean` | `false`     | Disable built-in FFmpeg installers.     |

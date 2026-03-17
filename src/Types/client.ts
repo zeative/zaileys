@@ -48,6 +48,9 @@ export const ClientBaseType = v.object({
   autoPresence: v.optional(v.boolean(), true),
   autoRejectCall: v.optional(v.boolean(), true),
   
+  showSpinner: v.optional(v.boolean(), true),
+  maxReplies: v.optional(v.number(), 3),
+  
   deleteSessionOnLogout: v.optional(v.boolean(), false),
 
   pluginsDir: v.optional(v.string(), 'plugins'),

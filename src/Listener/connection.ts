@@ -86,7 +86,7 @@ export class Connection {
         const error = lastDisconnect?.error?.message || 'Unknown Error';
 
         const displayCode = code ?? 'Internal';
-        
+
         store.spinner.error(` [${displayCode} - Closed] ${error}`);
 
         if (code === DisconnectReason.loggedOut) {

@@ -1,6 +1,6 @@
 import makeWASocket, { jidNormalizedUser, WACallEvent } from 'baileys';
 import { Client } from '../Classes';
-import { store, centerStore } from '../Store';
+import { centerStore, store } from '../Store';
 import { fireForget, Priority } from '../Library/fire-forget';
 import { CallsContext } from '../Types/calls';
 import { normalizeText } from '../Utils';

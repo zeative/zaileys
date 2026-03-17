@@ -1,6 +1,6 @@
 import makeWASocket, { generateMessageIDV2, generateWAMessageFromContent, isJidGroup, MessageGenerationOptionsFromContent, proto } from 'baileys';
 import * as v from 'valibot';
-import { store, centerStore } from '../Store';
+import { centerStore } from '../Store';
 import { SignalOptionsType } from '../Types/Signal/signal';
 import { ignoreLint } from '../Utils';
 

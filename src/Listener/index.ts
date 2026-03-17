@@ -1,7 +1,7 @@
 import makeWASocket from 'baileys';
 import { Client } from '../Classes';
 import { groupStore } from '../Store';
-import { store, centerStore } from '../Store';
+import { centerStore } from '../Store';
 import { fireForget, Priority } from '../Library/fire-forget';
 import { Calls } from './calls';
 import { Connection } from './connection';

@@ -1,7 +1,7 @@
+import { Media } from '@zaadevofc/media-process';
 import makeWASocket from 'baileys';
 import { Client } from '../Classes';
-import { store, centerStore } from '../Store';
-import { Media } from '@zaadevofc/media-process';
+import { centerStore } from '../Store';
 
 export class Newsletter {
   constructor(protected client: Client) { }

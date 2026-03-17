@@ -1,10 +1,10 @@
 import makeWASocket from 'baileys';
 import { Client } from '../Classes';
-import { store, centerStore } from '../Store';
+import { centerStore } from '../Store';
 import { ignoreLint } from '../Utils';
 
 export class Community {
-  constructor(protected client: Client) {}
+  constructor(protected client: Client) { }
 
   async create(subject: string, description: string) {
     const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;

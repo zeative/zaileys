@@ -1,7 +1,7 @@
 import makeWASocket, { fetchLatestBaileysVersion } from 'baileys';
 import { Client } from '../Classes';
 import { socketConfig } from '../Config/socket';
-import { store, centerStore } from '../Store';
+import { centerStore } from '../Store';
 import { useAuthState } from './state';
 
 export const registerAuthCreds = async (client: Client) => {

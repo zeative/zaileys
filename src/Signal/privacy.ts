@@ -1,9 +1,9 @@
 import makeWASocket, { WAPrivacyGroupAddValue, WAPrivacyOnlineValue, WAPrivacyValue, WAReadReceiptsValue } from 'baileys';
 import { Client } from '../Classes';
-import { store, centerStore } from '../Store';
+import { centerStore } from '../Store';
 
 export class Privacy {
-  constructor(protected client: Client) {}
+  constructor(protected client: Client) { }
 
   async block(senderId: string) {
     const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;

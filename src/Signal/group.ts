@@ -1,7 +1,7 @@
 import makeWASocket, { ParticipantAction } from 'baileys';
 import { Client } from '../Classes';
 import { groupStore } from '../Store';
-import { store, centerStore } from '../Store';
+import { centerStore } from '../Store';
 import { Media } from '@zaadevofc/media-process';
 
 export class Group {

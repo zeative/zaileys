@@ -2,6 +2,7 @@ import * as v from 'valibot';
 
 export const ButtonInteractiveReplyType = v.object({
   type: v.literal('quick_reply'),
+  id: v.string(),
   text: v.string(),
 });
 
@@ -13,6 +14,7 @@ export const ButtonInteractiveUrlType = v.object({
 
 export const ButtonInteractiveCopyType = v.object({
   type: v.literal('cta_copy'),
+  id: v.string(),
   copy: v.string(),
   text: v.string(),
 });

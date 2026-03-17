@@ -1,26 +1,25 @@
-import NodeCache from 'node-cache';
+import { LRUCache } from 'lru-cache';
 
-export const centerStoreCache = new NodeCache({
-  stdTTL: 60 * 10, // 10 minutes
-  checkperiod: 60 * 2, // 2 minutes
-  useClones: false,
+export const centerStoreCache = new LRUCache<string, any>({
+  max: 1000,
+  ttl: 60 * 10 * 1000, // 10 minutes
 });
 
-export const groupCache = new NodeCache({
-  stdTTL: 60 * 5, // 5 minutes
-  useClones: false,
+export const groupCache = new LRUCache<string, any>({
+  max: 500,
+  ttl: 60 * 5 * 1000, // 5 minutes
 });
 
-export const mediaCache = new NodeCache({
-  stdTTL: 60 * 5, // 5 minute
+export const mediaCache = new LRUCache<string, any>({
+  max: 200,
+  ttl: 60 * 5 * 1000, // 5 minutes
 });
 
-export const injectionCache = new NodeCache({
-  stdTTL: 60 * 10, // 10 minutes
-  checkperiod: 60 * 2, // 2 minutes
-  useClones: false,
-  deleteOnExpire: true,
-  maxKeys: 100,
+export const injectionCache = new LRUCache<string, any>({
+  max: 100,
+  ttl: 60 * 10 * 1000, // 10 minutes
 });
 
-export const msgRetryCache = new NodeCache();
+export const msgRetryCache = new LRUCache<string, any>({
+  max: 1000
+});

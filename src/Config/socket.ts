@@ -1,6 +1,7 @@
 import makeWASocket, { AuthenticationState, Browsers, makeCacheableSignalKeyStore, proto } from 'baileys';
 import { Client } from '../Classes';
 import { store } from '../Library/center-store';
+import { LRUCacheAdapter } from '../Library/lru-adapter';
 import { groupCache, mediaCache, msgRetryCache } from './cache';
 
 export const socketConfig = (client: Client, state: AuthenticationState): Parameters<typeof makeWASocket>[0] => {
@@ -16,8 +17,8 @@ export const socketConfig = (client: Client, state: AuthenticationState): Parame
     markOnlineOnConnect: client.options.autoOnline,
     syncFullHistory: client.options.syncFullHistory,
 
-    msgRetryCounterCache: msgRetryCache,
-    mediaCache: mediaCache,
+    msgRetryCounterCache: new LRUCacheAdapter(msgRetryCache),
+    mediaCache: new LRUCacheAdapter(mediaCache),
 
     auth: {
       creds: state.creds,

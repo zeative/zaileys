@@ -30,15 +30,20 @@ class ContextInjectionStore {
   }
 
   getAll(): Record<string, any> {
-    const keys = this.store.keys();
-    return this.store.mget(keys);
+    const result: Record<string, any> = {};
+    for (const key of this.store.keys()) {
+      result[key] = this.store.get(key);
+    }
+    return result;
   }
 
   async remove(key: string): Promise<boolean> {
     const release = await this.mutex.acquire();
 
     try {
-      return this.store.del(key) > 0;
+      const existed = this.store.has(key);
+      this.store.delete(key);
+      return existed;
     } finally {
       release();
     }
@@ -48,7 +53,7 @@ class ContextInjectionStore {
     const release = await this.mutex.acquire();
 
     try {
-      this.store.flushAll();
+      this.store.clear();
     } finally {
       release();
     }
@@ -59,11 +64,11 @@ class ContextInjectionStore {
   }
 
   get size(): number {
-    return this.store.getStats().keys;
+    return this.store.size;
   }
 
   keys(): string[] {
-    return this.store.keys();
+    return Array.from(this.store.keys());
   }
 }
 

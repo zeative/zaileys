@@ -1,15 +1,15 @@
 import { createSpinner } from 'nanospinner';
-import NodeCache from 'node-cache';
+import { LRUCache } from 'lru-cache';
 import pino from 'pino';
 import { EventEmitter } from 'node:events';
 import { centerStoreCache } from '../Config/cache';
 import { ClassProxy } from './class-proxy';
 
-export interface CenterStore extends NodeCache {}
+export interface CenterStore extends LRUCache<string, any> {}
   
-export class CenterStore extends NodeCache {
+export class CenterStore extends LRUCache<string, any> {
   constructor() {
-    super({ useClones: false });
+    super({ max: 1000, ttl: 60 * 10 * 1000 });
     return new ClassProxy().classInjection(this, [centerStoreCache]);
   }
 

@@ -1,10 +1,10 @@
 import makeWASocket from 'baileys';
 import { Client } from '../Classes';
 import { store } from '../Library/center-store';
-import { Media } from '@zeative/media-process';
+import { Media } from '@zaadevofc/media-process';
 
 export class Newsletter {
-  constructor(protected client: Client) {}
+  constructor(protected client: Client) { }
 
   async create(name: string, description: string) {
     const socket = store.get('socket') as ReturnType<typeof makeWASocket>;

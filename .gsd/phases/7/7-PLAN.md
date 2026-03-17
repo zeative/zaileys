@@ -4,10 +4,10 @@ plan: 1
 wave: 1
 ---
 
-# Plan 7.1: Extract Media Handling to `@zeative/media-process` Workspace
+# Plan 7.1: Extract Media Handling to `@zaadevofc/media-process` Workspace
 
 ## Objective
-Convert the monolithic media manipulation engine from the core Zaileys bundle into a dedicated `pnpm` workspace package named `@zeative/media-process`. This isolates the heavy FFmpeg/WebPMux logic, making the main wrapper lighter while establishing a modular ecosystem.
+Convert the monolithic media manipulation engine from the core Zaileys bundle into a dedicated `pnpm` workspace package named `@zaadevofc/media-process`. This isolates the heavy FFmpeg/WebPMux logic, making the main wrapper lighter while establishing a modular ecosystem.
 
 ## Context
 - `packages/media-process/package.json` (to be created)
@@ -29,9 +29,9 @@ Convert the monolithic media manipulation engine from the core Zaileys bundle in
   <action>
     - Create `pnpm-workspace.yaml` at the root with `packages: ['packages/*']`.
     - Create the base structure `packages/media-process`.
-    - Create `packages/media-process/package.json` configured with name `@zeative/media-process`, version `1.0.0`, type `module`, and tsup build scripts.
+    - Create `packages/media-process/package.json` configured with name `@zaadevofc/media-process`, version `1.0.0`, type `module`, and tsup build scripts.
     - Setup `tsup.config.ts` and `tsconfig.json` similarly to the main zaileys project for fast bundling.
-    - Transfer media dependencies (fluent-ffmpeg, node-webpmux, valibot, sharp, file-type, @ffmpeg-installer, @ffprobe-installer) from the root `package.json` down to the `@zeative/media-process` package.json.
+    - Transfer media dependencies (fluent-ffmpeg, node-webpmux, valibot, sharp, file-type, @ffmpeg-installer, @ffprobe-installer) from the root `package.json` down to the `@zaadevofc/media-process` package.json.
   </action>
   <verify>test -f pnpm-workspace.yaml && test -f packages/media-process/package.json</verify>
   <done>PNPM Workspace initialized and media-process base skeleton defined.</done>
@@ -64,8 +64,8 @@ Convert the monolithic media manipulation engine from the core Zaileys bundle in
     - src/Signal/newsletter.ts
   </files>
   <action>
-    - Add `"@zeative/media-process": "workspace:*"` to the core `package.json` dependencies.
-    - Update all signal handlers (`index.ts`, `group.ts`, `newsletter.ts`) to import `Media` from `@zeative/media-process` instead of local `../Library/media-modifier.ts`.
+    - Add `"@zaadevofc/media-process": "workspace:*"` to the core `package.json` dependencies.
+    - Update all signal handlers (`index.ts`, `group.ts`, `newsletter.ts`) to import `Media` from `@zaadevofc/media-process` instead of local `../Library/media-modifier.ts`.
     - Run `pnpm install` in the root to link workspaces.
   </action>
   <verify>pnpm tsc --noEmit</verify>
@@ -74,5 +74,5 @@ Convert the monolithic media manipulation engine from the core Zaileys bundle in
 
 ## Success Criteria
 - [ ] `packages/media-process` successfully bundles via `pnpm build`.
-- [ ] The root `zaileys` package resolves `new Media()` directly from `@zeative/media-process`.
+- [ ] The root `zaileys` package resolves `new Media()` directly from `@zaadevofc/media-process`.
 - [ ] TypeScript `pnpm tsc --noEmit` runs securely across both the workspace and core package.

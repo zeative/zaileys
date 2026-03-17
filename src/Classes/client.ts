@@ -8,7 +8,7 @@ import { store } from '../Library/center-store';
 import { ClassProxy } from '../Library/class-proxy';
 import { CleanUpManager } from '../Library/cleanup-manager';
 import { contextInjection } from '../Library/context-injection';
-import { initializeFFmpeg } from '@zeative/media-process';
+import { initializeFFmpeg } from '@zaadevofc/media-process';
 import { HealthManager } from '../Library/health-manager';
 import { parseValibot } from '../Library/valibot';
 import { Listener } from '../Listener';

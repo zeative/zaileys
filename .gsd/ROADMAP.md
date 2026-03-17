@@ -35,4 +35,4 @@
 
 ### Phase 7: Extracting Media Handler to NPM
 **Status**: ✅ Completed
-**Objective**: Extract the `ffmpeg` library and `media-modifier.ts` to a standalone local NPM package `@zeative/media-process` using `pnpm` workspaces. This uncouples heavy media bindings from the core WhatsApp connector matrix.
+**Objective**: Extract the `ffmpeg` library and `media-modifier.ts` to a standalone local NPM package `@zaadevofc/media-process` using `pnpm` workspaces. This uncouples heavy media bindings from the core WhatsApp connector matrix.

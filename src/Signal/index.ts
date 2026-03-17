@@ -3,7 +3,7 @@ import makeWASocket, { AnyMessageContent, MiscMessageGenerationOptions, WAMessag
 import * as v from 'valibot';
 import { MESSAGES_VERIFIED_TYPE } from '../Config/media';
 import { store } from '../Library/center-store';
-import { Media } from '@zeative/media-process';
+import { Media } from '@zaadevofc/media-process';
 import { parseValibot } from '../Library/valibot';
 import { ButtonOptionsType, SignalOptionsType, SignalType } from '../Types/Signal/signal';
 import { extractJids, ignoreLint, pickKeysFromArray } from '../Utils';
@@ -11,7 +11,7 @@ import { InteractiveButtons } from '../Classes/button';
 import { Client } from '../Classes/client';
 
 export class Signal {
-  constructor(protected client: Client) {}
+  constructor(protected client: Client) { }
 
   protected async signal(roomId: string, options: v.InferInput<typeof SignalOptionsType> | any, type?: v.InferInput<typeof SignalType>, message?: WAMessage) {
     if (type != 'delete') {

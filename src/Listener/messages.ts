@@ -87,11 +87,15 @@ export class Messages {
 
     if (!output.chatType) return;
 
-    output.receiverLid = jidNormalizedUser(socket?.user?.lid || '');
-    output.receiverId = jidNormalizedUser(socket?.user?.id || '');
+    const r1 = jidNormalizedUser(socket?.user?.lid || '');
+    const r2 = jidNormalizedUser(socket?.user?.id || '');
+
+    output.receiverLid = r1.includes('@lid') ? r1 : r2.includes('@lid') ? r2 : null;
+    output.receiverId = r1.includes('@s.whatsapp.net') ? r1 : r2.includes('@s.whatsapp.net') ? r2 : null;
     output.receiverName = normalizeText(socket?.user?.name || socket?.user?.verifiedName);
 
-    output.roomId = jidNormalizedUser(message?.key?.remoteJid);
+    output.roomId = r1.includes('@s.whatsapp.net') && !output.isGroup ? r1 : jidNormalizedUser(message?.key?.remoteJid);
+    output.roomLid = r1.includes('@lid') ? r1 : null;
 
     const isRevoke = content?.type === 0;
     const isPin = content?.type === 1;
@@ -121,8 +125,11 @@ export class Messages {
 
     output.roomName = await this.client.getRoomName(output.roomId);
 
-    output.senderLid = jidNormalizedUser(message?.key?.participant || message?.key?.remoteJid) || null;
-    output.senderId = jidNormalizedUser(message?.key?.participantAlt || message?.key?.remoteJidAlt) || null;
+    const s1 = jidNormalizedUser(message?.key?.participant || message?.key?.remoteJid) || '';
+    const s2 = jidNormalizedUser(message?.key?.participantAlt || message?.key?.remoteJidAlt) || '';
+
+    output.senderLid = s1.includes('@lid') ? s1 : s2.includes('@lid') ? s2 : null;
+    output.senderId = s1.includes('@s.whatsapp.net') ? s1 : s2.includes('@s.whatsapp.net') ? s2 : null;
 
     output.senderName = normalizeText(message?.pushName || message?.verifiedBizName);
 
@@ -142,7 +149,7 @@ export class Messages {
     }
 
     if (isFromMe) {
-      output.senderLid = jidNormalizedUser(socket.user.lid);
+      output.senderLid = output.receiverLid;
       output.senderId = output.receiverId;
       output.senderName = output.receiverName;
     }
@@ -197,14 +204,6 @@ export class Messages {
 
     if (!output.isGroup && !output.roomName) {
       output.roomName = output.senderName;
-    }
-
-    if (!output.isGroup) {
-      const id = output.senderId;
-      const lid = output.senderLid;
-
-      output.senderId = lid;
-      output.senderLid = id;
     }
 
     output.isViewOnce = false;

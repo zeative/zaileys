@@ -69,7 +69,8 @@ export const BaseMessagesType = v.object({
   receiverName: v.string(),
 
   roomId: v.string(),
-  roomName: v.string(),
+  roomLid: v.nullable(v.string()),
+  roomName: v.nullable(v.string()),
 
   senderLid: v.string(),
   senderId: v.string(),

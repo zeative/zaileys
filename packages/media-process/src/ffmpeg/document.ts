@@ -1,5 +1,5 @@
 import { fileTypeFromBuffer } from 'file-type';
-import { generateId } from '../../Utils/message';
+import { generateId } from '../utils';
 import { BufferConverter, type MediaInput } from './core';
 import { ImageProcessor } from './image';
 import { VideoProcessor } from './video';
@@ -26,6 +26,7 @@ export class DocumentProcessor {
       return {
         document: buffer,
         mimetype: fileType.mime,
+        ext: fileType.ext,
         fileName: generateId(Date.now().toString()),
         jpegThumbnail: thumbnail,
       };

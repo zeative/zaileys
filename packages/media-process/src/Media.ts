@@ -1,5 +1,5 @@
 import * as v from 'valibot';
-import { StickerMetadataType } from '../Types';
+import { StickerMetadataType } from './types';
 import {
   AudioProcessor,
   type AudioType,

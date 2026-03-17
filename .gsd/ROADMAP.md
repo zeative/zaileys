@@ -32,3 +32,7 @@
 ### Phase 6: Media Processing DX Overhaul
 **Status**: ✅ Completed
 **Objective**: Redesign the structural export logic and Developer Experience (DX) for `media-modifier.ts` and underlying FFmpeg wrappers. Abstract everything into a seamless, unified Builder/Facade API that simplifies end-user code and encapsulates buffer streams smoothly.
+
+### Phase 7: Extracting Media Handler to NPM
+**Status**: 🛠️ Planning
+**Objective**: Extract the `ffmpeg` library and `media-modifier.ts` to a standalone local NPM package `@zeative/media-process` using `pnpm` workspaces. This uncouples heavy media bindings from the core WhatsApp connector matrix.

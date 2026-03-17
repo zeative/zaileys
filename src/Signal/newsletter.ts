@@ -1,7 +1,7 @@
 import makeWASocket from 'baileys';
 import { Client } from '../Classes';
 import { store } from '../Library/center-store';
-import { Media } from '../Library/media-modifier';
+import { Media } from '@zeative/media-process';
 
 export class Newsletter {
   constructor(protected client: Client) {}

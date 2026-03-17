@@ -3,7 +3,7 @@ import makeWASocket, { AnyMessageContent, MiscMessageGenerationOptions, WAMessag
 import * as v from 'valibot';
 import { MESSAGES_VERIFIED_TYPE } from '../Config/media';
 import { store } from '../Library/center-store';
-import { Media } from '../Library/media-modifier';
+import { Media } from '@zeative/media-process';
 import { parseValibot } from '../Library/valibot';
 import { ButtonOptionsType, SignalOptionsType, SignalType } from '../Types/Signal/signal';
 import { extractJids, ignoreLint, pickKeysFromArray } from '../Utils';
@@ -149,11 +149,13 @@ export class Signal {
 
       if (hasDocument) {
         const data = await new Media(media).document.create();
+        const rawName = ignoreLint(options).fileName || `Document_${data.fileName.slice(-6)}`;
+        const nameWithoutExt = rawName.includes('.') ? rawName.substring(0, rawName.lastIndexOf('.')) : rawName;
 
         output = {
           ...output,
-          fileName: ignoreLint(options).fileName,
           ...data,
+          fileName: `${nameWithoutExt}.${data.ext} - Zaileys`,
         };
       }
     }

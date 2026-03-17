@@ -1,9 +1,8 @@
 import { fileTypeFromBuffer } from 'file-type';
 import webp from 'node-webpmux';
 import * as v from 'valibot';
-import { StickerMetadataType } from '../../Types';
-import { generateId } from '../../Utils/message';
-import { ignoreLint } from '../../Utils/validate';
+import { StickerMetadataType } from '../types';
+import { generateId, ignoreLint } from '../utils';
 import { BufferConverter, FFMPEG_CONSTANTS, FFmpegProcessor, FileManager, MimeValidator, type MediaInput } from './core';
 import { ImageProcessor } from './image';
 import { VideoProcessor } from './video';
@@ -76,8 +75,8 @@ export class StickerProcessor {
 
     const size = FFMPEG_CONSTANTS.STICKER.SIZE;
     const fps = FFMPEG_CONSTANTS.STICKER.FPS;
-    const videoFilter = `scale=${size}:${size}:force_original_aspect_ratio=increase,crop=${size}:${size},fps=${fps},format=rgba`;
-    const qualityValue = Math.max(1, Math.min(100, 100 - quality));
+    const videoFilter = `scale=${size}:${size}:force_original_aspect_ratio=decrease,fps=${fps},pad=${size}:${size}:(ow-iw)/2:(oh-ih)/2:color=0x00000000,format=rgba`;
+    const qualityValue = Math.max(1, Math.min(100, quality));
 
     let webpBuffer: Buffer;
 
@@ -90,7 +89,7 @@ export class StickerProcessor {
           `-vf ${videoFilter}`,
           `-q:v ${qualityValue}`,
           '-loop 0',
-          '-preset picture',
+          '-preset default',
           '-an',
           '-vsync 0',
           `-t ${duration}`,

@@ -2,7 +2,7 @@ import makeWASocket, { ParticipantAction } from 'baileys';
 import { Client } from '../Classes';
 import { groupCache } from '../Config/cache';
 import { store } from '../Library/center-store';
-import { Media } from '../Library/media-modifier';
+import { Media } from '@zeative/media-process';
 
 export class Group {
   constructor(protected client: Client) {}

@@ -19,9 +19,9 @@ export const FFMPEG_CONSTANTS = {
   },
   STICKER: {
     SIZE: 512,
-    MAX_DURATION: 10,
-    FPS: 15,
-    DEFAULT_QUALITY: 80,
+    MAX_DURATION: 6,
+    FPS: 10,
+    DEFAULT_QUALITY: 60,
     COMPRESSION_LEVEL: 6,
   },
   MIME: {
@@ -174,7 +174,7 @@ export class FFmpegProcessor {
             reject(error);
           }
         })
-        .on('error', async (err) => {
+        .on('error', async (err: Error) => {
           try {
             await config.onError(err);
           } finally {
@@ -187,7 +187,7 @@ export class FFmpegProcessor {
 
   static async getDuration(filePath: string): Promise<number> {
     return new Promise((resolve, reject) => {
-      ffmpeg.ffprobe(filePath, (err, metadata) => {
+      ffmpeg.ffprobe(filePath, (err: Error | null, metadata: ffmpeg.FfprobeData) => {
         if (err) return reject(err);
         resolve(metadata.format.duration || 0);
       });

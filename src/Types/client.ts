@@ -16,7 +16,7 @@ export const FakeReplyType = v.optional(v.object({
 
 export const StickerShapeType = v.optional(v.picklist(['default', 'rounded', 'circle', 'oval']), 'default');
 
-export const StickerMetadataType = v.optional(v.object({
+export const ClientStickerOptionsType = v.optional(v.object({
   packageName: v.optional(v.string()),
   authorName: v.optional(v.string()),
   quality: v.optional(v.number()),
@@ -58,7 +58,7 @@ export const ClientBaseType = v.object({
   limiter: LimiterType,
   citation: CitationType,
   fakeReply: FakeReplyType,
-  sticker: StickerMetadataType,
+  sticker: ClientStickerOptionsType,
 });
 
 export const ClientAuthPairingType = v.object({

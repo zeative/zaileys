@@ -1,3 +1,4 @@
+import { initializeFFmpeg } from '@zaadevofc/media-process';
 import makeWASocket from 'baileys';
 import { RootDatabase } from 'lmdb';
 import * as v from 'valibot';
@@ -5,11 +6,10 @@ import { registerAuthCreds } from '../Auth';
 import { groupCache } from '../Config/cache';
 import { WaDatabase } from '../Config/database';
 import { store } from '../Library/center-store';
-import { ClassProxy } from '../Library/class-proxy';
+import { classInjection } from '../Library/class-proxy';
 import { CleanUpManager } from '../Library/cleanup-manager';
 import { contextInjection } from '../Library/context-injection';
 import { fireForget } from '../Library/fire-forget';
-import { initializeFFmpeg } from '@zaadevofc/media-process';
 import { HealthManager } from '../Library/health-manager';
 import { parseValibot } from '../Library/valibot';
 import { Listener } from '../Listener';
@@ -42,7 +42,7 @@ export class Client {
   constructor(options: v.InferInput<typeof ClientOptionsType>) {
     this.options = parseValibot(ClientOptionsType, options);
 
-    const proxy = new ClassProxy().classInjection(this, [
+    const proxy = classInjection(this, [
       new Signal(this),
       new SignalGroup(this),
       new SignalPrivacy(this),
@@ -106,7 +106,7 @@ export class Client {
         if (this.socket) {
           this.socket.end(new Error('Process Terminated'));
         }
-        await fireForget.close(5000); 
+        await fireForget.close(5000);
       } catch {
         // Safe exit
       }

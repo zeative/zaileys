@@ -114,9 +114,9 @@ yarn add zaileys
 
 ## 🏁 Starter Kit
 
-Prefer a ready-to-run setup? We provide an official **Starter Kit** that includes a fully configured environment, example commands, and best practices.
+Prefer a ready-to-run setup? We provide a complete example that covers messages, media, buttons, carousel, polls, and more — ready to copy and go.
 
-👉 [**Zaileys Example**](https://github.com/zeative/starter-zaileys)
+👉 [**examples/basic.ts**](./examples/basic.ts) — Clean, comprehensive starter with all features demonstrated
 
 ## ⚡ Quick Start
 
@@ -707,7 +707,7 @@ Send messages with interactive buttons.
 
 **Simple Buttons:**
 
-> ✅ Simple button has support Android/iPhone/Desktop
+> ✅ Simple button type is **fully supported on all devices** — Android, iOS, and **WhatsApp Desktop/Web**.
 
 ```typescript
 await wa.button(ctx.roomId, {
@@ -776,7 +776,7 @@ await wa.button(ctx.roomId, {
 
 **Carousel Buttons:**
 
-> ✅ Carousel is the only button type that is **fully supported on all devices** — Android, iOS, and **WhatsApp Desktop/Web**. Each card can include an image or video header with native flow buttons.
+> ✅ Carousel button is **fully supported on all devices** — Android, iOS, and **WhatsApp Desktop/Web**. Each card can include an image or video header with native flow buttons.
 
 ```typescript
 await wa.button(ctx.roomId, {

@@ -25,11 +25,11 @@
 - [x] **7.5 Read Receipts**: Auto-read and manual control.
 
 ### Phase 8: Backward Compatibility (Compat Layer)
-**Status**: 📋 Planning Complete
+**Status**: ✅ Complete
 **Objective**: Ensure smooth migration for V3 users with a dedicated compat module.
-- [ ] **8.1 Warning Utility**: Implement single-use deprecation logging.
-- [ ] **8.2 Context Proxy**: Map V3 `ctx` properties to V4.
-- [ ] **8.3 Client Wrapper**: Implement V3 `wa.send()` and `wa.reply()` signatures.
+- [x] **8.1 Warning Utility**: Implement single-use deprecation logging.
+- [x] **8.2 Context Proxy**: Map V3 `ctx` properties to V4.
+- [x] **8.3 Client Wrapper**: Implement V3 `wa.send()` and `wa.reply()` signatures.
 
 ### Phase 9: Integration & Documentation
 **Status**: ⬜ Not Started

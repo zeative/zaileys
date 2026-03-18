@@ -1,7 +1,7 @@
 import { createBot } from '../src'
 
 // Note: In real usage, you would pass a Baileys socket
-const bot = createBot({} as any)
+const bot = createBot({})
 
 bot.on('message', async (ctx) => {
   if (ctx.content.text === 'ping') {

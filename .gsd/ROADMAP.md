@@ -25,17 +25,17 @@
 - [x] **1.8 Testing**: Setup unit tests for all foundation utilities.
 
 ### Phase 2: Context System (The Heart of V4)
-**Status**: ⬜ Not Started
+**Status**: ✅ Complete
 **Objective**: Build the rich, nested `MessageContext` that powers the developer experience.
-- [ ] **2.1 Context Types**: Define `MessageContext`, `RoomType`, `DeviceType`, and `MessageType`.
-- [ ] **2.2 Context Actions**: Implement `ctx.send`, `ctx.reply`, `ctx.react`, and `ctx.presence`.
-- [ ] **2.3 Builder Core**: Implement `MessageContextBuilder` with `isValidMessage` guard.
-- [ ] **2.4 Content Resolver**: Implement `extractContent` for all WA payload types.
-- [ ] **2.5 Metadata Parser**: Extract Room, Sender, and Receiver metadata.
-- [ ] **2.6 Flag System**: Compute flags (isGroup, isBot, isSpam, isForwarded, etc.).
-- [ ] **2.7 Reply Chain**: Implement recursive `buildReplied` logic with max depth depth.
-- [ ] **2.8 Shorthand**: Setup root-level getters for `text`, `type`, `media`, `mentions`.
-- [ ] **2.9 Integration**: Connect `ContextActions` to the context builder.
+- [x] **2.1 Context Types**: Define `MessageContext`, `RoomType`, `DeviceType`, and `MessageType`.
+- [x] **2.2 Context Actions**: Implement `ctx.send`, `ctx.reply`, `ctx.react`, and `ctx.presence`.
+- [x] **2.3 Builder Core**: Implement `MessageContextBuilder` with `isValidMessage` guard.
+- [x] **2.4 Content Resolver**: Implement `extractContent` for all WA payload types.
+- [x] **2.5 Metadata Parser**: Extract Room, Sender, and Receiver metadata.
+- [x] **2.6 Flag System**: Compute flags (isGroup, isBot, isSpam, isForwarded, etc.).
+- [x] **2.7 Reply Chain**: Implement recursive `buildReplied` logic with max depth depth.
+- [x] **2.8 Shorthand**: Setup root-level getters for `text`, `type`, `media`, `mentions`.
+- [x] **2.9 Integration**: Connect `ContextActions` to the context builder.
 
 ### Phase 3: Signal System (Transformer Pipeline)
 **Status**: ⬜ Not Started

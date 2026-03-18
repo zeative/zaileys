@@ -57,27 +57,29 @@
 - [x] **3.15 Middleware**: Implement `useSignal` pipeline support.
 
 ### Phase 4: Command System (Declarative API)
-**Status**: ⬜ Not Started
+**Status**: ✅ Complete
 **Objective**: Build a powerful, chainable command system with typed argument parsing.
-- [ ] **4.1 Registry**: Implement command storage and lookup logic.
-- [ ] **4.2 ArgParser Core**: Implement `tokenize` with quoted string support.
-- [ ] **4.3 Flag Parser**: Parse `--key value` and boolean flags.
-- [ ] **4.4 Schema Mapper**: Implement `typedArgs` mapping from `ArgDefinition`.
-- [ ] **4.5 Router API**: Implement command grouping and prefix management.
-- [ ] **4.6 Executor**: Implement async middleware execution chain with `.use()`.
-- [ ] **4.7 File Loader**: Recursive folder scanner and auto-router mapping (Folder -> Prefix).
-- [ ] **4.8 Help Menu**: Implement auto-generator from command metadata.
-- [ ] **4.9 Guards**: Implement `onlyGroup`, `onlyAdmin`, `cooldown`, and `rateLimit`.
+- [x] **4.1 Registry**: Implement command storage and lookup logic.
+- [x] **4.2 ArgParser Core**: Implement `tokenize` with quoted string support.
+- [x] **4.3 Flag Parser**: Parse `--key value` and boolean flags.
+- [x] **4.4 Schema Mapper**: Implement `typedArgs` mapping from `ArgDefinition`.
+- [x] **4.5 Router API**: Implement command grouping and prefix management.
+- [x] **4.6 Executor**: Implement async middleware execution chain with `.use()`.
+- [x] **4.7 File Loader**: Recursive folder scanner and auto-router mapping (Folder -> Prefix).
+- [x] **4.8 Help Menu**: Implement auto-generator from command metadata.
+- [x] **4.9 Guards**: Implement `onlyGroup`, `onlyAdmin`, `cooldown`, and `rateLimit`.
 
-### Phase 5: Management API (Fluent Interface)
-**Status**: ⬜ Not Started
-**Objective**: Implement the unified `wa.group()`, `wa.community()`, and `wa.newsletter()` APIs.
-- [ ] **5.1 Group Members**: Implement add, remove, promote, demote with participants result.
-- [ ] **5.2 Group Permissions**: Toggle messaging, info, and member add modes.
-- [ ] **5.3 Group Profile**: Manage name, description, and avatar (with deletion).
-- [ ] **5.4 Group Invite**: Get link/code, revoke, join info, and code join.
-- [ ] **5.5 Group Requests**: Approval pipeline for join requests.
-- [ ] **5.6 Group Factory**: Bulk group creation and participating group fetcher.
+### Phase 5: Bot Core (The Orchestrator)
+**Status**: ✅ Complete
+**Objective**: Integrate all systems into a unified, developer-friendly bot class.
+- [x] **5.1 Bot Lifecycle**: Core `Zaileys` class with start/stop lifecycle.
+- [x] **5.2 Context Integration**: Automated bridge to MessageContextBuilder.
+- [x] **5.3 Signal Integration**: Built-in SignalEngine management.
+- [x] **5.4 Command Integration**: Built-in CommandRouter management.
+- [x] **5.5 Event Emitter**: Strongly typed internal events (ready, message, error).
+- [x] **5.6 Plugin API**: Flexible `use()` method for extensions.
+- [x] **5.7 Message Handler**: Central switchboard for the whole engine.
+- [x] **5.8 Error Boundaries**: Graceful failure protection.
 - [ ] **5.7 Community**: Implement linking/unlinking groups and community-specific permissions.
 - [ ] **5.8 Newsletter**: Post management, reaction support, and admin/subscriber listing.
 - [ ] **5.9 Privacy**: Unified PrivacyManager for LastSeen, Online, Blocklist, etc.

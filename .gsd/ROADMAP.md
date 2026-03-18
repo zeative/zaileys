@@ -94,8 +94,9 @@
 - [ ] **6.5 Health**: Implement `HealthManager` watchdog and `CleanupManager`.
 
 ### Phase 7: Backward Compatibility (Compat Layer)
-**Status**: ⬜ Not Started
-**Objective**: Ensure smooth migration for V3 users with a dedicated compat module.
+### Phase 7: Media & Advanced Context (The Rich UI)
+**Status**: 📋 Planning Complete
+**Objective**: Comprehensive media pen-handling, interactive messages, and presence automation.
 - [ ] **7.1 Warning Utility**: Implement single-use deprecation logging.
 - [ ] **7.2 Context Proxy**: Map V3 `ctx` properties (e.g., `roomId`, `isGroup`) to V4.
 - [ ] **7.3 Client Wrapper**: Implement V3 `wa.send()` and `wa.reaction()` signatures.

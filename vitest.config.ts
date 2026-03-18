@@ -4,6 +4,11 @@ export default defineConfig({
   test: {
     globals: true,
     environment: 'node',
+    server: {
+      deps: {
+        inline: ['@whiskeysockets/baileys']
+      }
+    },
     include: ['__tests__/**/*.test.ts'],
     coverage: {
       provider: 'v8',

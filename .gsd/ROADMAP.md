@@ -38,23 +38,23 @@
 - [x] **2.9 Integration**: Connect `ContextActions` to the context builder.
 
 ### Phase 3: Signal System (Transformer Pipeline)
-**Status**: ⬜ Not Started
+**Status**: ✅ Complete
 **Objective**: Implement the modular transformer pipeline for outgoing messages.
-- [ ] **3.1 Resolver**: Implement intelligent payload type detection.
-- [ ] **3.2 Signal Engine**: Build the core `SignalEngine` for managing the send pipeline.
-- [ ] **3.3 SentMessage**: Implement `SentMessage` class with rich methods (edit, delete, react).
-- [ ] **3.4 Transformer: Text**: Support plain text and auto-mentions.
-- [ ] **3.5 Transformer: Image**: Support Buffer/URL with auto-thumbnailing.
-- [ ] **3.6 Transformer: Video**: Support MP4 with caption and PTV mode.
-- [ ] **3.7 Transformer: Audio**: Support Opus/MP3 with Voice/PTT switch.
-- [ ] **3.8 Transformer: Sticker**: Support WebP with shape metadata.
-- [ ] **3.9 Transformer: Document**: Support Filename and Mimetype.
-- [ ] **3.10 Transformer: Location**: Implement Lat/Lng shorthand transformer.
-- [ ] **3.11 Transformer: Contact**: Implement VCard generation for single/multi-contacts.
-- [ ] **3.12 Transformer: Poll**: Implement semantic poll payload construction.
-- [ ] **3.13 Transformer: Buttons**: Build the generic button transformer.
-- [ ] **3.14 Button Detector**: Implement auto-detect logic (Simple/Interactive/Carousel/List).
-- [ ] **3.15 Middleware**: Implement `useSignal` pipeline support.
+- [x] **3.1 Resolver**: Implement intelligent payload type detection.
+- [x] **3.2 Signal Engine**: Build the core `SignalEngine` for managing the send pipeline.
+- [x] **3.3 SentMessage**: Implement `SentMessage` class with rich methods (edit, delete, react).
+- [x] **3.4 Transformer: Text**: Support plain text and auto-mentions.
+- [x] **3.5 Transformer: Image**: Support Buffer/URL with auto-thumbnailing.
+- [x] **3.6 Transformer: Video**: Support MP4 with caption and PTV mode.
+- [x] **3.7 Transformer: Audio**: Support Opus/MP3 with Voice/PTT switch.
+- [x] **3.8 Transformer: Sticker**: Support WebP with shape metadata.
+- [x] **3.9 Transformer: Document**: Support Filename and Mimetype.
+- [x] **3.10 Transformer: Location**: Implement Lat/Lng shorthand transformer.
+- [x] **3.11 Transformer: Contact**: Implement VCard generation for single/multi-contacts.
+- [x] **3.12 Transformer: Poll**: Implement semantic poll payload construction.
+- [x] **3.13 Transformer: Buttons**: Build the generic button transformer.
+- [x] **3.14 Button Detector**: Implement auto-detect logic (Simple/Interactive/Carousel/List).
+- [x] **3.15 Middleware**: Implement `useSignal` pipeline support.
 
 ### Phase 4: Command System (Declarative API)
 **Status**: ⬜ Not Started

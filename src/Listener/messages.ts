@@ -30,8 +30,15 @@ export class Messages {
       try {
         if (type !== 'notify' && type !== 'append') return;
 
+        const bootTime = centerStore.get('bootTime') as number;
+
         for (const message of messages) {
           try {
+            if (type === 'append' && bootTime) {
+              const msgTime = Number(message?.messageTimestamp) * 1000;
+              if (msgTime < bootTime) continue;
+            }
+
             const parsed = await this.parse(message);
 
             if (parsed) {

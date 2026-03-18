@@ -55,6 +55,8 @@ export class Client {
   }
 
   async initialize(client?: Client) {
+    centerStore.set('bootTime', Date.now());
+
     await autoDisplayBanner();
     await initializeFFmpeg(this.options.disableFFmpeg);
 

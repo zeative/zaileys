@@ -139,14 +139,14 @@ export class Connection {
       output.status = 'syncing';
       output.syncProgress = progress;
 
-      store.spinner.start(` Syncing messages history...`);
+      store.spinner.start(` Syncing messages history (bot is active and responding)...`);
 
       if (progress) {
-        store.spinner.update(` Syncing messages history ${progress + '%'}`);
+        store.spinner.update(` Syncing messages history ${progress + '%'} (bot is active)`);
       }
 
       if (progress == 100) {
-        store.spinner.success(` Syncing messages history completed!`);
+        store.spinner.success(` Syncing completed! All systems ready.`);
         output.syncCompleted = true;
       }
 

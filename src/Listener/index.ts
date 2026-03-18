@@ -46,7 +46,12 @@ export class Listener {
     };
 
     socket?.ev.on('messaging-history.set', async (update) => {
-      const { chats, contacts, messages } = update;
+      const { chats, contacts, messages, progress } = update;
+
+      centerStore.set('syncStatus', {
+        isSyncing: (progress ?? 0) < 100,
+        progress: progress ?? 0,
+      });
 
       fireForget.add(async () => {
         await processInChunks(chats, (item) => this.client.db('chats').put(item.id, item));

@@ -1,114 +1,38 @@
-# ROADMAP.md
-
-> **Current Milestone**: Zaileys V4 Migration - Core & Foundation
-> **Goal**: Rebuild Zaileys from the ground up as a modern, type-safe, and modular WhatsApp bot framework.
-
-## Must-Haves
-- [ ] 100% Type-safety (zero ignoreLint)
-- [ ] Modular Signal System (Transformers)
-- [ ] Declarative Command System (Router & Parser)
-- [ ] Fluent Management API (Group/Community/Newsletter)
-- [ ] Backward Compatibility Layer (V3 Compat)
-
-## Phases
-
-### Phase 1: Foundation Cleanout & Core Utilities
-**Status**: ✅ Complete
-**Objective**: Establish the core utilities, base types, and high-performance storage layer.
-- [x] **1.1 Text Utils**: Implement optimized `normalizeText` with pre-compiled regex.
-- [x] **1.2 JID Utils**: Implement `cleanJid`, `resolveJids`, and `jidToName`.
-- [x] **1.3 Media Utils**: Implement `cleanMediaObject` for buffer/URL handling.
-- [x] **1.4 ID Utils**: Implement `generateId` for message hashing.
-- [x] **1.5 Core Types**: Define `ClientOptions`, base interfaces, and `index.ts` exports.
-- [x] **1.6 Store Layer**: Initialize LRU-cache using `eventemitter3`.
-- [x] **1.7 Database**: Implement LMDB abstraction with scoped access.
-- [x] **1.8 Testing**: Setup unit tests for all foundation utilities.
-
-### Phase 2: Context System (The Heart of V4)
-**Status**: ✅ Complete
-**Objective**: Build the rich, nested `MessageContext` that powers the developer experience.
-- [x] **2.1 Context Types**: Define `MessageContext`, `RoomType`, `DeviceType`, and `MessageType`.
-- [x] **2.2 Context Actions**: Implement `ctx.send`, `ctx.reply`, `ctx.react`, and `ctx.presence`.
-- [x] **2.3 Builder Core**: Implement `MessageContextBuilder` with `isValidMessage` guard.
-- [x] **2.4 Content Resolver**: Implement `extractContent` for all WA payload types.
-- [x] **2.5 Metadata Parser**: Extract Room, Sender, and Receiver metadata.
-- [x] **2.6 Flag System**: Compute flags (isGroup, isBot, isSpam, isForwarded, etc.).
-- [x] **2.7 Reply Chain**: Implement recursive `buildReplied` logic with max depth depth.
-- [x] **2.8 Shorthand**: Setup root-level getters for `text`, `type`, `media`, `mentions`.
-- [x] **2.9 Integration**: Connect `ContextActions` to the context builder.
-
-### Phase 3: Signal System (Transformer Pipeline)
-**Status**: ✅ Complete
-**Objective**: Implement the modular transformer pipeline for outgoing messages.
-- [x] **3.1 Resolver**: Implement intelligent payload type detection.
-- [x] **3.2 Signal Engine**: Build the core `SignalEngine` for managing the send pipeline.
-- [x] **3.3 SentMessage**: Implement `SentMessage` class with rich methods (edit, delete, react).
-- [x] **3.4 Transformer: Text**: Support plain text and auto-mentions.
-- [x] **3.5 Transformer: Image**: Support Buffer/URL with auto-thumbnailing.
-- [x] **3.6 Transformer: Video**: Support MP4 with caption and PTV mode.
-- [x] **3.7 Transformer: Audio**: Support Opus/MP3 with Voice/PTT switch.
-- [x] **3.8 Transformer: Sticker**: Support WebP with shape metadata.
-- [x] **3.9 Transformer: Document**: Support Filename and Mimetype.
-- [x] **3.10 Transformer: Location**: Implement Lat/Lng shorthand transformer.
-- [x] **3.11 Transformer: Contact**: Implement VCard generation for single/multi-contacts.
-- [x] **3.12 Transformer: Poll**: Implement semantic poll payload construction.
-- [x] **3.13 Transformer: Buttons**: Build the generic button transformer.
-- [x] **3.14 Button Detector**: Implement auto-detect logic (Simple/Interactive/Carousel/List).
-- [x] **3.15 Middleware**: Implement `useSignal` pipeline support.
-
-### Phase 4: Command System (Declarative API)
-**Status**: ✅ Complete
-**Objective**: Build a powerful, chainable command system with typed argument parsing.
-- [x] **4.1 Registry**: Implement command storage and lookup logic.
-- [x] **4.2 ArgParser Core**: Implement `tokenize` with quoted string support.
-- [x] **4.3 Flag Parser**: Parse `--key value` and boolean flags.
-- [x] **4.4 Schema Mapper**: Implement `typedArgs` mapping from `ArgDefinition`.
-- [x] **4.5 Router API**: Implement command grouping and prefix management.
-- [x] **4.6 Executor**: Implement async middleware execution chain with `.use()`.
-- [x] **4.7 File Loader**: Recursive folder scanner and auto-router mapping (Folder -> Prefix).
-- [x] **4.8 Help Menu**: Implement auto-generator from command metadata.
-- [x] **4.9 Guards**: Implement `onlyGroup`, `onlyAdmin`, `cooldown`, and `rateLimit`.
-
 ### Phase 5: Bot Core (The Orchestrator)
 **Status**: ✅ Complete
-**Objective**: Integrate all systems into a unified, developer-friendly bot class.
-- [x] **5.1 Bot Lifecycle**: Core `Zaileys` class with start/stop lifecycle.
-- [x] **5.2 Context Integration**: Automated bridge to MessageContextBuilder.
-- [x] **5.3 Signal Integration**: Built-in SignalEngine management.
-- [x] **5.4 Command Integration**: Built-in CommandRouter management.
-- [x] **5.5 Event Emitter**: Strongly typed internal events (ready, message, error).
-- [x] **5.6 Plugin API**: Flexible `use()` method for extensions.
-- [x] **5.7 Message Handler**: Central switchboard for the whole engine.
-- [x] **5.8 Error Boundaries**: Graceful failure protection.
-- [ ] **5.7 Community**: Implement linking/unlinking groups and community-specific permissions.
-- [ ] **5.8 Newsletter**: Post management, reaction support, and admin/subscriber listing.
-- [ ] **5.9 Privacy**: Unified PrivacyManager for LastSeen, Online, Blocklist, etc.
+**Objective**: Build the central brain that manages plugins, commands, and message flow.
+- [x] **5.1 Zaileys Class**: The main controller.
+- [x] **5.2 Plugin System**: `definePlugin` and `use()` API.
+- [x] **5.3 Message Handler**: Centralizing `upsert` processing.
+- [x] **5.4 Error Boundaries**: Global protection for command execution.
 
-### Phase 6: Core Lifecycle & Connection
-**Status**: ⬜ Not Started
-**Objective**: Setup the bot lifecycle and listener management.
-- [ ] **6.1 Client Core**: Implement the main `Client` entry point class.
-- [ ] **6.2 Lifecycle**: Manage connection state machine and eventemitter3 integration.
-- [ ] **6.3 Listener: Connection**: Implement Auth (QR/Pairing) and Reconnect strategy.
-- [ ] **6.4 Listener: Message**: integrate builder with global middleware and router.
-- [ ] **6.5 Health**: Implement `HealthManager` watchdog and `CleanupManager`.
+### Phase 6: Multi-Account & Store (The Scalability)
+**Status**: ✅ Complete
+**Objective**: Enable concurrent session management and high-performance namespaced storage.
+- [x] **6.1 Session Manager**: Handle multiple WhatsApp sessions.
+- [x] **6.2 Auth Manager**: Unified auth logic (QR/Pairing).
+- [x] **6.3 Database Store**: Optimized namespaced storage with TTL.
+- [x] **6.4 Privacy Manager**: Unified privacy controls.
+- [x] **6.5 Signal Persistence**: Ensure outgoing pipeline survives restarts.
 
-### Phase 7: Backward Compatibility (Compat Layer)
 ### Phase 7: Media & Advanced Context (The Rich UI)
 **Status**: ✅ Complete
-**Objective**: Comprehensive media pen-handling, interactive messages, and presence automation.
-- [x] **7.1 Media Signal**: Simplified media sending (image, video, audio, document).
-- [x] **7.2 Media Transformer**: Auto-conversion/resizing for media.
-- [x] **7.3 Interactive Signal**: List, buttons, and carousel messages.
-- [x] **7.4 Presence Manager**: Auto-presence (typing, recording) before sending.
-- [x] **7.5 Read Receipts**: Auto-read and manual read control.
-- [ ] **7.1 Warning Utility**: Implement single-use deprecation logging.
-- [ ] **7.2 Context Proxy**: Map V3 `ctx` properties (e.g., `roomId`, `isGroup`) to V4.
-- [ ] **7.3 Client Wrapper**: Implement V3 `wa.send()` and `wa.reaction()` signatures.
+**Objective**: Comprehensive media handling, interactive messages, and presence automation.
+- [x] **7.1 Media Signal**: image, video, audio, document.
+- [x] **7.2 Media Transformer**: Auto-conversion/resizing.
+- [x] **7.3 Interactive Signal**: List, buttons, and carousels.
+- [x] **7.4 Presence Manager**: Typing/Recording simulation.
+- [x] **7.5 Read Receipts**: Auto-read and manual control.
 
-### Phase 8: Integration & Documentation
+### Phase 8: Backward Compatibility (Compat Layer)
+**Status**: 📋 Planning Complete
+**Objective**: Ensure smooth migration for V3 users with a dedicated compat module.
+- [ ] **8.1 Warning Utility**: Implement single-use deprecation logging.
+- [ ] **8.2 Context Proxy**: Map V3 `ctx` properties to V4.
+- [ ] **8.3 Client Wrapper**: Implement V3 `wa.send()` and `wa.reply()` signatures.
+
+### Phase 9: Integration & Documentation
 **Status**: ⬜ Not Started
-**Objective**: Final polish, examples, and documentation update.
-- [ ] **8.1 Basic Examples**: Create "Hello World" and minimal command bot examples.
-- [ ] **8.2 Advanced Examples**: Create nested router and management API examples.
-- [ ] **8.3 README Update**: Full V4 migration guide, API reference, and screenshots.
+**Objective**: Final polish, examples, and migration guide.
+- [ ] **9.1 Examples**: Core and advanced usage patterns.
+- [ ] **9.2 V4 Guide**: Technical documentation and migration blog post.

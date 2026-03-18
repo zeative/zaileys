@@ -1,5 +1,5 @@
 import { msgStore } from '../store/namespaces'
-import type { WASocket } from '@whiskeysockets/baileys'
+import type { WASocket } from 'baileys'
 
 /**
  * Ensures outgoing signals are persisted and can be re-sent if failed.

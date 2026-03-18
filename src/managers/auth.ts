@@ -1,5 +1,5 @@
 import EventEmitter from 'eventemitter3'
-import { useMultiFileAuthState } from '@whiskeysockets/baileys'
+import { useMultiFileAuthState } from 'baileys'
 
 /**
  * Handles unified authentication (QR/Pairing).

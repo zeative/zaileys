@@ -1,4 +1,4 @@
-import type { WASocket } from '@whiskeysockets/baileys'
+import type { WASocket } from 'baileys'
 
 /**
  * Manages automated presence and read receipt effects.

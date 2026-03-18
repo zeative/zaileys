@@ -1,4 +1,4 @@
-import type { WASocket } from '@whiskeysockets/baileys'
+import type { WASocket } from 'baileys'
 
 export type PrivacySetting = {
   lastSeen: 'everyone' | 'contacts' | 'contact_blacklist' | 'none'

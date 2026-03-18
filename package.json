@@ -37,23 +37,28 @@
     "r:patch": "npm version patch && npm run build && npm publish",
     "r:minor": "npm version minor && npm run build && npm publish",
     "r:major": "npm version major && npm run build && npm publish",
-    "prepare": "husky"
+    "prepare": "husky",
+    "test": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
     "@commitlint/cli": "^20.5.0",
     "@commitlint/config-conventional": "^20.5.0",
     "@types/node": "^24.10.1",
     "@types/qrcode-terminal": "^0.12.2",
+    "@vitest/coverage-v8": "^3.0.7",
     "husky": "^9.1.7",
     "tsup": "^8.5.1",
     "tsx": "^4.21.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "vitest": "^3.0.7"
   },
   "dependencies": {
-    "@zaadevofc/media-process": "^1.0.1",
+    "@zaadevofc/media-process": "^1.0.2",
     "async-mutex": "^0.5.0",
     "audio-decode": "^2.2.3",
     "baileys": "^7.0.0-rc.9",
+    "eventemitter3": "^5.0.4",
     "figlet": "^1.9.4",
     "gradient-string": "^3.0.0",
     "lmdb": "^3.5.2",

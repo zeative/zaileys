@@ -17,8 +17,8 @@ const COMPILED_PATTERNS = [
   // 4. Variation selectors
   { pattern: /[\uFE00-\uFE0F]/gu, replace: '' },
 
-  // 5. Combining marks
-  { pattern: /[\u0300-\u036F\u1AB0-\u1AFF\u1DC0-\u1DFF\u20D0-\u20FF\uFE20-\uFE2F]/gu, replace: '' },
+  // 5. Combining marks (Zalgo & other accents)
+  { pattern: /\p{M}/gu, replace: '' },
 
   // 6. Control & format categories
   { pattern: /[\p{Cc}\p{Cf}\p{Co}\p{Cn}\p{Cs}]/gu, replace: '' },

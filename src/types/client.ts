@@ -4,8 +4,8 @@ import {
   boolean, 
   number, 
   optional, 
-  type Output, 
-  type Input 
+  type InferOutput, 
+  type InferInput 
 } from 'valibot'
 
 /**
@@ -52,8 +52,8 @@ export const ClientOptionsSchema = object({
   })),
 })
 
-export type ClientOptions = Output<typeof ClientOptionsSchema>
-export type ClientOptionsInput = Input<typeof ClientOptionsSchema>
+export type ClientOptions = InferOutput<typeof ClientOptionsSchema>
+export type ClientOptionsInput = InferInput<typeof ClientOptionsSchema>
 
 /**
  * Final Client interface (Skeleton for now).

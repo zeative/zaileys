@@ -1,5 +1,4 @@
 import { existsSync, readFileSync } from 'node:fs'
-import { isBuffer } from 'radashi' // Assuming radashi is available as per tech-docs
 
 /**
  * Media utilities for Zaileys V4.
@@ -20,7 +19,7 @@ export interface CleanMedia {
  * Async fetching should be handled by the Transformer pipeline.
  */
 export function cleanMediaObject(source: MediaSource): Buffer {
-  if (isBuffer(source)) {
+  if (Buffer.isBuffer(source)) {
     return source
   }
 

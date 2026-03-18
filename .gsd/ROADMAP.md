@@ -13,16 +13,16 @@
 ## Phases
 
 ### Phase 1: Foundation Cleanout & Core Utilities
-**Status**: ⬜ Not Started
+**Status**: ✅ Complete
 **Objective**: Establish the core utilities, base types, and high-performance storage layer.
-- [ ] **1.1 Text Utils**: Implement optimized `normalizeText` with pre-compiled regex.
-- [ ] **1.2 JID Utils**: Implement `cleanJid`, `resolveJids`, and `jidToName`.
-- [ ] **1.3 Media Utils**: Implement `cleanMediaObject` for buffer/URL handling.
-- [ ] **1.4 ID Utils**: Implement `generateId` for message hashing.
-- [ ] **1.5 Core Types**: Define `ClientOptions`, base interfaces, and `index.ts` exports.
-- [ ] **1.6 Store Layer**: Initialize LRU-cache using `eventemitter3`.
-- [ ] **1.7 Database**: Implement LMDB abstraction with scoped access.
-- [ ] **1.8 Testing**: Setup unit tests for all foundation utilities.
+- [x] **1.1 Text Utils**: Implement optimized `normalizeText` with pre-compiled regex.
+- [x] **1.2 JID Utils**: Implement `cleanJid`, `resolveJids`, and `jidToName`.
+- [x] **1.3 Media Utils**: Implement `cleanMediaObject` for buffer/URL handling.
+- [x] **1.4 ID Utils**: Implement `generateId` for message hashing.
+- [x] **1.5 Core Types**: Define `ClientOptions`, base interfaces, and `index.ts` exports.
+- [x] **1.6 Store Layer**: Initialize LRU-cache using `eventemitter3`.
+- [x] **1.7 Database**: Implement LMDB abstraction with scoped access.
+- [x] **1.8 Testing**: Setup unit tests for all foundation utilities.
 
 ### Phase 2: Context System (The Heart of V4)
 **Status**: ⬜ Not Started

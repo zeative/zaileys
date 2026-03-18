@@ -1,0 +1,2760 @@
+================================================================================
+  ZAILEYS V4 — TECHNICAL DESIGN DOCUMENTATION
+  Version: 4.0.0-draft
+  Status: Internal — Engineering Reference
+  Prepared for: Migration Team (Multi-Phase Execution)
+================================================================================
+
+DAFTAR ISI
+──────────────────────────────────────────────────────────────────────────────
+  1.  OVERVIEW & TUJUAN
+  2.  KEPUTUSAN ARSITEKTUR (PARKED vs CONFIRMED)
+  3.  DIRECTORY STRUCTURE
+  4.  DEPENDENCY RECOMMENDATIONS
+  5.  PHASE MIGRATION PLAN (Overview)
+
+  === TECHNICAL SPECS ===
+  6.  SIGNAL SYSTEM
+  7.  CONTEXT SYSTEM
+  8.  COMMAND SYSTEM
+  9.  MANAGEMENT API (Group, Community, Newsletter, Privacy)
+  10. STORE & DATABASE
+  11. HEALTH & CONNECTION
+  12. PLUGIN PIPELINE
+  13. TYPE SYSTEM
+  14. BACKWARD COMPATIBILITY LAYER
+  15. TESTING STRATEGY
+  16. OPEN ITEMS (Parked Topics)
+
+================================================================================
+  1. OVERVIEW & TUJUAN
+================================================================================
+
+Zaileys V4 adalah refaktor besar-besaran dari V3 dengan fokus utama pada:
+
+  - Developer Experience (DX) yang jauh lebih baik
+  - Arsitektur yang bersih, modular, dan maintainable
+  - Type safety penuh tanpa "ignoreLint" workaround
+  - Performance lebih baik di semua layer
+  - API yang konsisten dan predictable
+  - Pemula friendly sekaligus powerful untuk advanced use case
+  - Scalable untuk project besar
+
+V4 adalah FULL BREAKING CHANGE dari V3. Tidak ada silent migration.
+Tersedia compat layer opsional di 'zaileys/compat' untuk tim yang butuh
+transisi bertahap (dengan deprecation warning).
+
+Target Node.js: >= 20.0.0
+Target TypeScript: >= 5.0
+Package: tetap 'zaileys' (single package, dibahas ulang nanti)
+
+================================================================================
+  2. KEPUTUSAN ARSITEKTUR
+================================================================================
+
+── CONFIRMED (masuk ke V4 docs ini) ──────────────────────────────────────────
+
+  [SIGNAL]
+  ✅ ctx.send() sebagai unified API, ctx.reply() sebagai alias quote:true
+  ✅ Button unified dalam send(), tidak ada wa.button() terpisah
+  ✅ Button auto-detect dari shape data (tidak perlu explicit type field)
+  ✅ SentMessage rich return value (.edit, .delete, .react, .pin, .forward)
+  ✅ Transformer per media type, extendable dengan fallback ke core
+
+  [CONTEXT]
+  ✅ Hybrid nested structure: ctx.room.id, ctx.sender.name, ctx.is.group
+  ✅ Shorthand di root: ctx.text, ctx.type, ctx.media
+  ✅ Module injection via ctx.ext.xxx
+  ✅ ctx.replied adalah full MessageContext, nested sampai maxReplies
+  ✅ room.type sebagai string enum, bukan multiple boolean
+
+  [COMMAND]
+  ✅ wa.command() inline API
+  ✅ defineCommand() file-based
+  ✅ Prefix required untuk trigger command
+  ✅ Typed args parsing built-in di core
+  ✅ wa.router() dengan nama otomatis jadi prefix
+  ✅ Folder structure otomatis jadi router (nested supported)
+
+  [MANAGEMENT]
+  ✅ wa.group(roomId).members.add() — invocation style
+  ✅ ctx.group auto-bound ke current roomId, only available jika room.type === 'group'
+  ✅ wa.groups.create() sebagai factory (plural = collection)
+  ✅ Pola konsisten antara group, community, newsletter
+  ✅ Privacy unified via wa.privacy.set() dan wa.privacy.update()
+
+  [COMPAT]
+  ✅ Compat layer tersedia di 'zaileys/compat'
+  ✅ Deprecation warning di console kalau pakai V3 API
+  ✅ Full breaking — V3 API tidak ada di main import
+
+── PARKED (tidak masuk docs ini, dibahas di iterasi berikutnya) ───────────────
+
+  ⏸ Package distribution: single vs monorepo @zaileys/xxx
+  ⏸ Entry point API: createBot() builder vs new Client() constructor
+  ⏸ Module system: defineModule(), hook system, layered access
+  ⏸ Official plugin registry
+  ⏸ CLI: npx zaileys create
+  ⏸ Multi-instance / distributed store (Redis adapter)
+
+================================================================================
+  3. DIRECTORY STRUCTURE
+================================================================================
+
+  zaileys/
+  ├── src/
+  │   ├── index.ts                    # Public API — main exports
+  │   │
+  │   ├── core/
+  │   │   ├── client.ts               # Client class (entry point sementara)
+  │   │   ├── lifecycle.ts            # Bot lifecycle manager
+  │   │   └── pipeline.ts             # Event pipeline processor
+  │   │
+  │   ├── auth/
+  │   │   ├── index.ts
+  │   │   ├── qr.ts                   # QR auth handler
+  │   │   ├── pairing.ts              # Pairing code handler
+  │   │   └── state.ts                # Auth state management (LMDB)
+  │   │
+  │   ├── signal/
+  │   │   ├── index.ts                # Signal public API
+  │   │   ├── engine.ts               # SignalEngine core
+  │   │   ├── resolver.ts             # Resolve & validate payload type
+  │   │   ├── builder.ts              # Build final WA payload
+  │   │   ├── sender.ts               # Socket send abstraction
+  │   │   ├── sent-message.ts         # SentMessage rich return value
+  │   │   └── transformers/
+  │   │       ├── index.ts            # Register all transformers
+  │   │       ├── text.ts
+  │   │       ├── image.ts
+  │   │       ├── video.ts
+  │   │       ├── audio.ts
+  │   │       ├── sticker.ts
+  │   │       ├── document.ts
+  │   │       ├── location.ts
+  │   │       ├── contact.ts
+  │   │       ├── poll.ts
+  │   │       └── button.ts           # Unified button transformer
+  │   │
+  │   ├── context/
+  │   │   ├── index.ts
+  │   │   ├── message-context.ts      # MessageContext builder
+  │   │   ├── command-context.ts      # CommandContext extends MessageContext
+  │   │   ├── call-context.ts         # CallContext
+  │   │   ├── context-actions.ts      # ctx.send(), ctx.react(), dll
+  │   │   └── shorthand.ts            # Root-level shorthand getters
+  │   │
+  │   ├── command/
+  │   │   ├── index.ts
+  │   │   ├── registry.ts             # Command registry & lookup
+  │   │   ├── router.ts               # Router / command grouping
+  │   │   ├── parser.ts               # Arg & flag parser
+  │   │   ├── loader.ts               # File-based command loader
+  │   │   ├── executor.ts             # Command execution pipeline
+  │   │   ├── help.ts                 # Auto help menu generator
+  │   │   └── guards/
+  │   │       ├── index.ts
+  │   │       ├── only-group.ts
+  │   │       ├── only-admin.ts
+  │   │       ├── cooldown.ts
+  │   │       └── rate-limit.ts
+  │   │
+  │   ├── managers/
+  │   │   ├── group/
+  │   │   │   ├── index.ts            # Group(roomId) factory
+  │   │   │   ├── members.ts          # group.members.*
+  │   │   │   ├── permissions.ts      # group.permissions.*
+  │   │   │   ├── profile.ts          # group.profile.*
+  │   │   │   ├── invite.ts           # group.invite.*
+  │   │   │   ├── requests.ts         # group.requests.*
+  │   │   │   └── disappearing.ts     # group.disappearing.*
+  │   │   ├── community/
+  │   │   │   ├── index.ts
+  │   │   │   ├── groups.ts           # community.groups.*
+  │   │   │   ├── members.ts          # community.members.*
+  │   │   │   ├── permissions.ts      # community.permissions.*
+  │   │   │   ├── profile.ts          # community.profile.*
+  │   │   │   └── invite.ts           # community.invite.*
+  │   │   ├── newsletter/
+  │   │   │   ├── index.ts
+  │   │   │   ├── profile.ts          # newsletter.profile.*
+  │   │   │   ├── messages.ts         # newsletter.messages.*
+  │   │   │   ├── admins.ts           # newsletter.admins.*
+  │   │   │   └── subscribers.ts      # newsletter.subscribers.*
+  │   │   └── privacy/
+  │   │       ├── index.ts
+  │   │       ├── settings.ts         # privacy.set(), privacy.update()
+  │   │       ├── blocklist.ts        # privacy.block(), privacy.blocked()
+  │   │       └── disappearing.ts     # privacy.disappearing.*
+  │   │
+  │   ├── listener/
+  │   │   ├── index.ts
+  │   │   ├── connection.ts
+  │   │   ├── messages.ts
+  │   │   └── calls.ts
+  │   │
+  │   ├── store/
+  │   │   ├── index.ts
+  │   │   ├── unified-store.ts        # LRU-based in-memory store
+  │   │   └── database.ts             # LMDB database abstraction
+  │   │
+  │   ├── health/
+  │   │   ├── index.ts
+  │   │   ├── health-manager.ts       # Auto-healing logic
+  │   │   └── cleanup-manager.ts      # Auto cleanup
+  │   │
+  │   ├── types/
+  │   │   ├── index.ts                # Re-export semua types
+  │   │   ├── context.ts              # MessageContext, CommandContext, dll
+  │   │   ├── signal.ts               # SendPayload, SentMessage, dll
+  │   │   ├── command.ts              # CommandDefinition, RouterDefinition
+  │   │   ├── manager.ts              # GroupInstance, CommunityInstance, dll
+  │   │   ├── client.ts               # ClientOptions
+  │   │   └── extensions.ts           # Extension interfaces (untuk module augment)
+  │   │
+  │   └── utils/
+  │       ├── index.ts
+  │       ├── text.ts                 # normalizeText, escapeRegExp, dll
+  │       ├── jid.ts                  # cleanJid, resolveJids, dll
+  │       ├── media.ts                # cleanMediaObject, dll
+  │       └── id.ts                   # generateId
+  │
+  ├── compat/
+  │   └── index.ts                    # V3 compat layer
+  │
+  ├── examples/
+  │   ├── basic.ts
+  │   ├── with-commands.ts
+  │   ├── with-router.ts
+  │   └── with-management.ts
+  │
+  ├── package.json
+  ├── tsconfig.json
+  └── tsup.config.ts
+
+================================================================================
+  4. DEPENDENCY RECOMMENDATIONS
+================================================================================
+
+── KEEP (dari V3) ─────────────────────────────────────────────────────────────
+
+  baileys               Core WA protocol — tidak ada alternatif
+  lmdb                  Fastest embedded DB untuk Node.js — tetap pakai
+  lru-cache             Fastest LRU untuk in-memory — tetap pakai
+  valibot               Sudah ringan, tetap pakai untuk validation
+  radashi               Pengganti lodash yang modern — tetap pakai
+  async-mutex           Mutex untuk concurrent ops — tetap pakai
+  pino                  Fast structured logger — tetap pakai
+  nanospinner           Terminal spinner — tetap pakai
+  gradient-string       Banner coloring — tetap pakai
+  figlet                ASCII art banner — tetap pakai
+  @zaadevofc/media-process  Media processing — tetap pakai
+
+── TAMBAH BARU ────────────────────────────────────────────────────────────────
+
+  Package: eventemitter3
+  Version: ^5.0.0
+  Alasan: Pengganti Node.js EventEmitter built-in. 3x lebih cepat,
+          lebih type-safe, zero dependencies. Dipakai di store events
+          dan pipeline event system.
+  Install: npm install eventemitter3
+
+  Package: tinypool (opsional, untuk Phase 3+)
+  Version: ^1.0.0
+  Alasan: Worker thread pool untuk media processing yang berat.
+          Supaya image/video/audio processing tidak block main thread.
+          Hanya aktif kalau ada media transformer yang CPU-intensive.
+  Install: npm install tinypool
+
+  Package: pretty-ms
+  Version: ^9.0.0
+  Alasan: Format milliseconds jadi human-readable untuk cooldown display.
+          Ringan, zero deps. Dipakai di cooldown guard dan logs.
+  Install: npm install pretty-ms
+
+  Package: string-width
+  Version: ^7.0.0
+  Alasan: Hitung display width dari string dengan emoji support yang benar.
+          Dipakai di help menu auto-generator supaya alignment rapi.
+  Install: npm install string-width
+
+── REMOVE (dari V3) ───────────────────────────────────────────────────────────
+
+  audio-decode          Tidak dipakai langsung, sudah ada di media-process
+  qrcode-terminal       Ganti dengan implementasi sendiri yang lebih ringan
+                        atau tetap pakai tapi isolate ke auth module saja
+
+── OPTIONAL (user install sendiri kalau butuh) ────────────────────────────────
+
+  @prisma/client        Untuk module prisma (third-party module nanti)
+  ioredis               Untuk Redis store adapter (parked topic)
+  winston               Untuk custom logger (parked topic)
+
+================================================================================
+  5. PHASE MIGRATION PLAN (Overview)
+================================================================================
+
+Total estimasi: 8 Phase
+Setiap phase adalah unit kerja yang independen dan dapat di-assign ke
+sub-tim berbeda.
+
+  Phase 1 — FOUNDATION CLEANUP
+    Scope: Utils, Types, Store
+    Breaking: Tidak (internal refactor)
+    Estimasi: 3-5 hari
+
+  Phase 2 — CONTEXT SYSTEM
+    Scope: context/, types/context.ts
+    Breaking: YA — ctx structure berubah total
+    Estimasi: 5-7 hari
+    Depends on: Phase 1
+
+  Phase 3 — SIGNAL SYSTEM
+    Scope: signal/
+    Breaking: YA — API berubah total
+    Estimasi: 7-10 hari
+    Depends on: Phase 1, Phase 2
+
+  Phase 4 — COMMAND SYSTEM
+    Scope: command/
+    Breaking: YA — plugin system berubah
+    Estimasi: 7-10 hari
+    Depends on: Phase 2, Phase 3
+
+  Phase 5 — MANAGEMENT API
+    Scope: managers/
+    Breaking: YA — semua group/community/newsletter/privacy API berubah
+    Estimasi: 5-7 hari
+    Depends on: Phase 1
+
+  Phase 6 — LISTENER & CONNECTION
+    Scope: listener/, health/
+    Breaking: Sebagian
+    Estimasi: 3-5 hari
+    Depends on: Phase 2, Phase 3
+
+  Phase 7 — COMPAT LAYER
+    Scope: compat/
+    Breaking: Tidak (additive)
+    Estimasi: 3-4 hari
+    Depends on: Phase 2, 3, 4, 5
+
+  Phase 8 — INTEGRATION, DOCS, EXAMPLES
+    Scope: examples/, README, tests
+    Breaking: Tidak
+    Estimasi: 5-7 hari
+    Depends on: Semua phase sebelumnya
+
+================================================================================
+  6. SIGNAL SYSTEM
+================================================================================
+
+── 6.1 OVERVIEW ───────────────────────────────────────────────────────────────
+
+Signal system adalah layer yang bertanggung jawab untuk semua pengiriman
+pesan. V4 menggunakan pattern "Transformer Pipeline" dimana setiap tipe
+media memiliki transformer tersendiri yang isolated dan testable.
+
+Flow:
+  ctx.send(payload)
+    → SignalEngine.send()
+      → Resolver: detect payload type
+        → Transformer: build WA payload
+          → Middleware pipeline: intercept & modify
+            → Sender: socket.sendMessage()
+              → return SentMessage
+
+── 6.2 SignalEngine ───────────────────────────────────────────────────────────
+
+File: src/signal/engine.ts
+
+  export class SignalEngine {
+    private transformers = new Map<string, Transformer>()
+    private middlewares: SignalMiddleware[] = []
+
+    constructor(private socket: WASocket, private options: ClientOptions) {
+      this.registerBuiltinTransformers()
+    }
+
+    // Register semua transformer bawaan
+    private registerBuiltinTransformers() {
+      this.transformers.set('text', textTransformer)
+      this.transformers.set('image', imageTransformer)
+      this.transformers.set('video', videoTransformer)
+      this.transformers.set('audio', audioTransformer)
+      this.transformers.set('sticker', stickerTransformer)
+      this.transformers.set('document', documentTransformer)
+      this.transformers.set('location', locationTransformer)
+      this.transformers.set('contact', contactTransformer)
+      this.transformers.set('poll', pollTransformer)
+      this.transformers.set('button', buttonTransformer)
+    }
+
+    // Public: extend transformer dengan fallback ke core
+    // User bisa wrap transformer asli
+    extendTransformer(type: string, wrapper: TransformerWrapper) {
+      const original = this.transformers.get(type)
+      if (!original) throw new Error(`Transformer '${type}' not found`)
+
+      this.transformers.set(type, {
+        ...original,
+        build: async (payload) => wrapper(payload, original.build)
+      })
+    }
+
+    // Public: tambah middleware di pipeline send
+    use(middleware: SignalMiddleware) {
+      this.middlewares.push(middleware)
+    }
+
+    // Main send method
+    async send(roomId: string, payload: SendPayload, opts?: SendOptions)
+      : Promise<SentMessage> {
+
+      // 1. Resolve type dari payload
+      const type = resolver.detect(payload)
+
+      // 2. Get transformer
+      const transformer = this.transformers.get(type)
+      if (!transformer) throw new SignalError(`No transformer for: ${type}`)
+
+      // 3. Build WA payload
+      let built = await transformer.build(payload, this.socket)
+
+      // 4. Apply options (quote, mentions, banner, dll)
+      built = this.applyOptions(built, opts)
+
+      // 5. Run middleware pipeline
+      built = await this.runMiddleware(roomId, built)
+
+      // 6. Auto presence update
+      if (this.options.autoPresence) {
+        await this.updatePresence(roomId, type)
+      }
+
+      // 7. Kirim via socket
+      const raw = await this.sender.send(roomId, built, opts)
+
+      // 8. Return SentMessage
+      return new SentMessage(raw, this)
+    }
+
+    // Internal: apply send options
+    private applyOptions(built: any, opts?: SendOptions) {
+      if (!opts) return built
+
+      // Auto mentions extraction
+      if (this.options.autoMentions && built.text) {
+        const jids = extractJids(built.text)
+        built.mentions = jids
+        built.contextInfo = { ...built.contextInfo, mentionedJid: jids }
+      }
+
+      // Quote/replied
+      if (opts.quote) {
+        const message = opts.quote === true
+          ? this.currentCtx?.raw()
+          : opts.quote
+        built.contextInfo = { ...built.contextInfo, quotedMessage: message }
+      }
+
+      // Banner
+      if (opts.banner) {
+        built.contextInfo = {
+          ...built.contextInfo,
+          externalAdReply: { ...opts.banner, mediaType: 1 }
+        }
+      }
+
+      // View once
+      if (opts.viewOnce) {
+        built.viewOnce = true
+      }
+
+      return built
+    }
+
+    // Internal: run middleware chain
+    private async runMiddleware(roomId: string, payload: any) {
+      let result = payload
+      for (const mw of this.middlewares) {
+        result = await mw(roomId, result) ?? result
+      }
+      return result
+    }
+
+    // Helpers
+    async react(message: WAMessage, emoji: string): Promise<SentMessage> { ... }
+    async edit(sent: SentMessage, text: string): Promise<SentMessage> { ... }
+    async delete(sent: SentMessage | SentMessage[]): Promise<void> { ... }
+    async pin(sent: SentMessage, duration?: PinDuration): Promise<void> { ... }
+    async forward(roomId: string, message: WAMessage): Promise<SentMessage> { ... }
+    async presence(roomId: string, type: PresenceType): Promise<void> { ... }
+  }
+
+── 6.3 Resolver ───────────────────────────────────────────────────────────────
+
+File: src/signal/resolver.ts
+
+Resolver mendeteksi tipe payload secara otomatis berdasarkan key yang ada.
+Priority order penting — lebih specific harus di-check duluan.
+
+  export const resolver = {
+    detect(payload: SendPayload): string {
+      if (typeof payload === 'string') return 'text'
+
+      // Media types
+      if ('sticker' in payload) return 'sticker'    // sticker sebelum image
+      if ('image' in payload) return 'image'
+      if ('video' in payload) return 'video'
+      if ('audio' in payload) return 'audio'
+      if ('document' in payload) return 'document'
+
+      // Special types
+      if ('location' in payload) return 'location'
+      if ('contact' in payload || 'contacts' in payload) return 'contact'
+      if ('poll' in payload) return 'poll'
+
+      // Button — detect dari ada tidaknya 'buttons' key
+      if ('buttons' in payload) return 'button'
+
+      // Fallback ke text kalau ada 'text' key
+      if ('text' in payload) return 'text'
+
+      throw new SignalError('Cannot detect payload type')
+    }
+  }
+
+── 6.4 Transformers ───────────────────────────────────────────────────────────
+
+Interface:
+
+  interface Transformer {
+    type: string
+    build: (payload: any, socket?: WASocket) => Promise<WAPayload>
+  }
+
+  type TransformerWrapper = (
+    payload: any,
+    next: Transformer['build']
+  ) => Promise<WAPayload>
+
+Contoh implementasi image transformer:
+
+File: src/signal/transformers/image.ts
+
+  export const imageTransformer: Transformer = {
+    type: 'image',
+
+    async build(payload: ImagePayload) {
+      const media = new Media(payload.image)
+
+      return {
+        image: await media.image.toJpeg(),
+        caption: payload.caption ?? undefined,
+        jpegThumbnail: await media.thumbnail.get(),
+        viewOnce: payload.viewOnce ?? false,
+      }
+    }
+  }
+
+Contoh audio transformer (ptt / voice rename):
+
+File: src/signal/transformers/audio.ts
+
+  export const audioTransformer: Transformer = {
+    type: 'audio',
+
+    async build(payload: AudioPayload) {
+      const media = new Media(payload.audio)
+      const isVoice = payload.voice ?? false  // 'ptt' diganti 'voice'
+
+      return {
+        audio: await media.audio.toOpus(),
+        ptt: isVoice,
+        mimetype: isVoice
+          ? 'audio/ogg; codecs=opus'
+          : 'audio/mpeg',
+      }
+    }
+  }
+
+── 6.5 Button Transformer — Auto-Detect ───────────────────────────────────────
+
+File: src/signal/transformers/button.ts
+
+Button transformer mendeteksi tipe button secara otomatis dari shape data.
+Tidak ada 'type' field yang perlu user tulis.
+
+  Detection rules:
+  - Array of { id, text }                         → simple buttons
+  - Array dengan item yang punya 'url' key         → interactive (cta_url)
+  - Array dengan item yang punya 'phone' key       → interactive (cta_call)
+  - Array dengan item yang punya 'value' key       → interactive (cta_copy)
+  - Object dengan 'cards' key                      → carousel
+  - Array dengan item yang punya 'section' key     → list/single_select
+
+  export const buttonTransformer: Transformer = {
+    type: 'button',
+
+    async build(payload: ButtonPayload, socket: WASocket) {
+      const buttons = payload.buttons
+
+      // Detect button type
+      const detectedType = detectButtonType(buttons)
+
+      switch (detectedType) {
+        case 'simple':
+          return buildSimpleButtons(payload)
+        case 'interactive':
+          return buildInteractiveButtons(payload)
+        case 'carousel':
+          return buildCarousel(payload, socket)
+        case 'list':
+          return buildList(payload)
+      }
+    }
+  }
+
+  function detectButtonType(buttons: any): ButtonInternalType {
+    // Carousel — ada 'cards' key
+    if ('cards' in buttons) return 'carousel'
+
+    if (!Array.isArray(buttons)) {
+      throw new SignalError('buttons must be array or { cards: [...] }')
+    }
+
+    const first = buttons[0]
+    if (!first) throw new SignalError('buttons array cannot be empty')
+
+    // List — ada 'section' key
+    if ('section' in first) return 'list'
+
+    // Interactive — ada url, phone, atau value key
+    if ('url' in first || 'phone' in first || 'value' in first) {
+      return 'interactive'
+    }
+
+    // Simple — hanya { id, text }
+    if ('id' in first && 'text' in first && Object.keys(first).length === 2) {
+      return 'simple'
+    }
+
+    // Mixed interactive (quick_reply + url + dll)
+    return 'interactive'
+  }
+
+── 6.6 SentMessage — Rich Return Value ───────────────────────────────────────
+
+File: src/signal/sent-message.ts
+
+  export class SentMessage {
+    readonly id: string
+    readonly roomId: string
+    readonly timestamp: number
+
+    constructor(
+      private raw: WAMessage,
+      private engine: SignalEngine
+    ) {
+      this.id = raw.key.id!
+      this.roomId = raw.key.remoteJid!
+      this.timestamp = Number(raw.messageTimestamp) * 1000
+    }
+
+    // Edit teks pesan ini
+    async edit(text: string): Promise<SentMessage> {
+      return this.engine.edit(this, text)
+    }
+
+    // Delete pesan ini
+    async delete(): Promise<void> {
+      return this.engine.delete(this)
+    }
+
+    // React ke pesan ini
+    async react(emoji: string): Promise<SentMessage> {
+      return this.engine.react(this.raw, emoji)
+    }
+
+    // Pin pesan ini
+    async pin(duration: PinDuration = '24h'): Promise<void> {
+      return this.engine.pin(this, duration)
+    }
+
+    // Forward pesan ini ke room lain
+    async forward(targetRoomId: string): Promise<SentMessage> {
+      return this.engine.forward(targetRoomId, this.raw)
+    }
+
+    // Quote pesan ini dalam pesan baru
+    quote(payload: SendPayload): SendPayload {
+      return { ...payload, quote: this.raw } as SendPayload
+    }
+
+    // Akses raw WAMessage kalau butuh
+    toRaw(): WAMessage {
+      return this.raw
+    }
+  }
+
+── 6.7 SendPayload Type Definition ───────────────────────────────────────────
+
+File: src/types/signal.ts
+
+  // Base options yang bisa ditambahkan ke semua payload
+  type SendOptions = {
+    quote?: boolean | WAMessage | SentMessage
+    viewOnce?: boolean
+    banner?: ExternalAdReplyInfo
+    forward?: boolean
+    forwardMany?: boolean
+  }
+
+  // Media source bisa URL string, Buffer, atau base64 string
+  type MediaSource = string | Buffer
+
+  // Semua payload types
+  type TextPayload = string | { text: string }
+
+  type ImagePayload = {
+    image: MediaSource
+    caption?: string
+    viewOnce?: boolean
+  }
+
+  type VideoPayload = {
+    video: MediaSource
+    caption?: string
+    ptv?: boolean        // picture-in-picture video
+  }
+
+  type AudioPayload = {
+    audio: MediaSource
+    voice?: boolean      // true = voice note (ptt), false = audio file
+  }
+
+  type StickerPayload = {
+    sticker: MediaSource
+    shape?: 'default' | 'rounded' | 'circle' | 'oval'
+  }
+
+  type DocumentPayload = {
+    document: MediaSource
+    filename?: string
+    caption?: string
+  }
+
+  type LocationPayload = {
+    location: {
+      lat: number          // latitude (bukan latitude — lebih pendek)
+      lng: number          // longitude (bukan longitude — lebih pendek)
+      title?: string
+      footer?: string
+      url?: string
+    }
+  }
+
+  type ContactPayload = {
+    contact: {
+      name: string
+      phone: number
+      organization?: string
+    }
+    | {
+      // Multiple contacts
+      title?: string
+      contacts: Array<{
+        name: string
+        phone: number
+        organization?: string
+      }>
+    }
+  }
+
+  type PollPayload = {
+    poll: {
+      question: string     // bukan 'name' — lebih semantic
+      options: string[]    // bukan 'answers' — lebih semantic
+      multiple?: boolean   // bukan 'isMultiple' — lebih pendek
+    }
+  }
+
+  // Simple button: { id, text } only
+  type SimpleButton = { id: string; text: string }
+
+  // Interactive buttons
+  type UrlButton = { type: 'url'; text: string; url: string }
+  type CallButton = { type: 'call'; text: string; phone: string }
+  type CopyButton = { type: 'copy'; text: string; value: string }
+  type ReplyButton = { type: 'reply'; id: string; text: string }
+  type ListButton = {
+    text: string
+    section: Array<{
+      title: string
+      rows: Array<{ id: string; title: string; description?: string }>
+    }>
+  }
+
+  // Carousel
+  type CarouselCard = {
+    body: string
+    footer?: string
+    image?: MediaSource
+    video?: MediaSource
+    title?: string
+    actions: Array<UrlButton | ReplyButton | CopyButton>
+  }
+
+  type ButtonPayload = {
+    text: string
+    buttons:
+      | SimpleButton[]                                      // auto → simple
+      | Array<UrlButton | CallButton | CopyButton | ReplyButton | ListButton>  // auto → interactive
+      | { cards: CarouselCard[] }                           // auto → carousel
+  }
+
+  // Union semua payload
+  type SendPayload = (
+    | TextPayload
+    | ImagePayload
+    | VideoPayload
+    | AudioPayload
+    | StickerPayload
+    | DocumentPayload
+    | LocationPayload
+    | ContactPayload
+    | PollPayload
+    | ButtonPayload
+  ) & SendOptions
+
+  // Return value
+  type PinDuration = '24h' | '7d' | '90d'
+
+── 6.8 ContextActions ─────────────────────────────────────────────────────────
+
+File: src/context/context-actions.ts
+
+ContextActions di-attach ke MessageContext dan CommandContext.
+Auto-bind roomId dan raw message dari ctx.
+
+  export class ContextActions {
+    constructor(
+      private engine: SignalEngine,
+      private ctx: MessageContext
+    ) {}
+
+    // Send ke room yang sama — tanpa quote
+    async send(payload: SendPayload | string): Promise<SentMessage> {
+      return this.engine.send(this.ctx.room.id, payload)
+    }
+
+    // Reply — send dengan quote otomatis
+    async reply(payload: SendPayload | string): Promise<SentMessage> {
+      const opts = { quote: this.ctx.raw() }
+      if (typeof payload === 'string') {
+        return this.engine.send(this.ctx.room.id, payload, opts)
+      }
+      return this.engine.send(this.ctx.room.id, { ...payload, ...opts })
+    }
+
+    // React ke message yang masuk
+    async react(emoji: string): Promise<SentMessage> {
+      return this.engine.react(this.ctx.raw(), emoji)
+    }
+
+    // Forward message yang masuk ke room lain
+    async forward(targetRoomId: string): Promise<SentMessage> {
+      return this.engine.forward(targetRoomId, this.ctx.raw())
+    }
+
+    // Pin message yang masuk
+    async pin(duration?: PinDuration): Promise<void> {
+      return this.engine.pin(this.ctx.raw(), duration)
+    }
+
+    // Delete message yang masuk (hanya kalau isFromMe)
+    async delete(): Promise<void> {
+      if (!this.ctx.is.fromMe) throw new Error('Can only delete own messages')
+      return this.engine.delete(this.ctx.raw())
+    }
+
+    // Update presence di room ini
+    async presence(type: PresenceType): Promise<void> {
+      return this.engine.presence(this.ctx.room.id, type)
+    }
+  }
+
+================================================================================
+  7. CONTEXT SYSTEM
+================================================================================
+
+── 7.1 MessageContext Interface ───────────────────────────────────────────────
+
+File: src/types/context.ts
+
+Full interface MessageContext:
+
+  interface MessageContext extends ContextActions {
+
+    // ── IDENTIFIERS ──────────────────────────────────────────────────────
+    id: {
+      unique: string        // hash dari channelId + chatId — untuk dedup
+      channel: string       // hash dari roomId + senderId — untuk rate limit
+      chat: string          // WA message key.id — untuk reply/quote ke WA
+    }
+
+    // ── ROOM ─────────────────────────────────────────────────────────────
+    room: {
+      id: string
+      lid: string | null
+      name: string | null
+      type: RoomType        // 'private' | 'group' | 'newsletter' | 'broadcast'
+    }
+
+    // ── SENDER ───────────────────────────────────────────────────────────
+    sender: {
+      id: string
+      lid: string | null
+      name: string | null
+      device: DeviceType    // 'android' | 'ios' | 'desktop' | 'web' | 'unknown'
+    }
+
+    // ── RECEIVER (bot itself) ─────────────────────────────────────────────
+    receiver: {
+      id: string
+      lid: string | null
+      name: string | null
+    }
+
+    // ── CONTENT ──────────────────────────────────────────────────────────
+    content: {
+      type: MessageType     // 'text' | 'image' | 'video' | 'audio' | ...
+      text: string | null
+      media: MediaContent | null
+      mentions: string[]
+      links: string[]
+    }
+
+    // ── FLAGS ─────────────────────────────────────────────────────────────
+    is: {
+      // Sender
+      fromMe: boolean
+      bot: boolean
+      spam: boolean
+
+      // Room
+      group: boolean           // computed dari room.type === 'group'
+      newsletter: boolean      // computed dari room.type === 'newsletter'
+      broadcast: boolean       // computed dari room.type === 'broadcast'
+      story: boolean           // computed dari roomId includes '@broadcast'
+
+      // Message state
+      forwarded: boolean
+      edited: boolean
+      deleted: boolean
+      pinned: boolean
+      unpinned: boolean
+      viewOnce: boolean
+      ephemeral: boolean
+
+      // Interaction
+      tagged: boolean          // bot di-mention
+      prefix: boolean          // pakai command prefix
+
+      // Special
+      statusMention: boolean
+      groupStatusMention: boolean
+      hideTags: boolean
+      question: boolean
+    }
+
+    // ── META ──────────────────────────────────────────────────────────────
+    timestamp: number
+    prefix: string | null      // prefix yang dipakai, null kalau tidak ada
+
+    // ── RELATIONS ─────────────────────────────────────────────────────────
+    replied: MessageContext | null
+
+    // ── EXTENSIONS (dari module/middleware) ────────────────────────────────
+    ext: MessageContextExtensions  // bisa di-augment oleh module nanti
+
+    // ── RAW ACCESS ────────────────────────────────────────────────────────
+    raw: () => WAMessage
+
+    // ── SHORTHAND (getter, forward ke nested) ─────────────────────────────
+    readonly text: string | null       // → content.text
+    readonly type: MessageType         // → content.type
+    readonly media: MediaContent | null  // → content.media
+    readonly mentions: string[]        // → content.mentions
+    readonly links: string[]           // → content.links
+
+    // ── MANAGEMENT (hanya tersedia sesuai room.type) ──────────────────────
+    readonly group: GroupInstance | null         // null kalau bukan group
+    readonly community: CommunityInstance | null // null kalau bukan community
+    readonly newsletter: NewsletterInstance | null // null kalau bukan newsletter
+
+    // ── CITATION (dari V3, tetap dipertahankan) ───────────────────────────
+    citation: Record<string, () => Promise<boolean>> | null
+  }
+
+  // Extension interface — kosong di core, diisi oleh module
+  interface MessageContextExtensions {}
+
+── 7.2 RoomType & DeviceType ──────────────────────────────────────────────────
+
+  type RoomType = 'private' | 'group' | 'newsletter' | 'broadcast'
+
+  type DeviceType = 'android' | 'ios' | 'desktop' | 'web' | 'unknown'
+
+  type MessageType =
+    | 'text' | 'image' | 'video' | 'audio' | 'sticker' | 'document'
+    | 'location' | 'contact' | 'contacts' | 'poll' | 'pollUpdate'
+    | 'reaction' | 'interactive' | 'interactiveResponse'
+    | 'viewOnce' | 'ephemeral' | 'edited' | 'deleted'
+    | 'statusMention' | 'groupStatusMention'
+    | 'buttons' | 'lists' | 'album'
+    | 'ptv' | 'sticker' | 'lottieSticker'
+    | string // fallback untuk type baru dari WA
+
+── 7.3 MediaContent ───────────────────────────────────────────────────────────
+
+  interface MediaContent {
+    mimetype?: string
+    fileLength?: number
+    fileName?: string
+    caption?: string | null
+
+    // Lazy loaders — tidak auto-download
+    buffer: () => Promise<Buffer>
+    stream: () => Promise<NodeJS.ReadableStream>
+  }
+
+── 7.4 CommandContext ─────────────────────────────────────────────────────────
+
+File: src/types/context.ts
+
+CommandContext extends MessageContext dengan tambahan properties
+khusus untuk command execution:
+
+  interface CommandContext extends MessageContext {
+    // Nama command yang di-trigger (tanpa prefix)
+    command: string
+
+    // Raw argument string setelah command
+    // Input: "!kick @628xxx karena spam"
+    // rawArgs: "@628xxx karena spam"
+    rawArgs: string
+
+    // Parsed arguments array
+    // args[0] = '@628xxx', args[1] = 'karena', args[2] = 'spam'
+    args: string[]
+
+    // Type-safe args kalau pakai schema (dari defineCommand args schema)
+    // Override args dengan typed version kalau schema didefinisikan
+    typedArgs: Record<string, any>
+
+    // Helper get arg by index
+    arg(index: number): string | undefined
+
+    // Parsed --flags dari rawArgs
+    // Input: "!ban @user --reason spam --duration 7d"
+    // flags = { reason: 'spam', duration: '7d' }
+    flags: Record<string, string | boolean>
+
+    // Prefix yang dipakai untuk trigger command ini
+    usedPrefix: string
+
+    // Router path kalau command ada di dalam router
+    // Contoh: ['admin', 'kick'] untuk '!admin kick'
+    routerPath: string[]
+  }
+
+── 7.5 MessageContext Builder ─────────────────────────────────────────────────
+
+File: src/context/message-context.ts
+
+Builder yang mengkonversi raw WAMessage jadi MessageContext.
+Ini menggantikan parse() method di Messages listener V3.
+
+  export class MessageContextBuilder {
+    constructor(
+      private socket: WASocket,
+      private options: ClientOptions,
+      private engine: SignalEngine,
+      private limiter: RateLimiter
+    ) {}
+
+    async build(raw: WAMessage, depth = 0): Promise<MessageContext | null> {
+      // Early exits — sama seperti V3 tapi lebih explicit
+      if (!this.isValidMessage(raw)) return null
+
+      const content = this.extractContent(raw)
+      if (!content) return null
+
+      const room = this.buildRoom(raw)
+      const sender = this.buildSender(raw)
+      const receiver = this.buildReceiver()
+      const ids = this.buildIds(raw, room, sender)
+      const flags = await this.buildFlags(raw, content, room, sender)
+      const contentObj = this.buildContent(raw, content)
+
+      const ctx: MessageContext = {
+        id: ids,
+        room,
+        sender,
+        receiver,
+        content: contentObj,
+        is: flags,
+        timestamp: Number(raw.messageTimestamp) * 1000,
+        prefix: this.extractPrefix(contentObj.text),
+        replied: null,
+        ext: {},
+        raw: () => raw,
+
+        // Computed shorthands
+        get text() { return this.content.text },
+        get type() { return this.content.type },
+        get media() { return this.content.media },
+        get mentions() { return this.content.mentions },
+        get links() { return this.content.links },
+
+        // Management instances — lazy, hanya jika room type cocok
+        get group() {
+          return room.type === 'group'
+            ? new GroupInstance(room.id, socket)
+            : null
+        },
+        get community() {
+          return room.type === 'group'  // community juga bertipe group
+            ? new CommunityInstance(room.id, socket)
+            : null
+        },
+        get newsletter() {
+          return room.type === 'newsletter'
+            ? new NewsletterInstance(room.id, socket)
+            : null
+        },
+
+        // ContextActions
+        ...new ContextActions(engine, ctx),
+      }
+
+      // Build replied chain
+      if (depth < (this.options.maxReplies ?? 3)) {
+        ctx.replied = await this.buildReplied(raw, content, depth)
+      }
+
+      return ctx
+    }
+
+    private isValidMessage(raw: WAMessage): boolean {
+      if (raw?.category === 'peer') return false
+      if (!raw?.message || !raw?.key?.id) return false
+      if (raw?.messageStubType) return false
+      if (raw?.messageStubParameters?.length) return false
+      if (raw.message?.protocolMessage
+          ?.peerDataOperationRequestResponseMessage) return false
+      return true
+    }
+
+    // ... implementasi method lainnya
+  }
+
+── 7.6 normalizeText — Optimasi ───────────────────────────────────────────────
+
+File: src/utils/text.ts
+
+Masalah V3: normalizeText dipanggil tiap message dengan 30+ regex
+yang di-compile ulang setiap kali. Sangat boros CPU.
+
+Solusi V4: Compile semua regex SEKALI saat module load.
+
+  // Compile sekali, pakai berkali-kali
+  const COMPILED_PATTERNS = [
+    // RTL override characters
+    { pattern: /\u202E(.*?)(\u202C|$)/gu, replace: (_, c) => [...c].reverse().join('') },
+    { pattern: /\u202D(.*?)(\u202C|$)/gu, replace: (_, c) => [...c].reverse().join('') },
+
+    // Invisible & directional marks — digabung jadi satu pattern
+    { pattern: /[\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069\u200B\u200C\u200D\uFEFF]/gu, replace: '' },
+
+    // Zero-width & special chars — digabung
+    { pattern: /[\u00AD\u034F\u115F\u1160\u17B4\u17B5\u180B-\u180E\u2060-\u2064\u206A-\u206F\u2800\uFFFC\uFFFD]/gu, replace: '' },
+
+    // Variation selectors
+    { pattern: /[\uFE00-\uFE0F]/gu, replace: '' },
+
+    // Combining marks (setelah NFKD normalize)
+    { pattern: /[\u0300-\u036F\u1AB0-\u1AFF\u1DC0-\u1DFF\u20D0-\u20FF\uFE20-\uFE2F]/gu, replace: '' },
+
+    // Control & format categories
+    { pattern: /[\p{Cc}\p{Cf}\p{Co}\p{Cn}\p{Cs}]/gu, replace: '' },
+
+    // Non-standard whitespace → regular space
+    { pattern: /[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000\u2028\u2029\t\r\n\f\v]/gu, replace: ' ' },
+
+    // Multiple spaces
+    { pattern: /\s+/g, replace: ' ' },
+  ] as const
+
+  export const normalizeText = (text: string | null | undefined): string | null => {
+    if (!text?.length) return null
+
+    let result = text
+
+    // RTL handlers (butuh function replacer)
+    result = result
+      .replace(COMPILED_PATTERNS[0].pattern, COMPILED_PATTERNS[0].replace as any)
+      .replace(COMPILED_PATTERNS[1].pattern, COMPILED_PATTERNS[1].replace as any)
+
+    // String replacers
+    for (let i = 2; i < COMPILED_PATTERNS.length; i++) {
+      result = result.replace(
+        COMPILED_PATTERNS[i].pattern,
+        COMPILED_PATTERNS[i].replace as string
+      )
+    }
+
+    // Normalize
+    result = result
+      .normalize('NFKD')
+      .normalize('NFKC')
+      .normalize('NFC')
+      .trim()
+
+    return result.length ? result : null
+  }
+
+================================================================================
+  8. COMMAND SYSTEM
+================================================================================
+
+── 8.1 Overview ───────────────────────────────────────────────────────────────
+
+Command system terdiri dari beberapa komponen:
+  1. CommandRegistry — menyimpan semua registered commands
+  2. Router — grouping commands dengan shared prefix & middleware
+  3. ArgParser — parsing typed arguments & flags
+  4. FileLoader — auto-load file-based commands dari folder
+  5. Executor — jalankan command dengan middleware chain
+  6. HelpGenerator — auto-generate help menu dari metadata
+
+── 8.2 CommandDefinition ──────────────────────────────────────────────────────
+
+File: src/types/command.ts
+
+  interface CommandDefinition {
+    // Required
+    name: string | string[] | RegExp   // nama atau aliases
+
+    // Optional metadata (untuk help menu)
+    description?: string
+    category?: string
+    usage?: string           // contoh penggunaan: "@user [reason?]"
+    hidden?: boolean         // tidak muncul di help menu
+
+    // Argument schema (built-in, tidak perlu library external)
+    args?: Record<string, ArgDefinition>
+
+    // Per-command middleware
+    middleware?: CommandMiddleware[]
+
+    // Per-command error handler
+    onError?: (ctx: CommandContext, error: Error) => void | Promise<void>
+
+    // Main handler
+    execute: (ctx: CommandContext) => void | Promise<void>
+  }
+
+  interface ArgDefinition {
+    type: 'string' | 'number' | 'boolean' | 'mention' | 'jid'
+    required?: boolean
+    default?: any
+    description?: string   // untuk help menu
+  }
+
+  // Untuk file-based defineCommand
+  type DefineCommandInput = Omit<CommandDefinition, 'execute'> & {
+    execute: (ctx: CommandContext) => void | Promise<void>
+  }
+
+── 8.3 Inline API ─────────────────────────────────────────────────────────────
+
+Ditambahkan ke Client class:
+
+  // Simple inline — paling basic
+  wa.command('ping', async (ctx) => {
+    await ctx.send('Pong! 🏓')
+  })
+
+  // Dengan aliases
+  wa.command(['hello', 'hi', 'halo'], async (ctx) => {
+    await ctx.reply(`Hi ${ctx.sender.name}!`)
+  })
+
+  // Dengan options
+  wa.command('kick', {
+    description: 'Kick member dari group',
+    category: 'admin',
+    args: {
+      target: { type: 'mention', required: true, description: '@user' },
+      reason: { type: 'string', required: false, default: 'No reason' },
+    },
+    middleware: [guard.onlyGroup(), guard.onlyAdmin()],
+    onError(ctx, err) {
+      ctx.send(`Gagal: ${err.message}`)
+    },
+    async execute(ctx) {
+      await ctx.group!.members.remove([ctx.typedArgs.target])
+      await ctx.reply(`✅ Kicked! Reason: ${ctx.typedArgs.reason}`)
+    }
+  })
+
+  // Regex command
+  wa.command(/^order-\d+$/i, async (ctx) => {
+    const orderId = ctx.command  // matched string
+    await ctx.reply(`Processing ${orderId}...`)
+  })
+
+── 8.4 Router API ─────────────────────────────────────────────────────────────
+
+  // Buat router — nama otomatis jadi prefix
+  const admin = wa.router('admin', {
+    // Middleware berlaku untuk SEMUA command di router ini
+    middleware: [guard.onlyGroup(), guard.onlyAdmin()],
+    description: 'Admin commands',
+    category: 'Admin',
+  })
+
+  // Command di dalam router
+  admin.command('kick', async (ctx) => { ... })
+  admin.command('ban', async (ctx) => { ... })
+  admin.command('mute', async (ctx) => { ... })
+
+  // Trigger: '!admin kick', '!admin ban', '!admin mute'
+
+  // Nested router
+  const shop = wa.router('shop')
+  const product = shop.router('product')
+
+  product.command('add', async (ctx) => { ... })
+  product.command('list', async (ctx) => { ... })
+  product.command('remove', async (ctx) => { ... })
+
+  // Trigger: '!shop product add', '!shop product list', dst
+
+  // Router juga punya method .use() untuk tambah middleware
+  admin.use(async (ctx, next) => {
+    console.log(`Admin command: ${ctx.command}`)
+    await next()
+  })
+
+── 8.5 ArgParser ──────────────────────────────────────────────────────────────
+
+File: src/command/parser.ts
+
+Built-in argument parser. Tidak perlu library external.
+
+  Input: "!kick @628xxx karena spam --silent"
+
+  Output:
+    ctx.command    = 'kick'
+    ctx.rawArgs    = '@628xxx karena spam --silent'
+    ctx.args       = ['@628xxx', 'karena', 'spam']
+    ctx.flags      = { silent: true }
+
+  Typed args (jika ada schema):
+    ctx.typedArgs  = {
+      target: '628xxx@s.whatsapp.net',  // mention → jid
+      reason: 'karena spam',            // rest of args
+    }
+
+  Parsing rules:
+  - Token dimulai dengan '--' adalah flag
+  - '--key value' → flags.key = 'value'
+  - '--key' tanpa value → flags.key = true
+  - '@628xxx' dengan type 'mention' → dikonversi ke jid
+  - Sisa tokens yang bukan flag → masuk args array
+  - Kalau ada schema, args dimap ke typedArgs sesuai urutan
+
+  export const parseArgs = (
+    rawText: string,
+    commandName: string,
+    schema?: Record<string, ArgDefinition>
+  ): ParsedArgs => {
+    const withoutCommand = rawText.slice(commandName.length).trim()
+    const tokens = tokenize(withoutCommand)
+
+    const flags: Record<string, string | boolean> = {}
+    const positional: string[] = []
+
+    let i = 0
+    while (i < tokens.length) {
+      const token = tokens[i]
+
+      if (token.startsWith('--')) {
+        const key = token.slice(2)
+        const next = tokens[i + 1]
+
+        if (next && !next.startsWith('--')) {
+          flags[key] = next
+          i += 2
+        } else {
+          flags[key] = true
+          i++
+        }
+      } else {
+        positional.push(token)
+        i++
+      }
+    }
+
+    // Type-safe args dari schema
+    const typedArgs = schema
+      ? mapToSchema(positional, flags, schema)
+      : {}
+
+    return {
+      rawArgs: withoutCommand,
+      args: positional,
+      flags,
+      typedArgs,
+    }
+  }
+
+  // Tokenize — handle quoted strings
+  // Input: 'hello world "foo bar" baz'
+  // Output: ['hello', 'world', 'foo bar', 'baz']
+  const tokenize = (text: string): string[] => {
+    const tokens: string[] = []
+    const regex = /[^\s"']+|"([^"]*)"|'([^']*)'/g
+    let match
+    while ((match = regex.exec(text)) !== null) {
+      tokens.push(match[1] ?? match[2] ?? match[0])
+    }
+    return tokens
+  }
+
+── 8.6 File-Based Commands & Auto-Router ──────────────────────────────────────
+
+File: src/command/loader.ts
+
+Folder structure → router structure secara otomatis.
+
+  Contoh struktur folder:
+    plugins/
+    ├── ping.ts                     → command 'ping'     → '!ping'
+    ├── help.ts                     → command 'help'     → '!help'
+    ├── admin/
+    │   ├── kick.ts                 → admin router + command 'kick'  → '!admin kick'
+    │   ├── ban.ts                  → admin router + command 'ban'   → '!admin ban'
+    │   └── settings/
+    │       ├── open.ts             → admin.settings router  → '!admin settings open'
+    │       └── close.ts            → admin.settings router  → '!admin settings close'
+    └── shop/
+        ├── product/
+        │   ├── add.ts              → shop.product router → '!shop product add'
+        │   └── list.ts             → shop.product router → '!shop product list'
+        └── order.ts                → shop router → '!shop order'
+
+  File plugin format:
+    // plugins/admin/kick.ts
+    import { defineCommand } from 'zaileys'
+
+    export default defineCommand({
+      name: 'kick',                         // nama command
+      // TIDAK perlu tulis router/prefix — otomatis dari folder
+      description: 'Kick member dari group',
+      category: 'Admin',
+      args: {
+        target: { type: 'mention', required: true },
+        reason: { type: 'string', required: false },
+      },
+      middleware: [guard.onlyAdmin()],
+      async execute(ctx) {
+        await ctx.group!.members.remove([ctx.typedArgs.target])
+        await ctx.reply('✅ Kicked!')
+      }
+    })
+
+  Loader logic:
+  1. Scan pluginsDir secara recursive
+  2. Untuk setiap file, extract relative path dari pluginsDir
+  3. Path segments (minus filename) → router chain
+  4. Import file, ambil default export
+  5. Register ke router yang sesuai (buat router kalau belum ada)
+  6. HMR: watch folder, reload kalau ada perubahan
+
+  export class CommandLoader {
+    constructor(
+      private registry: CommandRegistry,
+      private pluginsDir: string,
+      private hmr: boolean
+    ) {}
+
+    async load(): Promise<void> {
+      const files = await this.scanFiles()
+
+      for (const { filePath, segments } of files) {
+        await this.loadFile(filePath, segments)
+      }
+    }
+
+    private async loadFile(filePath: string, segments: string[]) {
+      const mod = await this.importWithCache(filePath)
+      const definition = mod.default
+
+      if (!isCommandDefinition(definition)) return
+
+      // segments tanpa filename = router path
+      // ['admin', 'kick.ts'] → routerPath = ['admin']
+      const routerPath = segments.slice(0, -1)
+
+      // Get atau buat router chain
+      const router = this.registry.getOrCreateRouter(routerPath)
+
+      // Register command di router
+      router.register(definition)
+    }
+
+    // ... HMR setup, cache busting, dll
+  }
+
+── 8.7 Built-in Guards ────────────────────────────────────────────────────────
+
+File: src/command/guards/
+
+  // Guard: hanya group
+  export const onlyGroup = (): CommandMiddleware => async (ctx, next) => {
+    if (!ctx.is.group) {
+      await ctx.reply('❌ Command ini hanya untuk group!')
+      return
+    }
+    await next()
+  }
+
+  // Guard: hanya admin group
+  export const onlyAdmin = (): CommandMiddleware => async (ctx, next) => {
+    if (!ctx.is.group) return
+    const meta = await ctx.group!.meta()
+    const admins = meta.participants
+      .filter(p => p.admin)
+      .map(p => p.id)
+
+    if (!admins.includes(ctx.sender.id)) {
+      await ctx.reply('❌ Command ini hanya untuk admin!')
+      return
+    }
+    await next()
+  }
+
+  // Guard: cooldown per user per command
+  export const cooldown = (duration: string): CommandMiddleware => {
+    // duration format: '30s', '5m', '1h'
+    const ms = parseDuration(duration)
+    const store = new Map<string, number>()
+
+    return async (ctx, next) => {
+      const key = `${ctx.sender.id}:${ctx.command}`
+      const last = store.get(key)
+      const now = Date.now()
+
+      if (last && now - last < ms) {
+        const remaining = ms - (now - last)
+        await ctx.reply(
+          `⏳ Cooldown! Tunggu ${prettyMs(remaining)} lagi.`
+        )
+        return
+      }
+
+      store.set(key, now)
+      await next()
+    }
+  }
+
+  // Guard: rate limit
+  export const rateLimit = (opts: {
+    max: number
+    window: string
+  }): CommandMiddleware => {
+    const windowMs = parseDuration(opts.window)
+    // Menggunakan rateStore dari store system
+    return async (ctx, next) => {
+      const isSpam = await limiter.check(ctx.sender.id, opts.max, windowMs)
+      if (isSpam) {
+        await ctx.reply('🚫 Terlalu banyak request!')
+        return
+      }
+      await next()
+    }
+  }
+
+── 8.8 Help Generator ─────────────────────────────────────────────────────────
+
+File: src/command/help.ts
+
+Auto-generate help menu dari registry.
+
+  export class HelpGenerator {
+    constructor(private registry: CommandRegistry) {}
+
+    generate(options?: HelpOptions): string {
+      const commands = this.registry.getAllVisible()
+      const grouped = this.groupByCategory(commands)
+      const lines: string[] = []
+
+      lines.push('*🤖 Bot Commands*')
+      lines.push('')
+
+      for (const [category, cmds] of grouped) {
+        lines.push(`*${category.toUpperCase()}*`)
+
+        for (const cmd of cmds) {
+          const name = Array.isArray(cmd.name) ? cmd.name[0] : cmd.name
+          const usage = cmd.usage ? ` ${cmd.usage}` : ''
+          const desc = cmd.description ? ` — ${cmd.description}` : ''
+          lines.push(`• !${name}${usage}${desc}`)
+        }
+
+        lines.push('')
+      }
+
+      return lines.join('\n').trim()
+    }
+
+    // Shorthand — user bisa langsung pakai ini
+    asCommand(): CommandDefinition {
+      return {
+        name: ['help', 'menu'],
+        description: 'Show this menu',
+        category: 'General',
+        execute: async (ctx) => {
+          await ctx.reply(this.generate())
+        }
+      }
+    }
+  }
+
+================================================================================
+  9. MANAGEMENT API
+================================================================================
+
+── 9.1 Design Pattern ─────────────────────────────────────────────────────────
+
+Semua manager menggunakan pattern yang sama:
+  - wa.group(roomId) → GroupInstance
+  - wa.community(communityId) → CommunityInstance
+  - wa.newsletter(channelId) → NewsletterInstance
+  - wa.privacy → PrivacyManager (singleton, tidak butuh id)
+
+Factory methods (plural):
+  - wa.groups.create(...) → buat group baru
+  - wa.communities.create(...) → buat community baru
+  - wa.newsletters.create(...) → buat newsletter baru
+
+From context:
+  - ctx.group → GroupInstance | null (auto-bound ke ctx.room.id)
+  - ctx.newsletter → NewsletterInstance | null
+
+── 9.2 GroupInstance ──────────────────────────────────────────────────────────
+
+File: src/managers/group/index.ts
+
+  export class GroupInstance {
+    readonly members: GroupMembers
+    readonly permissions: GroupPermissions
+    readonly profile: GroupProfile
+    readonly invite: GroupInvite
+    readonly requests: GroupRequests
+    readonly disappearing: GroupDisappearing
+
+    constructor(
+      readonly roomId: string,
+      private socket: WASocket
+    ) {
+      this.members = new GroupMembers(roomId, socket)
+      this.permissions = new GroupPermissions(roomId, socket)
+      this.profile = new GroupProfile(roomId, socket)
+      this.invite = new GroupInvite(roomId, socket)
+      this.requests = new GroupRequests(roomId, socket)
+      this.disappearing = new GroupDisappearing(roomId, socket)
+    }
+
+    // Get metadata (dengan caching)
+    async meta(): Promise<GroupMetadata> {
+      const cached = groupStore.get(this.roomId)
+      if (cached) return cached as GroupMetadata
+
+      const meta = await this.socket.groupMetadata(this.roomId)
+      groupStore.set(this.roomId, meta)
+      return meta
+    }
+
+    // Leave group
+    async leave(): Promise<void> {
+      await this.socket.groupLeave(this.roomId)
+    }
+  }
+
+  // GroupMembers
+  export class GroupMembers {
+    constructor(private roomId: string, private socket: WASocket) {}
+
+    async add(jids: string[]): Promise<ParticipantResult> {
+      return this.socket.groupParticipantsUpdate(this.roomId, jids, 'add')
+    }
+
+    async remove(jids: string[]): Promise<ParticipantResult> {
+      return this.socket.groupParticipantsUpdate(this.roomId, jids, 'remove')
+    }
+
+    async promote(jids: string[]): Promise<ParticipantResult> {
+      return this.socket.groupParticipantsUpdate(this.roomId, jids, 'promote')
+    }
+
+    async demote(jids: string[]): Promise<ParticipantResult> {
+      return this.socket.groupParticipantsUpdate(this.roomId, jids, 'demote')
+    }
+
+    async list(): Promise<GroupParticipant[]> {
+      const meta = await new GroupInstance(this.roomId, this.socket).meta()
+      return meta.participants
+    }
+
+    // Bulk update — optimized, satu call untuk multiple actions
+    async update(changes: {
+      add?: string[]
+      remove?: string[]
+      promote?: string[]
+      demote?: string[]
+    }): Promise<void> {
+      const ops = Object.entries(changes)
+        .filter(([_, jids]) => jids?.length)
+        .map(([action, jids]) =>
+          this.socket.groupParticipantsUpdate(
+            this.roomId,
+            jids!,
+            action as ParticipantAction
+          )
+        )
+      await Promise.all(ops)
+    }
+  }
+
+  // GroupPermissions
+  export class GroupPermissions {
+    constructor(private roomId: string, private socket: WASocket) {}
+
+    // Siapa yang bisa kirim pesan
+    async messaging(who: 'everyone' | 'admins'): Promise<void> {
+      await this.socket.groupSettingUpdate(
+        this.roomId,
+        who === 'admins' ? 'announcement' : 'not_announcement'
+      )
+    }
+
+    // Siapa yang bisa edit info group
+    async editInfo(who: 'everyone' | 'admins'): Promise<void> {
+      await this.socket.groupSettingUpdate(
+        this.roomId,
+        who === 'admins' ? 'locked' : 'unlocked'
+      )
+    }
+
+    // Siapa yang bisa add member
+    async addMembers(who: 'everyone' | 'admins'): Promise<void> {
+      await this.socket.groupMemberAddMode(
+        this.roomId,
+        who === 'admins' ? 'admin_add' : 'all_member_add'
+      )
+    }
+
+    // Set multiple sekaligus
+    async set(settings: {
+      messaging?: 'everyone' | 'admins'
+      editInfo?: 'everyone' | 'admins'
+      addMembers?: 'everyone' | 'admins'
+    }): Promise<void> {
+      const ops: Promise<any>[] = []
+      if (settings.messaging) ops.push(this.messaging(settings.messaging))
+      if (settings.editInfo) ops.push(this.editInfo(settings.editInfo))
+      if (settings.addMembers) ops.push(this.addMembers(settings.addMembers))
+      await Promise.all(ops)
+    }
+  }
+
+  // GroupProfile
+  export class GroupProfile {
+    constructor(private roomId: string, private socket: WASocket) {}
+
+    async setName(name: string): Promise<void> {
+      await this.socket.groupUpdateSubject(this.roomId, name)
+    }
+
+    async setDescription(description: string): Promise<void> {
+      await this.socket.groupUpdateDescription(this.roomId, description)
+    }
+
+    async setAvatar(source: string | Buffer): Promise<void> {
+      const buffer = await new Media(source).toBuffer()
+      await this.socket.updateProfilePicture(this.roomId, buffer)
+    }
+
+    async removeAvatar(): Promise<void> {
+      await this.socket.removeProfilePicture(this.roomId)
+    }
+  }
+
+  // GroupInvite
+  export class GroupInvite {
+    constructor(private roomId: string, private socket: WASocket) {}
+
+    async getLink(): Promise<string> {
+      const code = await this.socket.groupInviteCode(this.roomId)
+      return `https://chat.whatsapp.com/${code}`
+    }
+
+    async getCode(): Promise<string> {
+      return this.socket.groupInviteCode(this.roomId)
+    }
+
+    // Revoke & generate link baru
+    async reset(): Promise<string> {
+      await this.socket.groupRevokeInvite(this.roomId)
+      return this.getLink()
+    }
+
+    async getInfo(code: string): Promise<GroupInfo> {
+      return this.socket.groupGetInviteInfo(code)
+    }
+
+    async join(code: string): Promise<void> {
+      await this.socket.groupAcceptInvite(code)
+    }
+  }
+
+  // GroupRequests
+  export class GroupRequests {
+    constructor(private roomId: string, private socket: WASocket) {}
+
+    async list(): Promise<JoinRequest[]> {
+      return this.socket.groupRequestParticipantsList(this.roomId)
+    }
+
+    async approve(jids: string[]): Promise<void> {
+      await this.socket.groupRequestParticipantsUpdate(
+        this.roomId, jids, 'approve'
+      )
+    }
+
+    async reject(jids: string[]): Promise<void> {
+      await this.socket.groupRequestParticipantsUpdate(
+        this.roomId, jids, 'reject'
+      )
+    }
+
+    async approveAll(): Promise<void> {
+      const pending = await this.list()
+      await this.approve(pending.map(r => r.jid))
+    }
+
+    async rejectAll(): Promise<void> {
+      const pending = await this.list()
+      await this.reject(pending.map(r => r.jid))
+    }
+  }
+
+  // GroupDisappearing
+  export class GroupDisappearing {
+    private durations = {
+      'off': 0,
+      '24h': 86_400,
+      '7d': 604_800,
+      '90d': 7_776_000,
+    } as const
+
+    constructor(private roomId: string, private socket: WASocket) {}
+
+    async off(): Promise<void> {
+      await this.socket.groupToggleEphemeral(this.roomId, 0)
+    }
+
+    async set(duration: '24h' | '7d' | '90d'): Promise<void> {
+      await this.socket.groupToggleEphemeral(
+        this.roomId,
+        this.durations[duration]
+      )
+    }
+  }
+
+  // Factory — wa.groups.create()
+  export class GroupsFactory {
+    constructor(private socket: WASocket) {}
+
+    async create(name: string, participants: string[]): Promise<GroupInstance> {
+      const result = await this.socket.groupCreate(name, participants)
+      return new GroupInstance(result.gid, this.socket)
+    }
+
+    async fetchAll(): Promise<GroupInstance[]> {
+      const groups = await this.socket.groupFetchAllParticipating()
+      return Object.keys(groups).map(id => new GroupInstance(id, this.socket))
+    }
+  }
+
+── 9.3 CommunityInstance ──────────────────────────────────────────────────────
+
+File: src/managers/community/index.ts
+
+Sama polanya dengan Group. Hanya dokumentasikan yang berbeda:
+
+  export class CommunityInstance {
+    readonly groups: CommunityGroups      // khusus community
+    readonly members: CommunityMembers    // sama dengan GroupMembers
+    readonly permissions: CommunityPermissions
+    readonly profile: CommunityProfile    // sama dengan GroupProfile
+    readonly invite: CommunityInvite      // sama dengan GroupInvite
+
+    // ...
+    async meta(): Promise<CommunityMetadata> { ... }
+    async leave(): Promise<void> { ... }
+  }
+
+  // CommunityGroups — khusus community
+  export class CommunityGroups {
+    async link(groupId: string): Promise<void> { ... }
+    async unlink(groupId: string): Promise<void> { ... }
+    async create(name: string, participants: string[]): Promise<GroupInstance> { ... }
+    async list(): Promise<GroupInstance[]> { ... }
+  }
+
+  // CommunityPermissions — lebih banyak opsi dari GroupPermissions
+  export class CommunityPermissions {
+    async addMembers(who: 'everyone' | 'admins'): Promise<void> { ... }
+    async approval(mode: 'on' | 'off'): Promise<void> { ... }
+    async disappearing(seconds: number): Promise<void> { ... }
+  }
+
+── 9.4 NewsletterInstance ─────────────────────────────────────────────────────
+
+File: src/managers/newsletter/index.ts
+
+  export class NewsletterInstance {
+    readonly profile: NewsletterProfile
+    readonly messages: NewsletterMessages
+    readonly admins: NewsletterAdmins
+    readonly subscribers: NewsletterSubscribers
+
+    async meta(opts?: { by: 'jid' | 'invite'; code?: string }): Promise<NewsletterMetadata> {
+      if (opts?.by === 'invite' && opts?.code) {
+        return this.socket.newsletterMetadata('invite', opts.code)
+      }
+      return this.socket.newsletterMetadata('jid', this.channelId)
+    }
+
+    async follow(): Promise<void> { ... }
+    async unfollow(): Promise<void> { ... }
+    async mute(): Promise<void> { ... }
+    async unmute(): Promise<void> { ... }
+    async delete(): Promise<void> { ... }
+  }
+
+  // NewsletterProfile
+  export class NewsletterProfile {
+    async setName(name: string): Promise<void> { ... }
+    async setDescription(description: string): Promise<void> { ... }
+    async setAvatar(source: string | Buffer): Promise<void> { ... }
+    async removeAvatar(): Promise<void> { ... }
+  }
+
+  // NewsletterMessages
+  export class NewsletterMessages {
+    async fetch(opts: {
+      count: number
+      since?: Date
+      after?: Date
+    }): Promise<NewsletterMessage[]> { ... }
+
+    async react(chatId: string, emoji: string): Promise<void> { ... }
+  }
+
+  // NewsletterAdmins
+  export class NewsletterAdmins {
+    async count(): Promise<number> { ... }
+    async changeOwner(jid: string): Promise<void> { ... }
+    async demote(jid: string): Promise<void> { ... }
+  }
+
+  // NewsletterSubscribers
+  export class NewsletterSubscribers {
+    async list(): Promise<Subscriber[]> { ... }
+  }
+
+  // Factory — wa.newsletters.create()
+  export class NewslettersFactory {
+    async create(name: string, description: string): Promise<NewsletterInstance> { ... }
+  }
+
+── 9.5 PrivacyManager ─────────────────────────────────────────────────────────
+
+File: src/managers/privacy/index.ts
+
+  type PrivacySetting = {
+    lastSeen: 'everyone' | 'contacts' | 'contact_blacklist' | 'none'
+    online: 'everyone' | 'match_lastSeen'
+    picture: 'everyone' | 'contacts' | 'contact_blacklist' | 'none'
+    status: 'everyone' | 'contacts' | 'contact_blacklist' | 'none'
+    readReceipts: 'everyone' | 'none'
+    groups: 'everyone' | 'contacts' | 'contact_blacklist' | 'none'
+  }
+
+  export class PrivacyManager {
+    readonly disappearing: PrivacyDisappearing
+    readonly blocklist: PrivacyBlocklist
+
+    constructor(private socket: WASocket) {
+      this.disappearing = new PrivacyDisappearing(socket)
+      this.blocklist = new PrivacyBlocklist(socket)
+    }
+
+    // Get semua settings sekaligus
+    async get(): Promise<PrivacySetting> {
+      return this.socket.fetchPrivacySettings(true)
+    }
+
+    // Set satu setting
+    async set<K extends keyof PrivacySetting>(
+      key: K,
+      value: PrivacySetting[K]
+    ): Promise<void> {
+      await this.applyOne(key, value)
+    }
+
+    // Update multiple settings sekaligus
+    async update(settings: Partial<PrivacySetting>): Promise<void> {
+      const ops = Object.entries(settings).map(([key, value]) =>
+        this.applyOne(key as keyof PrivacySetting, value)
+      )
+      await Promise.all(ops)
+    }
+
+    // Reset semua ke default
+    async reset(): Promise<void> {
+      await this.update({
+        lastSeen: 'everyone',
+        online: 'everyone',
+        picture: 'everyone',
+        status: 'everyone',
+        readReceipts: 'everyone',
+        groups: 'everyone',
+      })
+    }
+
+    private async applyOne(key: keyof PrivacySetting, value: any): Promise<void> {
+      switch (key) {
+        case 'lastSeen':
+          return this.socket.updateLastSeenPrivacy(value)
+        case 'online':
+          return this.socket.updateOnlinePrivacy(value)
+        case 'picture':
+          return this.socket.updateProfilePicturePrivacy(value)
+        case 'status':
+          return this.socket.updateStatusPrivacy(value)
+        case 'readReceipts':
+          return this.socket.updateReadReceiptsPrivacy(value)
+        case 'groups':
+          return this.socket.updateGroupsAddPrivacy(value)
+      }
+    }
+  }
+
+  // PrivacyDisappearing
+  export class PrivacyDisappearing {
+    private durations = { 'off': 0, '24h': 86400, '7d': 604800, '90d': 7776000 }
+
+    async off(): Promise<void> {
+      await this.socket.updateDefaultDisappearingMode(0)
+    }
+
+    async set(duration: '24h' | '7d' | '90d'): Promise<void> {
+      await this.socket.updateDefaultDisappearingMode(this.durations[duration])
+    }
+  }
+
+  // PrivacyBlocklist
+  export class PrivacyBlocklist {
+    async block(jid: string): Promise<void> {
+      await this.socket.updateBlockStatus(jid, 'block')
+    }
+
+    async unblock(jid: string): Promise<void> {
+      await this.socket.updateBlockStatus(jid, 'unblock')
+    }
+
+    async list(): Promise<string[]> {
+      return this.socket.fetchBlocklist()
+    }
+  }
+
+================================================================================
+  10. STORE & DATABASE
+================================================================================
+
+── 10.1 Tidak Ada Perubahan Besar ─────────────────────────────────────────────
+
+Store system V3 sudah solid. Yang berubah hanya:
+
+  1. Ganti EventEmitter Node.js built-in → eventemitter3 (3x faster)
+  2. Namespace naming lebih explicit
+  3. Export yang lebih clean
+
+  // V4 namespaces
+  export const contextStore  = store.ns('ctx',    { max: 500, ttl: ms('10m') })
+  export const cacheStore    = store.ns('cache',  { max: 2000, ttl: ms('5m') })
+  export const centerStore   = store.ns('center', { max: 500, ttl: ms('10m') })
+  export const rateStore     = store.ns('rate',   { max: 5000, ttl: ms('10s') })
+  export const groupStore    = store.ns('group',  { max: 500, ttl: ms('5m') })
+  export const msgStore      = store.ns('msg',    { max: 1000 })
+
+  3. Helper 'ms' untuk TTL lebih readable:
+     ttl: ms('10m') → 600000
+     (bisa pakai package 'ms' yang sudah ada di dependencies baileys)
+
+================================================================================
+  11. HEALTH & CONNECTION
+================================================================================
+
+── 11.1 Tidak Ada Perubahan Besar ─────────────────────────────────────────────
+
+Health & connection system V3 sudah bagus dengan auto-healing.
+Yang berubah:
+
+  1. Connection events masuk ke pipeline event yang sama
+  2. Error codes lebih explicit dengan named constants
+
+  const DISCONNECT_CODES = {
+    LOGGED_OUT: 401,
+    STALE_SESSION: 405,
+    SERVER_ERROR: 500,
+  } as const
+
+  3. Reconnect strategy lebih terstruktur
+
+  const RECONNECT_STRATEGY = {
+    [DISCONNECT_CODES.STALE_SESSION]: { delay: 3000, clean: false },
+    [DISCONNECT_CODES.SERVER_ERROR]: { delay: 3000, clean: false },
+    [DISCONNECT_CODES.LOGGED_OUT]: { delay: 3000, clean: true }, // clean jika deleteSessionOnLogout
+  } as const
+
+================================================================================
+  12. PLUGIN PIPELINE
+================================================================================
+
+── 12.1 Execution Order ───────────────────────────────────────────────────────
+
+Ketika message masuk, ini urutan eksekusinya:
+
+  1. Raw message masuk dari socket
+  2. MessageContextBuilder.build() — parse ke MessageContext
+  3. Global middleware chain (wa.use())
+  4. Command matcher — apakah ada command yang match?
+     a. Ya → Command middleware chain → execute()
+     b. Tidak → wa.on('messages') handlers
+  5. File-based plugins (defineCommand) — paralel dengan inline commands
+  6. FireAndForget untuk side effects (autoRead, autoPresence, dll)
+
+  Catatan: Global middleware SELALU jalan sebelum command dan event handlers.
+  Command middleware hanya jalan kalau command match.
+
+── 12.2 FireAndForget — Tidak Ada Perubahan Besar ─────────────────────────────
+
+FireAndForget V3 sudah bagus. Tetap pakai.
+Hanya perbaikan kecil: timeout default per priority:
+
+  CRITICAL: timeout 5000ms
+  HIGH:     timeout 10000ms
+  NORMAL:   timeout 15000ms
+  LOW:      timeout 30000ms
+
+================================================================================
+  13. TYPE SYSTEM
+================================================================================
+
+── 13.1 Extension Interface Pattern ───────────────────────────────────────────
+
+File: src/types/extensions.ts
+
+Ini adalah "slot" yang bisa diisi oleh module di masa depan (parked topic).
+Untuk sekarang, interface ini kosong tapi sudah ada strukturnya.
+
+  // Augmentable interfaces — kosong di core
+  // Module bisa declare module 'zaileys' { interface ... }
+
+  export interface MessageContextExtensions {}
+  export interface CommandContextExtensions {}
+  export interface ClientExtensions {}
+
+── 13.2 Menghilangkan ignoreLint ──────────────────────────────────────────────
+
+Target V4: zero penggunaan ignoreLint(). Semua harus properly typed.
+
+  Strategi:
+  1. Gunakan type assertion yang explicit: (value as SomeType)
+  2. Gunakan type guard functions: isImagePayload(payload)
+  3. Gunakan unknown + narrowing daripada any
+
+  Contoh type guards:
+
+  const isImagePayload = (p: SendPayload): p is ImagePayload =>
+    typeof p === 'object' && 'image' in p
+
+  const isButtonPayload = (p: SendPayload): p is ButtonPayload =>
+    typeof p === 'object' && 'buttons' in p
+
+── 13.3 Valibot Schemas ───────────────────────────────────────────────────────
+
+Tetap menggunakan Valibot untuk runtime validation di entry points.
+Schema hanya di:
+  1. ClientOptions — validasi config saat instantiasi
+  2. SendPayload — validasi di SignalEngine.send()
+  3. CommandDefinition — validasi di wa.command()
+
+Tidak perlu validate di setiap internal method karena TypeScript sudah cover.
+
+================================================================================
+  14. BACKWARD COMPATIBILITY LAYER
+================================================================================
+
+── 14.1 Compat Layer ──────────────────────────────────────────────────────────
+
+File: compat/index.ts
+
+Import: import { ... } from 'zaileys/compat'
+
+TIDAK tersedia di main 'zaileys' import.
+Setiap penggunaan compat API akan print deprecation warning sekali per session.
+
+  const warned = new Set<string>()
+
+  const deprecate = (old: string, replacement: string) => {
+    if (!warned.has(old)) {
+      warned.add(old)
+      console.warn(
+        `[Zaileys Compat] "${old}" is deprecated. Use "${replacement}" instead.`
+      )
+    }
+  }
+
+  // Wrapper untuk ctx V3 → V4
+  export const withV3Compat = (
+    handler: (ctx: any) => void | Promise<void>
+  ) => {
+    return (ctx: MessageContext) => {
+      const v3ctx = new Proxy(ctx, {
+        get(target, prop) {
+          switch (prop) {
+            // Room
+            case 'roomId':
+              deprecate('ctx.roomId', 'ctx.room.id')
+              return target.room.id
+            case 'roomName':
+              deprecate('ctx.roomName', 'ctx.room.name')
+              return target.room.name
+
+            // Sender
+            case 'senderId':
+              deprecate('ctx.senderId', 'ctx.sender.id')
+              return target.sender.id
+            case 'senderName':
+              deprecate('ctx.senderName', 'ctx.sender.name')
+              return target.sender.name
+            case 'senderLid':
+              deprecate('ctx.senderLid', 'ctx.sender.lid')
+              return target.sender.lid
+            case 'senderDevice':
+              deprecate('ctx.senderDevice', 'ctx.sender.device')
+              return target.sender.device
+
+            // Receiver
+            case 'receiverId':
+              deprecate('ctx.receiverId', 'ctx.receiver.id')
+              return target.receiver.id
+            case 'receiverName':
+              deprecate('ctx.receiverName', 'ctx.receiver.name')
+              return target.receiver.name
+
+            // Flags
+            case 'isGroup':
+              deprecate('ctx.isGroup', 'ctx.is.group')
+              return target.is.group
+            case 'isFromMe':
+              deprecate('ctx.isFromMe', 'ctx.is.fromMe')
+              return target.is.fromMe
+            case 'isSpam':
+              deprecate('ctx.isSpam', 'ctx.is.spam')
+              return target.is.spam
+            case 'isBot':
+              deprecate('ctx.isBot', 'ctx.is.bot')
+              return target.is.bot
+            case 'isForwarded':
+              deprecate('ctx.isForwarded', 'ctx.is.forwarded')
+              return target.is.forwarded
+            case 'isEdited':
+              deprecate('ctx.isEdited', 'ctx.is.edited')
+              return target.is.edited
+            case 'isDeleted':
+              deprecate('ctx.isDeleted', 'ctx.is.deleted')
+              return target.is.deleted
+            case 'isPinned':
+              deprecate('ctx.isPinned', 'ctx.is.pinned')
+              return target.is.pinned
+            case 'isNewsletter':
+              deprecate('ctx.isNewsletter', 'ctx.is.newsletter')
+              return target.is.newsletter
+            case 'isTagMe':
+              deprecate('ctx.isTagMe', 'ctx.is.tagged')
+              return target.is.tagged
+            case 'isPrefix':
+              deprecate('ctx.isPrefix', 'ctx.is.prefix')
+              return target.is.prefix
+            case 'isStory':
+              deprecate('ctx.isStory', 'ctx.is.story')
+              return target.is.story
+            case 'isViewOnce':
+              deprecate('ctx.isViewOnce', 'ctx.is.viewOnce')
+              return target.is.viewOnce
+            case 'isEphemeral':
+              deprecate('ctx.isEphemeral', 'ctx.is.ephemeral')
+              return target.is.ephemeral
+            case 'isBroadcast':
+              deprecate('ctx.isBroadcast', 'ctx.is.broadcast')
+              return target.is.broadcast
+            case 'isStatusMention':
+              deprecate('ctx.isStatusMention', 'ctx.is.statusMention')
+              return target.is.statusMention
+            case 'isHideTags':
+              deprecate('ctx.isHideTags', 'ctx.is.hideTags')
+              return target.is.hideTags
+            case 'isQuestion':
+              deprecate('ctx.isQuestion', 'ctx.is.question')
+              return target.is.question
+
+            // Content
+            case 'chatType':
+              deprecate('ctx.chatType', 'ctx.content.type')
+              return target.content.type
+            case 'chatId':
+              deprecate('ctx.chatId', 'ctx.id.chat')
+              return target.id.chat
+
+            // Message method
+            case 'message':
+              deprecate('ctx.message()', 'ctx.raw()')
+              return target.raw
+
+            // Injection
+            case 'injection':
+              deprecate('ctx.injection', 'ctx.ext')
+              return target.ext
+
+            // Default — forward ke V4 ctx
+            default:
+              return (target as any)[prop]
+          }
+        }
+      })
+
+      return handler(v3ctx)
+    }
+  }
+
+  // Compat untuk wa.send dengan V3 signature
+  export const v3Send = (wa: Client) => (
+    roomId: string,
+    options: any
+  ) => {
+    deprecate('wa.send(roomId, options)', 'ctx.send(options)')
+
+    if (typeof options === 'string') {
+      return wa.signal.send(roomId, options)
+    }
+
+    // Map V3 options ke V4
+    const v4options: any = { ...options }
+
+    if (options.replied) {
+      v4options.quote = options.replied
+      delete v4options.replied
+    }
+
+    if (options.ptt !== undefined) {
+      v4options.voice = options.ptt
+      delete v4options.ptt
+    }
+
+    if (options.poll?.name) {
+      v4options.poll = {
+        question: options.poll.name,
+        options: options.poll.answers,
+        multiple: options.poll.isMultiple,
+      }
+    }
+
+    return wa.signal.send(roomId, v4options)
+  }
+
+================================================================================
+  15. TESTING STRATEGY
+================================================================================
+
+── 15.1 Unit Tests per Module ─────────────────────────────────────────────────
+
+Setiap file di src/ harus punya test file di __tests__/.
+
+  Priority testing:
+  1. signal/resolver.ts       — type detection logic
+  2. signal/transformers/*    — setiap transformer
+  3. context/message-context.ts — builder logic
+  4. command/parser.ts        — arg parsing
+  5. command/loader.ts        — file loading & router mapping
+  6. managers/*/              — semua manager methods
+  7. compat/                  — compat layer mapping
+
+  Recommended test runner: vitest (faster than jest, ESM native)
+  Install: npm install -D vitest
+
+── 15.2 Contoh Unit Test ──────────────────────────────────────────────────────
+
+  // __tests__/signal/resolver.test.ts
+  import { describe, it, expect } from 'vitest'
+  import { resolver } from '../../src/signal/resolver'
+
+  describe('resolver.detect', () => {
+    it('detects string as text', () => {
+      expect(resolver.detect('Hello!')).toBe('text')
+    })
+
+    it('detects image payload', () => {
+      expect(resolver.detect({ image: 'https://...' })).toBe('image')
+    })
+
+    it('prefers sticker over image', () => {
+      expect(resolver.detect({ sticker: 'https://...' })).toBe('sticker')
+    })
+
+    it('detects simple buttons', () => {
+      expect(resolver.detect({
+        text: 'Choose',
+        buttons: [{ id: '1', text: 'Yes' }]
+      })).toBe('button')
+    })
+
+    it('throws on unknown payload', () => {
+      expect(() => resolver.detect({ unknown: true } as any))
+        .toThrow('Cannot detect payload type')
+    })
+  })
+
+  // __tests__/command/parser.test.ts
+  describe('parseArgs', () => {
+    it('parses basic args', () => {
+      const result = parseArgs('!kick @628 karena spam', 'kick')
+      expect(result.args).toEqual(['@628', 'karena', 'spam'])
+    })
+
+    it('parses flags', () => {
+      const result = parseArgs('!ban @628 --reason spam --silent', 'ban')
+      expect(result.flags).toEqual({ reason: 'spam', silent: true })
+    })
+
+    it('handles quoted strings', () => {
+      const result = parseArgs('!note "hello world" next', 'note')
+      expect(result.args[0]).toBe('hello world')
+    })
+  })
+
+================================================================================
+  16. OPEN ITEMS (Parked Topics)
+================================================================================
+
+Topik-topik berikut SENGAJA tidak dimasukkan ke V4 initial release.
+Akan dibahas dan di-spec di iterasi berikutnya.
+
+  [OPEN-1] Package distribution
+    Status: Parked
+    Question: Tetap single package atau monorepo @zaileys/xxx?
+    Impact: Directory structure, npm setup, user install experience
+
+  [OPEN-2] Entry point API
+    Status: Parked
+    Question: createBot() builder vs new Client() constructor?
+    Impact: Besar — semua examples harus update kalau berubah
+    Rekomendasi: Bahas setelah Phase 1-4 selesai
+
+  [OPEN-3] Module System
+    Status: Parked
+    Question: defineModule(), hook system, layered access
+    Impact: Sangat besar — ini yang bikin Zaileys jadi "framework"
+    Rekomendasi: Bahas setelah semua phase selesai
+
+  [OPEN-4] Redis Store Adapter
+    Status: Parked
+    Question: Untuk multi-instance / distributed deployment
+    Depends on: OPEN-3 (module system untuk pluggable store)
+
+  [OPEN-5] Official CLI
+    Status: Parked
+    Question: npx zaileys create, scaffold project
+    Depends on: OPEN-2, OPEN-3
+
+  [OPEN-6] VS Code Extension
+    Status: Parked
+    Question: Snippets, intellisense untuk defineCommand, dll
+
+  [OPEN-7] Official Plugin Registry
+    Status: Parked
+    Question: Cara distribusi & discovery module/plugin Zaileys
+
+================================================================================
+  APPENDIX A — FULL API SURFACE V4
+================================================================================
+
+Ringkasan semua public API yang tersedia setelah V4 selesai:
+
+  CLIENT
+    new Client(options)          — instantiasi bot (sementara, pending OPEN-2)
+    wa.on(event, handler)        — event listener
+    wa.use(middleware)           — global middleware
+    wa.command(name, handler)    — inline command
+    wa.command(name, options)    — inline command dengan options
+    wa.router(name, options?)    — buat router
+    wa.signal                   — akses SignalEngine langsung
+    wa.group(roomId)             — GroupInstance
+    wa.groups                   — GroupsFactory
+    wa.community(communityId)    — CommunityInstance
+    wa.communities               — CommunitiesFactory
+    wa.newsletter(channelId)     — NewsletterInstance
+    wa.newsletters               — NewslettersFactory
+    wa.privacy                   — PrivacyManager
+    wa.socket                    — raw WASocket
+    wa.db(scope)                 — raw LMDB database
+    wa.inject(key, value)        — inject ke ctx.ext
+    wa.getInjection(key)         — get injection
+    wa.removeInjection(key)      — remove injection
+    wa.clearInjections()         — clear all injections
+    wa.ready()                   — promise yang resolve saat connected
+    wa.commands.getMenu()        — get auto-generated help text
+
+  CTX (MessageContext)
+    ctx.id.{ unique, channel, chat }
+    ctx.room.{ id, lid, name, type }
+    ctx.sender.{ id, lid, name, device }
+    ctx.receiver.{ id, lid, name }
+    ctx.content.{ type, text, media, mentions, links }
+    ctx.is.{ fromMe, bot, spam, group, newsletter, ... }
+    ctx.timestamp
+    ctx.prefix
+    ctx.replied                  — MessageContext | null
+    ctx.ext                      — injected data dari module
+    ctx.raw()                    — WAMessage
+    ctx.text                     — shorthand content.text
+    ctx.type                     — shorthand content.type
+    ctx.media                    — shorthand content.media
+    ctx.mentions                 — shorthand content.mentions
+    ctx.links                    — shorthand content.links
+    ctx.group                    — GroupInstance | null
+    ctx.newsletter               — NewsletterInstance | null
+    ctx.send(payload, opts?)     — send ke room ini
+    ctx.reply(payload)           — send dengan quote
+    ctx.react(emoji)             — react ke message ini
+    ctx.forward(targetRoomId)    — forward message ini
+    ctx.pin(duration?)           — pin message ini
+    ctx.delete()                 — delete message ini
+    ctx.presence(type)           — update presence
+
+  CTX (CommandContext, extends MessageContext)
+    ctx.command                  — nama command yang di-trigger
+    ctx.rawArgs                  — raw argument string
+    ctx.args                     — parsed args array
+    ctx.typedArgs                — typed args dari schema
+    ctx.arg(index)               — get arg by index
+    ctx.flags                    — parsed --flags
+    ctx.usedPrefix               — prefix yang dipakai
+    ctx.routerPath               — router path array
+
+  SENT MESSAGE
+    sent.id
+    sent.roomId
+    sent.timestamp
+    sent.edit(text)
+    sent.delete()
+    sent.react(emoji)
+    sent.pin(duration?)
+    sent.forward(targetRoomId)
+    sent.quote(payload)
+    sent.toRaw()
+
+  GROUP INSTANCE
+    group.members.{ add, remove, promote, demote, list, update }
+    group.permissions.{ messaging, editInfo, addMembers, set }
+    group.profile.{ setName, setDescription, setAvatar, removeAvatar }
+    group.invite.{ getLink, getCode, reset, getInfo, join }
+    group.requests.{ list, approve, reject, approveAll, rejectAll }
+    group.disappearing.{ off, set }
+    group.meta()
+    group.leave()
+
+  COMMUNITY INSTANCE
+    community.groups.{ link, unlink, create, list }
+    community.members.{ add, remove, promote, demote, list }
+    community.permissions.{ addMembers, approval, disappearing }
+    community.profile.{ setName, setDescription, setAvatar, removeAvatar }
+    community.invite.{ getLink, getCode, reset, getInfo, join }
+    community.meta()
+    community.leave()
+
+  NEWSLETTER INSTANCE
+    newsletter.profile.{ setName, setDescription, setAvatar, removeAvatar }
+    newsletter.messages.{ fetch, react }
+    newsletter.admins.{ count, changeOwner, demote }
+    newsletter.subscribers.{ list }
+    newsletter.meta(opts?)
+    newsletter.follow()
+    newsletter.unfollow()
+    newsletter.mute()
+    newsletter.unmute()
+    newsletter.delete()
+
+  PRIVACY MANAGER
+    wa.privacy.get()
+    wa.privacy.set(key, value)
+    wa.privacy.update(settings)
+    wa.privacy.reset()
+    wa.privacy.disappearing.{ off, set }
+    wa.privacy.blocklist.{ block, unblock, list }
+
+  GUARDS
+    guard.onlyGroup()
+    guard.onlyAdmin()
+    guard.cooldown(duration)
+    guard.rateLimit(opts)
+
+  HELPERS
+    defineCommand(definition)     — untuk file-based commands
+    prettyMs(ms)                  — dari package pretty-ms
+
+================================================================================
+  APPENDIX B — NAMING CHANGES V3 → V4
+================================================================================
+
+  V3                              V4
+  ──────────────────────────────────────────────────────────────────────────
+
+  ctx.roomId                      ctx.room.id
+  ctx.roomName                    ctx.room.name
+  ctx.senderId                    ctx.sender.id
+  ctx.senderName                  ctx.sender.name
+  ctx.senderLid                   ctx.sender.lid
+  ctx.senderDevice                ctx.sender.device
+  ctx.receiverId                  ctx.receiver.id
+  ctx.receiverName                ctx.receiver.name
+  ctx.receiverLid                 ctx.receiver.lid
+  ctx.chatId                      ctx.id.chat
+  ctx.chatType                    ctx.content.type
+  ctx.uniqueId                    ctx.id.unique
+  ctx.channelId                   ctx.id.channel
+  ctx.roomLid                     ctx.room.lid
+
+  ctx.isGroup                     ctx.is.group
+  ctx.isFromMe                    ctx.is.fromMe
+  ctx.isSpam                      ctx.is.spam
+  ctx.isBot                       ctx.is.bot
+  ctx.isNewsletter                ctx.is.newsletter
+  ctx.isForwarded                 ctx.is.forwarded
+  ctx.isEdited                    ctx.is.edited
+  ctx.isDeleted                   ctx.is.deleted
+  ctx.isPinned                    ctx.is.pinned
+  ctx.isUnPinned                  ctx.is.unpinned
+  ctx.isViewOnce                  ctx.is.viewOnce
+  ctx.isEphemeral                 ctx.is.ephemeral
+  ctx.isBroadcast                 ctx.is.broadcast
+  ctx.isTagMe                     ctx.is.tagged
+  ctx.isPrefix                    ctx.is.prefix
+  ctx.isStory                     ctx.is.story
+  ctx.isStatusMention             ctx.is.statusMention
+  ctx.isGroupStatusMention        ctx.is.groupStatusMention
+  ctx.isHideTags                  ctx.is.hideTags
+  ctx.isQuestion                  ctx.is.question
+
+  ctx.message()                   ctx.raw()
+  ctx.injection                   ctx.ext
+
+  poll.name                       poll.question
+  poll.answers                    poll.options
+  poll.isMultiple                 poll.multiple
+  audio.ptt                       audio.voice
+  location.latitude               location.lat
+  location.longitude              location.lng
+  contact.fullname                contact.name
+
+  wa.send(roomId, payload)        ctx.send(payload)
+  wa.reaction(msg, emoji)         ctx.react(emoji)
+  wa.button(roomId, opts)         ctx.send({ ...opts, buttons: [...] })
+  wa.forward(roomId, opts)        ctx.forward(targetRoomId)
+  wa.edit(sent, text)             sent.edit(text)
+  wa.delete(sent)                 sent.delete()
+  wa.presence(roomId, type)       ctx.presence(type)
+  wa.memberLabel(roomId, label)   [removed — gunakan raw socket jika butuh]
+
+  wa.group.participant(id,...)    wa.group(id).members.add/remove/...()
+  wa.group.setting(id,...)        wa.group(id).permissions.messaging/editInfo/...()
+  wa.group.profile(id,...)        wa.group(id).profile.setName/setDescription/...()
+  wa.group.inviteCode(id,...)     wa.group(id).invite.getLink/reset/...()
+  wa.group.metadata(id)           wa.group(id).meta()
+  wa.group.requestJoin(...)       wa.group(id).requests.approve/reject()
+  wa.group.requestJoinList(id)    wa.group(id).requests.list()
+  wa.group.fetchAllGroups()       wa.groups.fetchAll()
+  wa.group.ephemeral(id,...)      wa.group(id).disappearing.set()
+  wa.group.create(...)            wa.groups.create(...)
+  wa.group.leave(id)              wa.group(id).leave()
+
+  wa.community.participants(...)  wa.community(id).members.*()
+  wa.community.invite(...)        wa.community(id).invite.*()
+  wa.community.group(...)         wa.community(id).groups.*()
+  wa.community.metadata(id)       wa.community(id).meta()
+  wa.community.update(...)        wa.community(id).profile.*()
+  wa.community.settings(...)      wa.community(id).permissions.*()
+  wa.community.leave(id)          wa.community(id).leave()
+
+  wa.newsletter.action(id,...)    wa.newsletter(id).follow/unfollow/...()
+  wa.newsletter.update(id,...)    wa.newsletter(id).profile.*()
+  wa.newsletter.metadata(id,...)  wa.newsletter(id).meta()
+  wa.newsletter.reaction(...)     wa.newsletter(id).messages.react()
+  wa.newsletter.fetchMessages(...)wa.newsletter(id).messages.fetch()
+  wa.newsletter.adminCount(id)    wa.newsletter(id).admins.count()
+  wa.newsletter.changeOwner(...)  wa.newsletter(id).admins.changeOwner()
+  wa.newsletter.demote(...)       wa.newsletter(id).admins.demote()
+  wa.newsletter.delete(id)        wa.newsletter(id).delete()
+  wa.newsletter.removePicture(id) wa.newsletter(id).profile.removeAvatar()
+  wa.newsletter.create(...)       wa.newsletters.create(...)
+
+  wa.privacy.lastSeen(type)       wa.privacy.set('lastSeen', type)
+  wa.privacy.online(type)         wa.privacy.set('online', type)
+  wa.privacy.picture(type)        wa.privacy.set('picture', type)
+  wa.privacy.status(type)         wa.privacy.set('status', type)
+  wa.privacy.readReceipt(type)    wa.privacy.set('readReceipts', type)
+  wa.privacy.groupsAdd(type)      wa.privacy.set('groups', type)
+  wa.privacy.ephemeral(type)      wa.privacy.disappearing.set(type)
+  wa.privacy.block(id)            wa.privacy.blocklist.block(id)
+  wa.privacy.unblock(id)          wa.privacy.blocklist.unblock(id)
+  wa.privacy.blocklist()          wa.privacy.blocklist.list()
+  wa.privacy.getSettings()        wa.privacy.get()
+
+  definePlugins(handler, config)  defineCommand(definition)
+
+================================================================================
+  END OF DOCUMENT
+  Zaileys V4 Technical Design Documentation
+  Total sections: 16 + 2 Appendix
+================================================================================

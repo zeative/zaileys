@@ -1,6 +1,6 @@
 export type RoomType = 'user' | 'group' | 'status' | 'newsletter' | 'unknown'
 export type DeviceType = 'ios' | 'android' | 'web' | 'desktop' | 'unknown'
-export type MessageType = 'text' | 'image' | 'video' | 'audio' | 'sticker' | 'document' | 'location' | 'contact' | 'poll' | 'reaction' | 'view_once' | 'button' | 'list' | 'unknown'
+export type MessageType = 'text' | 'image' | 'video' | 'audio' | 'sticker' | 'document' | 'location' | 'contact' | 'poll' | 'reaction' | 'view_once' | 'button' | 'list' | 'edited' | 'deleted' | 'interactive' | 'unknown'
 
 export interface MessageRoom {
   id: string

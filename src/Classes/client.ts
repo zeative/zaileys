@@ -62,20 +62,21 @@ export class Client {
 
     this.plugins = new Plugins(this.options.pluginsDir, this.options.pluginsHmr);
 
-    const originalInfo = console.info;
-    console.info = (...args: any[]) => {
-      const isLibsignalSpam = args.some(arg =>
-        typeof arg === 'string' && (arg.includes('Closing session:') || arg.includes('Opening session:'))
-      );
+    if (!(console.info as any).__libsignal_patched) {
+      const originalInfo = console.info;
+      console.info = function (...args: any[]) {
+        const isLibsignalSpam = args.some(arg =>
+          typeof arg === 'string' && (arg.includes('Closing session:') || arg.includes('Opening session:'))
+        );
 
-      if (isLibsignalSpam) {
-        if (this.options.showLogs) {
+        if (isLibsignalSpam) {
           store.spinner.info('Encryption session rotated securely.');
+          return;
         }
-        return;
-      }
-      originalInfo(...args);
-    };
+        originalInfo.apply(console, args);
+      };
+      (console.info as any).__libsignal_patched = true;
+    }
 
     this.health = new HealthManager(this);
     this.cleanup = new CleanUpManager(this);
@@ -103,6 +104,9 @@ export class Client {
 
     const cleanup = async (code: any) => {
       try {
+        if (this.plugins) {
+          this.plugins.stopHmr();
+        }
         if (this.socket) {
           this.socket.end(new Error('Process Terminated'));
         }
@@ -118,6 +122,10 @@ export class Client {
     process.on('uncaughtException', (err) => {
       console.error("FATAL UNCAUGHT:", err);
       cleanup('UNCAUGHT');
+    });
+    process.on('unhandledRejection', (reason) => {
+      console.error("UNHANDLED REJECTION:", reason);
+      cleanup('UNHANDLED_REJECTION');
     });
   }
 

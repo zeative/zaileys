@@ -11,7 +11,7 @@ interface NamespaceOptions {
 
 export class NamespacedStore {
   private cache: LRUCache<string, unknown>;
-  private mutex = new Mutex();
+  private pendingPromises = new Map<string, Promise<any>>();
   readonly namespace: string;
 
   constructor(namespace: string, options?: NamespaceOptions) {
@@ -52,16 +52,24 @@ export class NamespacedStore {
   async getOrCreate<T>(key: string, factory: () => Promise<T>): Promise<T> {
     if (this.has(key)) return this.get<T>(key)!;
 
-    const release = await this.mutex.acquire();
-    try {
-      if (this.has(key)) return this.get<T>(key)!;
-
-      const value = await factory();
-      this.set(key, value);
-      return value;
-    } finally {
-      release();
+    const internalKey = this.key(key);
+    
+    if (this.pendingPromises.has(internalKey)) {
+      return this.pendingPromises.get(internalKey) as Promise<T>;
     }
+
+    const promise = (async () => {
+      try {
+        const value = await factory();
+        this.set(key, value);
+        return value;
+      } finally {
+        this.pendingPromises.delete(internalKey);
+      }
+    })();
+    
+    this.pendingPromises.set(internalKey, promise);
+    return promise;
   }
 
   clear(): void {

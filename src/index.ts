@@ -1,11 +1,13 @@
 import { Zaileys } from './core/zaileys'
 import { definePlugin } from './core/plugins'
 import { guards } from './command/guards'
+import { SessionManager } from './managers/session'
 
 export {
   Zaileys,
   definePlugin,
-  guards
+  guards,
+  SessionManager
 }
 
 export * from './types/command'

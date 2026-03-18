@@ -34,6 +34,19 @@ export class Zaileys extends EventEmitter {
   }
 
   /**
+   * Shorthand for defining a command.
+   */
+  public command(config: string | any, handler?: any) {
+    if (typeof config === 'string') {
+      return this.commands.on({ name: config, execute: handler })
+    }
+    if (handler) {
+      config.execute = handler
+    }
+    return this.commands.on(config)
+  }
+
+  /**
    * Register a plugin.
    */
   use(plugin: (bot: Zaileys) => void) {

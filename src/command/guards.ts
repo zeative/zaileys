@@ -32,5 +32,15 @@ export const guards = {
       records.set(key, now)
       await next()
     }
+  },
+
+  /**
+   * Only allows the bot owner to execute the command.
+   */
+  owner: () => {
+    return (ctx: any) => {
+      // Logic for owner check (e.g. check against config.ownerJid)
+      return ctx.sender.id === 'owner@s.whatsapp.net'
+    }
   }
 }

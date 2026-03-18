@@ -13,8 +13,9 @@ export class CommandRouter {
   /**
    * Register a command to this router.
    */
-  register(cmd: CommandDefinition) {
+  on(cmd: CommandDefinition) {
     this.registry.register(cmd)
+    return this
   }
 
   /**

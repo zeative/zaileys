@@ -121,7 +121,7 @@ export class Messages {
       const universal = await this.client.db('messages').get(universalId);
 
       if (!universal) return;
-      message = universal;
+      message = universal as WAMessage;
 
       contentExtract = getDeepContent(message.message);
       contentType = contentExtract.chain.at(-1);
@@ -273,7 +273,7 @@ export class Messages {
       this.maxReplies--;
 
       if (!repliedId) return output; // should logically continue actually, but if it evaluates to true it has stanzaId
-      const oldMessage = await this.client.db('messages').get(repliedId);
+      const oldMessage = await this.client.db('messages').get(repliedId) as WAMessage;
 
       let replied;
 

@@ -23,3 +23,7 @@ start Task: /kelar:feature | Feature: dev test file | Files: examples/test.ts
 ## [2026-03-22 12:19:16] FIX STARTED: fix_start Issue #34: sendPresenceUpdate undefined after 10m idle
 
 ## [2026-03-22 12:20:40] FIX COMPLETE ✅: fix_done Issue #34 fixed by removing TTL from center/context stores and adding defensive checks.
+
+## [2026-03-22 12:30:55] FIX STARTED: fix_start Finalizing sharp silent fallback
+
+## [2026-03-22 12:31:44] FIX COMPLETE ✅: fix_done Issue #35: Sharp fallback implemented for Termux compatibility.

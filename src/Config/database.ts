@@ -8,33 +8,13 @@ const encoder = {
 
 const _dbCache = new Map<string, IStoreAdapter>();
 
-const getAdapterType = (): 'lmdb' | 'json' => {
-  // 1. Force JSON if on Android/Termux
-  const isAndroid = process.platform === 'android' || process.env.TERMUX_VERSION;
-  if (isAndroid) return 'json';
-
-  // 2. Check if LMDB is functional
-  try {
-    require.resolve('lmdb');
-    return 'lmdb';
-  } catch {
-    return 'json';
-  }
-};
-
+/**
+ * Gets or opens a database store using NeDB.
+ * Legacy JSON fallback removed as NeDB is environment-agnostic.
+ */
 const getOrOpenDB = (path: string, options: any): IStoreAdapter => {
   if (!_dbCache.has(path)) {
-    const type = getAdapterType();
-    try {
-      _dbCache.set(path, createStoreAdapter(type, path, options));
-    } catch (err) {
-      if (type === 'lmdb') {
-        console.warn(`[Zaileys] LMDB failed to initialize at ${path}, falling back to JSON:`, err instanceof Error ? err.message : err);
-        _dbCache.set(path, createStoreAdapter('json', path, options));
-      } else {
-        throw err;
-      }
-    }
+    _dbCache.set(path, createStoreAdapter('nedb', path, options));
   }
   return _dbCache.get(path)!;
 };

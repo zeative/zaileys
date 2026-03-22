@@ -25,7 +25,16 @@ const getAdapterType = (): 'lmdb' | 'json' => {
 const getOrOpenDB = (path: string, options: any): IStoreAdapter => {
   if (!_dbCache.has(path)) {
     const type = getAdapterType();
-    _dbCache.set(path, createStoreAdapter(type, path, options));
+    try {
+      _dbCache.set(path, createStoreAdapter(type, path, options));
+    } catch (err) {
+      if (type === 'lmdb') {
+        console.warn(`[Zaileys] LMDB failed to initialize at ${path}, falling back to JSON:`, err instanceof Error ? err.message : err);
+        _dbCache.set(path, createStoreAdapter('json', path, options));
+      } else {
+        throw err;
+      }
+    }
   }
   return _dbCache.get(path)!;
 };

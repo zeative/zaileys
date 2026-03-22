@@ -23,6 +23,10 @@ export class Signal {
     }
 
     let socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
+    if (!socket) {
+      throw new Error('[Zaileys] Socket is not initialized or has been lost from centerStore. Please ensure Client is properly initialized.');
+    }
+
 
     let output: Partial<AnyMessageContent> = {};
     let misc: Partial<MiscMessageGenerationOptions> = {};
@@ -281,6 +285,10 @@ export class Signal {
 
   async presence(roomId: string, type: 'typing' | 'recording' | 'online' | 'offline' | 'paused') {
     const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
+    if (!socket) {
+      throw new Error('[Zaileys] Socket is not initialized or has been lost from centerStore. Please ensure Client is properly initialized.');
+    }
+
 
     const options = {
       typing: 'composing',
@@ -295,11 +303,18 @@ export class Signal {
 
   async reaction(message: WAMessage, reaction: string) {
     const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
+    if (!socket) {
+      throw new Error('[Zaileys] Socket is not initialized or has been lost from centerStore. Please ensure Client is properly initialized.');
+    }
     return await socket.sendMessage(message.key.remoteJid, { react: { text: reaction, key: message?.key } });
   }
 
   async memberLabel(roomId: string, label: string) {
     const socket = centerStore.get('socket') as ReturnType<typeof makeWASocket>;
+    if (!socket) {
+      throw new Error('[Zaileys] Socket is not initialized or has been lost from centerStore. Please ensure Client is properly initialized.');
+    }
+
 
     return await socket.relayMessage(
       roomId,

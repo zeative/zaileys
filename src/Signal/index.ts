@@ -3,7 +3,7 @@ import makeWASocket, { AnyMessageContent, MiscMessageGenerationOptions, WAMessag
 import * as v from 'valibot';
 import { MESSAGES_VERIFIED_TYPE } from '../Config/media';
 import { centerStore } from '../Store';
-import { Media } from '@zaadevofc/media-process';
+import { Media } from '@zaileys/media-process';
 import { parseValibot } from '../Library/valibot';
 import { ButtonOptionsType, SignalOptionsType, SignalType } from '../Types/Signal/signal';
 import { extractJids, ignoreLint, pickKeysFromArray } from '../Utils';

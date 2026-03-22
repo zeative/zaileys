@@ -1,4 +1,4 @@
-import { Media } from '@zaadevofc/media-process';
+import { Media } from '@zaileys/media-process';
 import makeWASocket from 'baileys';
 import { Client } from '../Classes';
 import { centerStore } from '../Store';

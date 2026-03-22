@@ -2,7 +2,7 @@ import makeWASocket, { ParticipantAction } from 'baileys';
 import { Client } from '../Classes';
 import { groupStore } from '../Store';
 import { centerStore } from '../Store';
-import { Media } from '@zaadevofc/media-process';
+import { Media } from '@zaileys/media-process';
 
 export class Group {
   constructor(protected client: Client) { }

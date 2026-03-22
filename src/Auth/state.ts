@@ -1,7 +1,7 @@
 import { AuthenticationCreds, AuthenticationState, initAuthCreds, proto, SignalDataTypeMap } from 'baileys';
 import * as _ from 'radashi';
 import { CredsDatabase, KeysDatabase } from '../Config/database';
-import { store, centerStore } from '../Store';
+import { store } from '../Store';
 
 export const useAuthState = async (folder: string): Promise<{ state: AuthenticationState; saveCreds: () => Promise<void> }> => {
   store.spinner.start(' Initializing auth state...');
@@ -9,7 +9,7 @@ export const useAuthState = async (folder: string): Promise<{ state: Authenticat
   const credsDb = CredsDatabase(folder);
   const keysDb = KeysDatabase(folder);
 
-  const credsData = await credsDb.get('creds');
+  const credsData = await credsDb.get('creds') as AuthenticationCreds;
   const creds: AuthenticationCreds = credsData || initAuthCreds();
 
   if (credsData) {
@@ -52,21 +52,30 @@ export const useAuthState = async (folder: string): Promise<{ state: Authenticat
           }
 
           for (const chunk of _.cluster(operations, 500)) {
-            await Promise.all(
-              chunk.map(({ key, value }) => {
-                if (value) {
-                  return keysDb.put(key, value);
-                } else {
-                  return keysDb.remove(key);
-                }
-              })
-            );
+            const batch: { [_: string]: any } = {};
+            const toDelete: string[] = [];
+
+            chunk.forEach(({ key, value }) => {
+              if (value) {
+                batch[key] = value;
+              } else {
+                toDelete.push(key);
+              }
+            });
+
+            if (Object.keys(batch).length > 0) {
+              await keysDb.setMany(batch);
+            }
+
+            if (toDelete.length > 0) {
+              await Promise.all(toDelete.map(k => keysDb.del(k)));
+            }
           }
         },
       },
     },
     saveCreds: async () => {
-      await credsDb.put('creds', creds);
+      await credsDb.set('creds', creds);
     },
   };
 };

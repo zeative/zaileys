@@ -5,7 +5,7 @@ import { store } from '../Store';
 export class CleanUpManager {
   private interval: NodeJS.Timeout | null = null;
 
-  constructor(private client: Client) {}
+  constructor(private client: Client) { }
 
   start() {
     const options = this.client.options.autoCleanUp;
@@ -34,24 +34,27 @@ export class CleanUpManager {
     for (const scope of options.scopes) {
       try {
         const db = this.client.db(scope);
+        const keys = await db.keys();
+        
+        const oldIds: string[] = [];
 
-        const oldItems: any[] = [];
-        for (const { value } of db.getRange()) {
+        for (const key of keys) {
+          const value: any = await db.get(key);
           if (value && value.timestamp !== undefined && value.timestamp < threshold) {
-            oldItems.push(value);
+            oldIds.push(key);
           }
         }
 
-        if (oldItems.length > 0) {
-          const ids = oldItems.map((item: any) => item.key?.id || item.id);
-          
-          for (const chunk of _.cluster(ids, 500)) {
-            await Promise.all(chunk.map((id: any) => db.remove(id)));
+        if (oldIds.length > 0) {
+          for (const chunk of _.cluster(oldIds, 500)) {
+            await Promise.all(chunk.map((id: string) => db.del(id)));
           }
 
-          store.spinner.info(` [CleanUpManager] Cleaned up ${oldItems.length} items from ${scope}`);
+          store.spinner.info(`[CleanUpManager] Cleaned up ${oldIds.length} items from ${scope}`);
         }
-      } catch {}
+      } catch (err) {
+        // Silently fail or log if needed
+      }
     }
   }
 }

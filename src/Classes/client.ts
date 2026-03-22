@@ -1,6 +1,6 @@
-import { initializeFFmpeg } from '@zaadevofc/media-process';
+import { initializeFFmpeg } from '@zaileys/media-process';
 import makeWASocket from 'baileys';
-import { RootDatabase } from 'lmdb';
+import { IStoreAdapter } from '@zaileys/store-adapters';
 import * as v from 'valibot';
 import { registerAuthCreds } from '../Auth';
 import { WaDatabase } from '../Config/database';
@@ -133,7 +133,7 @@ export class Client {
     return this._ready;
   }
 
-  db(scope: string): RootDatabase {
+  db(scope: string): IStoreAdapter {
     return WaDatabase(this.options.session, scope);
   }
 

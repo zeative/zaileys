@@ -1,16 +1,31 @@
 import { BufferJSON } from 'baileys';
-import { open, RootDatabase } from 'lmdb';
+import { createStoreAdapter, IStoreAdapter } from '@zaileys/store-adapters';
 
 const encoder = {
   encode: (obj: any) => JSON.stringify(obj, BufferJSON.replacer),
   decode: (str: string) => JSON.parse(str, BufferJSON.reviver),
 };
 
-const _dbCache = new Map<string, RootDatabase>();
+const _dbCache = new Map<string, IStoreAdapter>();
 
-const getOrOpenDB = (path: string, options: any): RootDatabase => {
+const getAdapterType = (): 'lmdb' | 'json' => {
+  // 1. Force JSON if on Android/Termux
+  const isAndroid = process.platform === 'android' || process.env.TERMUX_VERSION;
+  if (isAndroid) return 'json';
+
+  // 2. Check if LMDB is functional
+  try {
+    require.resolve('lmdb');
+    return 'lmdb';
+  } catch {
+    return 'json';
+  }
+};
+
+const getOrOpenDB = (path: string, options: any): IStoreAdapter => {
   if (!_dbCache.has(path)) {
-    _dbCache.set(path, open({ path, ...options }));
+    const type = getAdapterType();
+    _dbCache.set(path, createStoreAdapter(type, path, options));
   }
   return _dbCache.get(path)!;
 };

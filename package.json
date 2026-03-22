@@ -50,19 +50,22 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
-    "@zaadevofc/media-process": "^1.0.1",
+    "@zaileys/media-process": "link:../media-process",
+    "@zaileys/store-adapters": "link:../store-adapters",
     "async-mutex": "^0.5.0",
     "audio-decode": "^2.2.3",
     "baileys": "^7.0.0-rc.9",
     "figlet": "^1.9.4",
     "gradient-string": "^3.0.0",
-    "lmdb": "^3.5.2",
     "lru-cache": "^11.2.7",
     "nanospinner": "^1.2.2",
     "pino": "^10.1.0",
     "qrcode-terminal": "^0.12.0",
     "radashi": "^12.7.2",
     "valibot": "^1.2.0"
+  },
+  "optionalDependencies": {
+    "lmdb": "^3.5.2"
   },
   "packageManager": "pnpm@10.24.0",
   "engines": {

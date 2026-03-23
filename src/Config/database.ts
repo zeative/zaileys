@@ -1,5 +1,6 @@
 import { BufferJSON } from 'baileys';
-import { createStoreAdapter, IStoreAdapter } from '@zaileys/store-adapters';
+import { IStoreAdapter } from '../Types/store';
+import { NeDBAdapter } from '../Library/nedb';
 
 const encoder = {
   encode: (obj: any) => JSON.stringify(obj, BufferJSON.replacer),
@@ -14,7 +15,7 @@ const _dbCache = new Map<string, IStoreAdapter>();
  */
 const getOrOpenDB = (path: string, options: any): IStoreAdapter => {
   if (!_dbCache.has(path)) {
-    _dbCache.set(path, createStoreAdapter('nedb', path, options));
+    _dbCache.set(path, new NeDBAdapter(path, options));
   }
   return _dbCache.get(path)!;
 };

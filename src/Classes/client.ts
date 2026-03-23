@@ -1,6 +1,6 @@
 import { initializeFFmpeg } from '@zaileys/media-process';
 import makeWASocket from 'baileys';
-import { IStoreAdapter } from '@zaileys/store-adapters';
+import { IStoreAdapter } from '../Types/store';
 import * as v from 'valibot';
 import { registerAuthCreds } from '../Auth';
 import { WaDatabase } from '../Config/database';

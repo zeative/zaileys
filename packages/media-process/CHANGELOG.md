@@ -1,5 +1,11 @@
 # @zaileys/media-process
 
+## 2.4.0
+
+### Minor Changes
+
+- chore: fix npm install footprint and git ignores
+
 ## 2.3.1
 
 ### Patch Changes

@@ -25,3 +25,12 @@ tsup*
 .husky
 
 commitlint.config.js
+
+.gsd
+.gemini
+.agent
+.kelar
+
+AGENTS.md
+GEMINI.md
+CHANGELOG.md

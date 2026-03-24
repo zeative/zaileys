@@ -1,5 +1,11 @@
 # zaileys
 
+## 3.1.1
+
+### Patch Changes
+
+- remove unused file for npm
+
 ## 3.1.0
 
 ### Minor Changes

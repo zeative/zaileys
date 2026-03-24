@@ -3,10 +3,12 @@ media
 dist
 
 pnpm-lock*
+pnpm-workspace.yaml
 yarn-lock*
 rolldown*
 
 index.js
+packages/
 
 .rolldownrc
 
@@ -17,9 +19,11 @@ index.js
 test*
 zaileys
 
+.changeset
 .gsd
 .gemini
 .agent
 .kelar
+
 AGENTS.md
 GEMINI.md

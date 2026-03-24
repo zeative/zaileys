@@ -34,7 +34,7 @@ wa.on('messages', async (ctx) => {
   // ─── Sticker ─────────────────────────────────────────────────
   if (cmd === 'sticker') {
     await wa.send(ctx.roomId, {
-      sticker: 'https://picsum.photos/200',
+      sticker: 'https://placehold.co/512x512/png',
       shape: 'rounded',
     });
   }

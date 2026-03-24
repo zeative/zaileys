@@ -111,33 +111,34 @@ export class Signal {
     }
 
     if (isMedia) {
-      const media = pickKeysFromArray([options], ['image', 'video', 'audio', 'sticker', 'document']);
-
       if (hasImage) {
+        const imageInput = ignoreLint(options).image;
         output = {
           ...output,
-          image: await new Media(media).image.toJpeg(),
-          jpegThumbnail: await new Media(media).thumbnail.get(),
+          image: await new Media(imageInput).image.toJpeg(),
+          jpegThumbnail: await new Media(imageInput).thumbnail.get(),
         };
       }
 
       if (hasVideo) {
         const isPtv = ignoreLint(options)?.ptv;
+        const videoInput = ignoreLint(options).video;
 
         output = {
           ...output,
-          video: await new Media(media).video.toMp4(),
+          video: await new Media(videoInput).video.toMp4(),
           ptv: isPtv,
-          jpegThumbnail: await new Media(media).thumbnail.get(),
+          jpegThumbnail: await new Media(videoInput).thumbnail.get(),
         };
       }
 
       if (hasAudio) {
         const isPtt = ignoreLint(options)?.ptt;
+        const audioInput = ignoreLint(options).audio;
 
         output = {
           ...output,
-          audio: await new Media(media).audio.toOpus(),
+          audio: await new Media(audioInput).audio.toOpus(),
           ptt: isPtt,
           mimetype: isPtt ? 'audio/ogg; codecs=opus' : 'audio/mpeg',
         };
@@ -145,14 +146,19 @@ export class Signal {
 
       if (hasSticker) {
         const shape = ignoreLint(options)?.shape;
+        const stickerInput = ignoreLint(options).sticker;
+        const safeShape = shape === 'rounded' ? 'default' : shape;
+        const stickerMetadata = { ...this.client.options?.sticker, shape: safeShape };
+
         output = {
           ...output,
-          sticker: await new Media(media).sticker.create({ ...this.client.options?.sticker, shape }),
+          sticker: await new Media(stickerInput).sticker.create(stickerMetadata),
         };
       }
 
       if (hasDocument) {
-        const data = await new Media(media).document.create();
+        const documentInput = ignoreLint(options).document;
+        const data = await new Media(documentInput).document.create();
         const rawName = ignoreLint(options).fileName || `Document_${data.fileName.slice(-6)}`;
         const nameWithoutExt = rawName.includes('.') ? rawName.substring(0, rawName.lastIndexOf('.')) : rawName;
 

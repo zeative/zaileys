@@ -5,8 +5,10 @@ import { IStoreAdapter } from '../Types/store';
 export class NeDBAdapter implements IStoreAdapter {
   private readonly db: Datastore;
   private readonly mutex = new Mutex();
+  private readonly encoder?: { encode: (val: any) => string, decode: (val: string) => any };
 
   constructor(path: string, options?: any) {
+    this.encoder = options?.encoder;
     this.db = new Datastore({
       filename: path,
       autoload: true,
@@ -15,16 +17,32 @@ export class NeDBAdapter implements IStoreAdapter {
     });
   }
 
+  private decode(value: any) {
+    if (!this.encoder || value === undefined || value === null) return value;
+    if (typeof value === 'string') return this.encoder.decode(value);
+    try {
+      return this.encoder.decode(JSON.stringify(value));
+    } catch {
+      return value;
+    }
+  }
+
+  private encode(value: any) {
+    if (!this.encoder || value === undefined || value === null) return value;
+    return this.encoder.encode(value);
+  }
+
   async get<T>(key: string): Promise<T | undefined> {
     const doc = await this.db.findOneAsync({ _id: key });
-    return doc ? (doc as any).value : undefined;
+    return doc ? this.decode((doc as any).value) : undefined;
   }
 
   async set<T>(key: string, value: T): Promise<void> {
+    const encoded = this.encode(value);
     await this.mutex.runExclusive(async () => {
       await this.db.updateAsync(
         { _id: key },
-        { _id: key, value },
+        { _id: key, value: encoded },
         { upsert: true }
       );
     });
@@ -54,7 +72,7 @@ export class NeDBAdapter implements IStoreAdapter {
     const docs = await this.db.findAsync({ _id: { $in: keys } });
     const result: Record<string, T> = {};
     for (const doc of docs) {
-      result[(doc as any)._id] = (doc as any).value;
+      result[(doc as any)._id] = this.decode((doc as any).value);
     }
     return result;
   }
@@ -66,7 +84,7 @@ export class NeDBAdapter implements IStoreAdapter {
         entries.map(([key, value]) => 
           this.db.updateAsync(
             { _id: key },
-            { _id: key, value },
+            { _id: key, value: this.encode(value) },
             { upsert: true }
           )
         )

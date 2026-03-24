@@ -63,53 +63,46 @@ export class Logs {
     const isMatch = message?.text?.toLowerCase()?.match('zaileys');
     const isFancy = this.client.options?.fancyLogs;
 
-    const timestamp = logColor(`[${new Date(message?.timestamp).toTimeString().split(' ')[0]}]`, 'dimgray');
-    const sender = logColor(`${message?.roomName}`, color);
-
-    const text = message?.text?.slice(0, 300) || '';
-    const dots = text?.length >= 300 ? '...' : '';
+    const time = new Date(message?.timestamp || Date.now()).toTimeString().split(' ')[0];
+    const timestamp = logColor(`[${time}]`, 'dimgray');
+    const chatType = message?.chatType || 'text';
+    
+    const rawText = message?.text || '';
+    const cleanText = rawText.replace(/\\n/g, ' ').slice(0, 150);
+    const textOutput = rawText.length > 150 ? cleanText + '...' : cleanText;
+    const isHighlight = isMatch ? ['#ff5f6d', '#ffc371'] : 'white';
+    const textColor = isMatch ? isHighlight : 'gray';
+    const content = logColor(textOutput || `<${chatType}>`, textColor);
 
     if (isFancy) {
-      const divider = logColor('━'.repeat(50), 'dimgray');
-      const arrow = logColor('→', 'dimgray');
-      const bullet = logColor('•', color);
-
-      let output = `\n${divider}\n`;
-      output += `${bullet} ${timestamp} ${arrow} ${sender}\n`;
-
+      let header = '';
+      const tags = [];
+      
       if (message?.isNewsletter) {
-        output += `  ${logColor('📢 Room:', 'dimgray')} ${logColor(`${message?.roomName}`, color)}\n`;
-        output += `  ${logColor('🆔 ID:', 'dimgray')} ${logColor(`${cleanJid(message?.roomId)}`, 'gray')}\n`;
+        header = `${logColor('📢 NEWS', 'blue')} ${logColor(message?.roomName, color)}`;
+        tags.push(`${logColor('ID:', 'dimgray')} ${cleanJid(message?.roomId)}`);
+      } else if (message?.isGroup) {
+        header = `${logColor('👥 GROUP', 'lime')} ${logColor(message?.roomName, color)}`;
+        tags.push(`${logColor('By:', 'dimgray')} ${message?.senderName}`);
       } else {
-        output += `  ${logColor('👤 Sender:', 'dimgray')} ${logColor(`${message?.senderName}`, color)}\n`;
-        output += `  ${logColor('🆔 ID:', 'dimgray')} ${logColor(`${cleanJid(message?.senderId)}`, 'gray')}\n`;
-        if (message?.isGroup) {
-          output += `  ${logColor('🏠 Group:', 'dimgray')} ${logColor(`${message?.roomName}`, 'lime')}\n`;
-        }
+        header = `${logColor('👤 PRIVATE', 'orange')} ${logColor(message?.senderName || 'Unknown', color)}`;
       }
 
-      output += `  ${logColor('📝 Type:', 'dimgray')} ${logColor(`${message?.chatType || 'text'}`, 'cyan')}\n`;
-      output += `  ${logColor('💬 Text:', 'dimgray')} ${logColor(text + dots, isMatch ? ['#ff5f6d', '#ffc371'] : 'brown')}\n`;
+      if (message?.isSpam) tags.push(logColor('⚠️ Spam', 'red'));
+      if (message?.isForwarded) tags.push(logColor('↪️ Forwarded', 'yellow'));
+      if (message?.isEdited) tags.push(logColor('✏️ Edited', 'yellow'));
 
-      if (message?.isSpam) output += `  ${logColor('⚠️ Spam:', 'dimgray')} ${logColor('Yes', 'red')}\n`;
-      if (message?.isForwarded) output += `  ${logColor('↪️ Forwarded:', 'dimgray')} ${logColor('Yes', 'yellow')}\n`;
-      if (message?.isEdited) output += `  ${logColor('✏️ Edited:', 'dimgray')} ${logColor('Yes', 'yellow')}\n`;
-
-      output += `${divider}`;
-      console.log(output);
+      const tagString = tags.length ? ` ${logColor('•', 'dimgray')} ${tags.join(` ${logColor('|', 'dimgray')} `)}` : '';
+      
+      console.log(`\\n${timestamp} ${header}${tagString}`);
+      console.log(`  ${logColor('↪', 'dimgray')} ${content}`);
     } else {
-      let output = `${timestamp} → ${sender}\n`;
+      let prefix = '';
+      if (message?.isNewsletter) prefix = `[NEWS: ${message?.roomName}]`;
+      else if (message?.isGroup) prefix = `[GRP: ${message?.roomName} | ${message?.senderName}]`;
+      else prefix = `[PRIV: ${message?.senderName}]`;
 
-      if (message?.isNewsletter) {
-        output += `${logColor(`[room]`, 'dimgray')} → ${logColor(`${message?.roomName} (${cleanJid(message?.roomId)})`, color)}\n`;
-      } else {
-        output += `${logColor(`[sender]`, 'dimgray')} → ${logColor(`${message?.senderName} (${cleanJid(message?.senderId)})`, color)}\n`;
-      }
-
-      output += `${logColor(`[${message?.chatType || 'unknown'}]`, 'dimgray')} → ${logColor(text + dots, isMatch ? ['#ff5f6d', '#ffc371'] : 'brown')}\n`;
-      output += `—`;
-
-      console.log(output);
+      console.log(`${timestamp} ${logColor(prefix, color)} ${content}`);
     }
   }
 
@@ -117,16 +110,16 @@ export class Logs {
     if (!this.isReady) return;
 
     const color = ignoreLint(this.getRoomColor(call));
+    const time = new Date(call?.date || Date.now()).toTimeString().split(' ')[0];
+    const timestamp = logColor(`[${time}]`, 'dimgray');
+    const isVideo = call?.isVideo;
+    const callerId = cleanJid(call?.callerId || '');
 
-    const timestamp = logColor(`[${new Date(call?.date).toTimeString().split(' ')[0]}]`, 'dimgray');
-    const sender = logColor(`${call?.roomName}`, color);
-
-    let output = `${timestamp} → ${sender}\n`;
-    output += `${logColor(`[caller]`, 'dimgray')} → ${logColor(`${call?.callerId} (${cleanJid(call?.callerId)})`, color)}\n`;
-
-    output += `${logColor(`[${call?.status}]`, 'dimgray')} → ${logColor(call?.isVideo ? 'Video Call' : 'Voice Call', 'brown')}\n`;
-    output += `—`;
-
-    console.log(output);
+    if (this.client.options?.fancyLogs) {
+      console.log(`\\n${timestamp} ${logColor(`📞 INCOMING ${isVideo ? 'VIDEO' : 'VOICE'} CALL`, color)}`);
+      console.log(`  ${logColor('↪', 'dimgray')} ${logColor('From:', 'dimgray')} ${callerId} ${logColor('•', 'dimgray')} ${logColor('Status:', 'dimgray')} ${call?.status}`);
+    } else {
+      console.log(`${timestamp} ${logColor(`[CALL: ${callerId}]`, color)} ${isVideo ? 'Video' : 'Voice'} - ${call?.status}`);
+    }
   }
 }

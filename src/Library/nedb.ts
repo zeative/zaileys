@@ -12,7 +12,7 @@ export class NeDBAdapter implements IStoreAdapter {
     this.db = new Datastore({
       filename: path,
       autoload: true,
-      corruptAlertThreshold: 0.2, // Alert if > 20% of data is corrupt
+      corruptAlertThreshold: 0.2,
       ...options
     });
   }
@@ -61,7 +61,7 @@ export class NeDBAdapter implements IStoreAdapter {
   }
 
   async keys(prefix?: string): Promise<string[]> {
-    const query = prefix 
+    const query = prefix
       ? { _id: new RegExp('^' + this.escapeRegExp(prefix)) }
       : {};
     const docs = await this.db.findAsync(query);
@@ -81,7 +81,7 @@ export class NeDBAdapter implements IStoreAdapter {
     const entries = Object.entries(data);
     await this.mutex.runExclusive(async () => {
       await Promise.all(
-        entries.map(([key, value]) => 
+        entries.map(([key, value]) =>
           this.db.updateAsync(
             { _id: key },
             { _id: key, value: this.encode(value) },

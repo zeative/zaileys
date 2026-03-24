@@ -1,36 +1,32 @@
-node_modules
-examples
-media
-src
+# Development Directories
+node_modules/
+examples/
+media/
+src/
+test*/
+tests/
+packages/
 
-pnpm-lock*
-yarn-lock*
+# Config Files
+.*
+!.*ignore
+*.log
+*.config.*
+tsup*
 rolldown*
 
-index.js
+# Meta / Internal Build Files
+pnpm-lock*
+yarn-lock*
+package-lock*
+pnpm-workspace.yaml
 
-.prettierrc
-.rolldownrc
-
-.session
-.temp
-.github
-
-test*
-tsup*
-
-.gsd
-.gemini
-.agent
-.husky
-
-commitlint.config.js
-
-.gsd
-.gemini
-.agent
-.kelar
-
+# AI & Internal Tools
+.session/
+.temp/
+.gsd/
+.gemini/
+.agent/
+.kelar/
 AGENTS.md
 GEMINI.md
-CHANGELOG.md

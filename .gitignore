@@ -1,29 +1,27 @@
-node_modules
-media
-dist
+node_modules/
+dist/
+media/
+.session/
+.temp/
+.env
 
-pnpm-lock*
-pnpm-workspace.yaml
-yarn-lock*
-rolldown*
+# Logs
+logs/
+*.log
+npm-debug.log*
 
-index.js
-packages/
+# Testing
+test*/
+coverage/
 
-.rolldownrc
-
-.session
-.temp
-.github
-
-test*
+# Misc
 zaileys
+index.js
 
-.changeset
-.gsd
-.gemini
-.agent
-.kelar
-
+# AI & Agents
+.gsd/
+.gemini/
+.agent/
+.kelar/
 AGENTS.md
 GEMINI.md

@@ -94,7 +94,7 @@ export class Logs {
 
       const tagString = tags.length ? ` ${logColor('•', 'dimgray')} ${tags.join(` ${logColor('|', 'dimgray')} `)}` : '';
       
-      console.log(`\\n${timestamp} ${header}${tagString}`);
+      console.log(`\n${timestamp} ${header}${tagString}`);
       console.log(`  ${logColor('↪', 'dimgray')} ${content}`);
     } else {
       let prefix = '';
@@ -116,7 +116,7 @@ export class Logs {
     const callerId = cleanJid(call?.callerId || '');
 
     if (this.client.options?.fancyLogs) {
-      console.log(`\\n${timestamp} ${logColor(`📞 INCOMING ${isVideo ? 'VIDEO' : 'VOICE'} CALL`, color)}`);
+      console.log(`\n${timestamp} ${logColor(`📞 INCOMING ${isVideo ? 'VIDEO' : 'VOICE'} CALL`, color)}`);
       console.log(`  ${logColor('↪', 'dimgray')} ${logColor('From:', 'dimgray')} ${callerId} ${logColor('•', 'dimgray')} ${logColor('Status:', 'dimgray')} ${call?.status}`);
     } else {
       console.log(`${timestamp} ${logColor(`[CALL: ${callerId}]`, color)} ${isVideo ? 'Video' : 'Voice'} - ${call?.status}`);

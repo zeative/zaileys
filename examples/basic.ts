@@ -3,6 +3,8 @@ import { Client } from '../src';
 const wa = new Client({
   authType: 'qr',
   prefix: '!',
+  showLogs: true,
+  fancyLogs: true,
 });
 
 wa.on('messages', async (ctx) => {

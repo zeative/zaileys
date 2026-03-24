@@ -51,7 +51,7 @@
   },
   "dependencies": {
     "@seald-io/nedb": "^4.1.2",
-    "@zaileys/media-process": "link:./packages/media-process",
+    "@zaileys/media-process": "^2.2.0",
     "async-mutex": "^0.5.0",
     "audio-decode": "^2.2.3",
     "baileys": "^7.0.0-rc.9",

@@ -1,7 +1,7 @@
 {
   "name": "zaileys",
   "description": "Zaileys - Simplified WhatsApp Node.js TypeScript/JavaScript API",
-  "version": "3.0.1",
+  "version": "3.1.0",
   "license": "MIT",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
@@ -34,12 +34,13 @@
   "scripts": {
     "dev": "tsx --watch examples/basic.ts",
     "build": "tsup",
-    "r:patch": "npm version patch && npm run build && npm publish",
-    "r:minor": "npm version minor && npm run build && npm publish",
-    "r:major": "npm version major && npm run build && npm publish",
+    "changeset": "changeset",
+    "release:version": "changeset version && pnpm install",
+    "release:publish": "pnpm run build && changeset publish",
     "prepare": "husky"
   },
   "devDependencies": {
+    "@changesets/cli": "^2.30.0",
     "@commitlint/cli": "^20.5.0",
     "@commitlint/config-conventional": "^20.5.0",
     "@types/node": "^24.10.1",
@@ -51,7 +52,7 @@
   },
   "dependencies": {
     "@seald-io/nedb": "^4.1.2",
-    "@zaileys/media-process": "^2.2.0",
+    "@zaileys/media-process": "workspace:*",
     "async-mutex": "^0.5.0",
     "audio-decode": "^2.2.3",
     "baileys": "^7.0.0-rc.9",

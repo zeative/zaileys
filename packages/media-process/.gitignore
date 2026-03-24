@@ -1,0 +1,11 @@
+node_modules
+
+dist
+
+pnpm-lock*
+yarn-lock*
+.kelar
+AGENTS.md
+GEMINI.md
+.gemini
+.agent

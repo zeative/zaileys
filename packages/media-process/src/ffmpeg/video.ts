@@ -1,6 +1,4 @@
-import ffmpeg from 'fluent-ffmpeg';
 import { fileTypeFromBuffer } from 'file-type';
-import path from 'path';
 import { BufferConverter, FFMPEG_CONSTANTS, FFmpegProcessor, FileManager, MimeValidator, type MediaInput } from './core';
 
 export class VideoProcessor {
@@ -66,24 +64,24 @@ export class VideoProcessor {
     let thumbnailBase64: string;
 
     try {
-      await new Promise<void>((resolve, reject) => {
-        ffmpeg(tempIn)
-          .screenshots({
-            timestamps: [FFMPEG_CONSTANTS.THUMBNAIL.TIMESTAMP],
-            filename: path.basename(tempThumb),
-            folder: path.dirname(tempThumb),
-            size: `${FFMPEG_CONSTANTS.THUMBNAIL.SIZE}x${FFMPEG_CONSTANTS.THUMBNAIL.SIZE}`,
-          })
-          .on('end', async () => {
-            try {
-              const thumbBuffer = await FileManager.safeReadFile(tempThumb);
-              thumbnailBase64 = thumbBuffer.toString('base64');
-              resolve();
-            } catch (error) {
-              reject(error);
-            }
-          })
-          .on('error', reject);
+      const duration = await FFmpegProcessor.getDuration(tempIn);
+      const targetTime = Math.max(0, duration * 0.1);
+
+      await FFmpegProcessor.process({
+        input: tempIn,
+        output: tempThumb,
+        options: [
+          '-ss', targetTime.toString(),
+          '-vframes', '1',
+          '-s', `${FFMPEG_CONSTANTS.THUMBNAIL.SIZE}x${FFMPEG_CONSTANTS.THUMBNAIL.SIZE}`
+        ],
+        onEnd: async () => {
+          const thumbBuffer = await FileManager.safeReadFile(tempThumb);
+          thumbnailBase64 = thumbBuffer.toString('base64');
+        },
+        onError: async (error) => {
+          throw error;
+        }
       });
 
       await FileManager.cleanup([tempIn, tempThumb]);

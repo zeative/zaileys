@@ -1,8 +1,8 @@
-import ffmpeg from 'fluent-ffmpeg';
 import fs from 'fs/promises';
 
 import { tmpdir } from 'os';
 import path from 'path';
+import { spawn } from 'child_process';
 
 export const FFMPEG_CONSTANTS = {
   OPUS: {
@@ -44,6 +44,9 @@ export interface FFmpegConfig {
   onError: (err: Error) => Promise<void>;
 }
 
+let ffmpegPath = 'ffmpeg';
+let ffprobePath = 'ffprobe';
+
 export const initializeFFmpeg = async (disable: boolean = false) => {
   if (disable) return;
 
@@ -51,8 +54,8 @@ export const initializeFFmpeg = async (disable: boolean = false) => {
     const ffmpegInstaller = (await import('@ffmpeg-installer/ffmpeg')).default;
     const ffprobeInstaller = (await import('@ffprobe-installer/ffprobe')).default;
 
-    ffmpeg.setFfmpegPath(ffmpegInstaller.path);
-    ffmpeg.setFfprobePath(ffprobeInstaller.path);
+    ffmpegPath = ffmpegInstaller.path;
+    ffprobePath = ffprobeInstaller.path;
   } catch {}
 };
 
@@ -152,45 +155,58 @@ export class MimeValidator {
 export class FFmpegProcessor {
   static async process(config: FFmpegConfig): Promise<void> {
     return new Promise((resolve, reject) => {
-      const processor = ffmpeg(config.input).output(config.output);
+      const args = ['-y', '-i', config.input, ...config.options, config.output];
+      const child = spawn(ffmpegPath, args, { stdio: 'ignore' });
 
-      for (let i = 0; i < config.options.length; i++) {
-        const option = config.options[i];
-
-        if (option.startsWith('-') && i + 1 < config.options.length && !config.options[i + 1].startsWith('-')) {
-          processor.outputOptions(option, config.options[i + 1]);
-          i++;
-        } else {
-          processor.outputOptions(option);
-        }
-      }
-
-      processor
-        .on('end', async () => {
+      child.on('close', async (code) => {
+        if (code === 0) {
           try {
             await config.onEnd();
             resolve();
           } catch (error) {
             reject(error);
           }
-        })
-        .on('error', async (err: Error) => {
+        } else {
           try {
+            const err = new Error(`FFmpeg exited with code ${code}`);
             await config.onError(err);
-          } finally {
             reject(err);
+          } catch (error) {
+            reject(error);
           }
-        })
-        .run();
+        }
+      });
+
+      child.on('error', async (err: Error) => {
+        try {
+          await config.onError(err);
+        } finally {
+          reject(err);
+        }
+      });
     });
   }
 
   static async getDuration(filePath: string): Promise<number> {
     return new Promise((resolve, reject) => {
-      ffmpeg.ffprobe(filePath, (err: Error | null, metadata: ffmpeg.FfprobeData) => {
-        if (err) return reject(err);
-        resolve(metadata.format.duration || 0);
+      const child = spawn(ffprobePath, [
+        '-v', 'error',
+        '-show_entries', 'format=duration',
+        '-of', 'default=noprint_wrappers=1:nokey=1',
+        filePath
+      ]);
+
+      let output = '';
+      child.stdout.on('data', (data) => output += data.toString());
+      
+      child.on('close', (code) => {
+        if (code === 0) {
+          resolve(parseFloat(output.trim()) || 0);
+        } else {
+          reject(new Error(`ffprobe exited with code ${code}`));
+        }
       });
+      child.on('error', reject);
     });
   }
 }

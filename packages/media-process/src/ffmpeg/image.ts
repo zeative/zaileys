@@ -2,10 +2,10 @@ import { Jimp } from 'jimp';
 import { BufferConverter, FFMPEG_CONSTANTS, FFmpegProcessor, FileManager, type MediaInput } from './core';
 
 // ─── Dynamic Sharp loader ───────────────────────────────────────────────────
-let _sharp: typeof import('sharp') | null = null;
+let _sharp: any | null = null;
 let _sharpChecked = false;
 
-function getSharp(): typeof import('sharp') | null {
+function getSharp(): any | null {
   if (_sharpChecked) return _sharp;
   _sharpChecked = true;
   try {
@@ -23,9 +23,9 @@ function getSharp(): typeof import('sharp') | null {
 
 // ─── Sharp-based implementations ────────────────────────────────────────────
 class SharpImageProcessor {
-  private sharp: typeof import('sharp');
+  private sharp: any;
 
-  constructor(sharpModule: typeof import('sharp')) {
+  constructor(sharpModule: any) {
     this.sharp = sharpModule;
   }
 
@@ -276,7 +276,7 @@ function getProcessor(): SharpImageProcessor | JimpImageProcessor {
   if (sharpModule) {
     _processor = new SharpImageProcessor(sharpModule);
   } else {
-    console.warn('[media-process] sharp not available, using jimp as fallback (slower but compatible)');
+    console.warn('\x1b[33m%s\x1b[0m', '⚠️ [media-process] Jimp is slow. For faster performance, run: npm install sharp');
     _processor = new JimpImageProcessor();
   }
 

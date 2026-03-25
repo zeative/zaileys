@@ -1,5 +1,16 @@
 # zaileys
 
+## 3.3.0
+
+### Minor Changes
+
+- af105e0: update sharp and ffmpeg
+
+### Patch Changes
+
+- Updated dependencies [af105e0]
+  - @zaileys/media-process@2.5.0
+
 ## 3.2.0
 
 ### Minor Changes

@@ -27,6 +27,7 @@ export interface Client extends Signal, SignalGroup, SignalPrivacy, SignalNewsle
 
 export class Client {
   private _ready: Promise<void>;
+  private _signalHandlersRegistered = false;
 
   logs: Logs;
 
@@ -117,16 +118,20 @@ export class Client {
       process.exit();
     };
 
-    process.on('SIGINT', cleanup);
-    process.on('SIGTERM', cleanup);
-    process.on('uncaughtException', (err) => {
-      console.error("FATAL UNCAUGHT:", err);
-      cleanup('UNCAUGHT');
-    });
-    process.on('unhandledRejection', (reason) => {
-      console.error("UNHANDLED REJECTION:", reason);
-      cleanup('UNHANDLED_REJECTION');
-    });
+    if (!this._signalHandlersRegistered) {
+      this._signalHandlersRegistered = true;
+      process.setMaxListeners(process.getMaxListeners() + 4);
+      process.on('SIGINT', cleanup);
+      process.on('SIGTERM', cleanup);
+      process.on('uncaughtException', (err) => {
+        console.error("FATAL UNCAUGHT:", err);
+        cleanup('UNCAUGHT');
+      });
+      process.on('unhandledRejection', (reason) => {
+        console.error("UNHANDLED REJECTION:", reason);
+        cleanup('UNHANDLED_REJECTION');
+      });
+    }
   }
 
   ready() {
@@ -147,7 +152,9 @@ export class Client {
   }
 
   get socket(): ReturnType<typeof makeWASocket> {
-    return centerStore.get('socket');
+    const socket = centerStore.get<ReturnType<typeof makeWASocket>>('socket');
+    if (!socket) throw new Error('[Zaileys] Socket is not available. The bot may still be initializing or the connection was lost.');
+    return socket;
   }
 
   async getRoomName(roomId: string) {

@@ -1,6 +1,7 @@
 import makeWASocket, { delay, DisconnectReason, jidNormalizedUser } from 'baileys';
 import { cristal } from 'gradient-string';
 import { Client } from '../Classes';
+import { fireForget } from '../Library/fire-forget';
 import { store, centerStore } from '../Store';
 import { ConnectionContext } from '../Types/connection';
 import { ignoreLint, removeAuthCreds } from '../Utils';
@@ -135,9 +136,14 @@ export class Connection {
       store.events.emit('connection', output);
     });
 
+    let syncFallbackTimeout: ReturnType<typeof setTimeout> | undefined;
+
     socket.ev.on('messaging-history.set', ({ progress }) => {
       output.status = 'syncing';
       output.syncProgress = progress;
+
+      // Pause non-critical tasks saat sync berlangsung
+      if (!fireForget.isPaused) fireForget.pause();
 
       store.spinner.start(` Syncing messages history (bot is active and responding)...`);
 
@@ -146,9 +152,26 @@ export class Connection {
       }
 
       if (progress == 100) {
+        clearTimeout(syncFallbackTimeout);
         store.spinner.success(` Syncing completed! All systems ready.`);
         output.syncCompleted = true;
+        centerStore.set('syncCompleted', true);
+        fireForget.resume();
+        store.events.emit('connection', output);
+        return;
       }
+
+      // Fallback: jika 15 detik tidak ada progress update, anggap sync selesai
+      clearTimeout(syncFallbackTimeout);
+      syncFallbackTimeout = setTimeout(() => {
+        if (!output.syncCompleted) {
+          store.spinner.success(` Syncing completed! All systems ready.`);
+          output.syncCompleted = true;
+          centerStore.set('syncCompleted', true);
+          fireForget.resume();
+          store.events.emit('connection', output);
+        }
+      }, 15_000);
 
       store.events.emit('connection', output);
     });

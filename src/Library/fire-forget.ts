@@ -52,6 +52,7 @@ export class FireAndForget {
   completed: number;
   failed: number;
   isClosing: boolean;
+  isPaused: boolean;
   closeResolve: ((value: void | PromiseLike<void>) => void) | null;
   private _idleResolvers: Array<() => void> = [];
 
@@ -65,6 +66,7 @@ export class FireAndForget {
     this.completed = 0;
     this.failed = 0;
     this.isClosing = false;
+    this.isPaused = false;
     this.closeResolve = null;
   }
 
@@ -99,7 +101,17 @@ export class FireAndForget {
     return tasks.map(({ fn, options }) => this.add(fn, options));
   }
 
+  pause() {
+    this.isPaused = true;
+  }
+
+  resume() {
+    this.isPaused = false;
+    void this._process();
+  }
+
   async _process() {
+    if (this.isPaused) return;
     while (this.running.size < this.concurrency && this.queue.length > 0) {
       const task = this.queue.shift();
       this.running.add(task);

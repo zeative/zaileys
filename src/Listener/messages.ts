@@ -31,6 +31,13 @@ export class Messages {
         if (type !== 'notify' && type !== 'append') return;
 
         const bootTime = centerStore.get('bootTime') as number;
+        const syncCompleted = centerStore.get('syncCompleted') as boolean;
+
+        // Skip semua append message saat sync belum selesai — ini penyebab FireForget timeout
+        if (!syncCompleted && type === 'append') return;
+
+        // Timeout lebih tinggi saat load tinggi (banyak AI bot di linked devices)
+        const taskTimeout = 15000;
 
         for (const message of messages) {
           try {
@@ -47,13 +54,13 @@ export class Messages {
                   this.client.middleware.run({ messages: parsed }),
                   this.client.plugins.execute(this.client, { messages: parsed }),
                 ]);
-              }, { priority: Priority.NORMAL, timeout: 5000 });
+              }, { priority: Priority.NORMAL, timeout: taskTimeout });
 
               centerStore.set('message', parsed);
               store.events.emit('messages', parsed);
 
               if (this.client.options.autoRead) {
-                fireForget.add(async () => socket.readMessages([parsed.message().key]), { priority: Priority.NORMAL, timeout: 5000 });
+                fireForget.add(async () => socket.readMessages([parsed.message().key]), { priority: Priority.LOW, timeout: taskTimeout });
               }
             }
           } catch { }

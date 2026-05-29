@@ -1,7 +1,0 @@
-node_modules
-src
-
-pnpm-lock*
-yarn-lock*
-
-tsup*

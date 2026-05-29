@@ -8,9 +8,12 @@ importers:
 
   .:
     dependencies:
-      '@zaileys/media-process':
-        specifier: workspace:*
-        version: link:packages/media-process
+      '@ffmpeg-installer/ffmpeg':
+        specifier: ^1.1.0
+        version: 1.1.0
+      '@ffprobe-installer/ffprobe':
+        specifier: ^2.1.2
+        version: 2.1.2
       async-mutex:
         specifier: ^0.5.0
         version: 0.5.0
@@ -19,13 +22,22 @@ importers:
         version: 2.2.3
       baileys:
         specifier: ^7.0.0-rc13
-        version: 7.0.0-rc13(audio-decode@2.2.3)(sharp@0.33.0)
+        version: 7.0.0-rc13(audio-decode@2.2.3)(jimp@1.6.0)(sharp@0.33.0)
+      file-type:
+        specifier: ^21.1.1
+        version: 21.3.3
+      jimp:
+        specifier: ^1.6.0
+        version: 1.6.0
       lru-cache:
         specifier: ^11.2.7
         version: 11.2.7
       nanospinner:
         specifier: ^1.2.2
         version: 1.2.2
+      node-webpmux:
+        specifier: ^3.2.1
+        version: 3.2.1
       pino:
         specifier: ^10.1.0
         version: 10.3.1
@@ -3203,6 +3215,28 @@ snapshots:
   await-to-js@3.0.0: {}
 
   aws-ssl-profiles@1.1.2: {}
+
+  baileys@7.0.0-rc13(audio-decode@2.2.3)(jimp@1.6.0)(sharp@0.33.0):
+    dependencies:
+      '@cacheable/node-cache': 1.7.6
+      '@hapi/boom': 9.1.4
+      async-mutex: 0.5.0
+      libsignal: 6.0.0
+      lru-cache: 11.2.7
+      music-metadata: 11.12.3
+      p-queue: 9.1.0
+      pino: 9.14.0
+      protobufjs: 7.6.1
+      sharp: 0.33.0
+      whatsapp-rust-bridge: 0.5.4
+      ws: 8.20.0
+    optionalDependencies:
+      audio-decode: 2.2.3
+      jimp: 1.6.0
+    transitivePeerDependencies:
+      - bufferutil
+      - supports-color
+      - utf-8-validate
 
   baileys@7.0.0-rc13(audio-decode@2.2.3)(sharp@0.33.0):
     dependencies:

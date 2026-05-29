@@ -4,13 +4,17 @@ import type {
   WAMessage,
   WAMessageKey,
 } from 'baileys'
+import { sendAlbum } from './album.js'
 import { buildAudioContent } from './content/audio.js'
 import { buildButtonsContent } from './content/buttons.js'
+import { buildContactContent } from './content/contact.js'
 import { buildDocumentContent } from './content/document.js'
 import { buildImageContent } from './content/image.js'
 import { buildListContent } from './content/list.js'
+import { buildLocationContent } from './content/location.js'
 import { buildPollContent } from './content/poll.js'
 import { buildStickerContent } from './content/sticker.js'
+import { buildTemplateContent } from './content/template.js'
 import { buildTextContent } from './content/text.js'
 import { buildVideoContent } from './content/video.js'
 import { ZaileysBuilderError } from './errors.js'
@@ -18,6 +22,7 @@ import { createInternalState, type BuilderInternalState } from './state.js'
 import type {
   AlbumItem,
   AudioOptions,
+  BuilderContext,
   BuilderState,
   ButtonDef,
   DocumentOptions,
@@ -41,10 +46,6 @@ export interface BuilderSocketLike {
     content: AnyMessageContent,
     options?: MiscMessageGenerationOptions,
   ): Promise<WAMessage | undefined>
-}
-
-const notImplemented = (method: string): never => {
-  throw new ZaileysBuilderError('INVALID_OPTIONS', `${method}() not yet implemented`)
 }
 
 /**
@@ -125,23 +126,27 @@ export class MessageBuilder<State extends BuilderState> {
 
   location(
     this: MessageBuilder<'init'>,
-    _lat: number,
-    _lon: number,
-    _opts?: LocationOptions,
+    lat: number,
+    lon: number,
+    opts?: LocationOptions,
   ): MessageBuilder<'content-set'> {
-    return notImplemented('location')
+    this.internal.content = buildLocationContent(lat, lon, opts)
+    return this as unknown as MessageBuilder<'content-set'>
   }
 
-  contact(this: MessageBuilder<'init'>, _vcard: string): MessageBuilder<'content-set'> {
-    return notImplemented('contact')
+  contact(this: MessageBuilder<'init'>, vcard: string): MessageBuilder<'content-set'> {
+    this.internal.content = buildContactContent(vcard)
+    return this as unknown as MessageBuilder<'content-set'>
   }
 
-  template(this: MessageBuilder<'init'>, _opts: TemplateOptions): MessageBuilder<'content-set'> {
-    return notImplemented('template')
+  template(this: MessageBuilder<'init'>, opts: TemplateOptions): MessageBuilder<'content-set'> {
+    this.internal.content = buildTemplateContent(opts)
+    return this as unknown as MessageBuilder<'content-set'>
   }
 
-  album(this: MessageBuilder<'init'>, _items: AlbumItem[]): MessageBuilder<'content-set'> {
-    return notImplemented('album')
+  album(this: MessageBuilder<'init'>, items: AlbumItem[]): MessageBuilder<'content-set'> {
+    this.internal.albumItems = items
+    return this as unknown as MessageBuilder<'content-set'>
   }
 
   /** Quote a previous message; rejects a missing reference. Chainable on any state. */
@@ -193,6 +198,16 @@ export class MessageBuilder<State extends BuilderState> {
     onRejected?: (err: unknown) => T | PromiseLike<T>,
   ): Promise<T> {
     const send = async (): Promise<WAMessageKey> => {
+      if (this.internal.albumItems) {
+        const context: BuilderContext = { recipient: this.internal.recipient }
+        if (this.internal.quoted !== undefined) context.quoted = this.internal.quoted
+        if (this.internal.mentions !== undefined) context.mentions = this.internal.mentions
+        if (this.internal.mentionAll !== undefined) context.mentionAll = this.internal.mentionAll
+        if (this.internal.disappearingSeconds !== undefined) {
+          context.disappearingSeconds = this.internal.disappearingSeconds
+        }
+        return sendAlbum(this.socket, this.internal.recipient, this.internal.albumItems, context)
+      }
       if (this.internal.pendingContent) {
         this.internal.content = await this.internal.pendingContent
       }

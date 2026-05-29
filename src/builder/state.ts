@@ -1,4 +1,5 @@
 import type { AnyMessageContent, WAMessage, WAMessageKey } from 'baileys'
+import type { AlbumItem } from './types.js'
 
 /**
  * Mutable internal accumulator backing a {@link MessageBuilder}.
@@ -10,6 +11,8 @@ export type BuilderInternalState = {
   content?: AnyMessageContent
   /** Async media content set by media methods; awaited by `then()` before dispatch. */
   pendingContent?: Promise<AnyMessageContent>
+  /** Album entries set by `.album()`; when present `then()` dispatches via the album orchestrator. */
+  albumItems?: AlbumItem[]
   quoted?: WAMessage | WAMessageKey
   mentions?: string[]
   mentionAll?: boolean

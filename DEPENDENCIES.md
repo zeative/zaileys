@@ -136,6 +136,40 @@
 - **Status:** EVALUATE for v4 — di v4 arsitektur, ini akan replaced oleh built-in PostgresAuthStore/PostgresMessageStore (Phase 2).
 - **Decision:** Keep workspace folder, but mark as DEPRECATED. Will be removed at Phase 2 in favor of built-in adapters.
 
+## Phase 2 — Storage Peer Dependencies (optional)
+
+Storage adapters added in Phase 2 plans 004–006 ship as **optional peer dependencies**. End-users only install the backend they actually use; the library degrades gracefully (throws `STORE_NOT_AVAILABLE` when a peer is missing).
+
+### better-sqlite3
+- **Version:** ^11.0.0
+- **Purpose:** Embedded SQLite driver for `SqliteAuthStore` and `SqliteMessageStore` (plan-004, plan-006)
+- **Why this one:** Industry-standard synchronous API, prebuilt binaries for Node 18–22, fastest prepared statements in the ecosystem; matches Baileys' upstream recommendation for embedded persistence
+- **Install:** `pnpm add better-sqlite3`
+- **Status:** peerDependency (optional)
+
+### redis
+- **Version:** ^4.7.0
+- **Purpose:** Official node-redis v4 client for `RedisAuthStore` and `RedisMessageStore` (plan-005)
+- **Why this one:** Modern Promise-based API (v4 series), first-party Redis client, supports SCAN/HSET/Stream commands required by adapter migrations
+- **Install:** `pnpm add redis`
+- **Status:** peerDependency (optional)
+
+### pg
+- **Version:** ^8.11.0
+- **Purpose:** node-postgres driver for `PostgresAuthStore` and `PostgresMessageStore` (plan-006)
+- **Why this one:** Accepts caller-owned `Pool` (zero connection leaks for embedded use), supports `ON CONFLICT` upsert, dominant Node Postgres client
+- **Install:** `pnpm add pg`
+- **Status:** peerDependency (optional)
+
+### Dev-only test helpers
+The following live in `devDependencies` ONLY — never shipped to consumers — and exist to enable CI + unit testing without provisioning live infrastructure:
+
+- **@types/better-sqlite3** — type declarations for tests/scripts that touch the better-sqlite3 surface
+- **@types/pg** — type declarations for the postgres adapter tests
+- **pg-mem** — pure-JS Postgres simulator used by every `PostgresAuthStore` / `PostgresMessageStore` unit test (replaces a live Postgres server in CI)
+
+Real Postgres / Redis integration is exercised via the cross-backend matrix when `DATABASE_URL` / `REDIS_URL` are set in the environment (skipped otherwise).
+
 ## Audit Checklist
 - [x] Every `dependencies` key in `package.json` appears as `### {name}` heading above
 - [x] Every removed dep listed under "Removed Dependencies" with reason

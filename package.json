@@ -37,6 +37,9 @@
   "scripts": {
     "dev": "tsx --watch examples/basic.ts",
     "build": "tsup",
+    "typecheck": "tsgo --noEmit",
+    "typecheck:legacy": "tsc --noEmit",
+    "typecheck:audit": "tsx scripts/audit-tsgo-compat.ts",
     "smoke:baileys": "tsx scripts/smoke-baileys.mts",
     "changeset": "changeset",
     "release:version": "changeset version && pnpm install",
@@ -49,9 +52,11 @@
     "@commitlint/config-conventional": "^20.5.0",
     "@types/node": "^24.10.1",
     "@types/qrcode-terminal": "^0.12.2",
+    "@typescript/native-preview": "7.0.0-dev.20260527.2",
     "husky": "^9.1.7",
     "tsup": "^8.5.1",
-    "tsx": "^4.21.0"
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3"
   },
   "dependencies": {
     "@zaileys/media-process": "workspace:*",

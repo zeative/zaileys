@@ -1,1 +1,1 @@
-pnpm build
+pnpm typecheck && pnpm audit:comments

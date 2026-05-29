@@ -11,8 +11,9 @@ logs/
 npm-debug.log*
 
 # Testing
-test*/
+test-*/
 coverage/
+!tests/
 
 # Misc
 zaileys

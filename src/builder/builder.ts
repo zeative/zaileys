@@ -4,6 +4,7 @@ import type {
   WAMessage,
   WAMessageKey,
 } from 'baileys'
+import { buildTextContent } from './content/text.js'
 import { ZaileysBuilderError } from './errors.js'
 import { createInternalState, type BuilderInternalState } from './state.js'
 import type {
@@ -60,8 +61,9 @@ export class MessageBuilder<State extends BuilderState> {
     return new MessageBuilder<'init'>(socket, createInternalState(recipient))
   }
 
-  text(this: MessageBuilder<'init'>, _content: string): MessageBuilder<'content-set'> {
-    return notImplemented('text')
+  text(this: MessageBuilder<'init'>, content: string): MessageBuilder<'content-set'> {
+    this.internal.content = buildTextContent(content)
+    return this as unknown as MessageBuilder<'content-set'>
   }
 
   image(this: MessageBuilder<'init'>, _src: MediaSource, _opts?: ImageOptions): MessageBuilder<'content-set'> {
@@ -165,6 +167,16 @@ export class MessageBuilder<State extends BuilderState> {
       if (!this.internal.content) {
         throw new ZaileysBuilderError('EMPTY_CONTENT', 'no content set')
       }
+      const content = this.internal.content as AnyMessageContent & {
+        mentions?: string[]
+        mentionAll?: boolean
+      }
+      if (this.internal.mentions && this.internal.mentions.length > 0) {
+        content.mentions = this.internal.mentions
+      }
+      if (this.internal.mentionAll) {
+        content.mentionAll = true
+      }
       const options: MiscMessageGenerationOptions = {}
       if (this.internal.quoted) {
         options.quoted = this.internal.quoted as WAMessage
@@ -174,7 +186,7 @@ export class MessageBuilder<State extends BuilderState> {
       }
       let result: WAMessage | undefined
       try {
-        result = await this.socket.sendMessage(this.internal.recipient, this.internal.content, options)
+        result = await this.socket.sendMessage(this.internal.recipient, content, options)
       } catch (err) {
         throw new ZaileysBuilderError('SEND_FAILED', 'socket sendMessage rejected', { cause: err })
       }

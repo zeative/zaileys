@@ -99,10 +99,12 @@ describe('context modifiers', () => {
 })
 
 describe('content method skeletons', () => {
-  it('text throws not-implemented for now', () => {
+  it('text sets content and transitions to content-set', () => {
     const { socket } = makeSocket()
     const b = MessageBuilder.create(socket, RECIPIENT)
-    expect(() => b.text('hi')).toThrow(ZaileysBuilderError)
+    const set = b.text('hi')
+    expect(set).toBeInstanceOf(MessageBuilder)
+    expect(internalOf(b).content).toEqual({ text: 'hi' })
   })
 
   it('image throws not-implemented for now', () => {

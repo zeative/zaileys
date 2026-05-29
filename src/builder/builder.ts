@@ -4,6 +4,9 @@ import type {
   WAMessage,
   WAMessageKey,
 } from 'baileys'
+import { buildButtonsContent } from './content/buttons.js'
+import { buildListContent } from './content/list.js'
+import { buildPollContent } from './content/poll.js'
 import { buildTextContent } from './content/text.js'
 import { ZaileysBuilderError } from './errors.js'
 import { createInternalState, type BuilderInternalState } from './state.js'
@@ -86,21 +89,28 @@ export class MessageBuilder<State extends BuilderState> {
     return notImplemented('sticker')
   }
 
-  buttons(this: MessageBuilder<'init'>, _buttons: ButtonDef[]): MessageBuilder<'content-set'> {
-    return notImplemented('buttons')
+  buttons(
+    this: MessageBuilder<'init'>,
+    buttons: ButtonDef[],
+    opts?: { text?: string; footer?: string },
+  ): MessageBuilder<'content-set'> {
+    this.internal.content = buildButtonsContent(buttons, opts)
+    return this as unknown as MessageBuilder<'content-set'>
   }
 
-  list(this: MessageBuilder<'init'>, _opts: ListOptions): MessageBuilder<'content-set'> {
-    return notImplemented('list')
+  list(this: MessageBuilder<'init'>, opts: ListOptions): MessageBuilder<'content-set'> {
+    this.internal.content = buildListContent(opts)
+    return this as unknown as MessageBuilder<'content-set'>
   }
 
   poll(
     this: MessageBuilder<'init'>,
-    _question: string,
-    _options: string[],
-    _opts?: PollOptions,
+    question: string,
+    options: string[],
+    opts?: PollOptions,
   ): MessageBuilder<'content-set'> {
-    return notImplemented('poll')
+    this.internal.content = buildPollContent(question, options, opts)
+    return this as unknown as MessageBuilder<'content-set'>
   }
 
   location(

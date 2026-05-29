@@ -8,6 +8,8 @@ import type { AnyMessageContent, WAMessage, WAMessageKey } from 'baileys'
 export type BuilderInternalState = {
   recipient: string
   content?: AnyMessageContent
+  /** Async media content set by media methods; awaited by `then()` before dispatch. */
+  pendingContent?: Promise<AnyMessageContent>
   quoted?: WAMessage | WAMessageKey
   mentions?: string[]
   mentionAll?: boolean

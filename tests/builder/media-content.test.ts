@@ -19,11 +19,11 @@ const toOpusMock = vi.fn<[], Promise<Buffer>>()
 const stickerCreateMock = vi.fn<[unknown?], Promise<Buffer>>()
 
 vi.mock('../../src/media/index.js', () => ({
-  Media: vi.fn().mockImplementation((input: unknown) => ({
-    __input: input,
-    audio: { toOpus: () => toOpusMock() },
-    sticker: { create: (meta?: unknown) => stickerCreateMock(meta) },
-  })),
+  Media: vi.fn(function (this: Record<string, unknown>, input: unknown) {
+    this.__input = input
+    this.audio = { toOpus: () => toOpusMock() }
+    this.sticker = { create: (meta?: unknown) => stickerCreateMock(meta) }
+  }),
 }))
 
 import { Media } from '../../src/media/index.js'

@@ -107,10 +107,14 @@ describe('content method skeletons', () => {
     expect(internalOf(b).content).toEqual({ text: 'hi' })
   })
 
-  it('image throws not-implemented for now', () => {
+  it('image sets pending content and transitions to content-set', async () => {
     const { socket } = makeSocket()
     const b = MessageBuilder.create(socket, RECIPIENT)
-    expect(() => b.image('a.png')).toThrow(ZaileysBuilderError)
+    const set = b.image(Buffer.from([1, 2, 3]))
+    expect(set).toBeInstanceOf(MessageBuilder)
+    const pending = internalOf(b).pendingContent
+    expect(pending).toBeInstanceOf(Promise)
+    await pending
   })
 })
 

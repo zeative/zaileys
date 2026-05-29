@@ -4,10 +4,15 @@ import type {
   WAMessage,
   WAMessageKey,
 } from 'baileys'
+import { buildAudioContent } from './content/audio.js'
 import { buildButtonsContent } from './content/buttons.js'
+import { buildDocumentContent } from './content/document.js'
+import { buildImageContent } from './content/image.js'
 import { buildListContent } from './content/list.js'
 import { buildPollContent } from './content/poll.js'
+import { buildStickerContent } from './content/sticker.js'
 import { buildTextContent } from './content/text.js'
+import { buildVideoContent } from './content/video.js'
 import { ZaileysBuilderError } from './errors.js'
 import { createInternalState, type BuilderInternalState } from './state.js'
 import type {
@@ -69,24 +74,29 @@ export class MessageBuilder<State extends BuilderState> {
     return this as unknown as MessageBuilder<'content-set'>
   }
 
-  image(this: MessageBuilder<'init'>, _src: MediaSource, _opts?: ImageOptions): MessageBuilder<'content-set'> {
-    return notImplemented('image')
+  image(this: MessageBuilder<'init'>, src: MediaSource, opts?: ImageOptions): MessageBuilder<'content-set'> {
+    this.internal.pendingContent = buildImageContent(src, opts)
+    return this as unknown as MessageBuilder<'content-set'>
   }
 
-  video(this: MessageBuilder<'init'>, _src: MediaSource, _opts?: VideoOptions): MessageBuilder<'content-set'> {
-    return notImplemented('video')
+  video(this: MessageBuilder<'init'>, src: MediaSource, opts?: VideoOptions): MessageBuilder<'content-set'> {
+    this.internal.pendingContent = buildVideoContent(src, opts)
+    return this as unknown as MessageBuilder<'content-set'>
   }
 
-  audio(this: MessageBuilder<'init'>, _src: MediaSource, _opts?: AudioOptions): MessageBuilder<'content-set'> {
-    return notImplemented('audio')
+  audio(this: MessageBuilder<'init'>, src: MediaSource, opts?: AudioOptions): MessageBuilder<'content-set'> {
+    this.internal.pendingContent = buildAudioContent(src, opts)
+    return this as unknown as MessageBuilder<'content-set'>
   }
 
-  document(this: MessageBuilder<'init'>, _src: MediaSource, _opts: DocumentOptions): MessageBuilder<'content-set'> {
-    return notImplemented('document')
+  document(this: MessageBuilder<'init'>, src: MediaSource, opts: DocumentOptions): MessageBuilder<'content-set'> {
+    this.internal.pendingContent = buildDocumentContent(src, opts)
+    return this as unknown as MessageBuilder<'content-set'>
   }
 
-  sticker(this: MessageBuilder<'init'>, _src: MediaSource, _opts?: StickerOptions): MessageBuilder<'content-set'> {
-    return notImplemented('sticker')
+  sticker(this: MessageBuilder<'init'>, src: MediaSource, opts?: StickerOptions): MessageBuilder<'content-set'> {
+    this.internal.pendingContent = buildStickerContent(src, opts)
+    return this as unknown as MessageBuilder<'content-set'>
   }
 
   buttons(
@@ -183,6 +193,9 @@ export class MessageBuilder<State extends BuilderState> {
     onRejected?: (err: unknown) => T | PromiseLike<T>,
   ): Promise<T> {
     const send = async (): Promise<WAMessageKey> => {
+      if (this.internal.pendingContent) {
+        this.internal.content = await this.internal.pendingContent
+      }
       if (!this.internal.content) {
         throw new ZaileysBuilderError('EMPTY_CONTENT', 'no content set')
       }

@@ -8,7 +8,8 @@
     "rootDir": "src",
     "noEmit": false,
     "incremental": false,
-    "tsBuildInfoFile": null
+    "tsBuildInfoFile": null,
+    "ignoreDeprecations": "6.0"
   },
   "include": ["src/**/*.ts"],
   "exclude": ["node_modules", "dist", "scripts", "examples", ".session", ".temp", ".planning", "**/*.test.ts", "**/*.spec.ts"]

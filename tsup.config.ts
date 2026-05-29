@@ -1,48 +1,43 @@
-import { defineConfig } from 'tsup';
-import pkg from './package.json' assert { type: 'json' };
-
-const banner = `
-/*
- * Copyright (c) ${new Date().getFullYear()} zaadevofc.
- * All rights reserved.
- * Licensed under the MIT License.
- * See LICENSE file for details.
-
- * Author: zaadevofc
- * Last build time: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()}
- * 
- * Repository: ${pkg.repository.url}
- */
-`;
+import { defineConfig } from 'tsup'
 
 export default defineConfig({
   entry: ['src/index.ts'],
-  format: ['cjs', 'esm'],
+  format: ['esm', 'cjs'],
   outDir: 'dist',
+  target: 'es2022',
+  platform: 'node',
+
+  tsconfig: './tsconfig.build.json',
 
   dts: true,
-  splitting: false,
-  clean: true,
-  minify: true,
-  sourcemap: false,
+  sourcemap: true,
   treeshake: true,
+  splitting: false,
+  minify: false,
+  clean: true,
+  shims: false,
   legacyOutput: false,
-  shims: true,
+  skipNodeModulesBundle: true,
 
-  footer: {
-    js: banner,
-  },
+  external: [
+    'baileys',
+    'whatsapp-rust-bridge',
+    'pino',
+    'libsignal',
+    'qrcode-terminal',
+    'nanospinner',
+    'audio-decode',
+    'lru-cache',
+    'async-mutex',
+    'valibot',
+    '@zaileys/media-process',
+  ],
 
   outExtension({ format }) {
-    return {
-      js: format === 'cjs' ? '.js' : '.mjs',
-    };
+    return { js: format === 'cjs' ? '.js' : '.mjs' }
   },
 
-  // tsconfig: './tsconfig.json',
-  noExternal: [],
-  define: {
-    'process.env.PACKAGE_VERSION': JSON.stringify(pkg.version),
-    'process.env.PACKAGE_AUTHOR': JSON.stringify(pkg.author),
+  esbuildOptions(options) {
+    options.conditions = ['node', 'import', 'default']
   },
-});
+})

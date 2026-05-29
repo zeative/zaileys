@@ -60,7 +60,7 @@ Wave 1: plan-001 (interfaces + ZaileysStoreError + barrels)         [solo — lo
 | 004 | sqlite-adapters ✅ | 3 | src/auth/adapters/sqlite.ts, src/auth/adapters/index.ts, src/store/adapters/sqlite.ts, src/store/adapters/index.ts, tests/auth/sqlite-auth-store.test.ts, tests/store/sqlite-message-store.test.ts, package.json (peer + dev) | AUTH-03, STORE-03, STORE-06 | yes (with 005, 006 — serialize package.json edits) |
 | 005 | redis-adapters ✅ | 3 | src/auth/adapters/redis.ts, src/auth/adapters/index.ts, src/store/adapters/redis.ts, src/store/adapters/index.ts, tests/auth/redis-auth-store.test.ts, tests/store/redis-message-store.test.ts, package.json (peer + dev) | AUTH-04, STORE-04, STORE-06 | yes (with 004, 006) |
 | 006 | postgres-adapters ✅ | 3 | src/auth/adapters/postgres.ts, src/auth/adapters/index.ts, src/store/adapters/postgres.ts, src/store/adapters/index.ts, tests/auth/postgres-auth-store.test.ts, tests/store/postgres-message-store.test.ts, package.json (peer + dev) | AUTH-05, STORE-05, STORE-06 | yes (with 004, 005) |
-| 007 | cache-wrapper-and-integration | 4 | src/auth/cache.ts, src/auth/index.ts (re-export), tests/auth/cache.test.ts, tests/integration/cross-backend.test.ts, tests/integration/auth-clear-recovery.test.ts, DEPENDENCIES.md | AUTH-06, AUTH-07, STORE-06 | no (final smoke serializer) |
+| 007 | cache-wrapper-and-integration ✅ | 4 | src/auth/cache.ts, src/auth/index.ts (re-export), tests/auth/cache.test.ts, tests/integration/cross-backend.test.ts, tests/integration/auth-clear-recovery.test.ts, DEPENDENCIES.md | AUTH-06, AUTH-07, STORE-06 | no (final smoke serializer) |
 
 ---
 

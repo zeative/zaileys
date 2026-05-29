@@ -37,6 +37,7 @@
   "scripts": {
     "dev": "tsx --watch examples/basic.ts",
     "build": "tsup",
+    "smoke:baileys": "tsx scripts/smoke-baileys.mts",
     "changeset": "changeset",
     "release:version": "changeset version && pnpm install",
     "release:publish": "pnpm run build && changeset publish",
@@ -56,7 +57,7 @@
     "@zaileys/media-process": "workspace:*",
     "async-mutex": "^0.5.0",
     "audio-decode": "^2.2.3",
-    "baileys": "^7.0.0-rc.9",
+    "baileys": "^7.0.0-rc13",
     "lru-cache": "^11.2.7",
     "nanospinner": "^1.2.2",
     "pino": "^10.1.0",

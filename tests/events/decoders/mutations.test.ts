@@ -8,7 +8,7 @@ import {
   decodeReaction,
   type MutationContext,
   type ReactionItem,
-} from '~/events/decoders/mutations.js'
+} from '../../../src/events/decoders/mutations.js'
 
 const ctx = (selfJid = '0@s.whatsapp.net'): MutationContext => ({ selfJid })
 
@@ -346,7 +346,7 @@ describe('decodePollVote', () => {
     expect(out?.selectedOptions).toEqual([])
   })
 
-  it('decodes a poll vote arriving via inner pollUpdateMessage', () => {
+  it('decodes a poll vote arriving via inner pollUpdateMessage (encrypted vote, options deferred)', () => {
     const out = decodePollVote(
       {
         key: key({ remoteJid: '120@g.us', participant: '222@s.whatsapp.net' }),
@@ -355,7 +355,7 @@ describe('decodePollVote', () => {
           message: {
             pollUpdateMessage: {
               pollCreationMessageKey: key({ id: 'POLL2' }),
-              vote: { selectedOptions: [hex('ee')] },
+              vote: { encPayload: hex('dead'), encIv: hex('beef') },
               senderTimestampMs: 30,
             },
           },
@@ -364,7 +364,7 @@ describe('decodePollVote', () => {
       ctx(),
     )
     expect(out?.pollKey.id).toBe('POLL2')
-    expect(out?.selectedOptions).toEqual(['ee'])
+    expect(out?.selectedOptions).toEqual([])
     expect(out?.voter.jid).toBe('222@s.whatsapp.net')
   })
 

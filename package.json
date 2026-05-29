@@ -42,6 +42,7 @@
     "typecheck:legacy": "tsc --noEmit",
     "typecheck:audit": "tsx scripts/audit-tsgo-compat.ts",
     "audit:comments": "tsx scripts/audit-comments.ts",
+    "audit:any": "tsx scripts/audit-no-any.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "smoke:baileys": "tsx scripts/smoke-baileys.mts",

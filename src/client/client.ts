@@ -26,6 +26,7 @@ import { adoptLogger } from '../utils/logger.js'
 import { TypedEventEmitter } from './event-emitter.js'
 import type {
   BaileysSocket,
+  ClientEventMap,
   ClientOptions,
   ConnectionAuthType,
   ConnectionEventMap,
@@ -53,7 +54,7 @@ interface ConnectionUpdate {
  * High-level WhatsApp client composing auth, store, reconnect, QR/pairing, and
  * the underlying Baileys socket behind a single typed surface.
  */
-export class Client extends TypedEventEmitter<ConnectionEventMap> {
+export class Client extends TypedEventEmitter<ClientEventMap> {
   readonly sessionId: string
   auth: AuthStoreBundle
   readonly store: MessageStore

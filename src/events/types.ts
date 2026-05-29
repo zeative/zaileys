@@ -219,7 +219,7 @@ export type NewsletterPayload = {
  * Typed contract for every decoded inbound event (EVT-01..24). Composed with
  * `ConnectionEventMap` into `ClientEventMap` at the client boundary.
  */
-export interface InboundEventMap {
+export type InboundEventMap = {
   text: MessagePayload
   image: MediaPayload<'image'>
   video: MediaPayload<'video'>

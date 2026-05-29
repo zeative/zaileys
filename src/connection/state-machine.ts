@@ -17,7 +17,7 @@ const TRANSITIONS: Readonly<Record<ConnectionState, ReadonlyArray<ConnectionStat
   'qr-pending': ['connecting', 'connected', 'disconnecting', 'disconnected'],
   'pairing-pending': ['connecting', 'connected', 'disconnecting', 'disconnected'],
   connected: ['disconnecting', 'reconnecting', 'disconnected'],
-  reconnecting: ['connecting', 'disconnected'],
+  reconnecting: ['connecting', 'disconnecting', 'disconnected'],
   disconnecting: ['disconnected'],
   disconnected: ['idle', 'connecting', 'reconnecting'],
 }

@@ -124,31 +124,40 @@ export class MessageBuilder<State extends BuilderState> {
     return notImplemented('album')
   }
 
-  /** Quote a previous message; chainable on any state. */
+  /** Quote a previous message; rejects a missing reference. Chainable on any state. */
   reply(quoted: WAMessage | WAMessageKey): MessageBuilder<State> {
+    if (quoted === undefined || quoted === null) {
+      throw new ZaileysBuilderError('INVALID_OPTIONS', 'reply() requires a quoted message or key')
+    }
     this.internal.quoted = quoted
     return this as unknown as MessageBuilder<State>
   }
 
-  /** Tag the given jids; rejects an empty list. Chainable on any state. */
+  /** Tag the given jids; rejects an empty list or malformed jid, merges across calls. Chainable on any state. */
   mentions(jids: string[]): MessageBuilder<State> {
     if (jids.length === 0) {
       throw new ZaileysBuilderError('INVALID_OPTIONS', 'mentions() requires at least one jid')
     }
-    this.internal.mentions = jids
+    for (const jid of jids) {
+      if (typeof jid !== 'string' || !jid.includes('@')) {
+        throw new ZaileysBuilderError('INVALID_OPTIONS', `invalid jid: ${String(jid)}`)
+      }
+    }
+    const merged = new Set([...(this.internal.mentions ?? []), ...jids])
+    this.internal.mentions = [...merged]
     return this as unknown as MessageBuilder<State>
   }
 
-  /** Tag every participant of the target chat. Chainable on any state. */
+  /** Tag every participant of the target chat; idempotent. Chainable on any state. */
   mentionAll(): MessageBuilder<State> {
     this.internal.mentionAll = true
     return this as unknown as MessageBuilder<State>
   }
 
-  /** Mark the message as disappearing after `seconds`; rejects non-positive values. */
+  /** Mark the message as disappearing after `seconds`; rejects non-positive or non-integer values. */
   disappearing(seconds: number): MessageBuilder<State> {
-    if (!Number.isFinite(seconds) || seconds <= 0) {
-      throw new ZaileysBuilderError('INVALID_OPTIONS', 'disappearing() requires a positive duration')
+    if (!Number.isInteger(seconds) || seconds <= 0) {
+      throw new ZaileysBuilderError('INVALID_OPTIONS', 'disappearing() requires a positive integer duration')
     }
     this.internal.disappearingSeconds = seconds
     return this as unknown as MessageBuilder<State>

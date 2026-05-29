@@ -23,6 +23,11 @@ import {
 import type { BaileysSocketLike, MessageStore } from '../store/types.js'
 import { MemoryMessageStore } from '../store/adapters/memory.js'
 import { adoptLogger } from '../utils/logger.js'
+import {
+  attachInboundPipeline,
+  type InboundPipelineHandle,
+  type PipelineSocketLike,
+} from '../events/pipeline.js'
 import { TypedEventEmitter } from './event-emitter.js'
 import type {
   BaileysSocket,
@@ -70,6 +75,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private _socket: BaileysSocket | undefined
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined
   private listenerCleanup: SocketCleanup[] = []
+  private inboundHandle: InboundPipelineHandle | undefined
   private connectResolve: (() => void) | undefined
   private connectReject: ((err: Error) => void) | undefined
   private pairingRequested = false
@@ -179,6 +185,8 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = undefined
     }
+    this.inboundHandle?.detach()
+    this.inboundHandle = undefined
     for (const c of this.listenerCleanup) c.off()
     this.listenerCleanup = []
     if (this._socket) {
@@ -328,6 +336,14 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.reconnectStrategy.reset()
     const me = this._socket?.user ?? { id: '' }
     this.emit('connect', { sessionId: this.sessionId, me: me as ConnectionEventMap['connect']['me'] })
+    const socket = this._socket
+    if (socket) {
+      this.inboundHandle?.detach()
+      this.inboundHandle = attachInboundPipeline(this, socket as unknown as PipelineSocketLike, {
+        selfJid: typeof me.id === 'string' ? me.id : '',
+        logger: this.logger,
+      })
+    }
     const resolve = this.connectResolve
     this.connectResolve = undefined
     this.connectReject = undefined
@@ -335,6 +351,8 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   }
 
   private async handleClose(lastDisconnect: ConnectionUpdate['lastDisconnect']): Promise<void> {
+    this.inboundHandle?.detach()
+    this.inboundHandle = undefined
     const code = extractStatusCode(lastDisconnect?.error)
     const reason = mapDisconnectReason(code)
     let willReconnect = false

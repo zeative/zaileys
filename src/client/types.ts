@@ -50,7 +50,7 @@ export interface ClientOptions {
 }
 
 /** Typed payload contract for every connection-domain event. */
-export interface ConnectionEventMap {
+export type ConnectionEventMap = {
   connect: { sessionId: string; me: { id: string; lid?: string; name?: string } }
   disconnect: { sessionId: string; reason: DisconnectReasonDomain; willReconnect: boolean }
   qr: { sessionId: string; qrString: string; expiresAt: number }

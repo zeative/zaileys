@@ -1,3 +1,4 @@
 export * from './memory.js'
+export * from './sqlite.js'
 export * from './postgres.js'
 export * from './redis.js'

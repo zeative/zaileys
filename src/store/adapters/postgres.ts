@@ -1,0 +1,408 @@
+import type { Chat, Contact, PresenceData, WAMessage, WAMessageKey } from 'baileys'
+import type { Pool, PoolClient } from 'pg'
+import { ZaileysStoreError } from '../../types/store-error.js'
+import type { BaileysSocketLike, MessageStore, MessageStoreListOptions } from '../types.js'
+
+/** Constructor input for {@link PostgresMessageStore}. XOR between `pool` and `connectionString`. */
+export interface PostgresMessageStoreOptions {
+  /** Caller-owned pg `Pool`. Adapter will NOT end it on close. */
+  pool?: Pool
+  /** Connection string for an adapter-owned pool. Adapter ends it on close. */
+  connectionString?: string
+  /** Optional `max` pool size when adapter creates the pool. */
+  max?: number
+}
+
+type PgModule = typeof import('pg')
+type Listener = (...args: unknown[]) => void
+
+let pgModulePromise: Promise<PgModule> | undefined
+
+const loadPg = async (): Promise<PgModule> => {
+  if (!pgModulePromise) {
+    pgModulePromise = import('pg').catch((err) => {
+      pgModulePromise = undefined
+      throw new ZaileysStoreError(
+        'STORE_NOT_AVAILABLE',
+        "pg is not installed. Run: pnpm add pg",
+        { cause: err },
+      )
+    })
+  }
+  return pgModulePromise
+}
+
+const MIGRATIONS: readonly string[] = [
+  'CREATE TABLE IF NOT EXISTS zaileys_messages (remote_jid text NOT NULL, id text NOT NULL, from_me boolean NOT NULL, timestamp bigint NOT NULL, data jsonb NOT NULL, PRIMARY KEY(remote_jid, id, from_me))',
+  'CREATE INDEX IF NOT EXISTS zaileys_messages_jid_ts_idx ON zaileys_messages(remote_jid, timestamp DESC)',
+  'CREATE TABLE IF NOT EXISTS zaileys_chats (jid text PRIMARY KEY, archived boolean NOT NULL DEFAULT false, data jsonb NOT NULL)',
+  'CREATE INDEX IF NOT EXISTS zaileys_chats_archived_idx ON zaileys_chats(archived) WHERE archived = true',
+  'CREATE TABLE IF NOT EXISTS zaileys_contacts (jid text PRIMARY KEY, data jsonb NOT NULL)',
+  'CREATE TABLE IF NOT EXISTS zaileys_presence (jid text PRIMARY KEY, data jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now())',
+]
+
+const reviveJson = <T>(value: unknown): T => {
+  if (value === null || value === undefined) return value as T
+  if (typeof value === 'string') return JSON.parse(value) as T
+  return value as T
+}
+
+/**
+ * Postgres-backed `MessageStore` over node-postgres.
+ * Presence semantics: last-write-wins UPSERT, no TTL.
+ */
+export class PostgresMessageStore implements MessageStore {
+  private readonly externalPool: Pool | undefined
+  private readonly connectionString: string | undefined
+  private readonly poolMax: number | undefined
+  private ownedPool: Pool | undefined
+  private resolvedPool: Pool | undefined
+  private readyPromise: Promise<Pool> | undefined
+  private boundSocket: BaileysSocketLike | undefined
+  private readonly listeners: Map<string, Listener> = new Map()
+  private closed = false
+
+  constructor(options: PostgresMessageStoreOptions) {
+    const hasPool = options.pool !== undefined
+    const hasConn = options.connectionString !== undefined
+    if (hasPool && hasConn) {
+      throw new ZaileysStoreError(
+        'STORE_CONNECTION_FAILED',
+        'PostgresMessageStore: provide either pool or connectionString, not both',
+      )
+    }
+    if (!hasPool && !hasConn) {
+      throw new ZaileysStoreError(
+        'STORE_CONNECTION_FAILED',
+        'PostgresMessageStore: pool or connectionString is required',
+      )
+    }
+    this.externalPool = options.pool
+    this.connectionString = options.connectionString
+    this.poolMax = options.max
+  }
+
+  private assertOpen(): void {
+    if (this.closed) {
+      throw new ZaileysStoreError('STORE_CLOSED', 'PostgresMessageStore is closed')
+    }
+  }
+
+  private async ensureReady(): Promise<Pool> {
+    this.assertOpen()
+    if (this.resolvedPool) return this.resolvedPool
+    if (!this.readyPromise) {
+      this.readyPromise = (async () => {
+        let pool: Pool
+        if (this.externalPool) {
+          pool = this.externalPool
+        } else {
+          const pg = await loadPg()
+          const PoolCtor = pg.Pool ?? (pg as unknown as { default: PgModule }).default?.Pool
+          if (!PoolCtor) {
+            throw new ZaileysStoreError('STORE_NOT_AVAILABLE', 'pg.Pool constructor not found')
+          }
+          pool = new PoolCtor({ connectionString: this.connectionString, max: this.poolMax })
+          this.ownedPool = pool
+        }
+        try {
+          for (const stmt of MIGRATIONS) {
+            await pool.query(stmt)
+          }
+        } catch (err) {
+          throw new ZaileysStoreError(
+            'STORE_CONNECTION_FAILED',
+            'failed to migrate message schema',
+            { cause: err },
+          )
+        }
+        this.resolvedPool = pool
+        return pool
+      })()
+    }
+    try {
+      return await this.readyPromise
+    } catch (err) {
+      this.readyPromise = undefined
+      throw err
+    }
+  }
+
+  /** Upsert a single WAMessage. */
+  async saveMessage(message: WAMessage): Promise<void> {
+    const pool = await this.ensureReady()
+    const remoteJid = message.key.remoteJid ?? ''
+    const id = message.key.id ?? ''
+    const fromMe = message.key.fromMe === true
+    const ts = Number(message.messageTimestamp ?? 0)
+    try {
+      await pool.query(
+        'INSERT INTO zaileys_messages(remote_jid, id, from_me, timestamp, data) VALUES ($1, $2, $3, $4, $5::jsonb) ON CONFLICT (remote_jid, id, from_me) DO UPDATE SET data = EXCLUDED.data, timestamp = EXCLUDED.timestamp',
+        [remoteJid, id, fromMe, ts, JSON.stringify(message)],
+      )
+    } catch (err) {
+      throw new ZaileysStoreError('STORE_WRITE_FAILED', 'failed to save message', { cause: err })
+    }
+  }
+
+  /** Fetch a message by Baileys key. */
+  async getMessage(key: WAMessageKey): Promise<WAMessage | undefined> {
+    const pool = await this.ensureReady()
+    try {
+      const res = await pool.query<{ data: unknown }>(
+        'SELECT data FROM zaileys_messages WHERE remote_jid = $1 AND id = $2 AND from_me = $3',
+        [key.remoteJid ?? '', key.id ?? '', key.fromMe === true],
+      )
+      const row = res.rows[0]
+      if (!row) return undefined
+      return reviveJson<WAMessage>(row.data)
+    } catch (err) {
+      if (err instanceof ZaileysStoreError) throw err
+      throw new ZaileysStoreError('STORE_READ_FAILED', 'failed to read message', { cause: err })
+    }
+  }
+
+  /** List messages for a jid newest-first with optional `limit` + `before`. */
+  async listMessages(jid: string, options?: MessageStoreListOptions): Promise<WAMessage[]> {
+    const pool = await this.ensureReady()
+    const limit = options?.limit ?? 100
+    const before = typeof options?.before === 'number' ? options.before : null
+    try {
+      const res = await pool.query<{ data: unknown }>(
+        'SELECT data FROM zaileys_messages WHERE remote_jid = $1 AND ($2::bigint IS NULL OR timestamp < $2::bigint) ORDER BY timestamp DESC LIMIT $3',
+        [jid, before, limit],
+      )
+      return res.rows.map((r) => reviveJson<WAMessage>(r.data))
+    } catch (err) {
+      throw new ZaileysStoreError('STORE_READ_FAILED', 'failed to list messages', { cause: err })
+    }
+  }
+
+  /** Upsert a chat row. */
+  async saveChat(chat: Chat): Promise<void> {
+    const pool = await this.ensureReady()
+    const id = (chat as { id?: string | null }).id
+    if (!id) return
+    const archived = (chat as { archived?: boolean }).archived === true
+    try {
+      await pool.query(
+        'INSERT INTO zaileys_chats(jid, archived, data) VALUES ($1, $2, $3::jsonb) ON CONFLICT (jid) DO UPDATE SET archived = EXCLUDED.archived, data = EXCLUDED.data',
+        [id, archived, JSON.stringify(chat)],
+      )
+    } catch (err) {
+      throw new ZaileysStoreError('STORE_WRITE_FAILED', 'failed to save chat', { cause: err })
+    }
+  }
+
+  /** Fetch a chat by jid. */
+  async getChat(jid: string): Promise<Chat | undefined> {
+    const pool = await this.ensureReady()
+    try {
+      const res = await pool.query<{ data: unknown }>(
+        'SELECT data FROM zaileys_chats WHERE jid = $1',
+        [jid],
+      )
+      const row = res.rows[0]
+      if (!row) return undefined
+      return reviveJson<Chat>(row.data)
+    } catch (err) {
+      throw new ZaileysStoreError('STORE_READ_FAILED', 'failed to read chat', { cause: err })
+    }
+  }
+
+  /** List chats with optional archive filter. */
+  async listChats(options?: { archived?: boolean }): Promise<Chat[]> {
+    const pool = await this.ensureReady()
+    const archived = typeof options?.archived === 'boolean' ? options.archived : null
+    try {
+      const res = await pool.query<{ data: unknown }>(
+        'SELECT data FROM zaileys_chats WHERE ($1::boolean IS NULL OR archived = $1::boolean)',
+        [archived],
+      )
+      return res.rows.map((r) => reviveJson<Chat>(r.data))
+    } catch (err) {
+      throw new ZaileysStoreError('STORE_READ_FAILED', 'failed to list chats', { cause: err })
+    }
+  }
+
+  /** Upsert a contact row. */
+  async saveContact(contact: Contact): Promise<void> {
+    const pool = await this.ensureReady()
+    try {
+      await pool.query(
+        'INSERT INTO zaileys_contacts(jid, data) VALUES ($1, $2::jsonb) ON CONFLICT (jid) DO UPDATE SET data = EXCLUDED.data',
+        [contact.id, JSON.stringify(contact)],
+      )
+    } catch (err) {
+      throw new ZaileysStoreError('STORE_WRITE_FAILED', 'failed to save contact', { cause: err })
+    }
+  }
+
+  /** Fetch a contact by jid. */
+  async getContact(jid: string): Promise<Contact | undefined> {
+    const pool = await this.ensureReady()
+    try {
+      const res = await pool.query<{ data: unknown }>(
+        'SELECT data FROM zaileys_contacts WHERE jid = $1',
+        [jid],
+      )
+      const row = res.rows[0]
+      if (!row) return undefined
+      return reviveJson<Contact>(row.data)
+    } catch (err) {
+      throw new ZaileysStoreError('STORE_READ_FAILED', 'failed to read contact', { cause: err })
+    }
+  }
+
+  /** List every contact row. */
+  async listContacts(): Promise<Contact[]> {
+    const pool = await this.ensureReady()
+    try {
+      const res = await pool.query<{ data: unknown }>('SELECT data FROM zaileys_contacts')
+      return res.rows.map((r) => reviveJson<Contact>(r.data))
+    } catch (err) {
+      throw new ZaileysStoreError('STORE_READ_FAILED', 'failed to list contacts', { cause: err })
+    }
+  }
+
+  /** Upsert presence; last-write-wins semantics with no TTL. */
+  async savePresence(jid: string, presence: PresenceData): Promise<void> {
+    const pool = await this.ensureReady()
+    try {
+      await pool.query(
+        'INSERT INTO zaileys_presence(jid, data, updated_at) VALUES ($1, $2::jsonb, now()) ON CONFLICT (jid) DO UPDATE SET data = EXCLUDED.data, updated_at = now()',
+        [jid, JSON.stringify(presence)],
+      )
+    } catch (err) {
+      throw new ZaileysStoreError('STORE_WRITE_FAILED', 'failed to save presence', { cause: err })
+    }
+  }
+
+  /** Fetch latest presence without staleness check. */
+  async getPresence(jid: string): Promise<PresenceData | undefined> {
+    const pool = await this.ensureReady()
+    try {
+      const res = await pool.query<{ data: unknown }>(
+        'SELECT data FROM zaileys_presence WHERE jid = $1',
+        [jid],
+      )
+      const row = res.rows[0]
+      if (!row) return undefined
+      return reviveJson<PresenceData>(row.data)
+    } catch (err) {
+      throw new ZaileysStoreError('STORE_READ_FAILED', 'failed to read presence', { cause: err })
+    }
+  }
+
+  /** Subscribe to a Baileys-like socket and auto-persist events. */
+  bind(socket: BaileysSocketLike): void {
+    this.assertOpen()
+    this.boundSocket = socket
+    const messagesUpsert: Listener = (...args: unknown[]) => {
+      const payload = args[0] as { messages?: WAMessage[] } | undefined
+      const list = payload?.messages
+      if (!Array.isArray(list)) return
+      for (const m of list) void this.saveMessage(m).catch(() => undefined)
+    }
+    const messagesUpdate: Listener = (...args: unknown[]) => {
+      const updates = args[0] as Array<{ key: WAMessageKey; update: Partial<WAMessage> }> | undefined
+      if (!Array.isArray(updates)) return
+      for (const u of updates) {
+        void this.getMessage(u.key).then((existing) => {
+          if (!existing) return
+          const merged = { ...existing, ...u.update } as WAMessage
+          return this.saveMessage(merged)
+        }).catch(() => undefined)
+      }
+    }
+    const chatsUpsert: Listener = (...args: unknown[]) => {
+      const list = args[0] as Chat[] | undefined
+      if (!Array.isArray(list)) return
+      for (const c of list) void this.saveChat(c).catch(() => undefined)
+    }
+    const chatsUpdate: Listener = (...args: unknown[]) => {
+      const list = args[0] as Array<Partial<Chat> & { id: string }> | undefined
+      if (!Array.isArray(list)) return
+      for (const c of list) {
+        void this.getChat(c.id).then((existing) => {
+          const merged = { ...(existing ?? {}), ...c } as Chat
+          return this.saveChat(merged)
+        }).catch(() => undefined)
+      }
+    }
+    const contactsUpsert: Listener = (...args: unknown[]) => {
+      const list = args[0] as Contact[] | undefined
+      if (!Array.isArray(list)) return
+      for (const c of list) void this.saveContact(c).catch(() => undefined)
+    }
+    const presenceUpdate: Listener = (...args: unknown[]) => {
+      const payload = args[0] as { id?: string; presences?: Record<string, PresenceData> } | undefined
+      if (!payload?.presences) return
+      for (const jid of Object.keys(payload.presences)) {
+        const p = payload.presences[jid]
+        if (p) void this.savePresence(jid, p).catch(() => undefined)
+      }
+    }
+    this.listeners.set('messages.upsert', messagesUpsert)
+    this.listeners.set('messages.update', messagesUpdate)
+    this.listeners.set('chats.upsert', chatsUpsert)
+    this.listeners.set('chats.update', chatsUpdate)
+    this.listeners.set('contacts.upsert', contactsUpsert)
+    this.listeners.set('presence.update', presenceUpdate)
+    for (const [event, handler] of this.listeners) {
+      socket.ev.on(event, handler)
+    }
+  }
+
+  /** Truncate all four tables. */
+  async clear(): Promise<void> {
+    const pool = await this.ensureReady()
+    let client: PoolClient | undefined
+    try {
+      client = await pool.connect()
+      await client.query('BEGIN')
+      await client.query('DELETE FROM zaileys_messages')
+      await client.query('DELETE FROM zaileys_chats')
+      await client.query('DELETE FROM zaileys_contacts')
+      await client.query('DELETE FROM zaileys_presence')
+      await client.query('COMMIT')
+    } catch (err) {
+      if (client) {
+        try {
+          await client.query('ROLLBACK')
+        } catch {
+          void 0
+        }
+      }
+      throw new ZaileysStoreError('STORE_WRITE_FAILED', 'failed to clear message tables', {
+        cause: err,
+      })
+    } finally {
+      client?.release()
+    }
+  }
+
+  /** Detach listeners and end the owned pool when applicable. */
+  async close(): Promise<void> {
+    if (this.closed) return
+    this.closed = true
+    if (this.boundSocket?.ev.off) {
+      for (const [event, handler] of this.listeners) {
+        this.boundSocket.ev.off(event, handler)
+      }
+    }
+    this.listeners.clear()
+    this.boundSocket = undefined
+    const owned = this.ownedPool
+    this.ownedPool = undefined
+    this.resolvedPool = undefined
+    this.readyPromise = undefined
+    if (owned) {
+      try {
+        await owned.end()
+      } catch {
+        void 0
+      }
+    }
+  }
+}

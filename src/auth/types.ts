@@ -1,39 +1,60 @@
-import type { SignalDataTypeMap, AuthenticationCreds } from 'baileys'
+import type { AuthenticationCreds, SignalDataSet, SignalDataTypeMap } from 'baileys'
 
+/** Discriminator union for every Baileys signal category. */
 export type AuthStoreKey = keyof SignalDataTypeMap
 
+/** Resolved value type for a given signal category. */
 export type AuthStoreValue<K extends AuthStoreKey> = SignalDataTypeMap[K]
 
-export type AuthStoreReadResult<K extends AuthStoreKey> = {
-  [id: string]: AuthStoreValue<K> | null
-}
-
 /**
- * Generic key-material store for Baileys signal data.
- * Backing categories follow `SignalDataTypeMap` and include `identity-key`
- * (rc12+, Uint8Array) and `tctoken` whose lifecycle is managed silently upstream.
+ * Pluggable signal-key store mirroring Baileys' `SignalKeyStore` shape.
+ * After {@link AuthStore.close} resolves every other method MUST throw
+ * `ZaileysStoreError` with code `STORE_CLOSED`.
  */
 export interface AuthStore {
-  read<K extends AuthStoreKey>(category: K, ids: readonly string[]): Promise<AuthStoreReadResult<K>>
-  write(category: AuthStoreKey, data: Record<string, unknown>): Promise<void>
-  delete(category: AuthStoreKey, ids: readonly string[]): Promise<void>
+  /**
+   * Look up signal values by id within a single category.
+   * @param type Signal category to read.
+   * @param ids Identifiers to fetch.
+   * @returns Map keyed by id; missing ids resolve to `undefined`.
+   */
+  read<K extends AuthStoreKey>(
+    type: K,
+    ids: readonly string[],
+  ): Promise<{ [id: string]: AuthStoreValue<K> | undefined }>
+  /**
+   * Persist a partial signal map. `null` values delete the matching id.
+   * @param data Baileys `SignalDataSet` payload (full or partial).
+   */
+  write(data: SignalDataSet): Promise<void>
+  /**
+   * Remove ids from a category.
+   * @param type Signal category.
+   * @param ids Identifiers to drop.
+   */
+  delete<K extends AuthStoreKey>(type: K, ids: readonly string[]): Promise<void>
+  /** Wipe every signal category (used on 401/410 auto-cleanup). */
   clear(): Promise<void>
+  /** Release backing resources; idempotent. */
   close(): Promise<void>
 }
 
 /**
- * Credential persistence for `AuthenticationCreds` (noise key, signed identity, pairing state).
+ * Credential persistence for the long-lived `AuthenticationCreds` blob.
+ * After {@link AuthCredsStore} sibling close every method MUST throw
+ * `ZaileysStoreError` with code `STORE_CLOSED`.
  */
 export interface AuthCredsStore {
-  readCreds(): Promise<AuthenticationCreds | null>
+  /** Load persisted creds; resolves `undefined` when none exist. */
+  readCreds(): Promise<AuthenticationCreds | undefined>
+  /** Persist creds atomically. */
   writeCreds(creds: AuthenticationCreds): Promise<void>
-  clearCreds(): Promise<void>
+  /** Remove persisted creds. */
+  deleteCreds(): Promise<void>
 }
 
-/**
- * Composite bundle handed to the Client to satisfy Baileys auth wiring.
- */
+/** Composite bundle handed to the Client to satisfy Baileys auth wiring. */
 export interface AuthStoreBundle {
-  readonly keys: AuthStore
   readonly creds: AuthCredsStore
+  readonly signal: AuthStore
 }

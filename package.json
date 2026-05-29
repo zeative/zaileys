@@ -3,6 +3,7 @@
   "description": "Zaileys - Simplified WhatsApp Node.js TypeScript/JavaScript API",
   "version": "3.3.0",
   "license": "MIT",
+  "type": "module",
   "main": "dist/index.js",
   "module": "dist/index.mjs",
   "types": "dist/index.d.ts",

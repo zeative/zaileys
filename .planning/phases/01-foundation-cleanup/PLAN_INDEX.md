@@ -58,7 +58,7 @@ Wave 1: plan-001 (deps audit)
 | 004 | tsconfig-strict ✅ done | 3 | tsconfig.json, tsconfig.build.json | FOUND-06 | yes (with 006) |
 | 005 | tsup-dual-build ✅ done | 4 | tsup.config.ts | FOUND-05 | yes (with 007) |
 | 006 | src-v4-skeleton ✅ done | 3 | src/** (full rewrite + monorepo collapse) | FOUND-03 | yes (with 004) |
-| 007 | security-baseline | 4 | src/auth/types.ts, src/auth/index.ts, src/types/lid-mapping.ts, src/types/index.ts, src/events/guards.ts, src/events/index.ts, SECURITY.md | SEC-02, SEC-03, SEC-04, SEC-05 | yes (with 005) |
+| 007 | security-baseline ✅ done | 4 | src/auth/types.ts, src/auth/index.ts, src/types/lid-mapping.ts, src/types/index.ts, src/events/guards.ts, src/events/index.ts, SECURITY.md | SEC-02, SEC-03, SEC-04, SEC-05 | yes (with 005) |
 | 008 | audit-version-vitest | 4 | package.json (version+scripts), scripts/audit-comments.ts, vitest.config.ts, tests/.gitkeep | FOUND-04 | no (serialize last) |
 
 ---
@@ -77,10 +77,10 @@ Wave 1: plan-001 (deps audit)
 | FOUND-10 | 003 | done |
 | FOUND-11 | 003 | done |
 | SEC-01 | 002 | done |
-| SEC-02 | 007 | mapped |
-| SEC-03 | 007 | mapped |
-| SEC-04 | 007 | mapped |
-| SEC-05 | 007 | mapped |
+| SEC-02 | 007 | done |
+| SEC-03 | 007 | done |
+| SEC-04 | 007 | done |
+| SEC-05 | 007 | done |
 
 **Coverage: 14/14 (100%)** — no gaps.
 

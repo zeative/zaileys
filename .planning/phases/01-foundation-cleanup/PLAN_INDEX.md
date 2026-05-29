@@ -59,7 +59,7 @@ Wave 1: plan-001 (deps audit)
 | 005 | tsup-dual-build ✅ done | 4 | tsup.config.ts | FOUND-05 | yes (with 007) |
 | 006 | src-v4-skeleton ✅ done | 3 | src/** (full rewrite + monorepo collapse) | FOUND-03 | yes (with 004) |
 | 007 | security-baseline ✅ done | 4 | src/auth/types.ts, src/auth/index.ts, src/types/lid-mapping.ts, src/types/index.ts, src/events/guards.ts, src/events/index.ts, SECURITY.md | SEC-02, SEC-03, SEC-04, SEC-05 | yes (with 005) |
-| 008 | audit-version-vitest | 4 | package.json (version+scripts), scripts/audit-comments.ts, vitest.config.ts, tests/.gitkeep | FOUND-04 | no (serialize last) |
+| 008 | audit-version-vitest ✅ done | 4 | package.json (version+scripts), scripts/audit-comments.ts, vitest.config.ts, tests/.gitkeep | FOUND-04 | no (serialize last) |
 
 ---
 
@@ -68,9 +68,9 @@ Wave 1: plan-001 (deps audit)
 | REQ-ID | Plan | Status |
 |--------|------|--------|
 | FOUND-01 | 002 | done |
-| FOUND-02 | 001 | mapped |
-| FOUND-03 | 006 | mapped |
-| FOUND-04 | 008 | mapped |
+| FOUND-02 | 001 | done |
+| FOUND-03 | 006 | done |
+| FOUND-04 | 008 | done |
 | FOUND-05 | 005 | done |
 | FOUND-06 | 004 | done |
 | FOUND-09 | 003 | done |

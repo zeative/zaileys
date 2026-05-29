@@ -30,3 +30,5 @@ pnpm-workspace.yaml
 .kelar/
 AGENTS.md
 GEMINI.md
+
+.temp

@@ -23,5 +23,8 @@ index.js
 .gemini/
 .agent/
 .kelar/
+.planning/
 AGENTS.md
 GEMINI.md
+
+.temp

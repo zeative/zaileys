@@ -126,7 +126,7 @@ export class Connection {
           const id = jidNormalizedUser(socket.user.id).split('@')[0];
           const name = socket.user.name || socket.user.verifiedName;
 
-          store.spinner.success(` Connected as ${cristal(name || id)}`);
+          store.spinner.success(` Connected as ${cristal(name || id || connection)}`);
         } else {
           store.spinner.success(` Connected!`);
         }
@@ -139,10 +139,10 @@ export class Connection {
       output.status = 'syncing';
       output.syncProgress = progress;
 
-      store.spinner.start(` Syncing messages history (bot is active and responding)...`);
+      store.spinner.start(` Syncing messages history...`);
 
       if (progress) {
-        store.spinner.update(` Syncing messages history ${progress + '%'} (bot is active)`);
+        store.spinner.update(` Syncing messages history ${progress + '%'}`);
       }
 
       if (progress == 100) {

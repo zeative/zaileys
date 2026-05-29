@@ -3,7 +3,8 @@ import type { Logger } from '../../client/types.js'
 import type { ButtonClickPayload, ListSelectPayload, SenderInfo } from '../types.js'
 import { extractSender, safeNumber } from './_shared.js'
 
-interface DecodeContext {
+/** Decode context for interactive (button/list) decoders. */
+export interface InteractiveContext {
   selfJid: string
   logger?: Logger
 }
@@ -54,7 +55,7 @@ const pickString = (source: Record<string, unknown>, keys: readonly string[]): s
  */
 export const decodeButtonClick = (
   msg: WAMessage,
-  ctx: DecodeContext,
+  ctx: InteractiveContext,
 ): ButtonClickPayload | null => {
   const message = msg.message
   if (!message) return null
@@ -105,7 +106,7 @@ const build = (
  */
 export const decodeListSelect = (
   msg: WAMessage,
-  ctx: DecodeContext,
+  ctx: InteractiveContext,
 ): ListSelectPayload | null => {
   const message = msg.message
   if (!message) return null

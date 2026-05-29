@@ -1,0 +1,390 @@
+import { describe, expect, it, vi } from 'vitest'
+import { proto } from 'baileys'
+import { TypedEventEmitter } from '../../src/client/event-emitter.js'
+import type { ClientEventMap } from '../../src/client/types.js'
+import { attachInboundPipeline } from '../../src/events/pipeline.js'
+import { makeInboundSocket, type InboundMockSocket } from '../_helpers/mock-socket-events.js'
+
+const SELF = '123@s.whatsapp.net'
+
+function setup(selfJid = SELF): {
+  client: TypedEventEmitter<ClientEventMap>
+  socket: InboundMockSocket
+  handle: ReturnType<typeof attachInboundPipeline>
+} {
+  const client = new TypedEventEmitter<ClientEventMap>()
+  const socket = makeInboundSocket({ user: { id: selfJid } })
+  const handle = attachInboundPipeline(
+    client,
+    socket as unknown as Parameters<typeof attachInboundPipeline>[1],
+    { selfJid },
+  )
+  return { client, socket, handle }
+}
+
+function textMsg(text: string, overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    key: { remoteJid: '999@s.whatsapp.net', id: 'M1', fromMe: false },
+    message: { conversation: text },
+    messageTimestamp: 1700,
+    pushName: 'Alice',
+    ...overrides,
+  }
+}
+
+describe('attachInboundPipeline — messages.upsert', () => {
+  it('emits text on plain conversation message', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('text', seen)
+    socket.triggerMessagesUpsert({ messages: [textMsg('hello')], type: 'notify' })
+    expect(seen).toHaveBeenCalledTimes(1)
+    expect(seen.mock.calls[0]?.[0]).toMatchObject({ content: 'hello', jid: '999@s.whatsapp.net' })
+  })
+
+  it('emits image with download function', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('image', seen)
+    socket.triggerMessagesUpsert({
+      messages: [textMsg('', { message: { imageMessage: { mimetype: 'image/jpeg', caption: 'pic' } } })],
+      type: 'notify',
+    })
+    expect(seen).toHaveBeenCalledTimes(1)
+    expect(typeof seen.mock.calls[0]?.[0].download).toBe('function')
+  })
+
+  it('emits video, audio, document, sticker for respective nodes', () => {
+    const { client, socket } = setup()
+    const got: string[] = []
+    for (const ev of ['video', 'audio', 'document', 'sticker'] as const) client.on(ev, () => got.push(ev))
+    socket.triggerMessagesUpsert({ messages: [textMsg('', { message: { videoMessage: { mimetype: 'video/mp4' } } })], type: 'notify' })
+    socket.triggerMessagesUpsert({ messages: [textMsg('', { message: { audioMessage: { mimetype: 'audio/ogg', ptt: true } } })], type: 'notify' })
+    socket.triggerMessagesUpsert({ messages: [textMsg('', { message: { documentMessage: { mimetype: 'application/pdf', fileName: 'x.pdf' } } })], type: 'notify' })
+    socket.triggerMessagesUpsert({ messages: [textMsg('', { message: { stickerMessage: { mimetype: 'image/webp' } } })], type: 'notify' })
+    expect(got).toEqual(['video', 'audio', 'document', 'sticker'])
+  })
+
+  it('emits both text and mention when self mentioned (multi-decoder)', () => {
+    const { client, socket } = setup()
+    const text = vi.fn()
+    const mention = vi.fn()
+    client.on('text', text)
+    client.on('mention', mention)
+    socket.triggerMessagesUpsert({
+      messages: [
+        textMsg('hey @123', {
+          message: { extendedTextMessage: { text: 'hey @123', contextInfo: { mentionedJid: [SELF] } } },
+        }),
+      ],
+      type: 'notify',
+    })
+    expect(text).toHaveBeenCalledTimes(1)
+    expect(mention).toHaveBeenCalledTimes(1)
+  })
+
+  it('emits mention-all in group with groupMentions', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('mention-all', seen)
+    socket.triggerMessagesUpsert({
+      messages: [
+        textMsg('@everyone', {
+          key: { remoteJid: '99-1@g.us', id: 'G1', fromMe: false, participant: 'p@s.whatsapp.net' },
+          message: { extendedTextMessage: { text: '@all', contextInfo: { groupMentions: [{ groupJid: '99-1@g.us' }] } } },
+        }),
+      ],
+      type: 'notify',
+    })
+    expect(seen).toHaveBeenCalledTimes(1)
+  })
+
+  it('emits button-click from buttonsResponseMessage', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('button-click', seen)
+    socket.triggerMessagesUpsert({
+      messages: [textMsg('', { message: { buttonsResponseMessage: { selectedButtonId: 'btn-1', selectedDisplayText: 'Yes' } } })],
+      type: 'notify',
+    })
+    expect(seen.mock.calls[0]?.[0]).toMatchObject({ buttonId: 'btn-1', buttonText: 'Yes' })
+  })
+
+  it('emits list-select from listResponseMessage', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('list-select', seen)
+    socket.triggerMessagesUpsert({
+      messages: [textMsg('', { message: { listResponseMessage: { title: 'Menu', singleSelectReply: { selectedRowId: 'row-9' } } } })],
+      type: 'notify',
+    })
+    expect(seen.mock.calls[0]?.[0]).toMatchObject({ rowId: 'row-9' })
+  })
+
+  it('dropSpoofedSelfOnly: upsert with requestId emits nothing', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('text', seen)
+    socket.triggerMessagesUpsert({ messages: [textMsg('spoofed')], type: 'notify', requestId: 'spoof' })
+    expect(seen).not.toHaveBeenCalled()
+  })
+
+  it('processes multiple messages in one upsert batch', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('text', seen)
+    socket.triggerMessagesUpsert({ messages: [textMsg('a'), textMsg('b'), textMsg('c')], type: 'notify' })
+    expect(seen).toHaveBeenCalledTimes(3)
+  })
+})
+
+describe('attachInboundPipeline — messages.update mutations', () => {
+  it('emits edit on MESSAGE_EDIT protocol', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('edit', seen)
+    socket.triggerMessagesUpdate([
+      {
+        key: { remoteJid: '999@s.whatsapp.net', id: 'M1', fromMe: false },
+        update: {
+          message: {
+            protocolMessage: {
+              type: proto.Message.ProtocolMessage.Type.MESSAGE_EDIT,
+              key: { id: 'M1' },
+              editedMessage: { conversation: 'fixed' },
+            },
+          },
+          messageTimestamp: 1800,
+        },
+      },
+    ])
+    expect(seen.mock.calls[0]?.[0]).toMatchObject({ newContent: 'fixed' })
+  })
+
+  it('emits delete on REVOKE protocol', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('delete', seen)
+    socket.triggerMessagesUpdate([
+      {
+        key: { remoteJid: '999@s.whatsapp.net', id: 'M1', fromMe: false },
+        update: { message: { protocolMessage: { type: proto.Message.ProtocolMessage.Type.REVOKE, key: { id: 'M1' } } } },
+      },
+    ])
+    expect(seen.mock.calls[0]?.[0]).toMatchObject({ deletedFor: 'everyone' })
+  })
+
+  it('emits poll-vote on pollUpdates', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('poll-vote', seen)
+    socket.triggerMessagesUpdate([
+      {
+        key: { remoteJid: '999@s.whatsapp.net', id: 'P1', fromMe: false },
+        update: { pollUpdates: [{ pollUpdateMessageKey: { id: 'P1' }, vote: { selectedOptions: [] }, senderTimestampMs: 10 }] },
+      },
+    ])
+    expect(seen).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('attachInboundPipeline — reaction', () => {
+  it('emits reaction', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('reaction', seen)
+    socket.triggerMessagesReaction([
+      { key: { remoteJid: '999@s.whatsapp.net', id: 'R1', fromMe: false }, reaction: { key: { id: 'M1' }, text: '👍', senderTimestampMs: 5 } },
+    ])
+    expect(seen.mock.calls[0]?.[0]).toMatchObject({ emoji: '👍' })
+  })
+})
+
+describe('attachInboundPipeline — groups', () => {
+  it('emits group-update', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('group-update', seen)
+    socket.triggerGroupsUpdate([{ id: '99-1@g.us', subject: 'New Name' }])
+    expect(seen.mock.calls[0]?.[0]).toMatchObject({ groupId: '99-1@g.us', update: { subject: 'New Name' } })
+  })
+
+  it('emits group-join on add action', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('group-join', seen)
+    socket.triggerGroupParticipants({ id: '99-1@g.us', author: 'admin@s.whatsapp.net', participants: [{ id: 'new@s.whatsapp.net' }], action: 'add' })
+    expect(seen).toHaveBeenCalledTimes(1)
+  })
+
+  it('emits group-leave on remove action', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('group-leave', seen)
+    socket.triggerGroupParticipants({ id: '99-1@g.us', author: 'admin@s.whatsapp.net', participants: [{ id: 'gone@s.whatsapp.net' }], action: 'remove' })
+    expect(seen).toHaveBeenCalledTimes(1)
+  })
+
+  it('emits member-tag', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('member-tag', seen)
+    socket.triggerMemberTag({ groupId: '99-1@g.us', participant: 'p@s.whatsapp.net', label: 'VIP', messageTimestamp: 99 })
+    expect(seen.mock.calls[0]?.[0]).toMatchObject({ label: 'VIP' })
+  })
+})
+
+describe('attachInboundPipeline — call', () => {
+  it('emits call-incoming on offer', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('call-incoming', seen)
+    socket.triggerCall([{ id: 'C1', from: 'caller@s.whatsapp.net', status: 'offer', date: new Date(1000) }])
+    expect(seen.mock.calls[0]?.[0]).toMatchObject({ kind: 'incoming', callId: 'C1' })
+  })
+
+  it('emits call-ended on terminate', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('call-ended', seen)
+    socket.triggerCall([{ id: 'C2', from: 'caller@s.whatsapp.net', status: 'terminate', date: new Date(2000) }])
+    expect(seen.mock.calls[0]?.[0]).toMatchObject({ kind: 'ended', callId: 'C2' })
+  })
+})
+
+describe('attachInboundPipeline — lifecycle', () => {
+  it('emits history-sync on complete status', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('history-sync', seen)
+    socket.triggerHistoryStatus({ syncType: 2, status: 'complete', explicit: true })
+    expect(seen.mock.calls[0]?.[0]).toMatchObject({ status: 'complete' })
+  })
+
+  it('emits presence per participant', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('presence', seen)
+    socket.triggerPresence({
+      id: '999@s.whatsapp.net',
+      presences: { 'a@s.whatsapp.net': { lastKnownPresence: 'composing' }, 'b@s.whatsapp.net': { lastKnownPresence: 'available' } },
+    })
+    expect(seen).toHaveBeenCalledTimes(2)
+  })
+
+  it('emits limited from connection.update reachout timelock', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('limited', seen)
+    socket.ev.emit('connection.update', { reachoutTimeLock: { isActive: true, timeEnforcementEnds: new Date(5000) } })
+    expect(seen.mock.calls[0]?.[0]).toMatchObject({ reason: 'reachout-timelock', retryAt: 5000 })
+  })
+
+  it('emits limited from message-capping CAPPED', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('limited', seen)
+    socket.triggerMessageCapping({ capping_status: 'CAPPED', used_quota: 5, total_quota: 10 })
+    expect(seen.mock.calls[0]?.[0]).toMatchObject({ reason: 'chat-limit-reached', usedQuota: 5 })
+  })
+
+  it('does NOT emit limited on inactive reachout', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('limited', seen)
+    socket.ev.emit('connection.update', { reachoutTimeLock: { isActive: false } })
+    expect(seen).not.toHaveBeenCalled()
+  })
+})
+
+describe('attachInboundPipeline — newsletter', () => {
+  it('emits newsletter reaction', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('newsletter', seen)
+    socket.triggerNewsletterReaction({ id: 'nl1', server_id: 's1', reaction: { code: '❤️' } })
+    expect(seen.mock.calls[0]?.[0]).toMatchObject({ action: 'reaction', emoji: '❤️' })
+  })
+
+  it('emits newsletter view', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('newsletter', seen)
+    socket.triggerNewsletterView({ id: 'nl1', server_id: 's1', count: 42 })
+    expect(seen.mock.calls[0]?.[0]).toMatchObject({ action: 'view', count: 42 })
+  })
+
+  it('emits newsletter participants', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('newsletter', seen)
+    socket.triggerNewsletterParticipants({ id: 'nl1', author: 'a', user: 'u', new_role: 'admin', action: 'promote' })
+    expect(seen.mock.calls[0]?.[0]).toMatchObject({ action: 'participants' })
+  })
+
+  it('emits newsletter settings', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('newsletter', seen)
+    socket.triggerNewsletterSettings({ id: 'nl1', update: { mute: true } })
+    expect(seen.mock.calls[0]?.[0]).toMatchObject({ action: 'settings', update: { mute: true } })
+  })
+})
+
+describe('attachInboundPipeline — detach + resilience', () => {
+  it('detach removes all listeners', () => {
+    const { socket, handle } = setup()
+    const keys = [
+      'messages.upsert', 'messages.update', 'messages.reaction', 'groups.update',
+      'group-participants.update', 'group.member-tag.update', 'call', 'messaging-history.status',
+      'presence.update', 'connection.update', 'message-capping.update', 'newsletter.reaction',
+      'newsletter.view', 'newsletter-participants.update', 'newsletter-settings.update',
+    ]
+    for (const k of keys) expect(socket.ev.listenerCount(k)).toBeGreaterThan(0)
+    handle.detach()
+    for (const k of keys) expect(socket.ev.listenerCount(k)).toBe(0)
+  })
+
+  it('detach is idempotent', () => {
+    const { handle } = setup()
+    handle.detach()
+    expect(() => handle.detach()).not.toThrow()
+  })
+
+  it('no events fire after detach', () => {
+    const { client, socket, handle } = setup()
+    const seen = vi.fn()
+    client.on('text', seen)
+    handle.detach()
+    socket.triggerMessagesUpsert({ messages: [textMsg('post-detach')], type: 'notify' })
+    expect(seen).not.toHaveBeenCalled()
+  })
+
+  it('decoder throw is caught and does not stop the batch', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('text', seen)
+    socket.triggerMessagesUpsert({ messages: [{ key: null }, textMsg('after-bad')], type: 'notify' })
+    expect(seen).toHaveBeenCalledTimes(1)
+    expect(seen.mock.calls[0]?.[0]).toMatchObject({ content: 'after-bad' })
+  })
+})
+
+describe('attachInboundPipeline — multi-listener regression (W2)', () => {
+  it('Phase 3 connection.update handler still fires alongside pipeline', () => {
+    const client = new TypedEventEmitter<ClientEventMap>()
+    const socket = makeInboundSocket({ user: { id: SELF } })
+    const phase3 = vi.fn()
+    socket.ev.on('connection.update', phase3)
+    const limited = vi.fn()
+    client.on('limited', limited)
+    attachInboundPipeline(
+      client,
+      socket as unknown as Parameters<typeof attachInboundPipeline>[1],
+      { selfJid: SELF },
+    )
+    socket.ev.emit('connection.update', { reachoutTimeLock: { isActive: true, timeEnforcementEnds: new Date(7000) } })
+    expect(phase3).toHaveBeenCalledTimes(1)
+    expect(limited).toHaveBeenCalledTimes(1)
+  })
+})

@@ -55,9 +55,9 @@ Wave 1: plan-001 (deps audit)
 | 001 | dependency-audit ✅ done | 1 | DEPENDENCIES.md, package.json, pnpm-workspace.yaml | FOUND-02 | (solo) |
 | 002 | baileys-rc13-upgrade ✅ done | 2 | package.json (deps.baileys), pnpm-lock.yaml, scripts/smoke-baileys.mts | FOUND-01, SEC-01 | yes (with 003 — serialize scripts edits) |
 | 003 | typescript-7-corsa ✅ done | 2 | package.json (devDeps+scripts), .nvmrc, scripts/audit-tsgo-compat.ts | FOUND-09, FOUND-10, FOUND-11 | yes (with 002) |
-| 004 | tsconfig-strict | 3 | tsconfig.json, tsconfig.build.json | FOUND-06 | yes (with 006) |
+| 004 | tsconfig-strict ✅ done | 3 | tsconfig.json, tsconfig.build.json | FOUND-06 | yes (with 006) |
 | 005 | tsup-dual-build | 4 | tsup.config.ts | FOUND-05 | yes (with 007) |
-| 006 | src-v4-skeleton | 3 | src/** (full rewrite) | FOUND-03 | yes (with 004) |
+| 006 | src-v4-skeleton ✅ done | 3 | src/** (full rewrite + monorepo collapse) | FOUND-03 | yes (with 004) |
 | 007 | security-baseline | 4 | src/auth/types.ts, src/auth/index.ts, src/types/lid-mapping.ts, src/types/index.ts, src/events/guards.ts, src/events/index.ts, SECURITY.md | SEC-02, SEC-03, SEC-04, SEC-05 | yes (with 005) |
 | 008 | audit-version-vitest | 4 | package.json (version+scripts), scripts/audit-comments.ts, vitest.config.ts, tests/.gitkeep | FOUND-04 | no (serialize last) |
 
@@ -72,7 +72,7 @@ Wave 1: plan-001 (deps audit)
 | FOUND-03 | 006 | mapped |
 | FOUND-04 | 008 | mapped |
 | FOUND-05 | 005 | mapped |
-| FOUND-06 | 004 | mapped |
+| FOUND-06 | 004 | done |
 | FOUND-09 | 003 | done |
 | FOUND-10 | 003 | done |
 | FOUND-11 | 003 | done |

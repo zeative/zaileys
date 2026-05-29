@@ -266,16 +266,16 @@ export class RedisMessageStore implements MessageStore {
     this.assertOpen()
     const client = await this.ensureReady()
     const match = `${this.namespace}:*`
-    let cursor = '0'
+    let cursor = 0
     do {
       const result = await this.runRead(() =>
         client.scan(cursor, { MATCH: match, COUNT: SCAN_BATCH }),
       )
-      cursor = String(result.cursor)
+      cursor = Number(result.cursor)
       if (result.keys.length > 0) {
         await this.runWrite(() => client.del(result.keys))
       }
-    } while (cursor !== '0')
+    } while (cursor !== 0)
   }
 
   /** Detach listeners and release any owned redis client. */

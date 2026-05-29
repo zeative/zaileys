@@ -1,3 +1,5 @@
 export * from './disconnect-reason.js'
+export * from './pairing-flow.js'
+export * from './qr-terminal.js'
 export * from './reconnect.js'
 export * from './state-machine.js'

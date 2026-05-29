@@ -13,7 +13,7 @@ export interface ConnectionStateMachine {
 
 const TRANSITIONS: Readonly<Record<ConnectionState, ReadonlyArray<ConnectionState>>> = {
   idle: ['connecting'],
-  connecting: ['qr-pending', 'pairing-pending', 'connected', 'disconnecting', 'disconnected'],
+  connecting: ['qr-pending', 'pairing-pending', 'connected', 'reconnecting', 'disconnecting', 'disconnected'],
   'qr-pending': ['connecting', 'connected', 'disconnecting', 'disconnected'],
   'pairing-pending': ['connecting', 'connected', 'disconnecting', 'disconnected'],
   connected: ['disconnecting', 'reconnecting', 'disconnected'],

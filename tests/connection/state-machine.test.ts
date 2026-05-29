@@ -120,7 +120,7 @@ describe('canTransition', () => {
     const fsm = createConnectionStateMachine('idle')
     fsm.transition('connecting')
     expect(fsm.canTransition('qr-pending')).toBe(true)
-    expect(fsm.canTransition('reconnecting')).toBe(false)
+    expect(fsm.canTransition('reconnecting')).toBe(true)
   })
 
   it('is idempotent', () => {

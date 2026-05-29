@@ -111,13 +111,24 @@ export class Client extends TypedEventEmitter<ConnectionEventMap> {
    * Open a connection: build auth, instantiate the socket, wire events, and
    * resolve once `connection: 'open'` arrives or reject on a fatal disconnect.
    */
-  async connect(): Promise<void> {
+  connect(): Promise<void> {
     if (this.authType === 'pairing' && !this.phoneNumber) {
-      throw new Error('phoneNumber is required when authType is "pairing"')
+      return Promise.reject(new Error('phoneNumber is required when authType is "pairing"'))
     }
-    if (this.machine.state === 'connecting' || this.machine.state === 'connected') return
-    if (this.machine.state !== 'idle' && this.machine.state !== 'disconnected') {
-      return
+    if (this.machine.state === 'connecting' || this.machine.state === 'connected') {
+      return Promise.resolve()
+    }
+    if (
+      this.machine.state !== 'idle' &&
+      this.machine.state !== 'disconnected' &&
+      this.machine.state !== 'reconnecting'
+    ) {
+      return Promise.resolve()
+    }
+    if (this._socket) {
+      for (const c of this.listenerCleanup) c.off()
+      this.listenerCleanup = []
+      this._socket = undefined
     }
     this.machine.transition('connecting')
     this.connectAttemptSeq += 1
@@ -126,7 +137,7 @@ export class Client extends TypedEventEmitter<ConnectionEventMap> {
       this.auth = makeCacheableAuthStore(this.auth, { logger: this.logger as never })
       this.cachedSignalWrap = true
     }
-    const creds: AuthenticationCreds = (await this.auth.creds.readCreds()) ?? initAuthCreds()
+    const creds = {} as AuthenticationCreds
     const keys = signalKeyStoreFromAuthStore(this.auth.signal, this.logger)
     const config: UserFacingSocketConfig = {
       ...this.baileysExtra,
@@ -137,10 +148,23 @@ export class Client extends TypedEventEmitter<ConnectionEventMap> {
     this._socket = socket
     this.store.bind(socket as unknown as BaileysSocketLike)
     this.wireSocket(socket)
-    return new Promise<void>((resolve, reject) => {
+    const promise = new Promise<void>((resolve, reject) => {
       this.connectResolve = resolve
       this.connectReject = reject
     })
+    void this.auth.creds
+      .readCreds()
+      .then((loaded) => {
+        if (loaded) {
+          Object.assign(creds, loaded)
+        } else {
+          Object.assign(creds, initAuthCreds())
+        }
+      })
+      .catch((err) => {
+        this.rejectPendingConnect(err instanceof Error ? err : new Error(String(err)))
+      })
+    return promise
   }
 
   /**

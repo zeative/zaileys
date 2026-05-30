@@ -14,6 +14,8 @@ export interface MockSocket {
   end: Mock
   logout: Mock
   requestPairingCode: Mock
+  sendMessage: Mock
+  onWhatsApp: Mock
   triggerConnectionUpdate(update: Record<string, unknown>): void
   triggerCredsUpdate(creds: unknown): void
   setUser(user: MockSocketUser): void
@@ -29,6 +31,10 @@ export function createMockSocket(initial?: { user?: MockSocketUser }): MockSocke
     end: vi.fn((_err?: Error) => undefined),
     logout: vi.fn(async () => undefined),
     requestPairingCode: vi.fn(async (_phone: string) => 'MOCKCODE'),
+    sendMessage: vi.fn(async (_jid: string, _content: unknown, _options?: unknown) => ({
+      key: { remoteJid: _jid, id: 'mock-sent-id', fromMe: true },
+    })),
+    onWhatsApp: vi.fn(async (..._phoneNumber: string[]) => undefined),
     triggerConnectionUpdate(update) {
       ev.emit('connection.update', update)
     },

@@ -45,7 +45,11 @@ import {
   type ScheduledContentSnapshot,
 } from '../automation/index.js'
 import type { MessagePayload } from '../events/types.js'
-import { formatConnectionStatus, type StatusEvent } from '../connection/status-log.js'
+import {
+  formatConnectionStatus,
+  suppressLibsignalNoise,
+  type StatusEvent,
+} from '../connection/status-log.js'
 import { FileAuthStore } from '../auth/adapters/file.js'
 import { makeCacheableAuthStore } from '../auth/cache.js'
 import type { AuthStoreBundle } from '../auth/types.js'
@@ -127,6 +131,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private creds: AuthenticationCreds | undefined
   private credsLoadedAtConnect = false
   private openedThisRun = false
+  private credsHintShown = false
   private disconnectEmittedFor = 0
   private connectAttemptSeq = 0
   private pendingDisconnectReason: DisconnectReasonDomain | undefined
@@ -156,6 +161,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.cacheSignal = options.cacheSignal ?? true
     this.qrTerminal = options.qrTerminal ?? true
     this.statusLog = options.statusLog ?? true
+    if (this.statusLog) suppressLibsignalNoise()
     this.reconnectOptions = options.reconnect ?? {}
     this.baileysExtra = options.baileys ?? {}
     this.auth = options.auth ?? new FileAuthStore({ basePath: `./.zaileys/auth/${this.sessionId}` })
@@ -187,6 +193,18 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     if (!this.statusLog) return
     const line = formatConnectionStatus(event)
     if (line) process.stderr.write(`${line}\n`)
+  }
+
+  private resolveMe(): ConnectionEventMap['connect']['me'] {
+    const user = this._socket?.user
+    if (user && typeof user.id === 'string' && user.id.length > 0) {
+      return user as ConnectionEventMap['connect']['me']
+    }
+    const credsMe = this.creds?.me
+    if (credsMe && typeof credsMe.id === 'string' && credsMe.id.length > 0) {
+      return credsMe as ConnectionEventMap['connect']['me']
+    }
+    return { id: '' }
   }
 
   /** Current FSM state. */
@@ -298,11 +316,12 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       this.listenerCleanup = []
       this._socket = undefined
     }
+    const fromReconnect = this.machine.state === 'reconnecting'
     this.machine.transition('connecting')
     this.connectAttemptSeq += 1
     this.pairingRequested = false
     this.openedThisRun = false
-    this.logStatus({ kind: 'connecting', sessionId: this.sessionId })
+    if (!fromReconnect) this.logStatus({ kind: 'connecting', sessionId: this.sessionId })
     if (this.cacheSignal && !this.cachedSignalWrap) {
       this.auth = makeCacheableAuthStore(this.auth, { logger: this.logger as never })
       this.cachedSignalWrap = true
@@ -617,8 +636,9 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       this.machine.transition('connected')
     }
     this.openedThisRun = true
+    this.credsHintShown = false
     this.reconnectStrategy.reset()
-    const me = this._socket?.user ?? { id: '' }
+    const me = this.resolveMe()
     this.logStatus({ kind: 'connected', id: typeof me.id === 'string' ? me.id : '' })
     this.emit('connect', { sessionId: this.sessionId, me: me as ConnectionEventMap['connect']['me'] })
     const socket = this._socket
@@ -666,7 +686,11 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
           this.machine.transition('reconnecting')
         }
         const invalidCredsSuspected =
-          this.credsLoadedAtConnect && !this.openedThisRun && decision.attempt >= 2
+          this.credsLoadedAtConnect &&
+          !this.openedThisRun &&
+          decision.attempt >= 2 &&
+          !this.credsHintShown
+        if (invalidCredsSuspected) this.credsHintShown = true
         this.logStatus({
           kind: 'reconnecting',
           attempt: decision.attempt,

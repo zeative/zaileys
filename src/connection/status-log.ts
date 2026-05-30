@@ -48,3 +48,21 @@ export function formatConnectionStatus(event: StatusEvent): string | null {
       return null
   }
 }
+
+let noiseFilterInstalled = false
+
+/**
+ * Silence libsignal's hardcoded `console.info('Closing session:', session)` debug
+ * dump (session_record.js) which otherwise floods terminals with raw SessionEntry
+ * objects. Idempotent and narrow — only that exact first argument is dropped; every
+ * other `console.info` call passes through untouched.
+ */
+export function suppressLibsignalNoise(): void {
+  if (noiseFilterInstalled) return
+  noiseFilterInstalled = true
+  const original = console.info.bind(console)
+  console.info = (...args: unknown[]): void => {
+    if (typeof args[0] === 'string' && args[0].startsWith('Closing session:')) return
+    original(...args)
+  }
+}

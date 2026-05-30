@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { formatConnectionStatus } from '../../src/connection/status-log.js'
+import { formatConnectionStatus, suppressLibsignalNoise } from '../../src/connection/status-log.js'
 
 describe('formatConnectionStatus', () => {
   it('connecting line names the session', () => {
@@ -69,5 +69,24 @@ describe('formatConnectionStatus', () => {
       willReconnect: false,
     })
     expect(line).toContain('Disconnected (logged-out)')
+  })
+})
+
+describe('suppressLibsignalNoise', () => {
+  it('drops libsignal "Closing session:" dumps but passes other console.info through', () => {
+    const original = console.info
+    const seen: unknown[][] = []
+    console.info = (...args: unknown[]): void => {
+      seen.push(args)
+    }
+    try {
+      suppressLibsignalNoise()
+      console.info('Closing session:', { huge: 'SessionEntry' })
+      console.info('regular log', 42)
+      expect(seen).toHaveLength(1)
+      expect(seen[0]?.[0]).toBe('regular log')
+    } finally {
+      console.info = original
+    }
   })
 })

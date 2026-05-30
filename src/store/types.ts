@@ -25,8 +25,8 @@ export type ScheduledJobRecord = {
  */
 export interface BaileysSocketLike {
   ev: {
-    on: (event: string, handler: (...args: any[]) => void) => void
-    off?: (event: string, handler: (...args: any[]) => void) => void
+    on: (event: string, handler: (...args: unknown[]) => void) => void
+    off?: (event: string, handler: (...args: unknown[]) => void) => void
   }
 }
 

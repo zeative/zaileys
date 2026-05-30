@@ -30,8 +30,8 @@ export class DocumentProcessor {
         fileName: generateId(),
         jpegThumbnail: thumbnail,
       };
-    } catch (error: any) {
-      throw new Error(`Document creation failed: ${error.message || error}`);
+    } catch (error: unknown) {
+      throw new Error(`Document creation failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 }

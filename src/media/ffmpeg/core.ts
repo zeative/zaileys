@@ -120,8 +120,8 @@ export class BufferConverter {
       }
       const arrayBuffer = await response.arrayBuffer();
       return Buffer.from(arrayBuffer);
-    } catch (error: any) {
-      throw new Error(`Failed to fetch URL: ${error.message}`);
+    } catch (error: unknown) {
+      throw new Error(`Failed to fetch URL: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -137,7 +137,7 @@ export class BufferConverter {
 }
 
 export class MimeValidator {
-  static validate(fileType: any, expectedPrefix: string): void {
+  static validate(fileType: { mime: string } | undefined, expectedPrefix: string): void {
     if (!fileType?.mime?.startsWith(expectedPrefix)) {
       throw new Error(`Invalid file type: expected ${expectedPrefix}*, got ${fileType?.mime || 'unknown'}`);
     }

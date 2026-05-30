@@ -1,16 +1,28 @@
 import { Jimp } from 'jimp';
 import { BufferConverter, FFMPEG_CONSTANTS, FFmpegProcessor, FileManager, type MediaInput } from './core.js';
 
-let _sharp: any | null = null;
+interface SharpInstance {
+  resize(width: number, height: number, options?: Record<string, unknown>): SharpInstance;
+  jpeg(options?: Record<string, unknown>): SharpInstance;
+  png(options?: Record<string, unknown>): SharpInstance;
+  webp(options?: Record<string, unknown>): SharpInstance;
+  joinChannel(channel: Buffer): SharpInstance;
+  metadata(): Promise<{ format?: string }>;
+  toBuffer(): Promise<Buffer>;
+}
+
+type SharpLike = (input: Buffer, options?: Record<string, unknown>) => SharpInstance;
+
+let _sharp: SharpLike | null = null;
 let _sharpChecked = false;
 
-function getSharp(): any | null {
+function getSharp(): SharpLike | null {
   if (_sharpChecked) return _sharp;
   _sharpChecked = true;
   try {
     const s = require('sharp');
     if (typeof s === 'function') {
-      _sharp = s;
+      _sharp = s as SharpLike;
     }
   } catch {
     _sharp = null;
@@ -19,9 +31,9 @@ function getSharp(): any | null {
 }
 
 class SharpImageProcessor {
-  private sharp: any;
+  private sharp: SharpLike;
 
-  constructor(sharpModule: any) {
+  constructor(sharpModule: SharpLike) {
     this.sharp = sharpModule;
   }
 
@@ -255,9 +267,9 @@ class JimpImageProcessor {
       const webpBuffer = await FileManager.safeReadFile(tempOut);
       await FileManager.cleanup([tempIn, tempOut]);
       return webpBuffer;
-    } catch (error: any) {
+    } catch (error: unknown) {
       await FileManager.cleanup([tempIn, tempOut]);
-      throw new Error(`Jimp WebP conversion failed: ${error.message}`);
+      throw new Error(`Jimp WebP conversion failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 }

@@ -1,7 +1,7 @@
 import { fileTypeFromBuffer } from 'file-type';
 import webp from 'node-webpmux';
 import type { StickerMetadataType } from '../types.js';
-import { generateId, ignoreLint } from '../utils.js';
+import { generateId } from '../utils.js';
 import { BufferConverter, FFMPEG_CONSTANTS, FFmpegProcessor, FileManager, MimeValidator, type MediaInput } from './core.js';
 import { ImageProcessor } from './image.js';
 import { VideoProcessor } from './video.js';
@@ -30,9 +30,9 @@ export class StickerProcessor {
       img.exif = exif;
 
       const finalBuffer = await img.save(null);
-      return Buffer.isBuffer(finalBuffer) ? finalBuffer : Buffer.from(finalBuffer as any);
-    } catch (error: any) {
-      throw new Error(`Sticker creation failed: ${error.message || error}`);
+      return Buffer.isBuffer(finalBuffer) ? finalBuffer : Buffer.from(finalBuffer as Uint8Array);
+    } catch (error: unknown) {
+      throw new Error(`Sticker creation failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -64,10 +64,10 @@ export class StickerProcessor {
 
     await FileManager.safeWriteFile(tempIn, buffer);
 
-    let duration = FFMPEG_CONSTANTS.STICKER.MAX_DURATION;
+    let duration: number = FFMPEG_CONSTANTS.STICKER.MAX_DURATION;
     try {
       const videoDuration = await VideoProcessor.duration(tempIn);
-      duration = ignoreLint(Math.min(videoDuration, FFMPEG_CONSTANTS.STICKER.MAX_DURATION));
+      duration = Math.min(videoDuration, FFMPEG_CONSTANTS.STICKER.MAX_DURATION);
     } catch {
       console.warn('Using default duration:', FFMPEG_CONSTANTS.STICKER.MAX_DURATION);
     }
@@ -104,9 +104,9 @@ export class StickerProcessor {
 
       await FileManager.cleanup([tempIn, tempOut]);
       return webpBuffer!;
-    } catch (error: any) {
+    } catch (error: unknown) {
       await FileManager.cleanup([tempIn, tempOut]);
-      throw new Error(`Animated sticker processing failed: ${error.message}`);
+      throw new Error(`Animated sticker processing failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

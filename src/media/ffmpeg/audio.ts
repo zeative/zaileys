@@ -47,9 +47,9 @@ export class AudioProcessor {
 
       await FileManager.cleanup([tempIn, tempOut]);
       return outputBuffer!;
-    } catch (error: any) {
+    } catch (error: unknown) {
       await FileManager.cleanup([tempIn, tempOut]);
-      throw new Error(`${type.toUpperCase()} conversion failed: ${error.message}`);
+      throw new Error(`${type.toUpperCase()} conversion failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 }

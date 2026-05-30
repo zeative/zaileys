@@ -43,9 +43,9 @@ export class VideoProcessor {
 
       await FileManager.cleanup([tempIn, tempOut]);
       return outputBuffer!;
-    } catch (error: any) {
+    } catch (error: unknown) {
       await FileManager.cleanup([tempIn, tempOut]);
-      throw new Error(`Video re-encoding failed: ${error.message}`);
+      throw new Error(`Video re-encoding failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 
@@ -86,9 +86,9 @@ export class VideoProcessor {
 
       await FileManager.cleanup([tempIn, tempThumb]);
       return thumbnailBase64!;
-    } catch (error: any) {
+    } catch (error: unknown) {
       await FileManager.cleanup([tempIn, tempThumb]);
-      throw new Error(`Thumbnail generation failed: ${error.message}`);
+      throw new Error(`Thumbnail generation failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 

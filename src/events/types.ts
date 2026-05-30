@@ -44,6 +44,7 @@ export interface MessagePayload {
   isGroup: boolean
   sender: SenderInfo
   timestamp: number
+  key: WAMessageKey
   quoted?: QuotedRef
 }
 

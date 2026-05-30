@@ -40,6 +40,8 @@ describe('decodeText', () => {
     expect(out?.fromMe).toBe(false)
     expect(out?.isGroup).toBe(false)
     expect(out?.sender.jid).toBe('628222@s.whatsapp.net')
+    expect(out?.key.id).toBe('M1')
+    expect(out?.key.remoteJid).toBe('628222@s.whatsapp.net')
   })
 
   it('decodes an extendedTextMessage', () => {
@@ -63,6 +65,7 @@ describe('decodeText', () => {
     expect(out?.isGroup).toBe(true)
     expect(out?.jid).toBe(GROUP)
     expect(out?.sender.jid).toBe('628333@s.whatsapp.net')
+    expect(out?.key.remoteJid).toBe(GROUP)
   })
 
   it('attaches quoted reference when present', () => {
@@ -100,6 +103,7 @@ describe('decodeImage', () => {
     expect(out?.media.size).toBe(2048)
     expect(out?.media.caption).toBe('pic')
     expect(typeof out?.download).toBe('function')
+    expect(out?.key.id).toBe('M1')
   })
 
   it('returns null without imageMessage', () => {

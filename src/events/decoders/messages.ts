@@ -79,6 +79,7 @@ const basePayload = (msg: WAMessage, content: string): MessagePayload | null => 
     isGroup: isGroupJid(jid),
     sender,
     timestamp: timestampOf(msg),
+    key,
   }
   const quoted = extractQuoted(contextInfoOf(msg))
   if (quoted !== null) payload.quoted = quoted

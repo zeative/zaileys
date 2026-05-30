@@ -2,38 +2,50 @@ name: Release
 
 on:
   push:
-    branches:
-      - staging
+    tags:
+      - "v*"
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
+permissions:
+  contents: write
+
 jobs:
   release:
-    name: Release
+    name: GitHub Release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
         uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
         with:
-          node-version: 20
+          fetch-depth: 0
 
       - name: Setup PNPM
         uses: pnpm/action-setup@v4
         with:
           version: 10
 
-      - name: Install Dependencies
-        run: pnpm install
-
-      - name: Create Release Pull Request or Publish to npm
-        id: changesets
-        uses: changesets/action@v1
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          # This expects you to have a script called "release" in your root package.json
-          publish: pnpm release
+          node-version: 20
+          cache: pnpm
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Pack Artifact
+        run: pnpm pack
+
+      # GitHub Release ONLY. Publishing to the registry is a manual maintainer step — see RELEASE.md.
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          files: zaileys-*.tgz
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

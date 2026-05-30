@@ -1,0 +1,36 @@
+name: Changeset Check
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  changeset:
+    name: Verify changeset present
+    runs-on: ubuntu-latest
+    # Escape hatch: add the "no-changeset" label for docs-only / chore PRs.
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'no-changeset') }}
+    steps:
+      - name: Checkout Repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify changeset
+        run: pnpm exec changeset status --since=origin/${{ github.base_ref }}

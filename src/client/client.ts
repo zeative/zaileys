@@ -2,7 +2,21 @@ import makeWASocket, {
   initAuthCreds,
   type AuthenticationCreds,
   type UserFacingSocketConfig,
+  type WAMessageKey,
 } from 'baileys'
+import {
+  deleteMessage,
+  EditBuilder,
+  forwardMessage,
+  isJid,
+  MessageBuilder,
+  reactToMessage,
+  resolveUsername,
+  ZaileysBuilderError,
+  type BuilderSocketLike,
+  type DeleteOptions,
+  type UsernameResolveSocketLike,
+} from '../builder/index.js'
 import { FileAuthStore } from '../auth/adapters/file.js'
 import { makeCacheableAuthStore } from '../auth/cache.js'
 import type { AuthStoreBundle } from '../auth/types.js'
@@ -83,6 +97,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private disconnectEmittedFor = 0
   private connectAttemptSeq = 0
   private pendingDisconnectReason: DisconnectReasonDomain | undefined
+  private readonly usernameCache: Map<string, string> = new Map()
 
   /**
    * Build a Client with sensible defaults. All side effects (network, disk)
@@ -253,6 +268,53 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       return
     }
     await this.disconnect()
+  }
+
+  /**
+   * Start an outbound message builder targeting `to`. A bare username/phone is
+   * resolved to a JID lazily on `await`; a fully-qualified JID is used as-is.
+   */
+  send(to: string): MessageBuilder<'init'> {
+    const socket = this.requireSocket()
+    if (isJid(to)) {
+      return MessageBuilder.create(socket as unknown as BuilderSocketLike, to)
+    }
+    return MessageBuilder.create(socket as unknown as BuilderSocketLike, to, (raw) =>
+      this.resolveRecipient(raw),
+    )
+  }
+
+  /** Build an edit for an existing message identified by `key`. */
+  edit(key: WAMessageKey): EditBuilder {
+    return new EditBuilder(this.requireSocket() as unknown as BuilderSocketLike, key)
+  }
+
+  /** Delete a message; defaults to deleting for everyone. */
+  async delete(key: WAMessageKey, opts?: DeleteOptions): Promise<void> {
+    await deleteMessage(this.requireSocket() as unknown as BuilderSocketLike, key, opts)
+  }
+
+  /** React to a message; an empty `emoji` removes the reaction. */
+  async react(key: WAMessageKey, emoji: string): Promise<WAMessageKey> {
+    return reactToMessage(this.requireSocket() as unknown as BuilderSocketLike, key, emoji)
+  }
+
+  /** Forward a stored message to `to`, resolving a username recipient as needed. */
+  async forward(key: WAMessageKey, to: string): Promise<WAMessageKey> {
+    const socket = this.requireSocket()
+    const recipient = await this.resolveRecipient(to)
+    return forwardMessage(socket as unknown as BuilderSocketLike, this.store, key, recipient)
+  }
+
+  private resolveRecipient(to: string): Promise<string> {
+    return resolveUsername(this.requireSocket() as unknown as UsernameResolveSocketLike, to, this.usernameCache)
+  }
+
+  private requireSocket(): BaileysSocket {
+    if (!this._socket) {
+      throw new ZaileysBuilderError('INVALID_OPTIONS', 'client not connected')
+    }
+    return this._socket
   }
 
   private attachEmitterLogger(): void {

@@ -7,6 +7,7 @@ import type { AlbumItem } from './types.js'
  * `albumItems`, and username-resolution markers.
  */
 export type BuilderInternalState = {
+  /** Resolved JID, or the raw username/phone when {@link BuilderInternalState.resolveRecipient} is set. */
   recipient: string
   content?: AnyMessageContent
   /** Async media content set by media methods; awaited by `then()` before dispatch. */
@@ -17,9 +18,19 @@ export type BuilderInternalState = {
   mentions?: string[]
   mentionAll?: boolean
   disappearingSeconds?: number
+  /**
+   * Lazy recipient resolver invoked by `then()` before dispatch. Set by
+   * `Client.send` for non-JID recipients so resolution stays out of the
+   * synchronous builder entry point.
+   */
+  resolveRecipient?: (raw: string) => Promise<string>
 }
 
 /** Create a fresh internal state seeded with the target recipient. */
-export const createInternalState = (recipient: string): BuilderInternalState => ({
+export const createInternalState = (
+  recipient: string,
+  resolveRecipient?: (raw: string) => Promise<string>,
+): BuilderInternalState => ({
   recipient,
+  ...(resolveRecipient ? { resolveRecipient } : {}),
 })

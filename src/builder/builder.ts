@@ -65,9 +65,17 @@ export class MessageBuilder<State extends BuilderState> {
     this.internal = internal
   }
 
-  /** Entry point used by `Client.send` to start a builder targeting `recipient`. */
-  static create(socket: BuilderSocketLike, recipient: string): MessageBuilder<'init'> {
-    return new MessageBuilder<'init'>(socket, createInternalState(recipient))
+  /**
+   * Entry point used by `Client.send` to start a builder targeting `recipient`.
+   * When `resolveRecipient` is supplied the recipient is treated as a raw
+   * username/phone and resolved lazily inside `then()` before dispatch.
+   */
+  static create(
+    socket: BuilderSocketLike,
+    recipient: string,
+    resolveRecipient?: (raw: string) => Promise<string>,
+  ): MessageBuilder<'init'> {
+    return new MessageBuilder<'init'>(socket, createInternalState(recipient, resolveRecipient))
   }
 
   text(this: MessageBuilder<'init'>, content: string): MessageBuilder<'content-set'> {
@@ -198,6 +206,10 @@ export class MessageBuilder<State extends BuilderState> {
     onRejected?: (err: unknown) => T | PromiseLike<T>,
   ): Promise<T> {
     const send = async (): Promise<WAMessageKey> => {
+      if (this.internal.resolveRecipient) {
+        this.internal.recipient = await this.internal.resolveRecipient(this.internal.recipient)
+        delete this.internal.resolveRecipient
+      }
       if (this.internal.albumItems) {
         const context: BuilderContext = { recipient: this.internal.recipient }
         if (this.internal.quoted !== undefined) context.quoted = this.internal.quoted

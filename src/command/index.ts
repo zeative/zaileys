@@ -1,3 +1,5 @@
 export * from './types.js'
 export * from './errors.js'
 export { parseCommand } from './parser.js'
+export { CommandRegistry } from './registry.js'
+export { runMiddleware } from './middleware.js'

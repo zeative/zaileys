@@ -29,7 +29,7 @@
     "javascript-typescript"
   ],
   "scripts": {
-    "dev": "tsx --watch examples/basic.ts",
+    "dev": "tsx examples/simple-bot.ts",
     "build": "tsup",
     "typecheck": "tsgo --noEmit",
     "typecheck:legacy": "tsc --noEmit",
@@ -42,12 +42,14 @@
     "changeset": "changeset",
     "release:version": "changeset version && pnpm install",
     "release:publish": "pnpm run build && changeset publish",
-    "prepare": "husky"
+    "prepare": "husky",
+    "size": "size-limit"
   },
   "devDependencies": {
     "@changesets/cli": "^2.30.0",
     "@commitlint/cli": "^20.5.0",
     "@commitlint/config-conventional": "^20.5.0",
+    "@size-limit/file": "^12.1.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^24.10.1",
     "@types/pg": "^8.20.0",
@@ -59,6 +61,7 @@
     "pg": "8.21.0",
     "pg-mem": "^3.0.14",
     "redis": "^4.7.0",
+    "size-limit": "^12.1.0",
     "tsup": "^8.5.1",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3",

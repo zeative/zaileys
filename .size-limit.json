@@ -1,0 +1,4 @@
+[
+  { "name": "ESM bundle", "path": "dist/index.mjs", "limit": "260 KB" },
+  { "name": "CJS bundle", "path": "dist/index.cjs", "limit": "260 KB" }
+]

@@ -57,6 +57,9 @@ importers:
       '@commitlint/config-conventional':
         specifier: ^20.5.0
         version: 20.5.0
+      '@size-limit/file':
+        specifier: ^12.1.0
+        version: 12.1.0(size-limit@12.1.0(jiti@2.6.1))
       '@types/better-sqlite3':
         specifier: ^7.6.13
         version: 7.6.13
@@ -90,6 +93,9 @@ importers:
       redis:
         specifier: ^4.7.0
         version: 4.7.1
+      size-limit:
+        specifier: ^12.1.0
+        version: 12.1.0(jiti@2.6.1)
       tsup:
         specifier: ^8.5.1
         version: 8.5.1(jiti@2.6.1)(postcss@8.5.15)(tsx@4.21.0)(typescript@6.0.3)
@@ -1168,6 +1174,12 @@ packages:
     resolution: {integrity: sha512-KxXvfapcixpz6rVEB6HPjOUZT22yN6v0vI0urQSk1L8MlEWPDFCZkhw2xmkyoTGYeFw7tWTZd7e3lVzRZRN/EA==}
     engines: {node: '>=18'}
 
+  '@size-limit/file@12.1.0':
+    resolution: {integrity: sha512-eGwDcIufnNnvJRzv3liDOn6MAOGgmOTUdpeGQ2KuRTlgIgO54AJH1ilvktlJc6PIjNfwpYY0dOGyap1QgM1swQ==}
+    engines: {node: ^20.0.0 || ^22.0.0 || >=24.0.0}
+    peerDependencies:
+      size-limit: 12.1.0
+
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
@@ -1441,6 +1453,10 @@ packages:
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
     peerDependencies:
       esbuild: '>=0.18'
+
+  bytes-iec@3.1.1:
+    resolution: {integrity: sha512-fey6+4jDK7TFtFg/klGSvNKJctyU7n2aQdnM+CO0ruLPbqqMOM8Tio0Pc+deqUeVKX1tL5DQep1zQ7+37aTAsA==}
+    engines: {node: '>= 0.8'}
 
   cac@6.7.14:
     resolution: {integrity: sha512-b6Ilus+c3RrdDk+JhLKUAQfzzgLEPy6wcXqS7f/xe1EETvsDP6GORG7SFuOs6cID5YkqchW/LXZbX5bc8j7ZcQ==}
@@ -2660,6 +2676,16 @@ packages:
 
   simple-yenc@1.0.4:
     resolution: {integrity: sha512-5gvxpSd79e9a3V4QDYUqnqxeD4HGlhCakVpb6gMnDD7lexJggSBJRBO5h52y/iJrdXRilX9UCuDaIJhSWm5OWw==}
+
+  size-limit@12.1.0:
+    resolution: {integrity: sha512-VnDS2fycANrJFVPQwjaD+h+hkISY7EB3LsPsYWje4lBCjQwwsZLxjwwRwVJKHrcj2ZqyG+DdXykWm9mbZklZrw==}
+    engines: {node: ^20.0.0 || ^22.0.0 || >=24.0.0}
+    hasBin: true
+    peerDependencies:
+      jiti: ^2.0.0
+    peerDependenciesMeta:
+      jiti:
+        optional: true
 
   slash@3.0.0:
     resolution: {integrity: sha512-g9Q1haeby36OSStwb4ntCGGGaKsaVSjQ68fBxoQcutl5fS1vuY18H3wSt3jFyFtrkx+Kz0V1G85A4MyAdDMi2Q==}
@@ -4025,6 +4051,10 @@ snapshots:
 
   '@simple-libs/stream-utils@1.2.0': {}
 
+  '@size-limit/file@12.1.0(size-limit@12.1.0(jiti@2.6.1))':
+    dependencies:
+      size-limit: 12.1.0(jiti@2.6.1)
+
   '@standard-schema/spec@1.1.0': {}
 
   '@thi.ng/bitstream@2.4.44':
@@ -4337,6 +4367,8 @@ snapshots:
     dependencies:
       esbuild: 0.27.4
       load-tsconfig: 0.2.5
+
+  bytes-iec@3.1.1: {}
 
   cac@6.7.14: {}
 
@@ -5565,6 +5597,16 @@ snapshots:
   simple-xml-to-json@1.2.4: {}
 
   simple-yenc@1.0.4: {}
+
+  size-limit@12.1.0(jiti@2.6.1):
+    dependencies:
+      bytes-iec: 3.1.1
+      lilconfig: 3.1.3
+      nanospinner: 1.2.2
+      picocolors: 1.1.1
+      tinyglobby: 0.2.16
+    optionalDependencies:
+      jiti: 2.6.1
 
   slash@3.0.0: {}
 

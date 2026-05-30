@@ -1,5 +1,59 @@
 # zaileys
 
+## 4.0.0
+
+### Major Changes
+
+**Zaileys v4.0.0 is a complete, breaking rewrite.** The public API was redesigned from the
+ground up; v3.x code will not run unchanged. See [MIGRATION.md](./MIGRATION.md) for a
+side-by-side upgrade guide.
+
+#### Breaking
+
+- Clean break from the v3.x API — no compatibility shim. `session` → `sessionId`,
+  `prefix` → `commandPrefix`, raw `wa.on('messages', ...)` → typed per-event handlers,
+  object-spread `send()` → chainable builder, file-based plugins → command framework.
+- `phoneNumber` is now a `string` (was a number).
+- Removed `showLogs` / `fancyLogs` / `showSpinner` (use the structural `logger` option),
+  the bundled-FFmpeg `disableFFmpeg` flag, `definePlugins` / `pluginsDir` / `pluginsHmr`,
+  `wa.inject` context injection, and the `citation` authorization helper.
+
+#### Added
+
+- **Baileys `7.0.0-rc13`** (from `7.0.0-rc.9`) — patches **CVE-2026-48063 /
+  GHSA-qvv5-jq5g-4cgg** message-spoofing via `protocolMessage.type`. See
+  [SECURITY.md](./SECURITY.md).
+- **Typed event handlers** — `client.on('text' | 'image' | 'video' | 'audio' | 'document'
+  | 'sticker' | 'reaction' | 'edit' | 'delete' | 'poll-vote' | 'button-click' |
+  'list-select' | 'mention' | 'mention-all' | 'group-update' | 'group-join' |
+  'group-leave' | 'member-tag' | 'call-incoming' | 'call-ended' | 'history-sync' |
+  'limited' | 'presence' | 'newsletter', ...)` plus connection events (`connect`,
+  `disconnect`, `qr`, `pairing-code`, `reconnecting`, `error`), each with a fully typed
+  payload.
+- **Chainable builder** — `client.send(jid).text().reply().mentions().mentionAll()
+  .image().video().audio().document().sticker().album().buttons().list().poll()
+  .location().contact()`; awaiting returns the sent `WAMessageKey`. Mutations:
+  `client.edit(key)`, `client.delete(key, { forEveryone })`, `client.react(key, emoji)`,
+  `client.forward(key, to)`.
+- **Auto-connect lifecycle** — `new Client()` connects automatically (no `await
+  connect()`); auto-reconnect with backoff; QR or pairing-code selection from config.
+- **Pluggable storage** — independent `AuthStore` and `MessageStore` interfaces with
+  `file` (default), `memory`, `sqlite`, `redis`, and `postgres` adapters. Auth and message
+  backends can differ.
+- **Command framework** — `client.command(name, handler)`, `client.use(middleware)`,
+  configurable `commandPrefix`, argument parsing, and a typed context (`ctx.args`,
+  `ctx.reply`, `ctx.react`, `ctx.edit`).
+- **Automation utilities** — `client.broadcast(jids, builder, { rateLimitPerSec })` with
+  built-in rate limiting and `client.scheduleAt(date, builder)` with store-persisted jobs.
+- **Domain modules** — `client.group.*`, `client.privacy.*`, `client.newsletter.*`,
+  `client.community.*`, `client.presence.*`.
+- New Baileys rc10–rc13 surface: album messages, `mentionAll`, member tags,
+  `history-sync` status, 463 reach-out timelock (`on('limited')`), v2 newsletter
+  endpoints, username-addressed messages, companion-registration QR format.
+- **Dual ESM/CJS** packaging fixed — both `import` and `require` entry points plus
+  `.d.ts` types.
+- Built and type-checked with **TypeScript 7 native** (`tsgo`).
+
 ## 3.3.0
 
 ### Minor Changes

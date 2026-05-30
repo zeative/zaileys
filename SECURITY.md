@@ -2,11 +2,14 @@
 
 ## Supported Versions
 
-| Version | Supported                       |
-| ------- | ------------------------------- |
-| 4.x     | Yes                             |
-| 3.x     | No (EOL setelah v4.0.0 GA)      |
-| < 3.x   | No                              |
+| Version | Supported                          |
+| ------- | ---------------------------------- |
+| 4.0.x   | Yes (current — CVE-2026-48063 patched) |
+| 3.x     | No (EOL pada v4.0.0 GA)             |
+| < 3.x   | No                                 |
+
+Versi yang didukung saat ini adalah **`4.0.0`** (current). Semua perbaikan keamanan
+ditargetkan ke baris `4.0.x`.
 
 ## Reporting Vulnerabilities
 

@@ -100,8 +100,9 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private readonly usernameCache: Map<string, string> = new Map()
 
   /**
-   * Build a Client with sensible defaults. All side effects (network, disk)
-   * are deferred until {@link Client.connect} is invoked.
+   * Build a Client with sensible defaults. When `autoConnect` is enabled (the
+   * default) the connection opens on the next microtask, after synchronous
+   * `on(...)` registrations in the construction frame have run.
    */
   constructor(options: ClientOptions = {}) {
     super({ logger: adoptLogger(options.logger) })
@@ -117,6 +118,24 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.store = options.store ?? new MemoryMessageStore()
     this.reconnectStrategy = createReconnectStrategy(this.reconnectOptions)
     this.attachEmitterLogger()
+    if (options.autoConnect ?? true) {
+      queueMicrotask(() => {
+        if (this.machine.state !== 'idle') return
+        try {
+          this.connect().catch((err) => this.emitAutoConnectError(err))
+        } catch (err) {
+          this.emitAutoConnectError(err)
+        }
+      })
+    }
+  }
+
+  private emitAutoConnectError(err: unknown): void {
+    const error = err instanceof Error ? err : new Error(String(err))
+    this.logger.error(error, 'auto-connect failed')
+    if (this.listenerCount('error') > 0) {
+      this.emit('error', { sessionId: this.sessionId, error })
+    }
   }
 
   /** Current FSM state. */

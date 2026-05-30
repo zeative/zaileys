@@ -48,6 +48,12 @@ export interface ClientOptions {
   reconnect?: ReconnectOptions
   qrTerminal?: boolean
   baileys?: Partial<UserFacingSocketConfig>
+  /**
+   * Connect automatically after construction. Defaults to `true`, deferred to a
+   * microtask so synchronous `on(...)` registrations run before any event fires.
+   * Set `false` to drive {@link Client.connect} manually.
+   */
+  autoConnect?: boolean
 }
 
 /** Typed payload contract for every connection-domain event. */
@@ -57,6 +63,7 @@ export type ConnectionEventMap = {
   qr: { sessionId: string; qrString: string; expiresAt: number }
   'pairing-code': { sessionId: string; code: string; expiresAt: number }
   reconnecting: { sessionId: string; attempt: number; delayMs: number; reason: DisconnectReasonDomain }
+  error: { sessionId: string; error: Error }
 }
 
 /** Discriminator union over keys of ConnectionEventMap. */

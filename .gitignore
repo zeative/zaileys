@@ -19,6 +19,9 @@ coverage/
 zaileys
 index.js
 
+# Generated API docs
+docs/api/
+
 # AI & Agents
 .gsd/
 .gemini/

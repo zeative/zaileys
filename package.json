@@ -29,7 +29,7 @@
     "javascript-typescript"
   ],
   "scripts": {
-    "dev": "tsx examples/simple-bot.ts",
+    "dev": "tsx --watch examples/quickstart-connect.ts",
     "build": "tsup",
     "typecheck": "tsgo --noEmit",
     "typecheck:legacy": "tsc --noEmit",
@@ -43,7 +43,8 @@
     "release:version": "changeset version && pnpm install",
     "release:publish": "pnpm run build && changeset publish",
     "prepare": "husky",
-    "size": "size-limit"
+    "size": "size-limit",
+    "docs": "typedoc"
   },
   "devDependencies": {
     "@changesets/cli": "^2.30.0",
@@ -66,6 +67,7 @@
     "size-limit": "^12.1.0",
     "tsup": "^8.5.1",
     "tsx": "^4.21.0",
+    "typedoc": "^0.28.19",
     "typescript": "^6.0.3",
     "vitest": "^4.1.7"
   },

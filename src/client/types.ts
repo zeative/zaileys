@@ -55,6 +55,12 @@ export interface ClientOptions {
    */
   autoConnect?: boolean
   /**
+   * Print concise English connection-status lines (connecting, reconnecting,
+   * connected, disconnected) plus actionable hints (e.g. corrupted session) to
+   * stderr. Defaults to `true`. Set `false` to silence and rely on typed events.
+   */
+  statusLog?: boolean
+  /**
    * Command prefix(es) that activate the command framework (e.g. `'/'` or
    * `['/', '!']`). When unset the command framework is disabled: `command()`
    * and `use()` still register, but no dispatcher attaches and handlers never fire.

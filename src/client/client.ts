@@ -45,6 +45,7 @@ import {
   type ScheduledContentSnapshot,
 } from '../automation/index.js'
 import type { MessagePayload } from '../events/types.js'
+import { formatConnectionStatus, type StatusEvent } from '../connection/status-log.js'
 import { FileAuthStore } from '../auth/adapters/file.js'
 import { makeCacheableAuthStore } from '../auth/cache.js'
 import type { AuthStoreBundle } from '../auth/types.js'
@@ -110,6 +111,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private readonly phoneNumber: string | undefined
   private readonly cacheSignal: boolean
   private readonly qrTerminal: boolean
+  private readonly statusLog: boolean
   private readonly reconnectOptions: ReconnectOptions
   private readonly baileysExtra: Partial<UserFacingSocketConfig>
   private readonly machine: ConnectionStateMachine = createConnectionStateMachine()
@@ -123,6 +125,8 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private pairingRequested = false
   private cachedSignalWrap = false
   private creds: AuthenticationCreds | undefined
+  private credsLoadedAtConnect = false
+  private openedThisRun = false
   private disconnectEmittedFor = 0
   private connectAttemptSeq = 0
   private pendingDisconnectReason: DisconnectReasonDomain | undefined
@@ -151,6 +155,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.phoneNumber = options.phoneNumber
     this.cacheSignal = options.cacheSignal ?? true
     this.qrTerminal = options.qrTerminal ?? true
+    this.statusLog = options.statusLog ?? true
     this.reconnectOptions = options.reconnect ?? {}
     this.baileysExtra = options.baileys ?? {}
     this.auth = options.auth ?? new FileAuthStore({ basePath: `./.zaileys/auth/${this.sessionId}` })
@@ -176,6 +181,12 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     if (this.listenerCount('error') > 0) {
       this.emit('error', { sessionId: this.sessionId, error })
     }
+  }
+
+  private logStatus(event: StatusEvent): void {
+    if (!this.statusLog) return
+    const line = formatConnectionStatus(event)
+    if (line) process.stderr.write(`${line}\n`)
   }
 
   /** Current FSM state. */
@@ -290,6 +301,8 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.machine.transition('connecting')
     this.connectAttemptSeq += 1
     this.pairingRequested = false
+    this.openedThisRun = false
+    this.logStatus({ kind: 'connecting', sessionId: this.sessionId })
     if (this.cacheSignal && !this.cachedSignalWrap) {
       this.auth = makeCacheableAuthStore(this.auth, { logger: this.logger as never })
       this.cachedSignalWrap = true
@@ -313,6 +326,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     void this.auth.creds
       .readCreds()
       .then((loaded) => {
+        this.credsLoadedAtConnect = Boolean(loaded)
         Object.assign(creds, loaded ?? initAuthCreds())
       })
       .catch((err) => {
@@ -569,6 +583,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         const socket = this._socket
         if (!socket) return
         const result = await flow.requestCode(socket)
+        this.logStatus({ kind: 'pairing-code', code: result.code })
         this.emit('pairing-code', {
           sessionId: this.sessionId,
           code: result.code,
@@ -589,6 +604,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         this.logger.warn(err, 'printQrToTerminal failed')
       }
     }
+    this.logStatus({ kind: 'qr' })
     this.emit('qr', {
       sessionId: this.sessionId,
       qrString: qr,
@@ -600,8 +616,10 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     if (this.machine.canTransition('connected')) {
       this.machine.transition('connected')
     }
+    this.openedThisRun = true
     this.reconnectStrategy.reset()
     const me = this._socket?.user ?? { id: '' }
+    this.logStatus({ kind: 'connected', id: typeof me.id === 'string' ? me.id : '' })
     this.emit('connect', { sessionId: this.sessionId, me: me as ConnectionEventMap['connect']['me'] })
     const socket = this._socket
     if (socket) {
@@ -647,6 +665,15 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         if (this.machine.canTransition('reconnecting')) {
           this.machine.transition('reconnecting')
         }
+        const invalidCredsSuspected =
+          this.credsLoadedAtConnect && !this.openedThisRun && decision.attempt >= 2
+        this.logStatus({
+          kind: 'reconnecting',
+          attempt: decision.attempt,
+          delayMs: decision.delayMs,
+          reason,
+          invalidCredsSuspected,
+        })
         this.emit('reconnecting', {
           sessionId: this.sessionId,
           attempt: decision.attempt,
@@ -662,6 +689,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       }
     }
     this.disconnectEmittedFor = this.connectAttemptSeq
+    this.logStatus({ kind: 'disconnect', reason, willReconnect })
     this.emit('disconnect', { sessionId: this.sessionId, reason, willReconnect })
     if (!willReconnect) {
       if (this._socket) {

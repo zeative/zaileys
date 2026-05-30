@@ -330,6 +330,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.creds = creds
     const keys = signalKeyStoreFromAuthStore(this.auth.signal, this.logger)
     const config: UserFacingSocketConfig = {
+      markOnlineOnConnect: false,
       ...this.baileysExtra,
       auth: { creds, keys },
       logger: this.logger as never,

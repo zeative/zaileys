@@ -41,6 +41,15 @@ describe('createLogger — default level', () => {
     const logger = createLogger()
     expect(logger.level).toBe('silent')
   })
+
+  it('uses the named level when ZAILEYS_DEBUG is a valid level', () => {
+    vi.stubEnv('ZAILEYS_DEBUG', 'debug')
+    expect(createLogger().level).toBe('debug')
+    vi.stubEnv('ZAILEYS_DEBUG', 'trace')
+    expect(createLogger().level).toBe('trace')
+    vi.stubEnv('ZAILEYS_DEBUG', 'warn')
+    expect(createLogger().level).toBe('warn')
+  })
 })
 
 describe('createLogger — explicit level', () => {

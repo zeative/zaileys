@@ -10,9 +10,23 @@ export interface CreateLoggerOptions {
 
 export type ZaileysLogger = PinoLogger
 
+const LOG_LEVELS: readonly LoggerLevel[] = [
+  'silent',
+  'fatal',
+  'error',
+  'warn',
+  'info',
+  'debug',
+  'trace',
+]
+
 function resolveLevel(explicit?: LoggerLevel): LoggerLevel {
   if (explicit) return explicit
-  return process.env['ZAILEYS_DEBUG'] === '1' ? 'info' : 'silent'
+  const env = process.env['ZAILEYS_DEBUG']
+  if (env === undefined) return 'silent'
+  if (env === '1') return 'info'
+  if ((LOG_LEVELS as readonly string[]).includes(env)) return env as LoggerLevel
+  return 'silent'
 }
 
 export function createLogger(options: CreateLoggerOptions = {}): ZaileysLogger {

@@ -4,9 +4,8 @@ import type { GroupMetadata, LinkedGroup } from './types.js'
 
 /**
  * Typed wrapper over the baileys communities socket methods. Exposed as
- * `client.community`. Bodies are filled by Wave 2 plan-005. Note the argument
- * order swap: `linkGroup(communityId, groupId)` maps to baileys
- * `communityLinkGroup(groupJid, parentCommunityJid)`.
+ * `client.community`. Note the argument order swap: `linkGroup(communityId,
+ * groupId)` maps to baileys `communityLinkGroup(groupJid, parentCommunityJid)`.
  */
 export class CommunityModule {
   constructor(private readonly getSocket: () => DomainSocketLike | undefined) {}
@@ -21,85 +20,57 @@ export class CommunityModule {
 
   /** Create a community with subject and body (description). */
   async create(subject: string, body: string): Promise<GroupMetadata> {
-    this.requireSocket()
-    void subject
-    void body
-    throw new ZaileysDomainError('OPERATION_FAILED', 'create not yet implemented')
+    return this.requireSocket().communityCreate(subject, body)
   }
 
   /** Create a group linked to a parent community. */
   async createGroup(subject: string, participants: string[], communityId: string): Promise<GroupMetadata> {
-    this.requireSocket()
-    void subject
-    void participants
-    void communityId
-    throw new ZaileysDomainError('OPERATION_FAILED', 'createGroup not yet implemented')
+    return this.requireSocket().communityCreateGroup(subject, participants, communityId)
   }
 
   /** Link an existing group into a community. */
   async linkGroup(communityId: string, groupId: string): Promise<void> {
-    this.requireSocket()
-    void communityId
-    void groupId
-    throw new ZaileysDomainError('OPERATION_FAILED', 'linkGroup not yet implemented')
+    await this.requireSocket().communityLinkGroup(groupId, communityId)
   }
 
   /** Unlink a group from a community. */
   async unlinkGroup(communityId: string, groupId: string): Promise<void> {
-    this.requireSocket()
-    void communityId
-    void groupId
-    throw new ZaileysDomainError('OPERATION_FAILED', 'unlinkGroup not yet implemented')
+    await this.requireSocket().communityUnlinkGroup(groupId, communityId)
   }
 
   /** List the sub-groups linked to a community. */
   async subGroups(communityId: string): Promise<LinkedGroup[]> {
-    this.requireSocket()
-    void communityId
-    throw new ZaileysDomainError('OPERATION_FAILED', 'subGroups not yet implemented')
+    const result = await this.requireSocket().communityFetchLinkedGroups(communityId)
+    return result.linkedGroups
   }
 
   /** Leave a community. */
   async leave(communityId: string): Promise<void> {
-    this.requireSocket()
-    void communityId
-    throw new ZaileysDomainError('OPERATION_FAILED', 'leave not yet implemented')
+    await this.requireSocket().communityLeave(communityId)
   }
 
   /** Update a community subject. */
   async updateSubject(communityId: string, subject: string): Promise<void> {
-    this.requireSocket()
-    void communityId
-    void subject
-    throw new ZaileysDomainError('OPERATION_FAILED', 'updateSubject not yet implemented')
+    await this.requireSocket().communityUpdateSubject(communityId, subject)
   }
 
   /** Update a community description. */
   async updateDescription(communityId: string, description?: string): Promise<void> {
-    this.requireSocket()
-    void communityId
-    void description
-    throw new ZaileysDomainError('OPERATION_FAILED', 'updateDescription not yet implemented')
+    await this.requireSocket().communityUpdateDescription(communityId, description)
   }
 
   /** Get a community invite code. */
-  async inviteCode(communityId: string): Promise<string> {
-    this.requireSocket()
-    void communityId
-    throw new ZaileysDomainError('OPERATION_FAILED', 'inviteCode not yet implemented')
+  async inviteCode(communityId: string): Promise<string | undefined> {
+    return this.requireSocket().communityInviteCode(communityId)
   }
 
   /** Revoke and regenerate a community invite code. */
-  async revokeInvite(communityId: string): Promise<string> {
-    this.requireSocket()
-    void communityId
-    throw new ZaileysDomainError('OPERATION_FAILED', 'revokeInvite not yet implemented')
+  async revokeInvite(communityId: string): Promise<string | undefined> {
+    return this.requireSocket().communityRevokeInvite(communityId)
   }
 
   /** Accept a community invite by code. */
-  async acceptInvite(code: string): Promise<string> {
-    this.requireSocket()
-    void code
-    throw new ZaileysDomainError('OPERATION_FAILED', 'acceptInvite not yet implemented')
+  async acceptInvite(code: string): Promise<string | undefined> {
+    return this.requireSocket().communityAcceptInvite(code)
   }
 }

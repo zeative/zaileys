@@ -39,6 +39,18 @@ describe('happy-path transitions', () => {
     expect(fsm.state).toBe('connected')
   })
 
+  it('qr-pending -> reconnecting (515 before first open)', () => {
+    const fsm = createConnectionStateMachine('qr-pending')
+    fsm.transition('reconnecting')
+    expect(fsm.state).toBe('reconnecting')
+  })
+
+  it('pairing-pending -> reconnecting (515 before first open)', () => {
+    const fsm = createConnectionStateMachine('pairing-pending')
+    fsm.transition('reconnecting')
+    expect(fsm.state).toBe('reconnecting')
+  })
+
   it('pairing-pending -> connected', () => {
     const fsm = createConnectionStateMachine('pairing-pending')
     fsm.transition('connected')
@@ -83,8 +95,6 @@ describe('invalid transitions throw', () => {
     ['idle', 'qr-pending'],
     ['connected', 'qr-pending'],
     ['connected', 'pairing-pending'],
-    ['qr-pending', 'reconnecting'],
-    ['pairing-pending', 'reconnecting'],
     ['reconnecting', 'connected'],
     ['disconnecting', 'connecting'],
     ['disconnected', 'connected'],

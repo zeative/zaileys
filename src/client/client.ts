@@ -17,6 +17,13 @@ import {
   type DeleteOptions,
   type UsernameResolveSocketLike,
 } from '../builder/index.js'
+import {
+  CommunityModule,
+  GroupModule,
+  NewsletterModule,
+  PrivacyModule,
+  type DomainSocketLike,
+} from '../domain/index.js'
 import { FileAuthStore } from '../auth/adapters/file.js'
 import { makeCacheableAuthStore } from '../auth/cache.js'
 import type { AuthStoreBundle } from '../auth/types.js'
@@ -98,6 +105,10 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private connectAttemptSeq = 0
   private pendingDisconnectReason: DisconnectReasonDomain | undefined
   private readonly usernameCache: Map<string, string> = new Map()
+  private _group?: GroupModule
+  private _privacy?: PrivacyModule
+  private _newsletter?: NewsletterModule
+  private _community?: CommunityModule
 
   /**
    * Build a Client with sensible defaults. When `autoConnect` is enabled (the
@@ -146,6 +157,34 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   /** Underlying Baileys socket once connected; `undefined` before connect / after disconnect. */
   get socket(): BaileysSocket | undefined {
     return this._socket
+  }
+
+  /** Group management namespace (`client.group.*`); methods throw `NOT_CONNECTED` until connected. */
+  get group(): GroupModule {
+    return (this._group ??= new GroupModule(
+      () => this._socket as unknown as DomainSocketLike | undefined,
+    ))
+  }
+
+  /** Privacy settings namespace (`client.privacy.*`); methods throw `NOT_CONNECTED` until connected. */
+  get privacy(): PrivacyModule {
+    return (this._privacy ??= new PrivacyModule(
+      () => this._socket as unknown as DomainSocketLike | undefined,
+    ))
+  }
+
+  /** Newsletter namespace (`client.newsletter.*`); methods throw `NOT_CONNECTED` until connected. */
+  get newsletter(): NewsletterModule {
+    return (this._newsletter ??= new NewsletterModule(
+      () => this._socket as unknown as DomainSocketLike | undefined,
+    ))
+  }
+
+  /** Community namespace (`client.community.*`); methods throw `NOT_CONNECTED` until connected. */
+  get community(): CommunityModule {
+    return (this._community ??= new CommunityModule(
+      () => this._socket as unknown as DomainSocketLike | undefined,
+    ))
   }
 
   /**

@@ -168,7 +168,7 @@ describe('Client.connect — pairing', () => {
 })
 
 describe('Client.connect — creds + auth wiring', () => {
-  it('creds.update writes to auth.creds.writeCreds', async () => {
+  it('creds.update merges the partial delta into full creds before writeCreds', async () => {
     const writeCreds = vi.fn(async () => undefined)
     const bundle = memAuth()
     bundle.creds.writeCreds = writeCreds
@@ -180,7 +180,36 @@ describe('Client.connect — creds + auth wiring', () => {
     sock.triggerConnectionUpdate({ connection: 'open' })
     await p
     await new Promise((r) => setTimeout(r, 5))
-    expect(writeCreds).toHaveBeenCalledWith({ updated: true })
+    expect(writeCreds).toHaveBeenCalledWith({ fake: 'creds', updated: true })
+  })
+
+  it('regression: a partial creds.update must NOT drop pre-existing creds fields', async () => {
+    const full = {
+      noiseKey: { private: Uint8Array.from([1]), public: Uint8Array.from([2]) },
+      signedIdentityKey: { private: Uint8Array.from([3]), public: Uint8Array.from([4]) },
+      signedPreKey: { keyId: 1 },
+      registrationId: 42,
+    } as never
+    const bundle = memAuth()
+    bundle.creds.readCreds = async () => full
+    let persisted: Record<string, unknown> | undefined
+    bundle.creds.writeCreds = async (next) => {
+      persisted = next as unknown as Record<string, unknown>
+    }
+    const sock = createMockSocket({ user: { id: 'x' } })
+    makeWASocketMock.mockReturnValue(sock)
+    const c = new Client({ auth: bundle, autoConnect: false })
+    const p = c.connect()
+    sock.triggerCredsUpdate({ me: { id: 'wid:9@s.whatsapp.net', lid: 'l@lid' } })
+    sock.triggerConnectionUpdate({ connection: 'open' })
+    await p
+    await new Promise((r) => setTimeout(r, 5))
+    expect(persisted).toBeDefined()
+    expect(persisted!.noiseKey).toBeDefined()
+    expect(persisted!.signedIdentityKey).toBeDefined()
+    expect(persisted!.signedPreKey).toBeDefined()
+    expect(persisted!.registrationId).toBe(42)
+    expect((persisted!.me as { lid?: string }).lid).toBe('l@lid')
   })
 
   it('initAuthCreds invoked when readCreds returns undefined', async () => {

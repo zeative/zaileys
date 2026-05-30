@@ -122,6 +122,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private connectReject: ((err: Error) => void) | undefined
   private pairingRequested = false
   private cachedSignalWrap = false
+  private creds: AuthenticationCreds | undefined
   private disconnectEmittedFor = 0
   private connectAttemptSeq = 0
   private pendingDisconnectReason: DisconnectReasonDomain | undefined
@@ -294,6 +295,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       this.cachedSignalWrap = true
     }
     const creds = {} as AuthenticationCreds
+    this.creds = creds
     const keys = signalKeyStoreFromAuthStore(this.auth.signal, this.logger)
     const config: UserFacingSocketConfig = {
       ...this.baileysExtra,
@@ -311,11 +313,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     void this.auth.creds
       .readCreds()
       .then((loaded) => {
-        if (loaded) {
-          Object.assign(creds, loaded)
-        } else {
-          Object.assign(creds, initAuthCreds())
-        }
+        Object.assign(creds, loaded ?? initAuthCreds())
       })
       .catch((err) => {
         this.rejectPendingConnect(err instanceof Error ? err : new Error(String(err)))
@@ -530,8 +528,10 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     const onConnection = (update: ConnectionUpdate): void => {
       void this.handleConnectionUpdate(update)
     }
-    const onCreds = (creds: Partial<AuthenticationCreds>): void => {
-      void this.auth.creds.writeCreds(creds as AuthenticationCreds).catch((err) => {
+    const onCreds = (update: Partial<AuthenticationCreds>): void => {
+      const merged = this.creds ? Object.assign(this.creds, update) : (update as AuthenticationCreds)
+      this.creds = merged
+      void this.auth.creds.writeCreds(merged).catch((err) => {
         this.logger.warn(err, 'auth.creds.writeCreds failed')
       })
     }

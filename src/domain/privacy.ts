@@ -4,7 +4,8 @@ import type { PrivacyConfig, PrivacySettings, WAReadReceiptsValue } from './type
 
 /**
  * Typed wrapper over the baileys privacy socket methods. Exposed as
- * `client.privacy`. Bodies are filled by Wave 2 plan-003.
+ * `client.privacy`. `set` fans a single partial config object out to the
+ * matching `update*Privacy` calls, applying only the keys that are defined.
  */
 export class PrivacyModule {
   constructor(private readonly getSocket: () => DomainSocketLike | undefined) {}
@@ -17,43 +18,68 @@ export class PrivacyModule {
     return socket
   }
 
-  /** Apply a partial privacy configuration in a single call. */
+  /**
+   * Apply a partial privacy configuration in a single call. Only keys present
+   * (not `undefined`) are forwarded to their respective baileys method.
+   * `readReceipts` accepts a boolean shorthand (`true` → `'all'`, `false` →
+   * `'none'`) in addition to the raw {@link WAReadReceiptsValue}.
+   */
   async set(config: PrivacyConfig & { readReceipts?: WAReadReceiptsValue | boolean }): Promise<void> {
-    this.requireSocket()
-    void config
-    throw new ZaileysDomainError('OPERATION_FAILED', 'set not yet implemented')
+    const socket = this.requireSocket()
+
+    if (config.lastSeen !== undefined) {
+      await socket.updateLastSeenPrivacy(config.lastSeen)
+    }
+    if (config.online !== undefined) {
+      await socket.updateOnlinePrivacy(config.online)
+    }
+    if (config.profile !== undefined) {
+      await socket.updateProfilePicturePrivacy(config.profile)
+    }
+    if (config.status !== undefined) {
+      await socket.updateStatusPrivacy(config.status)
+    }
+    if (config.readReceipts !== undefined) {
+      const value: WAReadReceiptsValue =
+        typeof config.readReceipts === 'boolean'
+          ? config.readReceipts
+            ? 'all'
+            : 'none'
+          : config.readReceipts
+      await socket.updateReadReceiptsPrivacy(value)
+    }
+    if (config.groupAdd !== undefined) {
+      await socket.updateGroupsAddPrivacy(config.groupAdd)
+    }
   }
 
   /** Fetch the current privacy settings. */
   async get(): Promise<PrivacySettings> {
-    this.requireSocket()
-    throw new ZaileysDomainError('OPERATION_FAILED', 'get not yet implemented')
+    const socket = this.requireSocket()
+    return socket.fetchPrivacySettings()
   }
 
   /** Block a contact. */
   async block(jid: string): Promise<void> {
-    this.requireSocket()
-    void jid
-    throw new ZaileysDomainError('OPERATION_FAILED', 'block not yet implemented')
+    const socket = this.requireSocket()
+    await socket.updateBlockStatus(jid, 'block')
   }
 
   /** Unblock a contact. */
   async unblock(jid: string): Promise<void> {
-    this.requireSocket()
-    void jid
-    throw new ZaileysDomainError('OPERATION_FAILED', 'unblock not yet implemented')
+    const socket = this.requireSocket()
+    await socket.updateBlockStatus(jid, 'unblock')
   }
 
   /** Fetch the current blocklist. */
   async blocklist(): Promise<string[]> {
-    this.requireSocket()
-    throw new ZaileysDomainError('OPERATION_FAILED', 'blocklist not yet implemented')
+    const socket = this.requireSocket()
+    return socket.fetchBlocklist()
   }
 
-  /** Set the default disappearing-message duration. */
+  /** Set the default disappearing-message duration in seconds. */
   async disappearingMode(seconds: number): Promise<void> {
-    this.requireSocket()
-    void seconds
-    throw new ZaileysDomainError('OPERATION_FAILED', 'disappearingMode not yet implemented')
+    const socket = this.requireSocket()
+    await socket.updateDefaultDisappearingMode(seconds)
   }
 }

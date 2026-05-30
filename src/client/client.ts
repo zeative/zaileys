@@ -24,6 +24,17 @@ import {
   PrivacyModule,
   type DomainSocketLike,
 } from '../domain/index.js'
+import {
+  attachCommandDispatcher,
+  CommandRegistry,
+  ZaileysCommandError,
+  type CommandContext,
+  type CommandHandler,
+  type DispatcherHandle,
+  type Middleware,
+  type ResolvedCommand,
+} from '../command/index.js'
+import type { MessagePayload } from '../events/types.js'
 import { FileAuthStore } from '../auth/adapters/file.js'
 import { makeCacheableAuthStore } from '../auth/cache.js'
 import type { AuthStoreBundle } from '../auth/types.js'
@@ -109,6 +120,10 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private _privacy?: PrivacyModule
   private _newsletter?: NewsletterModule
   private _community?: CommunityModule
+  private commandRegistry?: CommandRegistry
+  private readonly commandMiddleware: Middleware[] = []
+  private readonly commandPrefixes: string[]
+  private commandDispatcher: DispatcherHandle | undefined
 
   /**
    * Build a Client with sensible defaults. When `autoConnect` is enabled (the
@@ -128,6 +143,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.auth = options.auth ?? new FileAuthStore({ basePath: `./.zaileys/auth/${this.sessionId}` })
     this.store = options.store ?? new MemoryMessageStore()
     this.reconnectStrategy = createReconnectStrategy(this.reconnectOptions)
+    this.commandPrefixes = normalizePrefixes(options.commandPrefix)
     this.attachEmitterLogger()
     if (options.autoConnect ?? true) {
       queueMicrotask(() => {
@@ -260,6 +276,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     }
     this.inboundHandle?.detach()
     this.inboundHandle = undefined
+    this.detachCommands()
     for (const c of this.listenerCleanup) c.off()
     this.listenerCleanup = []
     if (this._socket) {
@@ -326,6 +343,75 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       return
     }
     await this.disconnect()
+  }
+
+  /**
+   * Register a command. `spec` accepts a bare name, pipe-separated aliases
+   * (`'help|h'`), and whitespace sub-commands (`'group create'`). Returns `this`
+   * for chaining. Handlers only fire when `commandPrefix` is configured; without
+   * a prefix the registration is stored but the dispatcher never attaches.
+   */
+  command(spec: string, handler: CommandHandler): this {
+    ;(this.commandRegistry ??= new CommandRegistry()).register(spec, handler)
+    this.attachCommandsIfReady()
+    return this
+  }
+
+  /** Add a middleware to the command chain (runs before every handler). Returns `this`. */
+  use(middleware: Middleware): this {
+    this.commandMiddleware.push(middleware)
+    return this
+  }
+
+  private attachCommandsIfReady(): void {
+    if (this.commandDispatcher) return
+    if (this.commandPrefixes.length === 0) return
+    if (this.commandRegistry === undefined || this.commandRegistry.list().length === 0) return
+    if (!this._socket) return
+    const registry = this.commandRegistry
+    this.commandDispatcher = attachCommandDispatcher({
+      registry,
+      middleware: this.commandMiddleware,
+      prefixes: this.commandPrefixes,
+      logger: this.logger,
+      onText: (handler) => {
+        const wrapped = (msg: MessagePayload): void => handler(msg)
+        this.on('text', wrapped)
+        return () => this.off('text', wrapped)
+      },
+      buildContext: (resolved, msg) => this.buildCommandContext(resolved, msg),
+    })
+  }
+
+  private buildCommandContext(resolved: ResolvedCommand, msg: MessagePayload): CommandContext {
+    let lastSentKey: WAMessageKey | undefined
+    return {
+      jid: msg.jid,
+      sender: msg.sender,
+      raw: resolved.raw,
+      command: resolved.command,
+      args: resolved.args,
+      flags: resolved.flags,
+      json: resolved.json,
+      message: msg,
+      reply: async (content: string): Promise<WAMessageKey> => {
+        const key = await this.send(msg.jid).text(content).reply(msg.key)
+        lastSentKey = key
+        return key
+      },
+      react: (emoji: string): Promise<WAMessageKey> => this.react(msg.key, emoji),
+      edit: async (content: string): Promise<void> => {
+        if (lastSentKey === undefined) {
+          throw new ZaileysCommandError('NO_SENT_MESSAGE', 'ctx.edit requires a prior ctx.reply')
+        }
+        await this.edit(lastSentKey).text(content)
+      },
+    }
+  }
+
+  private detachCommands(): void {
+    this.commandDispatcher?.detach()
+    this.commandDispatcher = undefined
   }
 
   /**
@@ -464,6 +550,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         logger: this.logger,
       })
     }
+    this.attachCommandsIfReady()
     const resolve = this.connectResolve
     this.connectResolve = undefined
     this.connectReject = undefined
@@ -473,6 +560,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private async handleClose(lastDisconnect: ConnectionUpdate['lastDisconnect']): Promise<void> {
     this.inboundHandle?.detach()
     this.inboundHandle = undefined
+    this.detachCommands()
     const code = extractStatusCode(lastDisconnect?.error)
     const reason = mapDisconnectReason(code)
     let willReconnect = false
@@ -530,6 +618,12 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.connectReject = undefined
     if (reject) reject(err)
   }
+}
+
+function normalizePrefixes(prefix: string | string[] | undefined): string[] {
+  if (prefix === undefined) return []
+  const list = Array.isArray(prefix) ? prefix : [prefix]
+  return list.filter((p) => p.length > 0)
 }
 
 function extractStatusCode(error: unknown): number | undefined {

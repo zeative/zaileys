@@ -7,26 +7,29 @@ const { makeWASocketMock, initAuthCredsMock, printQrMock } = vi.hoisted(() => ({
   printQrMock: vi.fn(async (_qr: string) => undefined),
 }))
 
-vi.mock('baileys', () => ({
-  default: makeWASocketMock,
-  makeWASocket: makeWASocketMock,
-  initAuthCreds: initAuthCredsMock,
-  DisconnectReason: {
-    loggedOut: 401,
-    forbidden: 403,
-    connectionLost: 408,
-    multideviceMismatch: 411,
-    connectionClosed: 428,
-    connectionReplaced: 440,
-    badSession: 500,
-    unavailableService: 503,
-    restartRequired: 515,
-    timedOut: 408,
-  },
-  makeCacheableSignalKeyStore: vi.fn((k: unknown) => k),
-  jidNormalizedUser: (s: string) => s,
-  BufferJSON: { replacer: (_k: string, v: unknown) => v, reviver: (_k: string, v: unknown) => v },
-}))
+vi.mock('baileys', async () => {
+  const actual = await vi.importActual<typeof import('baileys')>('baileys')
+  return {
+    ...actual,
+    default: makeWASocketMock,
+    makeWASocket: makeWASocketMock,
+    initAuthCreds: initAuthCredsMock,
+    DisconnectReason: {
+      loggedOut: 401,
+      forbidden: 403,
+      connectionLost: 408,
+      multideviceMismatch: 411,
+      connectionClosed: 428,
+      connectionReplaced: 440,
+      badSession: 500,
+      unavailableService: 503,
+      restartRequired: 515,
+      timedOut: 408,
+    },
+    makeCacheableSignalKeyStore: vi.fn((k: unknown) => k),
+    BufferJSON: { replacer: (_k: string, v: unknown) => v, reviver: (_k: string, v: unknown) => v },
+  }
+})
 
 vi.mock('../../src/connection/qr-terminal.js', async () => {
   const actual = await vi.importActual<typeof import('../../src/connection/qr-terminal.js')>(
@@ -225,7 +228,7 @@ describe('Client command framework — ctx helpers', () => {
     const [jid, content, opts] = sock.sendMessage.mock.calls[0] as [string, Record<string, unknown>, Record<string, unknown>]
     expect(jid).toBe(SENDER)
     expect(content.text).toBe('pong')
-    expect((opts.quoted as { key: { id: string } }).key.id).toBe('CMD1')
+    expect((opts.quoted as { id: string }).id).toBe('CMD1')
   })
 
   it('ctx.react reacts to the command message key', async () => {

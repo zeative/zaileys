@@ -54,6 +54,12 @@ export interface ClientOptions {
    * Set `false` to drive {@link Client.connect} manually.
    */
   autoConnect?: boolean
+  /**
+   * Command prefix(es) that activate the command framework (e.g. `'/'` or
+   * `['/', '!']`). When unset the command framework is disabled: `command()`
+   * and `use()` still register, but no dispatcher attaches and handlers never fire.
+   */
+  commandPrefix?: string | string[]
 }
 
 /** Typed payload contract for every connection-domain event. */

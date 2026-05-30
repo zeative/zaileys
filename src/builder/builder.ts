@@ -78,6 +78,18 @@ export class MessageBuilder<State extends BuilderState> {
     return new MessageBuilder<'init'>(socket, createInternalState(recipient, resolveRecipient))
   }
 
+  /**
+   * Re-target the builder at `recipient` before content is set. Primarily used
+   * by `Scheduler.scheduleAt`, whose `build` callback receives a recipient-less
+   * builder and selects the destination jid inline. A fully-qualified jid is
+   * used as-is; any lazy username resolver carried from `create` is cleared.
+   */
+  to(this: MessageBuilder<'init'>, recipient: string): MessageBuilder<'init'> {
+    this.internal.recipient = recipient
+    delete this.internal.resolveRecipient
+    return this
+  }
+
   text(this: MessageBuilder<'init'>, content: string): MessageBuilder<'content-set'> {
     this.internal.content = buildTextContent(content)
     return this as unknown as MessageBuilder<'content-set'>

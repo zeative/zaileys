@@ -7,6 +7,19 @@ export type MessageStoreListOptions = {
 }
 
 /**
+ * A persisted scheduled send. `fireAt` is an epoch-millis timestamp; `payload`
+ * is a serializable content snapshot resolved eagerly at schedule time (the
+ * builder callback is evaluated once into `{ recipient, content }`), never a
+ * closure. Stores that persist this record give the scheduler restart-survival.
+ */
+export type ScheduledJobRecord = {
+  id: string
+  fireAt: number
+  recipient: string
+  payload: unknown
+}
+
+/**
  * Minimal structural surface of a Baileys socket required by
  * {@link MessageStore.bind}. Phase 3 `Client` is assignable to this type.
  */
@@ -61,4 +74,17 @@ export interface MessageStore {
   clear(): Promise<void>
   /** Release backing resources; idempotent. */
   close(): Promise<void>
+  /**
+   * Persist a scheduled-send record. Optional: adapters that do not implement
+   * it keep the scheduler in an in-memory fallback (no restart-survival, but
+   * non-breaking). All existing adapters stay assignable.
+   */
+  saveScheduledJob?(job: ScheduledJobRecord): Promise<void>
+  /**
+   * List persisted scheduled-send records (for restart recovery). Optional;
+   * absent when {@link MessageStore.saveScheduledJob} is unimplemented.
+   */
+  listScheduledJobs?(): Promise<ScheduledJobRecord[]>
+  /** Delete a persisted scheduled-send record by id. Optional. */
+  deleteScheduledJob?(id: string): Promise<void>
 }

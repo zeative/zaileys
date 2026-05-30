@@ -34,6 +34,16 @@ import {
   type Middleware,
   type ResolvedCommand,
 } from '../command/index.js'
+import {
+  PresenceModule,
+  runBroadcast,
+  Scheduler,
+  type AutomationSocketLike,
+  type BroadcastOptions,
+  type BroadcastResult,
+  type ScheduleHandle,
+  type ScheduledContentSnapshot,
+} from '../automation/index.js'
 import type { MessagePayload } from '../events/types.js'
 import { FileAuthStore } from '../auth/adapters/file.js'
 import { makeCacheableAuthStore } from '../auth/cache.js'
@@ -124,6 +134,8 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private readonly commandMiddleware: Middleware[] = []
   private readonly commandPrefixes: string[]
   private commandDispatcher: DispatcherHandle | undefined
+  private _presence?: PresenceModule
+  private _scheduler?: Scheduler
 
   /**
    * Build a Client with sensible defaults. When `autoConnect` is enabled (the
@@ -203,6 +215,54 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     ))
   }
 
+  /** Presence namespace (`client.presence.*`); methods throw `NOT_CONNECTED` until connected. */
+  get presence(): PresenceModule {
+    return (this._presence ??= new PresenceModule(
+      () => this._socket as unknown as AutomationSocketLike | undefined,
+    ))
+  }
+
+  /**
+   * Send `build`'s message to every jid, paced by a rate limiter and isolated so
+   * one recipient's failure never halts the run. Requires an active socket.
+   * Returns the per-recipient success/failure split.
+   */
+  async broadcast(
+    jids: string[],
+    build: (b: MessageBuilder<'init'>) => MessageBuilder<'content-set'>,
+    options?: BroadcastOptions,
+  ): Promise<BroadcastResult> {
+    this.requireSocket()
+    return runBroadcast(jids, build, { sendTo: (jid) => this.send(jid) }, options)
+  }
+
+  /**
+   * Schedule `build`'s message for `date`. The builder is evaluated eagerly into
+   * a serializable snapshot, persisted via the store's optional schedule methods
+   * (in-memory fallback otherwise), and re-dispatched on fire. Persisted jobs
+   * survive restart and are reloaded on the next `connect`. Returns
+   * `{ id, cancel() }`.
+   */
+  async scheduleAt(
+    date: Date,
+    build: (b: MessageBuilder<'init'>) => MessageBuilder<'content-set'>,
+  ): Promise<ScheduleHandle> {
+    return this.ensureScheduler().scheduleAt(date, build)
+  }
+
+  private ensureScheduler(): Scheduler {
+    return (this._scheduler ??= new Scheduler({
+      store: this.store,
+      sendSnapshot: (snapshot: ScheduledContentSnapshot) => this.dispatchSnapshot(snapshot),
+      logger: this.logger,
+    }))
+  }
+
+  private async dispatchSnapshot(snapshot: ScheduledContentSnapshot): Promise<void> {
+    const socket = this.requireSocket()
+    await socket.sendMessage(snapshot.recipient, snapshot.content, snapshot.options)
+  }
+
   /**
    * Open a connection: build auth, instantiate the socket, wire events, and
    * resolve once `connection: 'open'` arrives or reject on a fatal disconnect.
@@ -277,6 +337,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.inboundHandle?.detach()
     this.inboundHandle = undefined
     this.detachCommands()
+    this._scheduler?.dispose()
     for (const c of this.listenerCleanup) c.off()
     this.listenerCleanup = []
     if (this._socket) {
@@ -551,6 +612,9 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       })
     }
     this.attachCommandsIfReady()
+    void this.ensureScheduler()
+      .loadPending()
+      .catch((err) => this.logger.warn(err, 'scheduler loadPending failed'))
     const resolve = this.connectResolve
     this.connectResolve = undefined
     this.connectReject = undefined

@@ -34,7 +34,7 @@ export default defineConfig({
   ],
 
   outExtension({ format }) {
-    return { js: format === 'cjs' ? '.js' : '.mjs' }
+    return { js: format === 'cjs' ? '.cjs' : '.mjs' }
   },
 
   esbuildOptions(options) {

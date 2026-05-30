@@ -62,7 +62,7 @@ function textMsg(text: string, overrides: Record<string, unknown> = {}): Record<
 
 async function connected(sock: InboundMockSocket, opts: { auth?: AuthStoreBundle; sessionId?: string } = {}): Promise<Client> {
   makeWASocketMock.mockReturnValue(sock)
-  const c = new Client({ auth: opts.auth ?? memAuth(), sessionId: opts.sessionId, qrTerminal: false })
+  const c = new Client({ auth: opts.auth ?? memAuth(), sessionId: opts.sessionId, qrTerminal: false, autoConnect: false })
   const p = c.connect()
   sock.triggerConnectionUpdate({ connection: 'open' })
   await p
@@ -215,7 +215,7 @@ describe('inbound integration — lifecycle + security', () => {
   it('Phase 3 events (connect/qr/disconnect) still fire', async () => {
     const sock = makeInboundSocket()
     makeWASocketMock.mockReturnValue(sock)
-    const c = new Client({ auth: memAuth(), qrTerminal: false })
+    const c = new Client({ auth: memAuth(), qrTerminal: false, autoConnect: false })
     const onConnect = vi.fn()
     const onQr = vi.fn()
     const onDisconnect = vi.fn()
@@ -238,7 +238,7 @@ describe('inbound integration — lifecycle + security', () => {
     const sock = makeInboundSocket({ user: { id: SELF } })
     const onConnect = vi.fn()
     makeWASocketMock.mockReturnValue(sock)
-    const c = new Client({ auth: memAuth(), qrTerminal: false })
+    const c = new Client({ auth: memAuth(), qrTerminal: false, autoConnect: false })
     c.on('connect', onConnect)
     const text = vi.fn()
     c.on('text', text)
@@ -269,8 +269,8 @@ describe('inbound integration — reconnect + multi-instance', () => {
     const sockB = makeInboundSocket({ user: { id: 'b@s.whatsapp.net' } })
     let n = 0
     makeWASocketMock.mockImplementation(() => (n++ === 0 ? sockA : sockB))
-    const cA = new Client({ sessionId: 'a', auth: memAuth(), qrTerminal: false })
-    const cB = new Client({ sessionId: 'b', auth: memAuth(), qrTerminal: false })
+    const cA = new Client({ sessionId: 'a', auth: memAuth(), qrTerminal: false, autoConnect: false })
+    const cB = new Client({ sessionId: 'b', auth: memAuth(), qrTerminal: false, autoConnect: false })
     const pA = cA.connect()
     const pB = cB.connect()
     sockA.triggerConnectionUpdate({ connection: 'open' })

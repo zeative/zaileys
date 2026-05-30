@@ -47,7 +47,7 @@ beforeEach(() => {
 async function bootClient(opts: Partial<ConstructorParameters<typeof Client>[0]> = {}) {
   const sock = makeIntegrationSocket({ user: { id: '999@s.whatsapp.net', name: 'IT' } })
   makeWASocketMock.mockReturnValue(sock)
-  const c = new Client({ auth: new MemoryAuthStore(), qrTerminal: false, ...opts })
+  const c = new Client({ auth: new MemoryAuthStore(), qrTerminal: false, autoConnect: false, ...opts })
   return { c, sock }
 }
 
@@ -170,12 +170,12 @@ describe('integration: connection-flow happy path', () => {
     const sockB = makeIntegrationSocket({ user: { id: 'a@s.whatsapp.net' } })
     let n = 0
     makeWASocketMock.mockImplementation(() => (n++ === 0 ? sockA : sockB))
-    const cA = new Client({ auth: new MemoryAuthStore(), qrTerminal: false })
+    const cA = new Client({ auth: new MemoryAuthStore(), qrTerminal: false, autoConnect: false })
     const pA = cA.connect()
     sockA.triggerConnectionUpdate({ connection: 'open' })
     await pA
     await cA.disconnect()
-    const cB = new Client({ auth: new MemoryAuthStore(), qrTerminal: false })
+    const cB = new Client({ auth: new MemoryAuthStore(), qrTerminal: false, autoConnect: false })
     const pB = cB.connect()
     sockB.triggerConnectionUpdate({ connection: 'open' })
     await pB
@@ -203,7 +203,7 @@ describe('integration: connection-flow happy path', () => {
     }
     const sock = makeIntegrationSocket({ user: { id: 'log@s.whatsapp.net' } })
     makeWASocketMock.mockReturnValue(sock)
-    const c = new Client({ auth: new MemoryAuthStore(), qrTerminal: false, logger })
+    const c = new Client({ auth: new MemoryAuthStore(), qrTerminal: false, autoConnect: false, logger })
     const p = c.connect()
     sock.triggerConnectionUpdate({ connection: 'open' })
     await p
@@ -231,6 +231,7 @@ describe('integration: connection-flow happy path', () => {
       authType: 'pairing',
       phoneNumber: '+62 811 1111 2222',
       qrTerminal: false,
+      autoConnect: false,
     })
     const order: string[] = []
     c.on('pairing-code', () => order.push('pairing-code'))

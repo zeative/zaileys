@@ -37,37 +37,37 @@ beforeEach(() => {
 
 describe('Client — defaults', () => {
   it('default sessionId is "default"', () => {
-    const c = new Client()
+    const c = new Client({ autoConnect: false })
     expect(c.sessionId).toBe('default')
   })
 
   it('custom sessionId is honoured', () => {
-    const c = new Client({ sessionId: 'foo' })
+    const c = new Client({ sessionId: 'foo', autoConnect: false })
     expect(c.sessionId).toBe('foo')
   })
 
   it('default state is "idle"', () => {
-    expect(new Client().state).toBe('idle')
+    expect(new Client({ autoConnect: false }).state).toBe('idle')
   })
 
   it('default socket is undefined', () => {
-    expect(new Client().socket).toBeUndefined()
+    expect(new Client({ autoConnect: false }).socket).toBeUndefined()
   })
 
   it('default auth is a FileAuthStore namespaced under sessionId', () => {
-    const c = new Client({ sessionId: 'foo' })
+    const c = new Client({ sessionId: 'foo', autoConnect: false })
     expect(c.auth).toBeDefined()
     expect(typeof c.auth.signal.read).toBe('function')
     expect(typeof c.auth.creds.readCreds).toBe('function')
   })
 
   it('default store is a MemoryMessageStore', () => {
-    const c = new Client()
+    const c = new Client({ autoConnect: false })
     expect(c.store).toBeInstanceOf(MemoryMessageStore)
   })
 
   it('on() returns an unsubscribe function', () => {
-    const c = new Client()
+    const c = new Client({ autoConnect: false })
     const unsub = c.on('connect', () => undefined)
     expect(typeof unsub).toBe('function')
     unsub()
@@ -75,7 +75,7 @@ describe('Client — defaults', () => {
 
   it('custom store is preserved', () => {
     const store = new MemoryMessageStore()
-    const c = new Client({ store })
+    const c = new Client({ store, autoConnect: false })
     expect(c.store).toBe(store)
   })
 })

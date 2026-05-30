@@ -85,7 +85,7 @@ afterEach(() => {
 async function connectAndOpen(auth: AuthStoreBundle) {
   const sock = createMockSocket({ user: { id: 'me' } })
   makeWASocketMock.mockReturnValue(sock)
-  const c = new Client({ auth, qrTerminal: false, reconnect: { initialDelayMs: 10, jitterFactor: 0 } })
+  const c = new Client({ auth, qrTerminal: false, reconnect: { initialDelayMs: 10, jitterFactor: 0 }, autoConnect: false })
   const p = c.connect()
   sock.triggerConnectionUpdate({ connection: 'open' })
   await p
@@ -100,7 +100,7 @@ describe('Client — non-fatal disconnect schedules reconnect', () => {
     const sock2 = createMockSocket({ user: { id: 'me' } })
     let n = 0
     makeWASocketMock.mockImplementation(() => (n++ === 0 ? sock : sock2))
-    const c = new Client({ auth, qrTerminal: false, reconnect: { initialDelayMs: 10, jitterFactor: 0 } })
+    const c = new Client({ auth, qrTerminal: false, reconnect: { initialDelayMs: 10, jitterFactor: 0 }, autoConnect: false })
     const reconnecting: Array<{ attempt: number; delayMs: number }> = []
     c.on('reconnecting', (e) => reconnecting.push(e))
     const p = c.connect()
@@ -120,7 +120,7 @@ describe('Client — non-fatal disconnect schedules reconnect', () => {
     const auth = memAuth()
     const sock = createMockSocket({ user: { id: 'me' } })
     makeWASocketMock.mockReturnValue(sock)
-    const c = new Client({ auth, qrTerminal: false, reconnect: { enabled: false } })
+    const c = new Client({ auth, qrTerminal: false, reconnect: { enabled: false }, autoConnect: false })
     const reconnecting = vi.fn()
     c.on('reconnecting', reconnecting)
     const p = c.connect()
@@ -137,7 +137,7 @@ describe('Client — non-fatal disconnect schedules reconnect', () => {
     const socks = [createMockSocket(), createMockSocket(), createMockSocket(), createMockSocket()]
     let n = 0
     makeWASocketMock.mockImplementation(() => socks[n++] ?? createMockSocket())
-    const c = new Client({ auth, qrTerminal: false, reconnect: { maxAttempts: 2, initialDelayMs: 1, jitterFactor: 0 } })
+    const c = new Client({ auth, qrTerminal: false, reconnect: { maxAttempts: 2, initialDelayMs: 1, jitterFactor: 0 }, autoConnect: false })
     const reconnecting = vi.fn()
     const disconnects: Array<{ willReconnect: boolean }> = []
     c.on('reconnecting', reconnecting)
@@ -197,7 +197,7 @@ describe('Client — fatal disconnect wipes auth', () => {
 
 describe('Client.disconnect — graceful teardown', () => {
   it('disconnect() before connect is a no-op', async () => {
-    const c = new Client({ auth: memAuth() })
+    const c = new Client({ auth: memAuth(), autoConnect: false })
     await expect(c.disconnect()).resolves.toBeUndefined()
     expect(c.state).toBe('idle')
   })
@@ -252,7 +252,7 @@ describe('Client.logout — wipe + disconnect', () => {
     const sock = createMockSocket({ user: { id: 'me' } })
     sock.logout.mockRejectedValueOnce(new Error('net'))
     makeWASocketMock.mockReturnValue(sock)
-    const c = new Client({ auth, qrTerminal: false })
+    const c = new Client({ auth, qrTerminal: false, autoConnect: false })
     const p = c.connect()
     sock.triggerConnectionUpdate({ connection: 'open' })
     await p
@@ -267,8 +267,8 @@ describe('Client — multi-instance disconnect isolation', () => {
     const sockB = createMockSocket({ user: { id: 'b' } })
     let n = 0
     makeWASocketMock.mockImplementation(() => (n++ === 0 ? sockA : sockB))
-    const cA = new Client({ sessionId: 'a', auth: memAuth(), qrTerminal: false })
-    const cB = new Client({ sessionId: 'b', auth: memAuth(), qrTerminal: false })
+    const cA = new Client({ sessionId: 'a', auth: memAuth(), qrTerminal: false, autoConnect: false })
+    const cB = new Client({ sessionId: 'b', auth: memAuth(), qrTerminal: false, autoConnect: false })
     const pA = cA.connect()
     const pB = cB.connect()
     sockA.triggerConnectionUpdate({ connection: 'open' })

@@ -66,6 +66,7 @@ describe('integration: reconnect storm — exponential backoff sequence', () => 
       auth: new MemoryAuthStore(),
       qrTerminal: false,
       reconnect: { initialDelayMs: 1000, maxDelayMs: 60000, jitterFactor: 0 },
+      autoConnect: false,
     })
     const delays: number[] = []
     c.on('reconnecting', (e) => delays.push(e.delayMs))
@@ -90,6 +91,7 @@ describe('integration: reconnect storm — exponential backoff sequence', () => 
       auth: new MemoryAuthStore(),
       qrTerminal: false,
       reconnect: { initialDelayMs: 1000, jitterFactor: 0.2 },
+      autoConnect: false,
     })
     const delays: number[] = []
     c.on('reconnecting', (e) => delays.push(e.delayMs))
@@ -119,6 +121,7 @@ describe('integration: reconnect storm — exponential backoff sequence', () => 
       auth: new MemoryAuthStore(),
       qrTerminal: false,
       reconnect: { initialDelayMs: 1, jitterFactor: 0, maxAttempts: 5 },
+      autoConnect: false,
     })
     const reconnecting = vi.fn()
     const disconnects: Array<{ willReconnect: boolean }> = []
@@ -146,6 +149,7 @@ describe('integration: reconnect storm — exponential backoff sequence', () => 
       auth: new MemoryAuthStore(),
       qrTerminal: false,
       reconnect: { initialDelayMs: 1, jitterFactor: 0, maxAttempts: 3 },
+      autoConnect: false,
     })
     const reconnecting = vi.fn()
     c.on('reconnecting', reconnecting)
@@ -170,6 +174,7 @@ describe('integration: reconnect storm — exponential backoff sequence', () => 
       auth: new MemoryAuthStore(),
       qrTerminal: false,
       reconnect: { initialDelayMs: 1000, jitterFactor: 0 },
+      autoConnect: false,
     })
     const delays: number[] = []
     c.on('reconnecting', (e) => delays.push(e.delayMs))
@@ -199,6 +204,7 @@ describe('integration: reconnect storm — exponential backoff sequence', () => 
       auth: new MemoryAuthStore(),
       qrTerminal: false,
       reconnect: { initialDelayMs: 10000, jitterFactor: 0 },
+      autoConnect: false,
     })
     const p = c.connect()
     socks[0]!.triggerConnectionUpdate({ connection: 'open' })
@@ -215,7 +221,7 @@ describe('integration: reconnect storm — exponential backoff sequence', () => 
 
   it('reconnect.enabled=false suppresses entire storm', async () => {
     const socks = queueSockets(2)
-    const c = new Client({ auth: new MemoryAuthStore(), qrTerminal: false, reconnect: { enabled: false } })
+    const c = new Client({ auth: new MemoryAuthStore(), qrTerminal: false, reconnect: { enabled: false }, autoConnect: false })
     const reconnecting = vi.fn()
     c.on('reconnecting', reconnecting)
     const p = c.connect()
@@ -233,6 +239,7 @@ describe('integration: reconnect storm — exponential backoff sequence', () => 
       auth: new MemoryAuthStore(),
       qrTerminal: false,
       reconnect: { initialDelayMs: 1000, maxDelayMs: 5000, jitterFactor: 0 },
+      autoConnect: false,
     })
     const delays: number[] = []
     c.on('reconnecting', (e) => delays.push(e.delayMs))
@@ -257,6 +264,7 @@ describe('integration: reconnect storm — exponential backoff sequence', () => 
       auth: new MemoryAuthStore(),
       qrTerminal: false,
       reconnect: { maxAttempts: 0 },
+      autoConnect: false,
     })
     const reconnecting = vi.fn()
     const disconnects: Array<{ willReconnect: boolean }> = []
@@ -278,6 +286,7 @@ describe('integration: reconnect storm — exponential backoff sequence', () => 
       auth: new MemoryAuthStore(),
       qrTerminal: false,
       reconnect: { initialDelayMs: 100, jitterFactor: 0 },
+      autoConnect: false,
     })
     const reasons: string[] = []
     c.on('reconnecting', (e) => reasons.push(e.reason))
@@ -296,6 +305,7 @@ describe('integration: reconnect storm — exponential backoff sequence', () => 
       auth: new MemoryAuthStore(),
       qrTerminal: false,
       reconnect: { initialDelayMs: 100, jitterFactor: 0 },
+      autoConnect: false,
     })
     const reasons: string[] = []
     c.on('reconnecting', (e) => reasons.push(e.reason))
@@ -314,6 +324,7 @@ describe('integration: reconnect storm — exponential backoff sequence', () => 
       auth: new MemoryAuthStore(),
       qrTerminal: false,
       reconnect: { initialDelayMs: 10000, jitterFactor: 0 },
+      autoConnect: false,
     })
     const p = c.connect()
     socks[0]!.triggerConnectionUpdate({ connection: 'open' })

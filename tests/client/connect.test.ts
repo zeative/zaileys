@@ -65,7 +65,7 @@ describe('Client.connect — happy path', () => {
   it('transitions idle -> connecting on connect()', async () => {
     const sock = createMockSocket({ user: { id: 'me@s.whatsapp.net' } })
     makeWASocketMock.mockReturnValue(sock)
-    const c = new Client({ auth: memAuth() })
+    const c = new Client({ auth: memAuth(), autoConnect: false })
     const p = c.connect()
     expect(c.state).toBe('connecting')
     queueMicrotask(() => sock.triggerConnectionUpdate({ connection: 'open' }))
@@ -76,7 +76,7 @@ describe('Client.connect — happy path', () => {
   it('connection.update {qr} emits qr event with typed payload', async () => {
     const sock = createMockSocket()
     makeWASocketMock.mockReturnValue(sock)
-    const c = new Client({ auth: memAuth(), qrTerminal: false })
+    const c = new Client({ auth: memAuth(), qrTerminal: false, autoConnect: false })
     const events: Array<{ sessionId: string; qrString: string; expiresAt: number }> = []
     c.on('qr', (e) => events.push(e))
     const p = c.connect()
@@ -93,7 +93,7 @@ describe('Client.connect — happy path', () => {
   it('qrTerminal: false suppresses terminal print but still emits qr', async () => {
     const sock = createMockSocket()
     makeWASocketMock.mockReturnValue(sock)
-    const c = new Client({ auth: memAuth(), qrTerminal: false })
+    const c = new Client({ auth: memAuth(), qrTerminal: false, autoConnect: false })
     const seen = vi.fn()
     c.on('qr', seen)
     const p = c.connect()
@@ -108,7 +108,7 @@ describe('Client.connect — happy path', () => {
   it('qrTerminal: true calls printQrToTerminal', async () => {
     const sock = createMockSocket()
     makeWASocketMock.mockReturnValue(sock)
-    const c = new Client({ auth: memAuth(), qrTerminal: true })
+    const c = new Client({ auth: memAuth(), qrTerminal: true, autoConnect: false })
     const p = c.connect()
     sock.triggerConnectionUpdate({ qr: 'qr-print' })
     await new Promise((r) => setTimeout(r, 5))
@@ -120,7 +120,7 @@ describe('Client.connect — happy path', () => {
   it('connection "open" + user set emits connect with me', async () => {
     const sock = createMockSocket({ user: { id: 'wid@s.whatsapp.net', name: 'Me' } })
     makeWASocketMock.mockReturnValue(sock)
-    const c = new Client({ auth: memAuth() })
+    const c = new Client({ auth: memAuth(), autoConnect: false })
     const seen: Array<{ sessionId: string; me: { id: string } }> = []
     c.on('connect', (e) => seen.push(e))
     const p = c.connect()
@@ -133,7 +133,7 @@ describe('Client.connect — happy path', () => {
   it('connect() Promise resolves after open', async () => {
     const sock = createMockSocket({ user: { id: 'x' } })
     makeWASocketMock.mockReturnValue(sock)
-    const c = new Client({ auth: memAuth() })
+    const c = new Client({ auth: memAuth(), autoConnect: false })
     let resolved = false
     const p = c.connect().then(() => { resolved = true })
     expect(resolved).toBe(false)
@@ -148,7 +148,7 @@ describe('Client.connect — pairing', () => {
     const sock = createMockSocket({ user: { id: 'p' } })
     sock.requestPairingCode.mockResolvedValue('PAIR1234')
     makeWASocketMock.mockReturnValue(sock)
-    const c = new Client({ auth: memAuth(), authType: 'pairing', phoneNumber: '+62 812 3456 7890', qrTerminal: false })
+    const c = new Client({ auth: memAuth(), authType: 'pairing', phoneNumber: '+62 812 3456 7890', qrTerminal: false, autoConnect: false })
     const got: Array<{ code: string }> = []
     c.on('pairing-code', (e) => got.push(e))
     const p = c.connect()
@@ -162,7 +162,7 @@ describe('Client.connect — pairing', () => {
   })
 
   it('pairing without phoneNumber throws on connect', async () => {
-    const c = new Client({ auth: memAuth(), authType: 'pairing' })
+    const c = new Client({ auth: memAuth(), authType: 'pairing', autoConnect: false })
     await expect(c.connect()).rejects.toThrow(/phoneNumber/)
   })
 })
@@ -174,7 +174,7 @@ describe('Client.connect — creds + auth wiring', () => {
     bundle.creds.writeCreds = writeCreds
     const sock = createMockSocket({ user: { id: 'x' } })
     makeWASocketMock.mockReturnValue(sock)
-    const c = new Client({ auth: bundle })
+    const c = new Client({ auth: bundle, autoConnect: false })
     const p = c.connect()
     sock.triggerCredsUpdate({ updated: true })
     sock.triggerConnectionUpdate({ connection: 'open' })
@@ -186,7 +186,7 @@ describe('Client.connect — creds + auth wiring', () => {
   it('initAuthCreds invoked when readCreds returns undefined', async () => {
     const sock = createMockSocket({ user: { id: 'x' } })
     makeWASocketMock.mockReturnValue(sock)
-    const c = new Client({ auth: memAuth() })
+    const c = new Client({ auth: memAuth(), autoConnect: false })
     const p = c.connect()
     sock.triggerConnectionUpdate({ connection: 'open' })
     await p
@@ -198,7 +198,7 @@ describe('Client.connect — creds + auth wiring', () => {
     bundle.creds.readCreds = async () => ({ existing: true } as never)
     const sock = createMockSocket({ user: { id: 'x' } })
     makeWASocketMock.mockReturnValue(sock)
-    const c = new Client({ auth: bundle })
+    const c = new Client({ auth: bundle, autoConnect: false })
     initAuthCredsMock.mockClear()
     const p = c.connect()
     sock.triggerConnectionUpdate({ connection: 'open' })
@@ -213,8 +213,8 @@ describe('Client — multi-instance isolation', () => {
     const sockB = createMockSocket({ user: { id: 'b' } })
     let n = 0
     makeWASocketMock.mockImplementation(() => (n++ === 0 ? sockA : sockB))
-    const cA = new Client({ sessionId: 'a', auth: memAuth() })
-    const cB = new Client({ sessionId: 'b', auth: memAuth() })
+    const cA = new Client({ sessionId: 'a', auth: memAuth(), autoConnect: false })
+    const cB = new Client({ sessionId: 'b', auth: memAuth(), autoConnect: false })
     const sawA = vi.fn()
     const sawB = vi.fn()
     cA.on('connect', sawA)

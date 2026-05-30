@@ -85,7 +85,7 @@ async function bootWith(basePath: string) {
   const sock = makeIntegrationSocket({ user: { id: 'fatal@s.whatsapp.net' } })
   makeWASocketMock.mockReturnValue(sock)
   const store = new FileAuthStore({ basePath })
-  const c = new Client({ auth: store, qrTerminal: false, reconnect: { initialDelayMs: 1, jitterFactor: 0 } })
+  const c = new Client({ auth: store, qrTerminal: false, reconnect: { initialDelayMs: 1, jitterFactor: 0 }, autoConnect: false })
   const p = c.connect()
   sock.triggerConnectionUpdate({ connection: 'open' })
   await p
@@ -127,7 +127,7 @@ describe('integration: fatal disconnect clears FileAuthStore', () => {
     let idx = 0
     makeWASocketMock.mockImplementation(() => (idx++ === 0 ? sock : sock2))
     const store = new FileAuthStore({ basePath })
-    const c = new Client({ auth: store, qrTerminal: false, reconnect: { initialDelayMs: 50, jitterFactor: 0 } })
+    const c = new Client({ auth: store, qrTerminal: false, reconnect: { initialDelayMs: 50, jitterFactor: 0 }, autoConnect: false })
     const reconnecting = vi.fn()
     c.on('reconnecting', reconnecting)
     const p = c.connect()
@@ -192,8 +192,8 @@ describe('integration: fatal disconnect clears FileAuthStore', () => {
     const sockB = makeIntegrationSocket({ user: { id: 'b@x' } })
     let idx = 0
     makeWASocketMock.mockImplementation(() => (idx++ === 0 ? sockA : sockB))
-    const cA = new Client({ sessionId: 'a', auth: new FileAuthStore({ basePath: pathA }), qrTerminal: false })
-    const cB = new Client({ sessionId: 'b', auth: new FileAuthStore({ basePath: pathB }), qrTerminal: false })
+    const cA = new Client({ sessionId: 'a', auth: new FileAuthStore({ basePath: pathA }), qrTerminal: false, autoConnect: false })
+    const cB = new Client({ sessionId: 'b', auth: new FileAuthStore({ basePath: pathB }), qrTerminal: false, autoConnect: false })
     const pA = cA.connect()
     const pB = cB.connect()
     sockA.triggerConnectionUpdate({ connection: 'open' })
@@ -217,8 +217,8 @@ describe('integration: fatal disconnect clears FileAuthStore', () => {
     const sockB = makeIntegrationSocket({ user: { id: 'sb@x' } })
     let idx = 0
     makeWASocketMock.mockImplementation(() => (idx++ === 0 ? sockA : sockB))
-    const cA = new Client({ sessionId: 'shared', auth: new FileAuthStore({ basePath: pathA }), qrTerminal: false })
-    const cB = new Client({ sessionId: 'shared', auth: new FileAuthStore({ basePath: pathB }), qrTerminal: false })
+    const cA = new Client({ sessionId: 'shared', auth: new FileAuthStore({ basePath: pathA }), qrTerminal: false, autoConnect: false })
+    const cB = new Client({ sessionId: 'shared', auth: new FileAuthStore({ basePath: pathB }), qrTerminal: false, autoConnect: false })
     const pA = cA.connect()
     const pB = cB.connect()
     sockA.triggerConnectionUpdate({ connection: 'open' })

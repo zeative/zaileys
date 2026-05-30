@@ -55,7 +55,7 @@ beforeEach(() => {
 async function connectedClient(): Promise<{ c: Client; sock: IntegrationMockSocket }> {
   const sock = makeIntegrationSocket({ user: { id: '999@s.whatsapp.net', name: 'IT' } })
   makeWASocketMock.mockReturnValue(sock)
-  const c = new Client({ auth: new MemoryAuthStore(), qrTerminal: false })
+  const c = new Client({ auth: new MemoryAuthStore(), qrTerminal: false, autoConnect: false })
   const opening = c.connect()
   await Promise.resolve()
   simulateAuthFlow(sock, { qrFirst: false, user: { id: '999@s.whatsapp.net', name: 'IT' } })
@@ -221,19 +221,19 @@ describe('integration: Client.forward', () => {
 
 describe('integration: disconnected guard', () => {
   it('send throws when the client is not connected', () => {
-    const c = new Client({ auth: new MemoryAuthStore(), qrTerminal: false })
+    const c = new Client({ auth: new MemoryAuthStore(), qrTerminal: false, autoConnect: false })
     expect(() => c.send(JID)).toThrow(ZaileysBuilderError)
   })
 
   it('delete throws when the client is not connected', async () => {
-    const c = new Client({ auth: new MemoryAuthStore(), qrTerminal: false })
+    const c = new Client({ auth: new MemoryAuthStore(), qrTerminal: false, autoConnect: false })
     await expect(c.delete({ remoteJid: JID, id: 'x', fromMe: true })).rejects.toMatchObject({
       code: 'INVALID_OPTIONS',
     })
   })
 
   it('react throws when the client is not connected', async () => {
-    const c = new Client({ auth: new MemoryAuthStore(), qrTerminal: false })
+    const c = new Client({ auth: new MemoryAuthStore(), qrTerminal: false, autoConnect: false })
     await expect(c.react({ remoteJid: JID, id: 'x', fromMe: true }, '👍')).rejects.toMatchObject({
       code: 'INVALID_OPTIONS',
     })

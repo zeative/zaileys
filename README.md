@@ -2,7 +2,7 @@
 
 <img alt="Zaileys - Simplified WhatsApp Node.js TypeScript/JavaScript API" src="https://github.com/zeative/zeative/blob/main/libraries/zaileys/zaileys-clean.png?raw=true" width="140">
 
-<h1 align="center">Zaileys - Simplified WhatsApp Node.js <br /> TypeScript/JavaScript API</h1>
+<h1 align="center">Zaileys — Simplified WhatsApp Node.js <br /> TypeScript/JavaScript API</h1>
 
 <br>
 
@@ -10,17 +10,16 @@
   <a href="https://www.npmjs.com/package/zaileys"><img src="https://img.shields.io/npm/v/zaileys.svg" alt="NPM Version"></a>
   <a href="https://www.npmjs.com/package/zaileys"><img src="https://img.shields.io/npm/dw/zaileys?label=npm&color=%23CB3837" alt="NPM Downloads"></a>
   <a href="https://github.com/zeative/zaileys/releases"><img src="https://img.shields.io/npm/dt/zaileys" alt="NPM Downloads"></a>
-  <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/languages/code-size/zeative/zaileys" alt="GitHub Code Size"></a>
-  <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/badge/TypeScript-5.0%2B-blue?style=flat-square&logo=typescript" alt="TypeScript"></a>
+  <a href="https://github.com/zeative/zaileys/actions"><img src="https://img.shields.io/github/actions/workflow/status/zeative/zaileys/ci.yml?branch=main&label=build" alt="Build Status"></a>
+  <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/badge/TypeScript-7%20native-blue?style=flat-square&logo=typescript" alt="TypeScript 7"></a>
 </div>
 
 <div align="center">
-  <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/license/zeative/zaileys" alt="GitHub License"></a>
+  <a href="https://github.com/zeative/zaileys/blob/main/LICENSE"><img src="https://img.shields.io/github/license/zeative/zaileys" alt="GitHub License"></a>
   <a href="https://discord.gg/KBHhTTVUc5"><img alt="Discord" src="https://img.shields.io/discord/1105833273415962654?logo=discord&label=discord&link=https%3A%2F%2Fgithub.com%2Fzeative%2Fzaileys"></a>
   <a href="https://chat.whatsapp.com/GlQfvc83mSH3F6ov06vuCt"><img alt="WhatsApp" src="https://img.shields.io/badge/WhatsApp-Group-25D366?logo=whatsapp&logoColor=white"></a>
   <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/stars/zeative/zaileys" alt="GitHub Stars"></a>
   <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/forks/zeative/zaileys" alt="GitHub Forks"></a>
-  <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/watchers/zeative/zaileys" alt="GitHub Watchers"></a>
   <a href="https://deepwiki.com/zeative/zaileys"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
 </div>
 
@@ -28,28 +27,18 @@
 
 <div align="center">
   <p>
-    <b>Zaileys</b> is a powerful, type-safe wrapper around <a href="https://github.com/WhiskeySockets/Baileys">Baileys</a>, designed to simplify the development of WhatsApp bots. It provides a robust architecture with built-in state management, middleware support, and easy-to-use event handlers, making it perfect for building scalable and maintainable WhatsApp applications.
+    <b>Zaileys</b> is a type-safe wrapper around <a href="https://github.com/WhiskeySockets/Baileys">Baileys</a> that makes building WhatsApp bots feel effortless. Construct a <code>Client</code>, listen for typed events, and send rich messages with a chainable builder — auth, reconnect, and storage are handled for you.
   </p>
 </div>
 
 <div align="center">
 
-[🚀 Overview](#-overview) &nbsp;&nbsp;•&nbsp;&nbsp;
-[🪶 Features](#-features) &nbsp;&nbsp;•&nbsp;&nbsp;
-[📦 Installation](#-installation) &nbsp;&nbsp;•&nbsp;&nbsp;
-[🏁 Starter Kit](#-starter-kit) &nbsp;&nbsp;•&nbsp;&nbsp;
 [⚡ Quick Start](#-quick-start) &nbsp;&nbsp;•&nbsp;&nbsp;
-[🧩 Plugins](#-plugins) &nbsp;&nbsp;•&nbsp;&nbsp;
-[📨 Sending Messages](#-sending-messages) &nbsp;&nbsp;•&nbsp;&nbsp;
-[👥 Group Management](#-group-management) &nbsp;&nbsp;•&nbsp;&nbsp;
-[📰 Newsletter Management](#-newsletter-channel) &nbsp;&nbsp;•&nbsp;&nbsp;
-[🌐 Community Management](#-community-management) &nbsp;&nbsp;•&nbsp;&nbsp;
-[🔒 Privacy](#-privacy-settings) &nbsp;&nbsp;•&nbsp;&nbsp;
-[🤝 Contributing](#-contributing)
-
-<br>
-
-<a href="https://discord.gg/KBHhTTVUc5"><img alt="Discord" src="https://discord.com/api/guilds/1105833273415962654/widget.png?style=banner2"></a>
+[🪶 Highlights](#-highlights) &nbsp;&nbsp;•&nbsp;&nbsp;
+[📦 Install](#-install) &nbsp;&nbsp;•&nbsp;&nbsp;
+[🎯 Feature Tours](#-feature-tours) &nbsp;&nbsp;•&nbsp;&nbsp;
+[🗂️ Storage Adapters](#️-storage-adapters) &nbsp;&nbsp;•&nbsp;&nbsp;
+[📚 Docs & Links](#-docs--links)
 
 </div>
 
@@ -59,1211 +48,188 @@
 
 ---
 
-## 🚀 Overview
+## ⚡ Quick Start
 
-> Zaileys solves the complexity of managing raw WhatsApp socket connections by providing a high-level, opinionated API. It is built for developers who need to create bots, customer support agents, or automated notification systems without getting bogged down in protocol details.
+Install, create a `Client`, and you are online. There is no `await connect()` — the client auto-connects on construction, so any `on(...)` handler you register synchronously is wired up before the first event fires.
 
-Targeting **Node.js** and **TypeScript** developers, Zaileys integrates essential features like rate limiting, session management, and input validation out of the box.
+```typescript
+import { Client } from 'zaileys'
 
-### 🌟 What's New in v3 (Performance & Stability Core)
+const client = new Client()
 
-- 🚀 **Unified Store Architecture**: Say goodbye to messy caches! We've elegantly grouped all scattered memory into a single, highly-optimized **Registry Pattern**. Enjoy zero memory leaks and strict namespaces for absolute peace of mind.
-- ⚡ **FireAndForget v3 Engine**: Background tasks just got superpowers! Now fully event-based with smart priority channels (`CRITICAL` to `LOW`). It automatically prevents queue clogs, handles smart retries, and shuts down gracefully.
-- 🛡️ **Auto-Healing Connections**: Maximum uptime, zero headaches! Zaileys now brilliantly catches nasty connection drops (like those sneaky `405` stale sessions) and seamlessly auto-reconnects behind the scenes instead of crashing.
-- 🎬 **Decoupled Media Processing**: We've trimmed the fat! All FFmpeg and image magic are now safely housed in an ultra-robust standalone package (`@zaadevofc/media-process`), making the core platform incredibly lightweight.
-- 🏎️ **Lightning Database & Slim Dependencies**: Speed is everything. We crushed bloat by upgrading to blazing-fast `lmdb` and swapping heavy libraries (`zod`, `lodash`) for modern speed demons like `valibot` and `radashi`.
+client.on('qr', ({ qrString }) => console.log('Scan this QR:', qrString))
+client.on('connect', ({ me }) => console.log('Connected as', me.id))
 
-## 🪶 Features
+client.on('text', async (msg) => {
+  await client.send(msg.jid).text('Halo!')
+})
+```
 
-- ✅ **Type-Safe** - Full TypeScript + `Valibot` validation with autocomplete
-- ✅ **Middleware** - Intercept and process events globally
-- ✅ **Plugin System** - Drop-in file-based plugins with on/off controls
-- ✅ **State Management** - Built-in [LMDB](https://github.com/kriszyp/lmdb-js) for blazing-fast database persistence with **auto chunking** for heap safety
-- ✅ **Rate Limiting** - Anti-spam protection powered by lightning-fast native LRU bounds
-- ✅ **Multi-Device** - QR code or Pairing Code authentication
-- ✅ **Built-in FFmpeg** - No external dependencies for media processing
-- ✅ **Interactive Buttons** - Simple buttons, URL, copy code, call buttons, multi-card carousel and lists
-- ✅ **Auto Clean Up** - Periodic database maintenance to save space
+That is the whole bot. Scan the printed QR with WhatsApp → Linked Devices, and every text message gets a reply.
 
-## 🎨 Concepts & Architecture
+Prefer a pairing code instead of a QR? Pass your number:
 
-**Client** - Your bot's brain. Manages connections, events, and the entire lifecycle.
+```typescript
+const client = new Client({ authType: 'pairing', phoneNumber: '6281234567890' })
 
-**Context** - Rich event objects with all the data and helpers you need.
+client.on('pairing-code', ({ code }) => console.log('Enter this code in WhatsApp:', code))
+```
 
-**Middleware** - Pre-process events for logging, auth, spam filtering, or custom logic.
+## 🪶 Highlights
 
-**Plugins** - Drop files in `plugins/` directory. Auto-loaded, zero config.
+- ✅ **Typed events** — `on('text' | 'image' | 'reaction' | 'group-update' | ...)` with fully-typed payloads and IntelliSense. No raw Baileys decoding.
+- ✅ **Chainable builder** — `client.send(jid).text(...).reply(quoted).mentions([...])` returns the sent message key when awaited.
+- ✅ **Auto auth lifecycle** — QR or pairing-code selected from config, auto-reconnect with backoff, clean logout.
+- ✅ **Pluggable storage** — separate `AuthStore` and `MessageStore` interfaces with `file` (default), `sqlite`, `redis`, and `postgres` adapters.
+- ✅ **Command framework** — opt-in `client.command('hello', ctx => ...)` with configurable prefix, middleware, and argument parsing.
+- ✅ **Automation utilities** — `client.broadcast(jids, builder, { rateLimitPerSec })` and `client.scheduleAt(date, builder)` with built-in rate limiting.
+- ✅ **Dual ESM/CJS** — ships both `import` and `require` entry points plus `.d.ts` types.
+- ✅ **TypeScript 7 native** — built and type-checked with the native (Go) TypeScript compiler.
+- ✅ **Baileys 7.0.0-rc13** — latest upstream, including the CVE-2026-48063 spoofing patch.
 
-**Store** - Lightning-fast database (`LMDB`) that auto-syncs chats, contacts, messages, and cryptographic keys.
-
-## 📦 Installation
-
-Install `zaileys` using your preferred package manager:
+## 📦 Install
 
 ```bash
-npm install zaileys
+npm i zaileys
 # or
 pnpm add zaileys
 # or
 yarn add zaileys
 ```
 
-> **Note**: Requires Node.js v20+ and TypeScript for best experience.
+Requires **Node.js v20+**. The `file` storage adapter is the zero-config default and needs no extra dependencies.
 
-> **FFmpeg**: No need to install FFmpeg separately! It's already bundled with Zaileys for seamless media processing (audio, video, stickers). You can disabled it if you want at `Client Configuration`.
+Storage adapters other than `file` rely on optional peer dependencies — install only the one you use:
 
-## 🏁 Starter Kit
-
-Prefer a ready-to-run setup? We provide a complete example that covers messages, media, buttons, carousel, polls, and more — ready to copy and go.
-
-👉 [**examples/basic.ts**](./examples/basic.ts) — Clean, comprehensive starter with all features demonstrated
-
-## ⚡ Quick Start
-
-Here is a minimal example to get your bot running with QR code authentication:
-
-```typescript
-import { Client } from 'zaileys';
-// or
-const { Client } = require('zaileys');
-
-const wa = new Client({
-  // dynamic session you can change
-  session: 'zaileys', // default
-
-  // qr code
-  authType: 'qr',
-
-  // pairing code
-  authType: 'pairing',
-  phoneNumber: 6280000000,
-
-  // for detailed logs
-  // fancyLogs: true,
-
-  // if you want to disable built-in ffmpeg
-  // disableFFmpeg: true,
-
-  // plugin configuration
-  pluginsDir: 'plugins', // default
-  pluginsHmr: true, // default: true (auto reload plugins on change)
-
-  sticker: {
-    authorName: 'your name',
-    packageName: 'package name',
-    quality: 80,
-    shape: 'circle', // output sticker must be circle
-  },
-});
-
-wa.on('messages', async (ctx) => {
-  if (ctx.text == 'ping') {
-    await wa.send(ctx.roomId, 'Pong! 🏓');
-  }
-});
+```bash
+npm i better-sqlite3   # for SqliteAuthStore / SqliteMessageStore
+npm i redis            # for RedisAuthStore / RedisMessageStore
+npm i pg               # for PostgresAuthStore / PostgresMessageStore
 ```
 
-<details>
-  <summary>✨ Structure of <b>ctx</b> on event listener <code>messages</code></summary>
-  
-```jsonc
-{
-  "uniqueId": "Z4D3FCXXXXXXXXXXXXX",
-  "channelId": "Z4D3FCXXXXXXXXXXXXX",
+## 🎯 Feature Tours
 
-  "chatId": "ACAE07XXXXXXXXXXXXX",
-  "chatType": "text",
+### Typed events
 
-  "receiverId": "628xxxxxxxx@s.whatsapp.net",
-  "receiverName": "Zaileys",
-
-  "roomId": "120xxxxxxxx@g.us",
-  "roomName": "Group Test",
-  "senderLid": "272xxxxxxxx@lid",
-
-  "senderId": "628xxxxxxxx@s.whatsapp.net",
-  "senderName": "kejaa",
-  "senderDevice": "android",
-
-  "timestamp": 1766045633000,
-  "text": "World Hello! https://github.com/zeative/zaileys",
-
-  "mentions": ["@628xxxxxxxx", "@123xxxxxxxx"],
-  "links": ["https://github.com/zeative/zaileys"],
-
-  "isBot": false,
-  "isFromMe": false,
-  "isPrefix": false,
-  "isTagMe": false,
-
-  "isStatusMention": false,
-  "isGroupStatusMention": false,
-  "isHideTags": true,
-
-  "isSpam": false,
-  "isGroup": true,
-  "isNewsletter": false,
-  "isQuestion": false,
-  "isStory": false,
-
-  "isViewOnce": false,
-  "isEdited": false,
-  "isDeleted": false,
-  "isPinned": false,
-  "isUnPinned": false,
-
-  "isBroadcast": false,
-  "isEphemeral": false,
-  "isForwarded": false,
-
-  "citation": {
-    "authors": [AsyncFunction (anonymous)],
-    "banned": [AsyncFunction (anonymous)]  
-  },
-
-  "media": {
-  // ...
-  // buffer promise
-  // stream promise
-  },
-
-  "message": [Function (anonymous)],
-  "replied": {} // MessagesContext
-}
-
-````
-</details>
-
-## 🛠️ Configuration
-
-The `Client` constructor accepts a configuration object. Below are the valid options based on the library's type definitions.
-
-### General Options
-
-These options apply to both authentication methods:
-
-| Option            | Type      | Default     | Description                             |
-| :---------------- | :-------- | :---------- | :-------------------------------------- |
-| `session`         | `string`  | `'zaileys'` | Name of the session folder.             |
-| `prefix`          | `string`  | `undefined` | Command prefix (e.g., `'/'`).           |
-| `showLogs`        | `boolean` | `true`      | Enable internal logging.                |
-| `fancyLogs`       | `boolean` | `false`     | Enable detailed, fancy log output.      |
-| `ignoreMe`        | `boolean` | `true`      | Ignore messages sent by the bot itself. |
-| `syncFullHistory` | `boolean` | `true`      | Sync full chat history on startup.      |
-| `pluginsDir`      | `string`  | `'plugins'` | Directory where plugins are located.    |
-| `pluginsHmr`      | `boolean` | `true`      | Enable Hot Module Replacement for plugins. |
-| `showSpinner`     | `boolean` | `true`      | Shows a loading console spinner for internal system events. |
-| `maxReplies`      | `number`  | `3`         | Restricts recursive payload parsing for nested replied chains. |
-| `cleanupDays`     | `number`  | `7`         | Days to keep messages before auto-deletion. |
-| `autoCleanUp`     | `object`  | `undefined` | Configuration for periodic database cleanup. |
-| `disableFFmpeg`   | `boolean` | `false`     | Disable built-in FFmpeg installers.     |
-| `deleteSessionOnLogout`| `boolean`| `false`     | Automatically deletes invalid `.session` state and forces a fresh QR scan if connection expires (loggedOut code 401). |
-
-### Automation Options
-
-| Option           | Type      | Default | Description                                                |
-| :--------------- | :-------- | :------ | :--------------------------------------------------------- |
-| `autoRead`       | `boolean` | `true`  | Automatically mark messages as read.                       |
-| `autoOnline`     | `boolean` | `true`  | Automatically set presence to online.                      |
-| `autoPresence`   | `boolean` | `true`  | Automatically send presence updates (composing/recording). |
-| `autoMentions`   | `boolean` | `true`  | Automatically handle mentions.                             |
-| `autoRejectCall` | `boolean` | `true`  | Automatically reject incoming calls.                       |
-
-### Advanced Configuration
-
-| Option      | Type     | Description                                                                     |
-| :---------- | :------- | :------------------------------------------------------------------------------ |
-| `limiter`   | `object` | Rate limiting configuration. Default: `maxMessages: 20, durationMs: 10_000`.    |
-| `fakeReply` | `object` | Configuration for fake reply provider.                                          |
-| `sticker`   | `object` | Default metadata for sticker creation (`packageName`, `authorName`, `quality`, `shape`). |
-| `citation`  | `object` | Custom citation sources.                                                        |
-
-## 💡 Advanced Usage
-
-### Middleware & Spam Protection
-
-You can use middleware to filter messages or add custom logic before your handlers run.
+Each event has its own typed payload — no manual decoding, no `any`.
 
 ```typescript
-wa.use(async (ctx, next) => {
-  if (ctx.messages.isSpam) {
-    console.warn(`Spam detected from ${ctx.messages.senderName}`);
-    return;
-  }
+client.on('text', async (msg) => {
+  await client.send(msg.jid).text(`You said: ${msg.content}`)
+})
 
-  await next();
-});
-````
+client.on('image', async (msg) => {
+  const { buffer } = await msg.download()
+  console.log('Got an image of', buffer.length, 'bytes')
+})
 
-### 🧩 Plugins
-
-Zaileys features a built-in file-based plugin system with **Hot Module Replacement (HMR)** support. By default, it looks for plugins in the `plugins` directory of your project root and automatically reloads them when you make changes.
-
-**0. Configuration:**
-You can customize the plugin directory and HMR behavior in the `Client` constructor:
-
-```typescript
-const wa = new Client({
-  pluginsDir: 'my-plugins', // Custom plugins directory
-  pluginsHmr: true, // Enable/disable HMR (default: true)
-});
+client.on('reaction', (msg) => console.log(msg.sender.pushName, 'reacted with', msg.emoji))
+client.on('group-update', (evt) => console.log('Group changed:', evt.groupId))
 ```
 
-**1. Create a plugin file** (e.g., `plugins/hello.ts`):
+### Chainable builder
 
-also nested file `plugins/nested1/nested2/hello.ts`
-
-```typescript
-import { definePlugins } from 'zaileys';
-
-export default definePlugins(
-  async (wa, ctx) => {
-    await wa.send(ctx.messages.roomId, 'Hello from plugin!');
-  },
-  {
-    matcher: ['/hello', '!hello'], // Trigger commands
-    metadata: {
-      description: 'A simple hello world plugin',
-    },
-  },
-);
-```
-
-**2. Extract plugin information** (optional):
+`client.send(jid)` returns a builder. Chain content + modifiers, then `await` to send.
 
 ```typescript
-const pluginsInfo = wa.plugins.getPluginsInfo();
+await client.send(jid).text('Hello there')
 
-/* Example output 
-[
-  {
-    matcher: ['/hello', '!hello'],
-    metadata: {
-      description: 'A simple hello world plugin',
-    },
-  }
-]
-*/
+await client
+  .send(jid)
+  .text('Reply with a mention')
+  .reply(quotedKey)
+  .mentions(['6281234567890@s.whatsapp.net'])
+
+await client.send(jid).image('https://example.com/photo.jpg', { caption: 'Nice shot' })
+
+await client.send(jid).poll('Pick one', ['Red', 'Green', 'Blue'])
+
+await client.send(jid).album([
+  { type: 'image', src: './a.jpg' },
+  { type: 'image', src: './b.jpg' },
+])
 ```
 
-This returns an array of all loaded plugins with their `matcher` and `metadata`, useful for generating help menus or listing available commands.
-
-**3. Plugin Controls:**
+Mutate existing messages — every send returns the new `WAMessageKey`:
 
 ```typescript
-// Disable all plugins
-wa.plugins.disableAll();
-
-// Enable all plugins
-wa.plugins.enableAll();
-
-// Disable specific plugin by matcher
-wa.plugins.disable('/hello');
-
-// Enable specific plugin
-wa.plugins.enable('/hello');
-
-// Disable all plugins in a folder (e.g., plugins/admin/)
-wa.plugins.disableByParent('admin');
-
-// Enable all plugins in a folder
-wa.plugins.enableByParent('admin');
-
-// Check if plugins are globally enabled
-wa.plugins.isEnabled(); // true/false
+const key = await client.send(jid).text('Original')
+await client.edit(key).text('Edited')
+await client.react(key, '👍')
+await client.delete(key, { forEveryone: true })
+await client.forward(key, otherJid)
 ```
 
-### 🔐 Citation (Custom Authorization)
+### Command framework
 
-Citation allows you to define custom authorization logic by creating named checkers that verify if a user is in a specific list (e.g., premium users, banned users).
-
-**1. Configure citation sources** in the client options:
+Set a `commandPrefix` to activate commands. Handlers receive a typed context with parsed `args` and reply helpers.
 
 ```typescript
-const wa = new Client({
-  authType: 'qr',
-  citation: {
-    premium: async () => {
-      // const numbers = await fetch...
-      return [6280000000, 12388888888];
-    },
-    banned: async () => {
-      return [6285555555555];
-    },
-  },
-});
+const client = new Client({ commandPrefix: ['/', '!'] })
+
+client.use(async (ctx, next) => {
+  console.log('command:', ctx.command, 'args:', ctx.args)
+  await next()
+})
+
+client.command('ping', async (ctx) => {
+  await ctx.reply('pong 🏓')
+})
+
+client.command('echo', async (ctx) => {
+  await ctx.reply(ctx.args.join(' '))
+})
 ```
 
-**2. Use citation in your message handlers**:
+### Broadcast & schedule
 
 ```typescript
-wa.on('messages', async (ctx) => {
-  const isBanned = await ctx.citation.banned();
-  const isPremium = await ctx.citation.premium();
+await client.broadcast(
+  ['6281111111111@s.whatsapp.net', '6282222222222@s.whatsapp.net'],
+  (b) => b.text('Announcement to everyone'),
+  { rateLimitPerSec: 5 },
+)
 
-  if (isBanned) return;
-
-  if (isPremium) {
-    await wa.send(ctx.roomId, 'Premium feature unlocked!');
-  }
-});
+const job = await client.scheduleAt(new Date(Date.now() + 60_000), (b) =>
+  b.text('This sends one minute from now'),
+)
 ```
 
-Each citation function returns `true` if the sender matches any ID in the returned list, `false` otherwise.
+## 🗂️ Storage Adapters
 
-**How it works:**
-
-Citation functions return an array of phone numbers, group id and lid Internally, Zaileys compares the sender's ID against this list by checking:
-
-- `roomId` - The chat/group ID
-- `senderId` - The sender's WhatsApp ID
-- `senderLid` - The sender's LID
-
-If any of these match a number in your returned array, the citation check returns `true`. This makes it flexible for both individual chats and group scenarios.
-
-### 🔌 Context Injection
-
-Context Injection allows you to inject custom data that is accessible in every message context.
-
-**1. Inject data:**
+Auth state and message history use two independent interfaces, so you can mix and match — for example auth in Redis and messages in Postgres.
 
 ```typescript
-// Inject data anywhere in your app
-wa.inject('user', { name: 'Kejaa', role: 'admin' });
-wa.inject('config', { debug: true, version: '1.0.0' });
+import { Client, SqliteAuthStore, RedisMessageStore } from 'zaileys'
+
+const client = new Client({
+  auth: new SqliteAuthStore({ database: './auth.db' }),
+  store: new RedisMessageStore({ url: 'redis://localhost:6379' }),
+})
 ```
 
-**2. Access injected data in handlers:**
-
-```typescript
-wa.on('messages', async (ctx) => {
-  console.log(ctx.injection.user); // { name: 'John', role: 'admin' }
-  console.log(ctx.injection.config); // { debug: true, version: '1.0.0' }
-});
-```
-
-**3. Manage injections:**
-
-```typescript
-// Get injection value
-const user = wa.getInjection('user');
-
-// Remove specific injection
-wa.removeInjection('user');
-
-// Clear all injections
-wa.clearInjections();
-```
-
-This is perfect for sharing database connections, user sessions, or configuration across all handlers.
-
-### 🛡️ Auto-Healing
-
-Zaileys includes an intelligent `HealthManager` that monitors your connection and automatically repairs corrupted sessions.
-
-- **Bad MAC Repair**: Automatically detects "Bad MAC" errors and repairs the affected session keys without requiring a full logout.
-- **Log Suppression**: Silences noisy stack traces and internal error messages from `libsignal-node` to keep your terminal clean.
-- **Zero Config**: Enabled by default and works silently in the background.
-
-### 🧹 Auto Clean Up
-
-Keep your database lean and performant by enabling automatic cleanup of old messages.
-
-```typescript
-const wa = new Client({
-  autoCleanUp: {
-    enabled: true,
-    intervalMs: 60 * 60 * 1000, // Run every 1 hour
-    maxAgeMs: 24 * 60 * 60 * 1000, // Delete messages older than 24 hours
-    scopes: ['messages'], // Database scopes to clean
-  },
-});
-```
-
-The `CleanUpManager` runs in the background and ensures your storage usage stays within limits.
-
-## 📫 Sending Messages
-
-> **Quick Jump:** [Text](#send-text) · [Reply](#reply-to-message) · [Forward](#forward-message) · [Media](#send-media) · [Banner](#send-with-banner) · [Location](#send-location) · [Contact](#send-contact) · [Poll](#send-poll) · [Reaction](#send-reaction) · [Presence](#update-presence) · [Mentions](#mentions) · [Edit & Delete](#edit--delete-messages) · [Buttons](#interactive-buttons) · [Member Label](#member-label)
-
-### Send Text
-
-Send a simple text message to any chat.
-
-```typescript
-await wa.send(ctx.roomId, 'Hello World!');
-
-await wa.send(ctx.roomId, {
-  text: 'Hello with options!',
-});
-```
-
-### Reply to Message
-
-Reply to a specific message using the `replied` option.
-
-```typescript
-await wa.send(ctx.roomId, {
-  text: 'This is a reply!',
-  replied: ctx.message(),
-});
-```
-
-### Forward Message
-
-Forward message to any chat.
-
-```typescript
-await wa.forward(ctx.roomId, {
-  text: 'Forwarded message',
-  isForwardedMany: true,
-});
-```
-
-### Send Media
-
-Send images, videos, audio, stickers, or documents. Media can be a URL, Buffer, or base64 string.
-
-**Image:**
-
-```typescript
-await wa.send(ctx.roomId, {
-  image: 'https://example.com/image.jpg',
-  caption: 'Check this out!',
-});
-
-await wa.send(ctx.roomId, {
-  image: fs.readFileSync('./image.jpg'),
-  caption: 'Image from buffer',
-  isViewOnce: true,
-});
-```
-
-**Video:**
-
-```typescript
-await wa.send(ctx.roomId, {
-  video: 'https://example.com/video.mp4',
-  caption: 'Cool video!',
-  ptv: true,
-});
-```
-
-**Audio:**
-
-```typescript
-await wa.send(ctx.roomId, {
-  audio: 'https://example.com/audio.mp3',
-  ptt: true,
-});
-```
-
-**Sticker:**
-
-```typescript
-// support gif and video
-await wa.send(ctx.roomId, {
-  sticker: 'https://example.com/sticker.mp4',
-  shape: 'circle', // default: 'default' | 'circle' | 'rounded' | 'oval'
-});
-```
-
-**Document:**
-
-```typescript
-await wa.send(ctx.roomId, {
-  document: 'https://example.com/file.pdf',
-  fileName: 'document.pdf',
-  caption: 'Here is the file',
-});
-```
-
-### Send with Banner
-
-Send messages with an external ad reply banner (link preview).
-
-```typescript
-await wa.send(ctx.roomId, {
-  text: 'Banner message!',
-  banner: {
-    thumbnailUrl: 'https://github.com/zeative.png',
-    sourceUrl: 'https://jaa.web.id',
-    title: 'Test Banner',
-    body: 'Hello World!',
-  },
-});
-```
-
-### Send Location
-
-Send location with coordinates.
-
-```typescript
-await wa.send(ctx.roomId, {
-  location: {
-    latitude: -6.2,
-    longitude: 106.816666,
-    title: 'Jakarta',
-    footer: 'Capital of Indonesia',
-    url: 'https://maps.google.com/?q=-6.200000,106.816666',
-  },
-});
-```
-
-### Send Contact
-
-Send one or multiple contacts.
-
-```typescript
-await wa.send(ctx.roomId, {
-  contacts: {
-    title: 'My Contacts',
-    contacts: [
-      {
-        fullname: 'John Doe',
-        phoneNumber: 6281234567890,
-        organization: 'Company Inc.',
-      },
-      {
-        fullname: 'Jane Smith',
-        phoneNumber: 6289876543210,
-      },
-    ],
-  },
-});
-```
-
-### Send Poll
-
-Create a poll with multiple options.
-
-```typescript
-await wa.send(ctx.roomId, {
-  poll: {
-    name: 'What is your favorite color?',
-    answers: ['Red', 'Blue', 'Green', 'Yellow'],
-    isMultiple: false,
-  },
-});
-```
-
-### Send Reaction
-
-React to a message with an emoji.
-
-```typescript
-await wa.reaction(ctx.message(), '👍');
-
-await wa.reaction(ctx.message(), '❤️');
-```
-
-### Update Presence
-
-Update your presence status in a chat.
-
-```typescript
-await wa.presence(ctx.roomId, 'typing');
-
-await wa.presence(ctx.roomId, 'recording');
-```
-
-### Mentions
-
-Mentions are automatically detected when `autoMentions` is enabled (default: `true`).
-
-```typescript
-// support lid
-await wa.send(ctx.roomId, 'Hello @6281234567890!');
-```
-
-### Edit & Delete Messages
-
-**Edit message:**
-
-```typescript
-const sent = await wa.send(ctx.roomId, 'Original text');
-
-setTimeout(async () => {
-  await wa.edit(sent, 'Edited text');
-}, 2000);
-```
-
-**Delete message:**
-
-```typescript
-const sent = await wa.send(ctx.roomId, 'This will be deleted');
-
-setTimeout(async () => {
-  await wa.delete(sent);
-}, 2000);
-
-// or multiple messages
-await wa.delete([sent1, sent2]);
-```
-
-### Interactive Buttons
-
-Send messages with interactive buttons.
-
-**Simple Buttons:**
-
-> ✅ Simple button type is **fully supported on all devices** — Android, iOS, and **WhatsApp Desktop/Web**.
-
-```typescript
-await wa.button(ctx.roomId, {
-  text: 'Choose an option:',
-  buttons: {
-    type: 'simple',
-    footer: 'Footer text',
-    data: [
-      { id: 'btn1', text: 'Option 1' },
-      { id: 'btn2', text: 'Option 2' },
-      { id: 'btn3', text: 'Option 3' },
-    ],
-  },
-});
-```
-
-**Interactive Buttons:**
-
-> ⚠️ Experimental, only support Android/iPhone
-
-```typescript
-await wa.button(ctx.roomId, {
-  text: 'Interactive menu:',
-  buttons: {
-    type: 'interactive',
-    footer: 'Footer text',
-    data: [
-      { type: 'quick_reply', id: 'reply1', text: 'Quick Reply' },
-      { type: 'cta_url', text: 'Visit Website', url: 'https://example.com' },
-      { type: 'cta_copy', id: 'copy1', text: 'Copy Code', copy: 'PROMO123' },
-      { type: 'cta_call', text: 'Call Us', phoneNumber: '+6281234567890' },
-    ],
-  },
-});
-```
-
-**Lists Buttons:**
-
-> ⚠️ Experimental, not supported on some devices. Don't use in production!
-
-```typescript
-await wa.button(ctx.roomId, {
-  text: 'Choose an option:',
-  buttons: {
-    type: 'interactive',
-    footer: 'Footer text',
-    data: [
-      {
-        type: 'single_select',
-        text: 'Choose an option:',
-        section: [
-          {
-            title: 'Section 1',
-            rows: [
-              { id: 'btn1', title: 'Option 1' },
-              { id: 'btn2', title: 'Option 2' },
-              { id: 'btn3', title: 'Option 3' },
-            ],
-          },
-        ],
-      },
-    ],
-  },
-});
-```
-
-**Carousel Buttons:**
-
-> ⚠️ Carousel button is supported on **Android** and **WhatsApp Desktop/Web** only. iOS is currently not supported. Each card can include an image or video header with native flow buttons.
-
-```typescript
-await wa.button(ctx.roomId, {
-  text: 'Check out our products!',
-  buttons: {
-    type: 'carousel',
-    data: [
-      {
-        body: 'Product A - Premium quality',
-        footer: 'Starting from $9.99',
-        header: {
-          title: 'Product A',
-          image: 'https://example.com/product-a.jpg',
-          hasMediaAttachment: true,
-        },
-        nativeFlow: [
-          { type: 'cta_url', text: 'Buy Now', url: 'https://example.com/product-a' },
-          { type: 'quick_reply', id: 'fav_a', text: '❤️ Favorite' },
-        ],
-      },
-      {
-        body: 'Product B - Best value',
-        footer: 'Starting from $4.99',
-        header: {
-          title: 'Product B',
-          image: 'https://example.com/product-b.jpg',
-          hasMediaAttachment: true,
-        },
-        nativeFlow: [
-          { type: 'cta_url', text: 'Buy Now', url: 'https://example.com/product-b' },
-          { type: 'cta_copy', id: 'code_b', text: 'Copy Promo Code', copy: 'SAVE20' },
-        ],
-      },
-    ],
-  },
-});
-```
-
-### Member Label
-
-Labeling user member on group chat.
-
-```typescript
-await wa.memberLabel(ctx.roomId, 'Fullstack Developer');
-```
-
-## 👥 Group Management
-
-> **Quick Jump:** [Create](#create-group) · [Participants](#manage-participants) · [Profile](#group-profile) · [Settings](#group-settings) · [Invite Code](#invite-code) · [Metadata](#group-metadata) · [Join Requests](#join-requests) · [Fetch All](#fetch-all-groups) · [Ephemeral](#ephemeral-messages) · [Leave](#leave-group)
-
-Manage groups, participants, and settings easily.
-
-### Create Group
-
-Create a new group with initial participants.
-
-```typescript
-// Create group with name and participants
-const group = await wa.group.create('My Group', ['senderId']);
-console.log('Group created:', group);
-```
-
-### Manage Participants
-
-Add, remove, promote, or demote participants.
-
-```typescript
-const groupId = '1234567890@g.us';
-
-// Add participants
-await wa.group.participant(groupId, ['senderId'], 'add');
-
-// Remove participants
-await wa.group.participant(groupId, [...], 'remove');
-
-// Promote to admin
-await wa.group.participant(groupId, [...], 'promote');
-
-// Demote to member
-await wa.group.participant(groupId, [...], 'demote');
-```
-
-### Group Profile
-
-Update group subject, description, or icon.
-
-```typescript
-// Update subject
-await wa.group.profile(groupId, 'New Group Name', 'subject');
-
-// Update description
-await wa.group.profile(groupId, 'This is the new description', 'description');
-
-// Update group avatar (from URL or Buffer)
-await wa.group.profile(groupId, 'https://example.com/icon.jpg', 'avatar');
-```
-
-### Group Settings
-
-Configure group permissions.
-
-```typescript
-// All members can send messages
-await wa.group.setting(groupId, 'open');
-
-// Only admins can send messages
-await wa.group.setting(groupId, 'close');
-
-// Only admins can edit group info
-await wa.group.setting(groupId, 'locked');
-
-// All members can edit group info
-await wa.group.setting(groupId, 'unlocked');
-
-// Only admins can add members
-await wa.group.setting(groupId, 'admin_add');
-
-// All members can add members
-await wa.group.setting(groupId, 'all_member_add');
-```
-
-### Invite Code
-
-Manage group invite links.
-
-```typescript
-// Get current invite code
-const code = await wa.group.inviteCode(groupId, 'code');
-console.log('Invite link:', `https://chat.whatsapp.com/${code}`);
-
-// Revoke invite code
-await wa.group.inviteCode(groupId, 'revoke');
-
-// Get invite info
-const info = await wa.group.inviteCode('INVITE_CODE', 'info');
-
-// Join group via invite code
-await wa.group.inviteCode('INVITE_CODE', 'accept');
-```
-
-### Group Metadata
-
-Get full group metadata.
-
-```typescript
-const metadata = await wa.group.metadata(groupId);
-console.log(metadata);
-```
-
-### Join Requests
-
-Manage pending join requests.
-
-```typescript
-// Get list of pending requests
-const requests = await wa.group.requestJoinList(groupId);
-
-// Approve requests
-await wa.group.requestJoin(groupId, ['senderId'], 'approve');
-
-// Reject requests
-await wa.group.requestJoin(groupId, [...], 'reject');
-```
-
-### Fetch All Groups
-
-Get all groups the bot is part of.
-
-```typescript
-const groups = await wa.group.fetchAllGroups();
-console.log('Joined groups:', Object.keys(groups).length);
-```
-
-### Ephemeral Messages
-
-Set disappearing messages in groups.
-
-```typescript
-// Turn off disappearing messages
-await wa.group.ephemeral(groupId, 'off');
-
-// Set to 24 hours
-await wa.group.ephemeral(groupId, '24h');
-
-// Set to 7 days
-await wa.group.ephemeral(groupId, '7d');
-
-// Set to 90 days
-await wa.group.ephemeral(groupId, '90d');
-```
-
-### Leave Group
-
-Leave group.
-
-```typescript
-await wa.group.leave(groupId);
-```
-
-## 📰 Newsletter (Channel)
-
-Create and manage WhatsApp Channels (Newsletters).
-
-> **Quick Jump:** [Create](#create-channel) · [Actions](#channel-actions) · [Update](#update-channel) · [Info](#channel-info) · [Messages](#manage-messages) · [Admin](#admin-actions)
-
-### Create Channel
-
-```typescript
-const channel = await wa.newsletter.create('My Channel', 'Description here');
-console.log('Channel created:', channel);
-```
-
-### Channel Actions
-
-Follow, unfollow, mute, or unmute a channel.
-
-```typescript
-const channelId = '1234567890@newsletter';
-
-// Follow
-await wa.newsletter.action(channelId, 'follow');
-
-// Unfollow
-await wa.newsletter.action(channelId, 'unfollow');
-
-// Mute
-await wa.newsletter.action(channelId, 'mute');
-
-// Unmute
-await wa.newsletter.action(channelId, 'unmute');
-```
-
-### Update Channel
-
-Update channel info.
-
-```typescript
-// Update name
-await wa.newsletter.update(channelId, 'New Name', 'name');
-
-// Update description
-await wa.newsletter.update(channelId, 'New Description', 'description');
-
-// Update picture (URL/Buffer)
-await wa.newsletter.update(channelId, 'https://example.com/image.jpg', 'picture');
-
-// Remove picture
-await wa.newsletter.removePicture(channelId);
-```
-
-### Channel Info
-
-Get channel details.
-
-```typescript
-// Get metadata by ChannelId
-const meta = await wa.newsletter.metadata(channelId, 'jid');
-
-// Get metadata by Invite Code
-const metaInvite = await wa.newsletter.metadata('INVITE_CODE', 'invite');
-
-// Get subscribers
-const subs = await wa.newsletter.subscribers(channelId);
-
-// Get admin count
-const adminCount = await wa.newsletter.adminCount(channelId);
-```
-
-### Manage Messages
-
-Fetch messages or react to them.
-
-```typescript
-// Fetch messages
-const since = new Date() - 1000 * 60 * 60 * 24; // 1 day
-const after = new Date();
-
-const count = 10;
-
-const messages = await wa.newsletter.fetchMessages(channelId, count, since, after);
-
-// React to message
-await wa.newsletter.reaction(channelId, 'chatId', '👍');
-```
-
-### Admin Actions
-
-Manage channel ownership and admins.
-
-```typescript
-// Change owner
-await wa.newsletter.changeOwner(channelId, 'senderId');
-
-// Demote admin
-await wa.newsletter.demote(channelId, 'senderId');
-
-// Delete channel
-await wa.newsletter.delete(channelId);
-```
-
-## 🌐 Community Management
-
-Create and manage WhatsApp Communities.
-
-> **Quick Jump:** [Create](#create-community) · [Create Group](#create-group-in-community) · [Groups](#manage-groups) · [Info](#community-info) · [Participants](#manage-participants-1) · [Invite](#invite-code-1) · [Settings](#community-settings) · [Leave](#leave-community)
-
-### Create Community
-
-```typescript
-const community = await wa.community.create('My Community', 'Description here');
-console.log('Community created:', community);
-```
-
-### Create Group in Community
-
-Create a new group linked to a community.
-
-```typescript
-const communityId = '1234567890@g.us';
-const group = await wa.community.createGroup('New Group', ['senderId'], communityId);
-```
-
-### Manage Groups
-
-Link or unlink groups from a community.
-
-```typescript
-const groupId = '0987654321@g.us';
-
-// Link group
-await wa.community.group(communityId, 'link', groupId);
-
-// Unlink group
-await wa.community.group(communityId, 'unlink', groupId);
-
-// Get linked groups
-const linkedGroups = await wa.community.group(communityId, 'linked');
-```
-
-### Community Info
-
-Get metadata or update info.
-
-```typescript
-// Get metadata
-const meta = await wa.community.metadata(communityId);
-
-// Update subject
-await wa.community.update(communityId, 'subject', 'New Name');
-
-// Update description
-await wa.community.update(communityId, 'description', 'New Description');
-```
-
-### Manage Participants
-
-Manage community participants.
-
-```typescript
-// List participants
-const participants = await wa.community.participants(communityId, 'list');
-
-// Add participant
-await wa.community.participants(communityId, 'update', 'add', ['senderId']);
-
-// Remove participant
-await wa.community.participants(communityId, 'update', 'remove', ['senderId']);
-
-// Promote to admin
-await wa.community.participants(communityId, 'update', 'promote', ['senderId']);
-
-// Demote to member
-await wa.community.participants(communityId, 'update', 'demote', ['senderId']);
-```
-
-### Invite Code
-
-Manage community invite links.
-
-```typescript
-// Get invite code
-const code = await wa.community.invite(communityId, 'code');
-
-// Revoke invite code
-await wa.community.invite(communityId, 'revoke');
-
-// Get invite info
-const info = await wa.community.invite('INVITE_CODE', 'info');
-
-// Join via invite code
-await wa.community.invite('INVITE_CODE', 'accept');
-```
-
-### Community Settings
-
-Configure community settings.
-
-```typescript
-// Toggle ephemeral messages
-await wa.community.settings(communityId, 'ephemeral', 86400); // 24 hours
-
-// Who can add members? 'all_member_add' or 'admin_add'
-await wa.community.settings(communityId, 'memberAdd', 'admin_add');
-
-// Join approval mode? 'on' or 'off'
-await wa.community.settings(communityId, 'approval', 'on');
-```
-
-### Leave Community
-
-Leave a community.
-
-```typescript
-await wa.community.leave(communityId);
-```
-
-## 🔒 Privacy Settings
-
-Manage your privacy settings and block list.
-
-> **Quick Jump:** [Block/Unblock](#blockunblock) · [Configuration](#privacy-configuration) · [Get Settings](#get-settings)
-
-### Block/Unblock
-
-```typescript
-// Block user
-await wa.privacy.block('senderId');
-
-// Unblock user
-await wa.privacy.unblock('senderId');
-
-// Get blocklist
-const blocklist = await wa.privacy.blocklist();
-```
-
-### Privacy Configuration
-
-Update privacy settings.
-
-```typescript
-// Last Seen: 'all', 'contacts', 'contact_blacklist', 'none'
-await wa.privacy.lastSeen('contacts');
-
-// Online: 'all', 'match_last_seen'
-await wa.privacy.online('match_last_seen');
-
-// Profile Picture: 'all', 'contacts', 'contact_blacklist', 'none'
-await wa.privacy.picture('all');
-
-// Status: 'all', 'contacts', 'contact_blacklist', 'none'
-await wa.privacy.status('contacts');
-
-// Read Receipts: 'all', 'none'
-await wa.privacy.readReceipt('all');
-
-// Group Add: 'all', 'contacts', 'contact_blacklist', 'none'
-await wa.privacy.groupsAdd('contacts');
-
-// Default Disappearing Mode: 'off', '24h', '7d', '90d'
-await wa.privacy.ephemeral('90d');
-```
-
-### Get Settings
-
-Fetch current privacy settings.
-
-```typescript
-const settings = await wa.privacy.getSettings();
-console.log(settings);
-```
-
-## 🤝 Contributing
-
-Contributions are welcome! Please follow these steps:
-
-1.  Fork the repository.
-2.  Create new branch: `git checkout -b feature/my-feature`.
-3.  Commit your changes: `git commit -m 'Add some feature'`.
-4.  Push to the branch: `git push origin feature/my-feature`.
-5.  Open Pull Request.
+| Adapter    | Auth store                | Message store          | Peer dependency  |
+| ---------- | ------------------------- | ---------------------- | ---------------- |
+| `file`     | `FileAuthStore` (default) | —                      | none             |
+| `memory`   | `MemoryAuthStore`         | `MemoryMessageStore`   | none             |
+| `sqlite`   | `SqliteAuthStore`         | `SqliteMessageStore`   | `better-sqlite3` |
+| `redis`    | `RedisAuthStore`          | `RedisMessageStore`    | `redis`          |
+| `postgres` | `PostgresAuthStore`       | `PostgresMessageStore` | `pg`             |
+
+## 📚 Docs & Links
+
+- 📖 [**MIGRATION.md**](./MIGRATION.md) — upgrading from v3.x to v4.0.0 (breaking changes, side-by-side snippets)
+- 🧪 [**examples/**](./examples) — runnable examples (auto-connect, builder, command bot, broadcast, storage adapters)
+- 🔧 [**API Reference**](./docs/api) — generated TypeDoc for the full public surface
+- 🤝 [**CONTRIBUTING.md**](./CONTRIBUTING.md) — dev setup, tests, commit convention, release flow
+- 🔒 [**SECURITY.md**](./SECURITY.md) — vulnerability disclosure and supported versions
+- 📝 [**CHANGELOG.md**](./CHANGELOG.md) — release history
 
 ## 🎯 Issues & Feedback
 
-**If you encounter any problems or have feature requests, please open an [issue](https://github.com/zeative/zaileys/issues)**
+If you hit a problem or have a feature request, open an [issue](https://github.com/zeative/zaileys/issues).
 
-- [Buy me coffee ☕](https://saweria.co/zaadevofc)
+- [Buy me a coffee ☕](https://saweria.co/zaadevofc)
 - [Ko-Fi](https://ko-fi.com/zaadevofc)
 - [Trakteer](https://trakteer.id/zaadevofc)
 - ⭐ Star the repo on GitHub
@@ -1274,7 +240,7 @@ Distributed under the **MIT License**. See [`LICENSE`](https://github.com/zeativ
 
 <div align="left">
   <p>
-    <img alt="Zaileys - Simplified WhatsApp Node.js TypeScript/JavaScript API" src="https://github.com/zeative/zeative/blob/main/libraries/zaileys/zaileys-clean.png?raw=true" width="28" align="center">
-    Copyright © 2025 zaadevofc. All rights reserved.
+    <img alt="Zaileys" src="https://github.com/zeative/zeative/blob/main/libraries/zaileys/zaileys-clean.png?raw=true" width="28" align="center">
+    Copyright © 2026 zaadevofc. All rights reserved.
   </p>
 </div>

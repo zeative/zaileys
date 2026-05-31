@@ -55,6 +55,7 @@ describe('FFmpegProcessor.process', () => {
       onEnd,
       onError: vi.fn(async () => undefined),
     })
+    await vi.waitFor(() => expect(spawnMock).toHaveBeenCalled())
     child.emit('close', 0)
     await promise
     expect(onEnd).toHaveBeenCalledOnce()
@@ -72,6 +73,7 @@ describe('FFmpegProcessor.process', () => {
       onEnd: vi.fn(async () => undefined),
       onError,
     })
+    await vi.waitFor(() => expect(spawnMock).toHaveBeenCalled())
     child.emit('close', 1)
     await expect(promise).rejects.toThrow('FFmpeg exited with code 1')
     expect(onError).toHaveBeenCalledOnce()
@@ -87,6 +89,7 @@ describe('FFmpegProcessor.process', () => {
       onEnd: vi.fn(async () => undefined),
       onError,
     })
+    await vi.waitFor(() => expect(spawnMock).toHaveBeenCalled())
     child.emit('error', new Error('spawn ENOENT'))
     await expect(promise).rejects.toThrow('spawn ENOENT')
     expect(onError).toHaveBeenCalledOnce()
@@ -103,6 +106,7 @@ describe('FFmpegProcessor.process', () => {
       }),
       onError: vi.fn(async () => undefined),
     })
+    await vi.waitFor(() => expect(spawnMock).toHaveBeenCalled())
     child.emit('close', 0)
     await expect(promise).rejects.toThrow('read failed')
   })

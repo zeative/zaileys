@@ -46,16 +46,20 @@ export interface FFmpegConfig {
 
 let ffmpegPath = 'ffmpeg';
 let ffprobePath = 'ffprobe';
+let ffmpegInitialized = false;
 
 export const initializeFFmpeg = async (disable: boolean = false) => {
-  if (disable) return;
+  if (disable || ffmpegInitialized) return;
+  ffmpegInitialized = true;
 
   try {
     const ffmpegInstaller = (await import('@ffmpeg-installer/ffmpeg')).default;
-    const ffprobeInstaller = (await import('@ffprobe-installer/ffprobe')).default;
+    if (ffmpegInstaller?.path) ffmpegPath = ffmpegInstaller.path;
+  } catch {}
 
-    ffmpegPath = ffmpegInstaller.path;
-    ffprobePath = ffprobeInstaller.path;
+  try {
+    const ffprobeInstaller = (await import('@ffprobe-installer/ffprobe')).default;
+    if (ffprobeInstaller?.path) ffprobePath = ffprobeInstaller.path;
   } catch {}
 };
 
@@ -154,6 +158,7 @@ export class MimeValidator {
 
 export class FFmpegProcessor {
   static async process(config: FFmpegConfig): Promise<void> {
+    await initializeFFmpeg();
     return new Promise((resolve, reject) => {
       const args = ['-y', '-i', config.input, ...config.options, config.output];
       const child = spawn(ffmpegPath, args, { stdio: 'ignore' });

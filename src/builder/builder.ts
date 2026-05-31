@@ -173,7 +173,9 @@ export class MessageBuilder<State extends BuilderState> {
    * Quote a previous message; rejects a missing reference. Accepts a full
    * {@link WAMessage} or a bare {@link WAMessageKey} — a bare key is wrapped into
    * the `{ key }` shape Baileys requires (it reads `quoted.key.fromMe`), so passing
-   * only a key never crashes. Chainable on any state.
+   * only a key never crashes. NOTE: a real quoted preview needs the full
+   * {@link WAMessage} (with `message` content); a key alone carries no quoted body,
+   * which the server may reject — prefer passing the original message. Chainable on any state.
    */
   reply(quoted: WAMessage | WAMessageKey): MessageBuilder<State> {
     if (quoted === undefined || quoted === null) {

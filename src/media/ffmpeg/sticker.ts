@@ -20,9 +20,11 @@ export class StickerProcessor {
       const isAnimated = MimeValidator.isAnimated(fileType.mime);
       const shape = metadata?.shape || 'default';
 
-      const webpBuffer = isAnimated
-        ? await this.processAnimated(buffer, fileType.mime, quality)
-        : await ImageProcessor.resizeForSticker(buffer, quality, shape);
+      const webpBuffer = fileType.mime === 'image/webp'
+        ? buffer
+        : isAnimated
+          ? await this.processAnimated(buffer, fileType.mime, quality)
+          : await ImageProcessor.resizeForSticker(buffer, quality, shape);
 
       const exif = this.createExifMetadata(metadata);
       const img = new webp.Image();

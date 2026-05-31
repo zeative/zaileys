@@ -117,9 +117,9 @@ export function attachInboundPipeline(
     : undefined
   const decodeCtx: DecodeContext = {
     selfJid: ctx.selfJid,
+    receiverId: ctx.receiverId ?? ctx.selfJid,
     ...(ctx.logger != null ? { logger: ctx.logger } : {}),
     ...(ctx.channelId != null ? { channelId: ctx.channelId } : {}),
-    ...(ctx.receiverId != null ? { receiverId: ctx.receiverId } : {}),
     ...(ctx.prefixes != null ? { prefixes: ctx.prefixes } : {}),
     ...(ctx.citationConfig != null ? { citationConfig: ctx.citationConfig } : {}),
     ...(resolveRoomName != null ? { resolveRoomName } : {}),

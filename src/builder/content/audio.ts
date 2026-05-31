@@ -9,6 +9,7 @@ export type AudioContent = {
   audio: Buffer
   ptt?: boolean
   seconds?: number
+  waveform?: Uint8Array
 }
 
 /**
@@ -32,7 +33,15 @@ export const buildAudioContent = async (
       cause: err,
     })
   }
-  const content: AudioContent = { audio: opus, ptt: opts?.ptt ?? true }
+  const ptt = opts?.ptt ?? true
+  const content: AudioContent = { audio: opus, ptt }
+  if (ptt) {
+    try {
+      const { waveform, seconds } = await new Media(buffer).audio.waveform()
+      content.waveform = waveform
+      if (opts?.seconds === undefined) content.seconds = seconds
+    } catch {}
+  }
   if (opts?.seconds !== undefined) content.seconds = opts.seconds
   return content as unknown as AnyMessageContent
 }

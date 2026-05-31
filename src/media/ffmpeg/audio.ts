@@ -8,6 +8,59 @@ export class AudioProcessor {
     return this.convert(input, 'opus');
   }
 
+  static async waveform(input: MediaInput): Promise<{ waveform: Uint8Array; seconds: number }> {
+    const buffer = await BufferConverter.toBuffer(input);
+    const inputExt = await BufferConverter.getExtension(buffer);
+    const tempIn = FileManager.createTempPath('wf_in', inputExt);
+    const tempOut = FileManager.createTempPath('wf_out', 'tmp');
+    await FileManager.safeWriteFile(tempIn, buffer);
+    try {
+      await FFmpegProcessor.process({
+        input: tempIn,
+        output: tempOut,
+        options: ['-vn', '-ac', '1', '-ar', '8000', '-f', 's16le'],
+        onEnd: async () => undefined,
+        onError: async () => { await FileManager.cleanup([tempIn, tempOut]); },
+      });
+      const pcm = await FileManager.safeReadFile(tempOut);
+      await FileManager.cleanup([tempIn, tempOut]);
+      const sampleCount = Math.floor(pcm.length / 2);
+      return {
+        waveform: this.computeWaveform(pcm),
+        seconds: Math.max(1, Math.round(sampleCount / 8000)),
+      };
+    } catch (error: unknown) {
+      await FileManager.cleanup([tempIn, tempOut]);
+      throw new Error(`Waveform generation failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  private static computeWaveform(pcm: Buffer): Uint8Array {
+    const samples = 64;
+    const total = Math.floor(pcm.length / 2);
+    const result = new Uint8Array(samples);
+    if (total === 0) return result;
+    const block = Math.max(1, Math.floor(total / samples));
+    const averaged: number[] = [];
+    for (let i = 0; i < samples; i++) {
+      let sum = 0;
+      let count = 0;
+      for (let j = 0; j < block; j++) {
+        const idx = (i * block + j) * 2;
+        if (idx + 1 < pcm.length) {
+          sum += Math.abs(pcm.readInt16LE(idx));
+          count += 1;
+        }
+      }
+      averaged.push(count > 0 ? sum / count : 0);
+    }
+    const max = Math.max(...averaged) || 1;
+    for (let i = 0; i < samples; i++) {
+      result[i] = Math.floor((averaged[i]! / max) * 100);
+    }
+    return result;
+  }
+
   static async toMp3(input: MediaInput): Promise<Buffer> {
     return this.convert(input, 'mp3');
   }

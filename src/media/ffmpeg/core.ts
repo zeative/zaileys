@@ -54,7 +54,15 @@ export const initializeFFmpeg = async (disable: boolean = false) => {
 
   try {
     const ffmpegInstaller = (await import('@ffmpeg-installer/ffmpeg')).default;
-    if (ffmpegInstaller?.path) ffmpegPath = ffmpegInstaller.path;
+    if (ffmpegInstaller?.path) {
+      ffmpegPath = ffmpegInstaller.path;
+      const dir = path.dirname(ffmpegInstaller.path);
+      const sep = process.platform === 'win32' ? ';' : ':';
+      const current = process.env['PATH'] ?? '';
+      if (!current.split(sep).includes(dir)) {
+        process.env['PATH'] = `${dir}${sep}${current}`;
+      }
+    }
   } catch {}
 
   try {

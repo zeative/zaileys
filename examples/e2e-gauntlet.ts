@@ -46,6 +46,8 @@ client.on('connect', async ({ me }) => {
 
   const video = await fetchBuf('https://www.w3schools.com/html/mov_bbb.mp4')
   const audio = await fetchBuf('https://www.w3schools.com/html/horse.mp3')
+  const realImage = (await fetchBuf('https://placehold.co/512x512/png')) ?? PNG_1x1
+  const realSticker = (await fetchBuf('https://www.gstatic.com/webp/gallery/1.webp')) ?? WEBP_1x1
 
   let anchor: WAMessageKey | undefined
 
@@ -79,16 +81,16 @@ client.on('connect', async ({ me }) => {
     return client.send(TARGET).text('zaileys e2e: reply ✅').reply(full ?? anchor)
   })
   await run('react 👍', () => (anchor ? client.react(anchor, '👍') : Promise.reject(new Error('no anchor'))))
-  await run('image (PNG inline)', () => client.send(TARGET).image(PNG_1x1, { caption: 'zaileys e2e: image ✅' }))
-  await run('sticker (WebP inline)', () => client.send(TARGET).sticker(WEBP_1x1))
+  await run('image (real png)', () => client.send(TARGET).image(realImage, { caption: 'zaileys e2e: image ✅' }))
+  await run('sticker (real webp)', () => client.send(TARGET).sticker(realSticker))
   await run('document (txt inline)', () => client.send(TARGET).document(DOC_BYTES, { fileName: 'zaileys-e2e.txt', mimetype: 'text/plain', caption: 'doc ✅' }))
   await run('video (fetched mp4)', () => client.send(TARGET).video(video as Buffer, { caption: 'zaileys e2e: video ✅' }), video === null)
   await run('gif (video gifPlayback)', () => client.send(TARGET).video(video as Buffer, { caption: 'gif ✅', gifPlayback: true }), video === null)
   await run('audio (fetched mp3)', () => client.send(TARGET).audio(audio as Buffer), audio === null)
   await run('voice note (ptt)', () => client.send(TARGET).audio(audio as Buffer, { ptt: true }), audio === null)
   await run('album (2 images)', () => client.send(TARGET).album([
-    { type: 'image', src: PNG_1x1, caption: 'album 1' },
-    { type: 'image', src: PNG_1x1, caption: 'album 2' },
+    { type: 'image', src: realImage, caption: 'album 1' },
+    { type: 'image', src: realImage, caption: 'album 2' },
   ]))
   await run('location', () => client.send(TARGET).location(-6.2, 106.816666, { name: 'Jakarta', address: 'Indonesia' }))
   await run('contact (vcard)', () => client.send(TARGET).contact(VCARD))

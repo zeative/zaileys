@@ -25,6 +25,7 @@ export class Media {
       toOpus: () => AudioProcessor.toOpus(this.input),
       toMp3: () => AudioProcessor.toMp3(this.input),
       convert: (type: AudioType = 'opus') => AudioProcessor.convert(this.input, type),
+      waveform: () => AudioProcessor.waveform(this.input),
     };
   }
 

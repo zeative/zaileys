@@ -172,7 +172,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.reconnectStrategy = createReconnectStrategy(this.reconnectOptions)
     this.commandPrefixes = normalizePrefixes(options.commandPrefix)
     this.citationConfig = options.citation
-    this.ignoreMe = options.ignoreMe ?? false
+    this.ignoreMe = options.ignoreMe ?? true
     this.attachEmitterLogger()
     if (options.autoConnect ?? true) {
       queueMicrotask(() => {

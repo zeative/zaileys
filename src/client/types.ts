@@ -76,7 +76,8 @@ export interface ClientOptions {
   /**
    * When `true`, inbound message events (`text`, media, `mention`, `mention-all`)
    * are not emitted for messages the connected account sent itself (`isFromMe`),
-   * so handlers never see own messages. Defaults to `false`.
+   * so handlers never see own messages. Defaults to `true`. Set `false` to also
+   * receive own (`fromMe`) messages.
    */
   ignoreMe?: boolean
 }

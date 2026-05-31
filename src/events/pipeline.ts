@@ -67,6 +67,7 @@ export interface InboundPipelineContext {
   citationConfig?: CitationConfig
   groupMetadata?: (groupId: string) => Promise<{ subject?: string } | null>
   receiverName?: () => Promise<string | null>
+  resolveQuoted?: (id: string, remoteJid: string) => Promise<WAMessage | null>
 }
 
 /** Minimal `socket.ev` surface the pipeline subscribes against (additive, multi-listener). */
@@ -124,6 +125,7 @@ export function attachInboundPipeline(
     ...(ctx.citationConfig != null ? { citationConfig: ctx.citationConfig } : {}),
     ...(resolveRoomName != null ? { resolveRoomName } : {}),
     ...(ctx.receiverName != null ? { resolveReceiverName: ctx.receiverName } : {}),
+    ...(ctx.resolveQuoted != null ? { resolveQuoted: ctx.resolveQuoted } : {}),
   }
   const interactiveCtx: InteractiveContext = ctx.logger
     ? { selfJid: ctx.selfJid, logger: ctx.logger }

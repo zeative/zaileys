@@ -2,6 +2,7 @@ import makeWASocket, {
   initAuthCreds,
   type AuthenticationCreds,
   type UserFacingSocketConfig,
+  type WAMessage,
   type WAMessageKey,
 } from 'baileys'
 import {
@@ -655,6 +656,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         ...(this.citationConfig != null ? { citationConfig: this.citationConfig } : {}),
         groupMetadata: (groupId) => this.group.metadata(groupId).catch(() => null),
         receiverName: () => Promise.resolve(this.resolveMe().name ?? null),
+        resolveQuoted: (id, remoteJid) => this.lookupQuoted(id, remoteJid),
       })
     }
     this.attachCommandsIfReady()
@@ -665,6 +667,18 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.connectResolve = undefined
     this.connectReject = undefined
     if (resolve) resolve()
+  }
+
+  private async lookupQuoted(id: string, remoteJid: string): Promise<WAMessage | null> {
+    for (const fromMe of [false, true]) {
+      try {
+        const found = await this.store.getMessage({ id, remoteJid, fromMe })
+        if (found != null) return found
+      } catch {
+        return null
+      }
+    }
+    return null
   }
 
   private async handleClose(lastDisconnect: ConnectionUpdate['lastDisconnect']): Promise<void> {

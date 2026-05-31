@@ -31,7 +31,20 @@ export const extractJid = (remoteJid: string | undefined | null): string | null 
 const nonEmpty = (value: string | undefined | null): string | undefined =>
   typeof value === 'string' && value.length > 0 ? value : undefined
 
-/** Build {@link SenderInfo} from a message key, preferring participant in group chats. */
+const PN_SERVERS = ['@s.whatsapp.net', '@c.us'] as const
+
+/** Report whether a JID uses the hidden-number LID server (`@lid`). */
+export const isLidJid = (jid: string): boolean => jid.endsWith('@lid')
+
+/** Report whether a JID uses a phone-number server (`@s.whatsapp.net` / `@c.us`). */
+export const isPnJid = (jid: string): boolean => PN_SERVERS.some((server) => jid.endsWith(server))
+
+/**
+ * Build {@link SenderInfo} from a message key. The primary addressing JID and its
+ * alt (`participantAlt`/`remoteJidAlt`) are classified by server type so `pn` always
+ * holds the phone-number JID (`@s.whatsapp.net`) and `lid` always holds the hidden
+ * `@lid` JID — regardless of which one WhatsApp put in the primary slot.
+ */
 export const extractSender = (
   key: WAMessageKey | undefined,
   pushName?: string,
@@ -40,12 +53,18 @@ export const extractSender = (
   const raw = nonEmpty(key.participant) ?? key.remoteJid
   const jid = extractJid(raw)
   if (jid === null) return null
-  const alt = nonEmpty(key.participantAlt) ?? nonEmpty(key.remoteJidAlt)
+  const altRaw = nonEmpty(key.participantAlt) ?? nonEmpty(key.remoteJidAlt)
+  const alt = altRaw != null ? extractJid(altRaw) : null
   const username = nonEmpty(key.participantUsername) ?? nonEmpty(key.remoteJidUsername)
   const sender: SenderInfo = { jid, isMe: key.fromMe === true }
-  if (typeof alt === 'string' && alt.length > 0) sender.lid = alt
-  if (typeof username === 'string' && username.length > 0) sender.username = username
-  if (typeof pushName === 'string' && pushName.length > 0) sender.pushName = pushName
+  const candidates = alt !== null ? [jid, alt] : [jid]
+  const lid = candidates.find(isLidJid)
+  const pn = candidates.find(isPnJid)
+  if (lid !== undefined) sender.lid = lid
+  if (pn !== undefined) sender.pn = pn
+  if (username !== undefined) sender.username = username
+  const name = nonEmpty(pushName)
+  if (name !== undefined) sender.pushName = name
   return sender
 }
 

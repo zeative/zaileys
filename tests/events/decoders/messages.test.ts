@@ -81,7 +81,27 @@ describe('decodeText', () => {
     expect(out).not.toBeNull()
     expect(out?.text).toBe('tes')
     expect(out?.isGroup).toBe(false)
-    expect(out?.senderId).toBe('123918899749051@lid')
+    expect(out?.senderId).toBe('6285136635787@s.whatsapp.net')
+    expect(out?.senderLid).toBe('123918899749051@lid')
+  })
+
+  it('puts the PN in senderId and the @lid in senderLid for a group participant (not inverted)', () => {
+    const out = decodeText(
+      base({
+        key: {
+          remoteJid: GROUP,
+          fromMe: false,
+          id: 'GP',
+          participant: '272111@lid',
+          participantAlt: '628444@s.whatsapp.net',
+        } as unknown as WAMessage['key'],
+        message: { conversation: 'hi' },
+      }),
+      ctx,
+    )
+    expect(out?.isGroup).toBe(true)
+    expect(out?.senderId).toBe('628444@s.whatsapp.net')
+    expect(out?.senderLid).toBe('272111@lid')
   })
 
   it('flags group context from participant key', () => {
@@ -366,6 +386,62 @@ describe('Task 1b — media-aware contextInfo behaviors (BLOCKER 2)', () => {
     await expect(out!.replied()).resolves.toBeNull()
   })
 
+  it('replied() prefers the full original from resolveQuoted (real timestamp + senderName)', async () => {
+    const original = {
+      key: { remoteJid: '628222@s.whatsapp.net', fromMe: false, id: 'ORIG1' },
+      messageTimestamp: 1766000000,
+      pushName: 'Origin Author',
+      message: { conversation: 'original text' },
+    } as unknown as WAMessage
+    const resolveQuoted = vi.fn().mockResolvedValue(original)
+    const out = decodeText(
+      base({
+        key: { remoteJid: '628222@s.whatsapp.net', fromMe: false, id: 'REPLY1' },
+        message: {
+          extendedTextMessage: {
+            text: 'a reply',
+            contextInfo: {
+              stanzaId: 'ORIG1',
+              participant: '628222@s.whatsapp.net',
+              quotedMessage: { conversation: 'original text' },
+            },
+          },
+        },
+      }),
+      { selfJid: SELF, resolveQuoted },
+    )
+    const replied = await out!.replied()
+    expect(resolveQuoted).toHaveBeenCalledWith('ORIG1', '628222@s.whatsapp.net')
+    expect(replied).not.toBeNull()
+    expect(replied?.text).toBe('original text')
+    expect(replied?.timestamp).toBe(1766000000 * 1000)
+    expect(replied?.senderName).toBe('Origin Author')
+  })
+
+  it('replied() falls back to contextInfo reconstruction when resolveQuoted returns null', async () => {
+    const resolveQuoted = vi.fn().mockResolvedValue(null)
+    const out = decodeText(
+      base({
+        message: {
+          extendedTextMessage: {
+            text: 'reply',
+            contextInfo: {
+              stanzaId: 'Q9',
+              participant: '628222@s.whatsapp.net',
+              remoteJid: '628222@s.whatsapp.net',
+              quotedMessage: { conversation: 'quoted body' },
+            },
+          },
+        },
+      }),
+      { selfJid: SELF, resolveQuoted },
+    )
+    const replied = await out!.replied()
+    expect(resolveQuoted).toHaveBeenCalled()
+    expect(replied).not.toBeNull()
+    expect(replied?.text).toBe('quoted body')
+  })
+
   it('WARNING-7: quotedMessage present but stanzaId missing => replied() resolves null without throwing', async () => {
     const out = decodeText(
       base({
@@ -413,8 +489,8 @@ describe('Task 1b — media-aware contextInfo behaviors (BLOCKER 2)', () => {
       ctx,
     )
     expect(out).not.toBeNull()
-    expect(out?.senderId).toBe('123918899749051@lid')
-    expect(out?.senderLid).toBe('6285136635787@s.whatsapp.net')
+    expect(out?.senderId).toBe('6285136635787@s.whatsapp.net')
+    expect(out?.senderLid).toBe('123918899749051@lid')
   })
 })
 

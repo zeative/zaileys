@@ -27,6 +27,7 @@ export interface DecodeContext {
   citationConfig?: CitationConfig
   resolveRoomName?: (roomId: string) => Promise<string | null>
   resolveReceiverName?: () => Promise<string | null>
+  resolveQuoted?: (id: string, remoteJid: string) => Promise<WAMessage | null>
 }
 
 interface MediaNode {
@@ -106,15 +107,36 @@ const isEphemeralOf = (msg: WAMessage, contextInfo: WAContextInfo | null): boole
   return typeof contextInfo?.expiration === 'number' && contextInfo.expiration > 0
 }
 
+const chatTypeOf = (content: WAMessage['message']): ChatType => {
+  if (content == null) return 'text'
+  for (const field of Object.values(MEDIA_FIELD)) {
+    if ((content as Record<string, unknown>)[field] != null) {
+      return field.replace('Message', '') as ChatType
+    }
+  }
+  return 'text'
+}
+
 const decodeQuotedContext = async (
   contextInfo: WAContextInfo | null,
   ctx: DecodeContext,
+  parentRemoteJid: string,
 ): Promise<MessageContext | null> => {
   try {
     if (contextInfo == null) return null
     if (contextInfo.quotedMessage == null) return null
     const stanzaId = contextInfo.stanzaId
     if (typeof stanzaId !== 'string' || stanzaId.length === 0) return null
+
+    if (ctx.resolveQuoted != null && parentRemoteJid.length > 0) {
+      const original = await ctx.resolveQuoted(stanzaId, parentRemoteJid)
+      if (original != null && original.message != null) {
+        const originalText = textContent(original) ?? ''
+        const fromStore = buildContext(original, ctx, chatTypeOf(original.message), originalText)
+        if (fromStore !== null) return fromStore
+      }
+    }
+
     const quoted = extractQuoted(contextInfo)
     if (quoted === null) return null
     if (typeof quoted.key.id !== 'string' || quoted.key.id.length === 0) return null
@@ -125,19 +147,8 @@ const decodeQuotedContext = async (
       { key: quoted.key, message: qm ?? null },
       quoted.sender?.pushName != null ? { pushName: quoted.sender.pushName } : {},
     ) as WAMessage
-    const content = contextInfo.quotedMessage
-    let chatType: ChatType = 'text'
-    if (content != null) {
-      const fields = Object.values(MEDIA_FIELD)
-      for (const f of fields) {
-        if ((content as Record<string, unknown>)[f] != null) {
-          chatType = f.replace('Message', '') as ChatType
-          break
-        }
-      }
-    }
     const text = textContent(reconstructed) ?? ''
-    return buildContext(reconstructed, ctx, chatType, text)
+    return buildContext(reconstructed, ctx, chatTypeOf(qm), text)
   } catch {
     return null
   }
@@ -179,7 +190,7 @@ const buildContext = (
     ctx.resolveReceiverName ?? (() => Promise.resolve(null))
 
   const resolveReplied = (): Promise<MessageContext | null> =>
-    decodeQuotedContext(contextInfo, ctx)
+    decodeQuotedContext(contextInfo, ctx, jid)
 
   const { mentionedJids } = extractMentions(contextInfo)
 

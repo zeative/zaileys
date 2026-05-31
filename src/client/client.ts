@@ -145,6 +145,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private readonly commandMiddleware: Middleware[] = []
   private readonly commandPrefixes: string[]
   private readonly citationConfig: CitationConfig | undefined
+  private readonly ignoreMe: boolean
   private commandDispatcher: DispatcherHandle | undefined
   private _presence?: PresenceModule
   private _scheduler?: Scheduler
@@ -171,6 +172,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.reconnectStrategy = createReconnectStrategy(this.reconnectOptions)
     this.commandPrefixes = normalizePrefixes(options.commandPrefix)
     this.citationConfig = options.citation
+    this.ignoreMe = options.ignoreMe ?? false
     this.attachEmitterLogger()
     if (options.autoConnect ?? true) {
       queueMicrotask(() => {
@@ -657,6 +659,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         groupMetadata: (groupId) => this.group.metadata(groupId).catch(() => null),
         receiverName: () => Promise.resolve(this.resolveMe().name ?? null),
         resolveQuoted: (id, remoteJid) => this.lookupQuoted(id, remoteJid),
+        ignoreMe: this.ignoreMe,
       })
     }
     this.attachCommandsIfReady()

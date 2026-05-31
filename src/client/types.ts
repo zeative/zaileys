@@ -73,6 +73,12 @@ export interface ClientOptions {
    * `citation.banned()`. When absent both predicates resolve `false`.
    */
   citation?: CitationConfig
+  /**
+   * When `true`, inbound message events (`text`, media, `mention`, `mention-all`)
+   * are not emitted for messages the connected account sent itself (`isFromMe`),
+   * so handlers never see own messages. Defaults to `false`.
+   */
+  ignoreMe?: boolean
 }
 
 /** Typed payload contract for every connection-domain event. */

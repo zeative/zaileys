@@ -68,6 +68,7 @@ export interface InboundPipelineContext {
   groupMetadata?: (groupId: string) => Promise<{ subject?: string } | null>
   receiverName?: () => Promise<string | null>
   resolveQuoted?: (id: string, remoteJid: string) => Promise<WAMessage | null>
+  ignoreMe?: boolean
 }
 
 /** Minimal `socket.ev` surface the pipeline subscribes against (additive, multi-listener). */
@@ -171,7 +172,10 @@ export function attachInboundPipeline(
 
   subscribe('messages.upsert', (raw) => {
     const upsert = dropSpoofedSelfOnly(raw as UpsertPayload)
-    for (const msg of upsert.messages) runMessage(msg)
+    for (const msg of upsert.messages) {
+      if (ctx.ignoreMe === true && msg.key?.fromMe === true) continue
+      runMessage(msg)
+    }
   })
 
   subscribe('messages.update', (raw) => {

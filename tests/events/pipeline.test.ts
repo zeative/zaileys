@@ -140,6 +140,43 @@ describe('attachInboundPipeline — messages.upsert', () => {
   })
 })
 
+describe('attachInboundPipeline — ignoreMe', () => {
+  function setupIgnore(ignoreMe: boolean): { client: TypedEventEmitter<ClientEventMap>; socket: InboundMockSocket } {
+    const client = new TypedEventEmitter<ClientEventMap>()
+    const socket = makeInboundSocket({ user: { id: SELF } })
+    attachInboundPipeline(
+      client,
+      socket as unknown as Parameters<typeof attachInboundPipeline>[1],
+      { selfJid: SELF, ignoreMe },
+    )
+    return { client, socket }
+  }
+
+  it('skips fromMe message events when ignoreMe is true', () => {
+    const { client, socket } = setupIgnore(true)
+    const seen = vi.fn()
+    client.on('text', seen)
+    socket.triggerMessagesUpsert({ messages: [textMsg('own', { key: { remoteJid: '999@s.whatsapp.net', id: 'X', fromMe: true } })], type: 'notify' })
+    expect(seen).not.toHaveBeenCalled()
+  })
+
+  it('still emits non-fromMe events when ignoreMe is true', () => {
+    const { client, socket } = setupIgnore(true)
+    const seen = vi.fn()
+    client.on('text', seen)
+    socket.triggerMessagesUpsert({ messages: [textMsg('incoming')], type: 'notify' })
+    expect(seen).toHaveBeenCalledTimes(1)
+  })
+
+  it('emits fromMe events by default (ignoreMe absent)', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('text', seen)
+    socket.triggerMessagesUpsert({ messages: [textMsg('own', { key: { remoteJid: '999@s.whatsapp.net', id: 'X', fromMe: true } })], type: 'notify' })
+    expect(seen).toHaveBeenCalledTimes(1)
+  })
+})
+
 describe('attachInboundPipeline — messages.update mutations', () => {
   it('emits edit on MESSAGE_EDIT protocol', () => {
     const { client, socket } = setup()

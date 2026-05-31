@@ -17,11 +17,7 @@ export type {
   MediaDescriptor,
   MediaDownloadResult,
   MediaKind,
-  MediaPayload,
   MemberTagPayload,
-  MentionAllPayload,
-  MentionPayload,
-  MessagePayload,
   NewsletterPayload,
   PollVotePayload,
   PresencePayload,
@@ -29,3 +25,15 @@ export type {
   ReactionPayload,
   SenderInfo,
 } from './types.js'
+export type {
+  BuildContextInput,
+  ChatType,
+  CitationConfig,
+  CitationPredicates,
+  ContextMedia,
+  MentionAllContext,
+  MentionContext,
+  MessageContext,
+  SenderDevice,
+} from './context.js'
+export { buildMessageContext } from './context.js'

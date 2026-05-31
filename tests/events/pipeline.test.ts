@@ -3,9 +3,11 @@ import { proto } from 'baileys'
 import { TypedEventEmitter } from '../../src/client/event-emitter.js'
 import type { ClientEventMap } from '../../src/client/types.js'
 import { attachInboundPipeline } from '../../src/events/pipeline.js'
+import type { MessageContext } from '../../src/events/context.js'
 import { makeInboundSocket, type InboundMockSocket } from '../_helpers/mock-socket-events.js'
 
 const SELF = '123@s.whatsapp.net'
+const GROUP = '99-1@g.us'
 
 function setup(selfJid = SELF): {
   client: TypedEventEmitter<ClientEventMap>
@@ -386,5 +388,106 @@ describe('attachInboundPipeline — multi-listener regression (W2)', () => {
     socket.ev.emit('connection.update', { reachoutTimeLock: { isActive: true, timeEnforcementEnds: new Date(7000) } })
     expect(phase3).toHaveBeenCalledTimes(1)
     expect(limited).toHaveBeenCalledTimes(1)
+  })
+})
+
+function groupMsg(text: string): Record<string, unknown> {
+  return {
+    key: { remoteJid: GROUP, id: 'G1', fromMe: false, participant: '628333@s.whatsapp.net' },
+    message: { conversation: text },
+    messageTimestamp: 1700,
+    pushName: 'Bob',
+  }
+}
+
+describe('attachInboundPipeline — Task 2 wiring (roomNameCache + citation + receiverName)', () => {
+  it('text payload is a MessageContext with channelId populated', () => {
+    const client = new TypedEventEmitter<ClientEventMap>()
+    const socket = makeInboundSocket({ user: { id: SELF } })
+    attachInboundPipeline(
+      client,
+      socket as unknown as Parameters<typeof attachInboundPipeline>[1],
+      { selfJid: SELF, channelId: 'session-a' },
+    )
+    const seen = vi.fn()
+    client.on('text', seen)
+    socket.triggerMessagesUpsert({
+      messages: [{ key: { remoteJid: '999@s.whatsapp.net', id: 'M1', fromMe: false }, message: { conversation: 'hi' }, messageTimestamp: 1700 }],
+      type: 'notify',
+    })
+    const payload = seen.mock.calls[0]?.[0] as MessageContext
+    expect(payload.channelId).toBe('session-a')
+    expect(payload.chatType).toBe('text')
+  })
+
+  it('WARNING 5: roomName() cached — two group messages share one groupMetadata fetch', async () => {
+    const client = new TypedEventEmitter<ClientEventMap>()
+    const socket = makeInboundSocket({ user: { id: SELF } })
+    const groupMetaSpy = vi.fn().mockResolvedValue({ subject: 'Test Group' })
+    attachInboundPipeline(
+      client,
+      socket as unknown as Parameters<typeof attachInboundPipeline>[1],
+      { selfJid: SELF, groupMetadata: groupMetaSpy },
+    )
+    const seen = vi.fn()
+    client.on('text', seen)
+    socket.triggerMessagesUpsert({ messages: [groupMsg('first')], type: 'notify' })
+    socket.triggerMessagesUpsert({ messages: [groupMsg('second')], type: 'notify' })
+    expect(seen).toHaveBeenCalledTimes(2)
+    const name1 = await (seen.mock.calls[0]?.[0] as MessageContext).roomName()
+    const name2 = await (seen.mock.calls[1]?.[0] as MessageContext).roomName()
+    expect(name1).toBe('Test Group')
+    expect(name2).toBe('Test Group')
+    expect(groupMetaSpy).toHaveBeenCalledTimes(1)
+  })
+
+  it('citation config reaches emitted context predicates', async () => {
+    const client = new TypedEventEmitter<ClientEventMap>()
+    const socket = makeInboundSocket({ user: { id: SELF } })
+    const authorJid = '628999@s.whatsapp.net'
+    attachInboundPipeline(
+      client,
+      socket as unknown as Parameters<typeof attachInboundPipeline>[1],
+      { selfJid: SELF, citationConfig: { authors: [authorJid] } },
+    )
+    const seen = vi.fn()
+    client.on('text', seen)
+    socket.triggerMessagesUpsert({
+      messages: [{ key: { remoteJid: authorJid, id: 'M2', fromMe: false }, message: { conversation: 'by author' }, messageTimestamp: 1700 }],
+      type: 'notify',
+    })
+    const payload = seen.mock.calls[0]?.[0] as MessageContext
+    await expect(payload.citation.authors()).resolves.toBe(true)
+    await expect(payload.citation.banned()).resolves.toBe(false)
+  })
+
+  it('receiverName() resolves null when no display name (me.name undefined)', async () => {
+    const client = new TypedEventEmitter<ClientEventMap>()
+    const socket = makeInboundSocket({ user: { id: SELF } })
+    attachInboundPipeline(
+      client,
+      socket as unknown as Parameters<typeof attachInboundPipeline>[1],
+      { selfJid: SELF, receiverName: () => Promise.resolve(null) },
+    )
+    const seen = vi.fn()
+    client.on('text', seen)
+    socket.triggerMessagesUpsert({
+      messages: [{ key: { remoteJid: '999@s.whatsapp.net', id: 'M3', fromMe: false }, message: { conversation: 'hey' }, messageTimestamp: 1700 }],
+      type: 'notify',
+    })
+    const payload = seen.mock.calls[0]?.[0] as MessageContext
+    await expect(payload.receiverName()).resolves.toBeNull()
+  })
+
+  it('dropSpoofedSelfOnly guard still drops spoofed self-only messages', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('text', seen)
+    socket.triggerMessagesUpsert({
+      messages: [{ key: { remoteJid: '999@s.whatsapp.net', id: 'M4', fromMe: false }, message: { conversation: 'spoof' }, messageTimestamp: 1700 }],
+      type: 'notify',
+      requestId: 'spoof-id',
+    })
+    expect(seen).not.toHaveBeenCalled()
   })
 })

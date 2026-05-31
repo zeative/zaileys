@@ -1,6 +1,7 @@
 import type { UserFacingSocketConfig, WASocket } from 'baileys'
 import type { AuthStoreBundle } from '../auth/types.js'
 import type { DisconnectReasonDomain } from '../connection/disconnect-reason.js'
+import type { CitationConfig } from '../events/context.js'
 import type { InboundEventMap } from '../events/types.js'
 import type { MessageStore } from '../store/types.js'
 
@@ -66,6 +67,12 @@ export interface ClientOptions {
    * and `use()` still register, but no dispatcher attaches and handlers never fire.
    */
   commandPrefix?: string | string[]
+  /**
+   * Per-client citation access-control config. `authors` is an allowlist of sender
+   * JIDs (or predicate) for `citation.authors()`. `banned` is a blocklist for
+   * `citation.banned()`. When absent both predicates resolve `false`.
+   */
+  citation?: CitationConfig
 }
 
 /** Typed payload contract for every connection-domain event. */

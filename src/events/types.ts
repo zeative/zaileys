@@ -37,18 +37,6 @@ export interface MediaDownloadResult {
   size: number
 }
 
-/** Base shape shared by every decoded inbound message event. */
-export interface MessagePayload {
-  jid: string
-  content: string
-  fromMe: boolean
-  isGroup: boolean
-  sender: SenderInfo
-  timestamp: number
-  key: WAMessageKey
-  quoted?: QuotedRef
-}
-
 /** Media descriptor attached to image, video, audio, document, and sticker events. */
 export interface MediaDescriptor {
   mimetype: string
@@ -56,13 +44,6 @@ export interface MediaDescriptor {
   caption?: string
   fileName?: string
   ptt?: boolean
-}
-
-/** Decoded media message payload with a lazy {@link MediaPayload.download} accessor. */
-export interface MediaPayload<K extends MediaKind = MediaKind> extends MessagePayload {
-  kind: K
-  media: MediaDescriptor
-  download(): Promise<MediaDownloadResult>
 }
 
 /** Reaction add/remove event; a `null` emoji denotes an unreact. */
@@ -113,23 +94,6 @@ export interface ListSelectPayload {
   title?: string
   sender: SenderInfo
   timestamp: number
-}
-
-/** Mention event fired when the connected account is mentioned explicitly. */
-export interface MentionPayload {
-  key: WAMessageKey
-  jid: string
-  mentionedJids: string[]
-  selfJid: string
-  content: string
-  sender: SenderInfo
-  timestamp: number
-}
-
-/** Mention-all (`@everyone`) event; discriminated from {@link MentionPayload} by `isMentionAll`. */
-export type MentionAllPayload = Omit<MentionPayload, 'mentionedJids'> & {
-  isMentionAll: true
-  members?: string[]
 }
 
 /** Group metadata change event carrying only the mutated fields. */

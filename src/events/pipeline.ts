@@ -1,4 +1,5 @@
 import type { WACallEvent, WAMessage } from 'baileys'
+import type { CitationConfig } from './context.js'
 import type { ClientEventMap, Logger } from '../client/types.js'
 import type { TypedEventEmitter } from '../client/event-emitter.js'
 import { dropSpoofedSelfOnly, type UpsertPayload } from './guards.js'
@@ -60,6 +61,12 @@ export interface InboundPipelineHandle {
 export interface InboundPipelineContext {
   selfJid: string
   logger?: Logger
+  channelId?: string
+  receiverId?: string
+  prefixes?: string[]
+  citationConfig?: CitationConfig
+  groupMetadata?: (groupId: string) => Promise<{ subject?: string } | null>
+  receiverName?: () => Promise<string | null>
 }
 
 /** Minimal `socket.ev` surface the pipeline subscribes against (additive, multi-listener). */
@@ -96,9 +103,28 @@ export function attachInboundPipeline(
   ctx: InboundPipelineContext,
 ): InboundPipelineHandle {
   const cleanups: Array<() => void> = []
-  const decodeCtx: DecodeContext = ctx.logger
-    ? { selfJid: ctx.selfJid, logger: ctx.logger }
-    : { selfJid: ctx.selfJid }
+  const roomNameCache = new Map<string, Promise<string | null>>()
+  const resolveRoomName = ctx.groupMetadata != null
+    ? (roomId: string): Promise<string | null> => {
+        const cached = roomNameCache.get(roomId)
+        if (cached !== undefined) return cached
+        const gm = ctx.groupMetadata
+        if (gm == null) return Promise.resolve(null)
+        const pending = gm(roomId).then((m) => m?.subject ?? null).catch(() => null)
+        roomNameCache.set(roomId, pending)
+        return pending
+      }
+    : undefined
+  const decodeCtx: DecodeContext = {
+    selfJid: ctx.selfJid,
+    ...(ctx.logger != null ? { logger: ctx.logger } : {}),
+    ...(ctx.channelId != null ? { channelId: ctx.channelId } : {}),
+    ...(ctx.receiverId != null ? { receiverId: ctx.receiverId } : {}),
+    ...(ctx.prefixes != null ? { prefixes: ctx.prefixes } : {}),
+    ...(ctx.citationConfig != null ? { citationConfig: ctx.citationConfig } : {}),
+    ...(resolveRoomName != null ? { resolveRoomName } : {}),
+    ...(ctx.receiverName != null ? { resolveReceiverName: ctx.receiverName } : {}),
+  }
   const interactiveCtx: InteractiveContext = ctx.logger
     ? { selfJid: ctx.selfJid, logger: ctx.logger }
     : { selfJid: ctx.selfJid }

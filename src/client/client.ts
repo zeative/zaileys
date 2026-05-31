@@ -44,7 +44,7 @@ import {
   type ScheduleHandle,
   type ScheduledContentSnapshot,
 } from '../automation/index.js'
-import type { MessageContext } from '../events/context.js'
+import type { CitationConfig, MessageContext } from '../events/context.js'
 import {
   formatConnectionStatus,
   suppressLibsignalNoise,
@@ -143,6 +143,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private commandRegistry?: CommandRegistry
   private readonly commandMiddleware: Middleware[] = []
   private readonly commandPrefixes: string[]
+  private readonly citationConfig: CitationConfig | undefined
   private commandDispatcher: DispatcherHandle | undefined
   private _presence?: PresenceModule
   private _scheduler?: Scheduler
@@ -168,6 +169,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.store = options.store ?? new MemoryMessageStore()
     this.reconnectStrategy = createReconnectStrategy(this.reconnectOptions)
     this.commandPrefixes = normalizePrefixes(options.commandPrefix)
+    this.citationConfig = options.citation
     this.attachEmitterLogger()
     if (options.autoConnect ?? true) {
       queueMicrotask(() => {
@@ -651,7 +653,13 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       this.inboundHandle?.detach()
       this.inboundHandle = attachInboundPipeline(this, socket as unknown as PipelineSocketLike, {
         selfJid: typeof me.id === 'string' ? me.id : '',
+        channelId: this.sessionId,
+        receiverId: typeof me.id === 'string' ? me.id : '',
+        prefixes: this.commandPrefixes,
         logger: this.logger,
+        ...(this.citationConfig != null ? { citationConfig: this.citationConfig } : {}),
+        groupMetadata: (groupId) => this.group.metadata(groupId).catch(() => null),
+        receiverName: () => Promise.resolve(this.resolveMe().name ?? null),
       })
     }
     this.attachCommandsIfReady()

@@ -60,7 +60,7 @@ describe('InboundEventMap keys', () => {
   })
 })
 
-describe('MessageContext (replaces MessagePayload)', () => {
+describe('MessageContext (rich flat+lazy payload)', () => {
   it('text event maps to MessageContext', () => {
     expectTypeOf<InboundEventMap['text']>().toEqualTypeOf<MessageContext>()
   })

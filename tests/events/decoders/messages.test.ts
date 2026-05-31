@@ -295,19 +295,145 @@ describe('decodeSticker', () => {
   })
 })
 
+describe('Task 1b — media-aware contextInfo behaviors (BLOCKER 2)', () => {
+  it('IMAGE with isForwarded in imageMessage.contextInfo surfaces isForwarded:true', () => {
+    const out = decodeImage(
+      mediaMsg('imageMessage', {
+        mimetype: 'image/jpeg',
+        contextInfo: { isForwarded: true },
+      }),
+      ctx,
+    )
+    expect(out?.isForwarded).toBe(true)
+  })
+
+  it('IMAGE with extendedText absent but imageMessage.contextInfo.isForwarded:true surfaces isForwarded:true', () => {
+    const out = decodeImage(
+      mediaMsg('imageMessage', {
+        mimetype: 'image/jpeg',
+        contextInfo: { forwardingScore: 5 },
+      }),
+      ctx,
+    )
+    expect(out?.isForwarded).toBe(true)
+  })
+
+  it('IMAGE with imageMessage.contextInfo.stanzaId + quotedMessage => replied() resolves a nested MessageContext', async () => {
+    const out = decodeImage(
+      mediaMsg('imageMessage', {
+        mimetype: 'image/jpeg',
+        contextInfo: {
+          stanzaId: 'Q2',
+          participant: '628444@s.whatsapp.net',
+          remoteJid: '628444@s.whatsapp.net',
+          quotedMessage: { conversation: 'what did you send?' },
+        },
+      }),
+      ctx,
+    )
+    expect(out).not.toBeNull()
+    const replied = await out!.replied()
+    expect(replied).not.toBeNull()
+    expect(replied?.text).toBe('what did you send?')
+    expect(replied?.chatType).toBe('text')
+  })
+
+  it('text message with quoted text => replied() resolves a nested MessageContext', async () => {
+    const out = decodeText(
+      base({
+        message: {
+          extendedTextMessage: {
+            text: 'yes',
+            contextInfo: {
+              stanzaId: 'Q3',
+              participant: '628555@s.whatsapp.net',
+              remoteJid: '628555@s.whatsapp.net',
+              quotedMessage: { conversation: 'are you there?' },
+            },
+          },
+        },
+      }),
+      ctx,
+    )
+    expect(out).not.toBeNull()
+    const replied = await out!.replied()
+    expect(replied).not.toBeNull()
+    expect(replied?.text).toBe('are you there?')
+  })
+
+  it('no quote => replied() resolves null', async () => {
+    const out = decodeText(base({ message: { conversation: 'hello' } }), ctx)
+    await expect(out!.replied()).resolves.toBeNull()
+  })
+
+  it('WARNING-7: quotedMessage present but stanzaId missing => replied() resolves null without throwing', async () => {
+    const out = decodeText(
+      base({
+        message: {
+          extendedTextMessage: {
+            text: 'reply',
+            contextInfo: {
+              quotedMessage: { conversation: 'incomplete quote' },
+            },
+          },
+        },
+      }),
+      ctx,
+    )
+    expect(out).not.toBeNull()
+    await expect(out!.replied()).resolves.toBeNull()
+  })
+
+  it('BLOCKER-1: no-resolver context => citation.banned() resolves false without throwing', async () => {
+    const out = decodeText(base({ message: { conversation: 'hi' } }), { selfJid: SELF })
+    expect(out).not.toBeNull()
+    await expect(out!.citation.banned()).resolves.toBe(false)
+    await expect(out!.citation.authors()).resolves.toBe(false)
+  })
+
+  it('BLOCKER-1: no-resolver context => replied() resolves null without throwing', async () => {
+    const out = decodeText(base({ message: { conversation: 'hi' } }), { selfJid: SELF })
+    expect(out).not.toBeNull()
+    await expect(out!.replied()).resolves.toBeNull()
+  })
+
+  it('LID DM with empty participant still resolves senderId (no extractSender regression)', () => {
+    const out = decodeText(
+      base({
+        key: {
+          remoteJid: '123918899749051@lid',
+          remoteJidAlt: '6285136635787@s.whatsapp.net',
+          fromMe: false,
+          id: 'L2',
+          participant: '',
+          addressingMode: 'lid',
+        } as unknown as WAMessage['key'],
+        message: { conversation: 'lid test' },
+      }),
+      ctx,
+    )
+    expect(out).not.toBeNull()
+    expect(out?.senderId).toBe('123918899749051@lid')
+    expect(out?.senderLid).toBe('6285136635787@s.whatsapp.net')
+  })
+})
+
 const mentionMsg = (mentionedJid: string[], over: Record<string, unknown> = {}): WAMessage =>
   base({
     key: { remoteJid: GROUP, fromMe: false, id: 'MN', participant: '628333@s.whatsapp.net' },
     message: { extendedTextMessage: { text: 'hey @you', contextInfo: { mentionedJid, ...over } } },
   })
 
-describe('decodeMention', () => {
-  it('decodes when self is mentioned in group', () => {
+describe('decodeMention (Task 1b — MentionContext)', () => {
+  it('decodes when self is mentioned in group — emits MentionContext', () => {
     const out = decodeMention(mentionMsg([SELF, '628999@s.whatsapp.net']), ctx)
     expect(out).not.toBeNull()
     expect(out?.selfJid).toBe(SELF)
     expect(out?.mentionedJids).toContain(SELF)
-    expect(out?.content).toBe('hey @you')
+    expect(out?.text).toBe('hey @you')
+    expect(out?.chatType).toBe('text')
+    expect(out?.isGroup).toBe(true)
+    expect(typeof out?.roomName).toBe('function')
   })
 
   it('returns null when self not mentioned', () => {
@@ -330,8 +456,8 @@ describe('decodeMention', () => {
 
 const mentionAllCtx = { groupMentions: [{ groupJid: GROUP, groupSubject: 'Team' }] }
 
-describe('decodeMentionAll', () => {
-  it('decodes a group-wide mention in a group', () => {
+describe('decodeMentionAll (Task 1b — MentionAllContext)', () => {
+  it('decodes a group-wide mention in a group — emits MentionAllContext', () => {
     const out = decodeMentionAll(
       base({
         key: { remoteJid: GROUP, fromMe: false, id: 'MA', participant: '628333@s.whatsapp.net' },
@@ -342,6 +468,9 @@ describe('decodeMentionAll', () => {
     expect(out).not.toBeNull()
     expect(out?.isMentionAll).toBe(true)
     expect(out?.selfJid).toBe(SELF)
+    expect(out?.isGroup).toBe(true)
+    expect(out?.chatType).toBe('text')
+    expect(typeof out?.roomName).toBe('function')
   })
 
   it('returns null for a group-wide mention in a 1:1 chat', () => {

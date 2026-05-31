@@ -123,8 +123,8 @@ export function attachInboundPipeline(
     tryEmit(() => decodeAudio(msg, decodeCtx), (p) => client.emit('audio', p))
     tryEmit(() => decodeDocument(msg, decodeCtx), (p) => client.emit('document', p))
     tryEmit(() => decodeSticker(msg, decodeCtx), (p) => client.emit('sticker', p))
-    tryEmit(() => decodeMention(msg, decodeCtx), (p) => client.emit('mention', p as unknown as import('./context.js').MentionContext))
-    tryEmit(() => decodeMentionAll(msg, decodeCtx), (p) => client.emit('mention-all', p as unknown as import('./context.js').MentionAllContext))
+    tryEmit(() => decodeMention(msg, decodeCtx), (p) => client.emit('mention', p))
+    tryEmit(() => decodeMentionAll(msg, decodeCtx), (p) => client.emit('mention-all', p))
     tryEmit(() => decodeButtonClick(msg, interactiveCtx), (p) => client.emit('button-click', p))
     tryEmit(() => decodeListSelect(msg, interactiveCtx), (p) => client.emit('list-select', p))
   }

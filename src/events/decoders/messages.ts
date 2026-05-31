@@ -4,18 +4,17 @@ import {
   type ChatType,
   type CitationConfig,
   type ContextMedia,
-  type MessageContext,
   type MentionAllContext,
   type MentionContext,
+  type MessageContext,
 } from '../context.js'
-import type { MediaKind, MentionAllPayload, MentionPayload } from '../types.js'
+import type { MediaKind } from '../types.js'
 import { createDownloadFn, createStreamFn, type DownloadLogger } from './_media-download.js'
 import {
   extractMentions,
   extractQuoted,
   extractSender,
   isGroupJid,
-  safeNumber,
 } from './_shared.js'
 
 /** Decode context passed to every message decoder. */
@@ -50,11 +49,6 @@ const MEDIA_FIELD: Record<MediaKind, string> = {
 const resolveJid = (key: WAMessage['key'] | undefined): string => {
   const remote = key?.remoteJid
   return typeof remote === 'string' && remote.length > 0 ? remote : ''
-}
-
-const timestampOf = (msg: WAMessage): number => {
-  const ts = safeNumber(msg.messageTimestamp ?? null)
-  return ts === null ? 0 : ts * 1000
 }
 
 const textContent = (msg: WAMessage): string | null => {
@@ -113,9 +107,41 @@ const isEphemeralOf = (msg: WAMessage, contextInfo: WAContextInfo | null): boole
 }
 
 const decodeQuotedContext = async (
-  _contextInfo: WAContextInfo | null,
-  _ctx: DecodeContext,
-): Promise<MessageContext | null> => null
+  contextInfo: WAContextInfo | null,
+  ctx: DecodeContext,
+): Promise<MessageContext | null> => {
+  try {
+    if (contextInfo == null) return null
+    if (contextInfo.quotedMessage == null) return null
+    const stanzaId = contextInfo.stanzaId
+    if (typeof stanzaId !== 'string' || stanzaId.length === 0) return null
+    const quoted = extractQuoted(contextInfo)
+    if (quoted === null) return null
+    if (typeof quoted.key.id !== 'string' || quoted.key.id.length === 0) return null
+    const remoteJid = quoted.key.remoteJid
+    if (typeof remoteJid !== 'string' || remoteJid.length === 0) return null
+    const qm = contextInfo.quotedMessage as WAMessage['message']
+    const reconstructed = Object.assign(
+      { key: quoted.key, message: qm ?? null },
+      quoted.sender?.pushName != null ? { pushName: quoted.sender.pushName } : {},
+    ) as WAMessage
+    const content = contextInfo.quotedMessage
+    let chatType: ChatType = 'text'
+    if (content != null) {
+      const fields = Object.values(MEDIA_FIELD)
+      for (const f of fields) {
+        if ((content as Record<string, unknown>)[f] != null) {
+          chatType = f.replace('Message', '') as ChatType
+          break
+        }
+      }
+    }
+    const text = textContent(reconstructed) ?? ''
+    return buildContext(reconstructed, ctx, chatType, text)
+  } catch {
+    return null
+  }
+}
 
 const buildContext = (
   msg: WAMessage,
@@ -244,7 +270,7 @@ const normalizedEquals = (a: string, b: string): boolean => {
 }
 
 /** Decode a mention event when the connected account appears in `mentionedJid`. */
-export const decodeMention = (msg: WAMessage, ctx: DecodeContext): MentionPayload | null => {
+export const decodeMention = (msg: WAMessage, ctx: DecodeContext): MentionContext | null => {
   const key = msg.key
   if (key == null) return null
   const contextInfo = contextInfoOf(msg)
@@ -252,40 +278,36 @@ export const decodeMention = (msg: WAMessage, ctx: DecodeContext): MentionPayloa
   if (mentionedJids.length === 0) return null
   const hasSelf = mentionedJids.some((jid) => normalizedEquals(jid, ctx.selfJid))
   if (!hasSelf) return null
-  const sender = extractSender(key, msg.pushName ?? undefined)
-  if (sender === null) return null
-  const jid = resolveJid(key)
-  if (jid.length === 0) return null
-  return {
-    key,
-    jid,
-    mentionedJids,
-    selfJid: ctx.selfJid,
-    content: textContent(msg) ?? '',
-    sender,
-    timestamp: timestampOf(msg),
+  const content = msg.message
+  if (content == null) return null
+  const text = textContent(msg) ?? ''
+  let chatType: ChatType = 'text'
+  if (content != null) {
+    const fields = Object.values(MEDIA_FIELD)
+    for (const f of fields) {
+      if ((content as Record<string, unknown>)[f] != null) {
+        chatType = f.replace('Message', '') as ChatType
+        break
+      }
+    }
   }
+  const base = buildContext(msg, ctx, chatType, text)
+  if (base === null) return null
+  return { ...base, mentionedJids, selfJid: ctx.selfJid }
 }
 
 /** Decode a group-wide (`@everyone`) mention event scoped to group chats. */
-export const decodeMentionAll = (msg: WAMessage, ctx: DecodeContext): MentionAllPayload | null => {
+export const decodeMentionAll = (msg: WAMessage, ctx: DecodeContext): MentionAllContext | null => {
   const key = msg.key
   if (key == null) return null
   const jid = resolveJid(key)
   if (jid.length === 0 || !isGroupJid(jid)) return null
   const { mentionAll } = extractMentions(contextInfoOf(msg))
   if (!mentionAll) return null
-  const sender = extractSender(key, msg.pushName ?? undefined)
-  if (sender === null) return null
-  return {
-    key,
-    jid,
-    isMentionAll: true,
-    selfJid: ctx.selfJid,
-    content: textContent(msg) ?? '',
-    sender,
-    timestamp: timestampOf(msg),
-  }
+  const content = msg.message
+  if (content == null) return null
+  const text = textContent(msg) ?? ''
+  const base = buildContext(msg, ctx, 'text', text)
+  if (base === null) return null
+  return { ...base, isMentionAll: true, selfJid: ctx.selfJid }
 }
-
-export type { MentionContext, MentionAllContext }

@@ -481,20 +481,15 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private buildCommandContext(resolved: ResolvedCommand, msg: MessageContext): CommandContext {
     let lastSentKey: WAMessageKey | undefined
     return {
-      jid: msg.senderId,
-      sender: Object.assign(
-        { jid: msg.senderId },
-        msg.senderLid != null ? { lid: msg.senderLid } : {},
-        msg.senderName != null ? { pushName: msg.senderName } : {},
-      ),
+      ...msg,
       raw: resolved.raw,
       command: resolved.command,
       args: resolved.args,
       flags: resolved.flags,
       json: resolved.json,
-      message: msg,
       reply: async (content: string): Promise<WAMessageKey> => {
-        const key = await this.send(msg.senderId).text(content).reply(msg.message().key)
+        const target = msg.roomId ?? msg.senderId
+        const key = await this.send(target).text(content).reply(msg.message().key)
         lastSentKey = key
         return key
       },

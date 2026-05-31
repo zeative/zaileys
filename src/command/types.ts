@@ -1,5 +1,4 @@
 import type { WAMessageKey } from 'baileys'
-import type { SenderInfo } from '../events/types.js'
 import type { MessageContext } from '../events/context.js'
 
 /** Configured command prefix: a single token or a set of accepted tokens. */
@@ -20,18 +19,15 @@ export interface ParsedArgs {
 }
 
 /**
- * Typed context handed to every command handler and middleware. Uses the rich
- * {@link MessageContext} as the message payload (Plan 03 completes field migration).
+ * Typed context handed to every command handler and middleware. Extends the rich
+ * {@link MessageContext} with parsed command fields and action methods.
  */
-export interface CommandContext {
-  jid: string
-  sender: SenderInfo
+export interface CommandContext extends MessageContext {
   raw: string
   command: string
   args: string[]
   flags: Record<string, string | boolean>
   json: unknown
-  message: MessageContext
   reply(content: string): Promise<WAMessageKey>
   react(emoji: string): Promise<WAMessageKey>
   edit(content: string): Promise<void>

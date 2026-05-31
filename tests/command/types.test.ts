@@ -1,5 +1,5 @@
 import { describe, expectTypeOf, it } from 'vitest'
-import type { SenderInfo } from '../../src/events/types.js'
+import type { WAMessage } from 'baileys'
 import type { MessageContext } from '../../src/events/context.js'
 import type {
   CommandContext,
@@ -24,9 +24,11 @@ describe('command types', () => {
     expectTypeOf<ParsedArgs['json']>().toEqualTypeOf<unknown>()
   })
 
-  it('CommandContext uses SenderInfo and MessageContext', () => {
-    expectTypeOf<CommandContext['sender']>().toEqualTypeOf<SenderInfo>()
-    expectTypeOf<CommandContext['message']>().toEqualTypeOf<MessageContext>()
+  it('CommandContext extends MessageContext (rich fields exposed)', () => {
+    expectTypeOf<CommandContext>().toMatchTypeOf<MessageContext>()
+    expectTypeOf<CommandContext['message']>().returns.toEqualTypeOf<WAMessage>()
+    expectTypeOf<CommandContext['senderId']>().toEqualTypeOf<string>()
+    expectTypeOf<CommandContext['text']>().toEqualTypeOf<string>()
   })
 
   it('CommandContext.flags value is string | boolean', () => {

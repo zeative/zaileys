@@ -85,14 +85,12 @@ const makeHarness = (over?: { prefixes?: string[]; middleware?: Middleware[] }):
     },
     buildContext: (parsed, message) => {
       const ctx: CommandContext = {
-        jid: message.senderId,
-        sender: { jid: message.senderId },
+        ...message,
         raw: parsed.raw,
         command: parsed.command,
         args: parsed.args,
         flags: parsed.flags,
         json: parsed.json,
-        message,
         reply: vi.fn(async () => message.message().key),
         react: vi.fn(async () => message.message().key),
         edit: vi.fn(async () => undefined),
@@ -155,7 +153,7 @@ describe('attachCommandDispatcher — basic dispatch', () => {
     attachCommandDispatcher(h.deps)
     await emitText(h, '/ping')
     const ctx = handler.mock.calls[0]?.[0] as CommandContext
-    expect(ctx.message.message().key.id).toBe('M1')
+    expect(ctx.message().key.id).toBe('M1')
   })
 
   it('dispatches with a custom prefix', async () => {

@@ -3,7 +3,7 @@ import { Client, type Middleware } from '../src/index.js'
 const client = new Client({ commandPrefix: ['/', '!'] })
 
 const loggingMiddleware: Middleware = async (ctx, next) => {
-  console.log(`[command] ${ctx.command} from ${ctx.sender.jid} args=${ctx.args.join(',')}`)
+  console.log(`[command] ${ctx.command} from ${ctx.senderId} args=${ctx.args.join(',')}`)
   await next()
 }
 

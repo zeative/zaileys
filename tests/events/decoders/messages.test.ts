@@ -54,6 +54,29 @@ describe('decodeText', () => {
     expect(decodeText(base({ message: null }), ctx)).toBeNull()
   })
 
+  it('decodes a 1:1 DM addressed over LID where participant is an empty string', () => {
+    const out = decodeText(
+      base({
+        key: {
+          remoteJid: '123918899749051@lid',
+          remoteJidAlt: '6285136635787@s.whatsapp.net',
+          fromMe: false,
+          id: 'L1',
+          participant: '',
+          addressingMode: 'lid',
+        } as unknown as WAMessage['key'],
+        message: { extendedTextMessage: { text: 'tes' }, messageContextInfo: {} },
+      }),
+      ctx,
+    )
+    expect(out).not.toBeNull()
+    expect(out?.content).toBe('tes')
+    expect(out?.isGroup).toBe(false)
+    expect(out?.jid).toBe('123918899749051@lid')
+    expect(out?.sender.jid).toBe('123918899749051@lid')
+    expect(out?.sender.lid).toBe('6285136635787@s.whatsapp.net')
+  })
+
   it('flags group context from participant key', () => {
     const out = decodeText(
       base({

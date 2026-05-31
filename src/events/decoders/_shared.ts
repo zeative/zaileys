@@ -28,17 +28,20 @@ export const extractJid = (remoteJid: string | undefined | null): string | null 
   return jidNormalizedUser(remoteJid)
 }
 
+const nonEmpty = (value: string | undefined | null): string | undefined =>
+  typeof value === 'string' && value.length > 0 ? value : undefined
+
 /** Build {@link SenderInfo} from a message key, preferring participant in group chats. */
 export const extractSender = (
   key: WAMessageKey | undefined,
   pushName?: string,
 ): SenderInfo | null => {
   if (!key) return null
-  const raw = key.participant ?? key.remoteJid
+  const raw = nonEmpty(key.participant) ?? key.remoteJid
   const jid = extractJid(raw)
   if (jid === null) return null
-  const alt = key.participantAlt ?? key.remoteJidAlt
-  const username = key.participantUsername ?? key.remoteJidUsername
+  const alt = nonEmpty(key.participantAlt) ?? nonEmpty(key.remoteJidAlt)
+  const username = nonEmpty(key.participantUsername) ?? nonEmpty(key.remoteJidUsername)
   const sender: SenderInfo = { jid, isMe: key.fromMe === true }
   if (typeof alt === 'string' && alt.length > 0) sender.lid = alt
   if (typeof username === 'string' && username.length > 0) sender.username = username
@@ -53,8 +56,8 @@ export const extractQuoted = (
   if (!contextInfo) return null
   const stanzaId = contextInfo.stanzaId
   if (typeof stanzaId !== 'string' || stanzaId.length === 0) return null
-  const participant = contextInfo.participant ?? undefined
-  const remoteJid = contextInfo.remoteJid ?? participant ?? undefined
+  const participant = nonEmpty(contextInfo.participant)
+  const remoteJid = nonEmpty(contextInfo.remoteJid) ?? participant
   const key: WAMessageKey = { id: stanzaId }
   if (typeof remoteJid === 'string') key.remoteJid = remoteJid
   if (typeof participant === 'string') key.participant = participant

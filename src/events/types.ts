@@ -1,4 +1,5 @@
 import type { WAMessageKey } from 'baileys'
+import type { MentionAllContext, MentionContext, MessageContext } from './context.js'
 
 /** Resolved sender identity normalized across PN and LID addressing modes. */
 export interface SenderInfo {
@@ -221,20 +222,20 @@ export type NewsletterPayload = {
  * `ConnectionEventMap` into `ClientEventMap` at the client boundary.
  */
 export type InboundEventMap = {
-  text: MessagePayload
-  image: MediaPayload<'image'>
-  video: MediaPayload<'video'>
-  audio: MediaPayload<'audio'>
-  document: MediaPayload<'document'>
-  sticker: MediaPayload<'sticker'>
+  text: MessageContext
+  image: MessageContext
+  video: MessageContext
+  audio: MessageContext
+  document: MessageContext
+  sticker: MessageContext
   reaction: ReactionPayload
   edit: EditPayload
   delete: DeletePayload
   'poll-vote': PollVotePayload
   'button-click': ButtonClickPayload
   'list-select': ListSelectPayload
-  mention: MentionPayload
-  'mention-all': MentionAllPayload
+  mention: MentionContext
+  'mention-all': MentionAllContext
   'group-update': GroupUpdatePayload
   'group-join': GroupJoinPayload
   'group-leave': GroupLeavePayload

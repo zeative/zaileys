@@ -39,7 +39,7 @@ describe('attachInboundPipeline — messages.upsert', () => {
     client.on('text', seen)
     socket.triggerMessagesUpsert({ messages: [textMsg('hello')], type: 'notify' })
     expect(seen).toHaveBeenCalledTimes(1)
-    expect(seen.mock.calls[0]?.[0]).toMatchObject({ content: 'hello', jid: '999@s.whatsapp.net' })
+    expect(seen.mock.calls[0]?.[0]).toMatchObject({ text: 'hello', senderId: '999@s.whatsapp.net', chatType: 'text' })
   })
 
   it('emits image with download function', () => {
@@ -51,7 +51,7 @@ describe('attachInboundPipeline — messages.upsert', () => {
       type: 'notify',
     })
     expect(seen).toHaveBeenCalledTimes(1)
-    expect(typeof seen.mock.calls[0]?.[0].download).toBe('function')
+    expect(typeof seen.mock.calls[0]?.[0].media?.buffer).toBe('function')
   })
 
   it('emits video, audio, document, sticker for respective nodes', () => {
@@ -366,7 +366,7 @@ describe('attachInboundPipeline — detach + resilience', () => {
     client.on('text', seen)
     socket.triggerMessagesUpsert({ messages: [{ key: null }, textMsg('after-bad')], type: 'notify' })
     expect(seen).toHaveBeenCalledTimes(1)
-    expect(seen.mock.calls[0]?.[0]).toMatchObject({ content: 'after-bad' })
+    expect(seen.mock.calls[0]?.[0]).toMatchObject({ text: 'after-bad', chatType: 'text' })
   })
 })
 

@@ -1,5 +1,6 @@
 import { describe, expectTypeOf, it } from 'vitest'
-import type { MessagePayload, SenderInfo } from '../../src/events/types.js'
+import type { SenderInfo } from '../../src/events/types.js'
+import type { MessageContext } from '../../src/events/context.js'
 import type {
   CommandContext,
   CommandDefinition,
@@ -23,9 +24,9 @@ describe('command types', () => {
     expectTypeOf<ParsedArgs['json']>().toEqualTypeOf<unknown>()
   })
 
-  it('CommandContext reuses SenderInfo and MessagePayload', () => {
+  it('CommandContext uses SenderInfo and MessageContext', () => {
     expectTypeOf<CommandContext['sender']>().toEqualTypeOf<SenderInfo>()
-    expectTypeOf<CommandContext['message']>().toEqualTypeOf<MessagePayload>()
+    expectTypeOf<CommandContext['message']>().toEqualTypeOf<MessageContext>()
   })
 
   it('CommandContext.flags value is string | boolean', () => {

@@ -139,7 +139,7 @@ describe('Client auto-connect — race safety', () => {
     const c = new Client({ auth: new MemoryAuthStore(), qrTerminal: false })
     const sent = vi.fn()
     c.on('text', async (msg) => {
-      await c.send('111@s.whatsapp.net').text(`reply:${msg.content}`)
+      await c.send('111@s.whatsapp.net').text(`reply:${msg.text}`)
       sent()
     })
     await vi.waitFor(() => expect(c.state).toBe('connecting'))
@@ -159,7 +159,7 @@ describe('Client auto-connect — race safety', () => {
     const errs: unknown[] = []
     c.on('text', async (msg) => {
       try {
-        await c.send('111@s.whatsapp.net').text(msg.content)
+        await c.send('111@s.whatsapp.net').text(msg.text)
       } catch (err) {
         errs.push(err)
       }

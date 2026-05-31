@@ -44,7 +44,7 @@ import {
   type ScheduleHandle,
   type ScheduledContentSnapshot,
 } from '../automation/index.js'
-import type { MessagePayload } from '../events/types.js'
+import type { MessageContext } from '../events/context.js'
 import {
   formatConnectionStatus,
   suppressLibsignalNoise,
@@ -468,7 +468,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       prefixes: this.commandPrefixes,
       logger: this.logger,
       onText: (handler) => {
-        const wrapped = (msg: MessagePayload): void => handler(msg)
+        const wrapped = (msg: MessageContext): void => handler(msg)
         this.on('text', wrapped)
         return () => this.off('text', wrapped)
       },
@@ -476,11 +476,15 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     })
   }
 
-  private buildCommandContext(resolved: ResolvedCommand, msg: MessagePayload): CommandContext {
+  private buildCommandContext(resolved: ResolvedCommand, msg: MessageContext): CommandContext {
     let lastSentKey: WAMessageKey | undefined
     return {
-      jid: msg.jid,
-      sender: msg.sender,
+      jid: msg.senderId,
+      sender: Object.assign(
+        { jid: msg.senderId },
+        msg.senderLid != null ? { lid: msg.senderLid } : {},
+        msg.senderName != null ? { pushName: msg.senderName } : {},
+      ),
       raw: resolved.raw,
       command: resolved.command,
       args: resolved.args,
@@ -488,11 +492,11 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       json: resolved.json,
       message: msg,
       reply: async (content: string): Promise<WAMessageKey> => {
-        const key = await this.send(msg.jid).text(content).reply(msg.key)
+        const key = await this.send(msg.senderId).text(content).reply(msg.message().key)
         lastSentKey = key
         return key
       },
-      react: (emoji: string): Promise<WAMessageKey> => this.react(msg.key, emoji),
+      react: (emoji: string): Promise<WAMessageKey> => this.react(msg.message().key, emoji),
       edit: async (content: string): Promise<void> => {
         if (lastSentKey === undefined) {
           throw new ZaileysCommandError('NO_SENT_MESSAGE', 'ctx.edit requires a prior ctx.reply')

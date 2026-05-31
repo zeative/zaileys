@@ -3,18 +3,51 @@ import { describe, expect, it, vi } from 'vitest'
 import { attachCommandDispatcher, type DispatcherDeps } from '../../src/command/dispatcher.js'
 import { CommandRegistry } from '../../src/command/registry.js'
 import type { CommandContext, Middleware } from '../../src/command/types.js'
-import type { MessagePayload } from '../../src/events/types.js'
+import type { MessageContext } from '../../src/events/context.js'
 
-const SENDER = { jid: '628111@s.whatsapp.net' }
+const SENDER_JID = '628111@s.whatsapp.net'
+const MSG_KEY = { remoteJid: SENDER_JID, id: 'M1', fromMe: false }
 
-const msg = (content: string): MessagePayload => ({
-  jid: '628111@s.whatsapp.net',
-  content,
-  fromMe: false,
-  isGroup: false,
-  sender: SENDER,
+const msg = (text: string): MessageContext => ({
+  uniqueId: 'test-id',
+  channelId: '',
+  chatId: 'M1',
+  chatType: 'text',
+  receiverId: '',
+  roomId: null,
+  senderId: SENDER_JID,
+  senderLid: null,
+  senderName: null,
+  senderDevice: 'unknown',
   timestamp: 0,
-  key: { remoteJid: '628111@s.whatsapp.net', id: 'M1', fromMe: false },
+  text,
+  mentions: [],
+  links: [],
+  isFromMe: false,
+  isGroup: false,
+  isNewsletter: false,
+  isBroadcast: false,
+  isViewOnce: false,
+  isEphemeral: false,
+  isForwarded: false,
+  isQuestion: false,
+  isPrefix: false,
+  isTagMe: false,
+  isEdited: false,
+  isDeleted: false,
+  isPinned: false,
+  isUnPinned: false,
+  isBot: false,
+  isSpam: false,
+  isHideTags: false,
+  isStatusMention: false,
+  isGroupStatusMention: false,
+  isStory: false,
+  roomName: () => Promise.resolve(null),
+  receiverName: () => Promise.resolve(null),
+  replied: () => Promise.resolve(null),
+  message: () => ({ key: MSG_KEY } as import('baileys').WAMessage),
+  citation: { authors: () => Promise.resolve(false), banned: () => Promise.resolve(false) },
 })
 
 const silentLogger = () => ({
@@ -46,22 +79,22 @@ const makeHarness = (over?: { prefixes?: string[]; middleware?: Middleware[] }):
     prefixes: over?.prefixes ?? ['/'],
     logger,
     onText: (handler) => {
-      const wrapped = (m: MessagePayload): void => handler(m)
+      const wrapped = (m: MessageContext): void => handler(m)
       emitter.on('text', wrapped)
       return () => emitter.off('text', wrapped)
     },
     buildContext: (parsed, message) => {
       const ctx: CommandContext = {
-        jid: message.jid,
-        sender: message.sender,
+        jid: message.senderId,
+        sender: { jid: message.senderId },
         raw: parsed.raw,
         command: parsed.command,
         args: parsed.args,
         flags: parsed.flags,
         json: parsed.json,
         message,
-        reply: vi.fn(async () => message.key),
-        react: vi.fn(async () => message.key),
+        reply: vi.fn(async () => message.message().key),
+        react: vi.fn(async () => message.message().key),
         edit: vi.fn(async () => undefined),
       }
       contexts.push(ctx)
@@ -122,7 +155,7 @@ describe('attachCommandDispatcher — basic dispatch', () => {
     attachCommandDispatcher(h.deps)
     await emitText(h, '/ping')
     const ctx = handler.mock.calls[0]?.[0] as CommandContext
-    expect(ctx.message.key.id).toBe('M1')
+    expect(ctx.message.message().key.id).toBe('M1')
   })
 
   it('dispatches with a custom prefix', async () => {

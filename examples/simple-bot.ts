@@ -11,8 +11,8 @@ client.on('connect', ({ me }) => {
 })
 
 client.on('text', async (message) => {
-  if (message.fromMe) return
-  await client.send(message.jid).text(`Echo: ${message.content}`)
+  if (message.isFromMe) return
+  await client.send(message.senderId).text(`Echo: ${message.text}`)
 })
 
 client.on('disconnect', ({ reason, willReconnect }) => {

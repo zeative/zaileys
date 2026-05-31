@@ -1,19 +1,16 @@
 import { execSync } from 'node:child_process'
 import { describe, expect, expectTypeOf, it, vi } from 'vitest'
-import { proto, type WAMessage } from 'baileys'
+import { proto } from 'baileys'
 import { TypedEventEmitter } from '../../src/client/event-emitter.js'
 import type { ClientEventMap } from '../../src/client/types.js'
 import { attachInboundPipeline } from '../../src/events/pipeline.js'
 import type {
   CallPayload,
   LimitedPayload,
-  MediaPayload,
-  MentionAllPayload,
-  MentionPayload,
-  MessagePayload,
   NewsletterPayload,
   PresencePayload,
 } from '../../src/events/types.js'
+import type { MentionAllContext, MentionContext, MessageContext } from '../../src/events/context.js'
 import { makeInboundSocket, type InboundMockSocket } from '../_helpers/mock-socket-events.js'
 
 const { downloadMediaMessage } = vi.hoisted(() => ({ downloadMediaMessage: vi.fn() }))
@@ -50,8 +47,8 @@ function msg(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   }
 }
 
-describe('Phase 4 SC#1: text payload typed {jid, content, fromMe, isGroup, sender, timestamp, quoted}', () => {
-  it('handler receives MessagePayload with every core field populated', () => {
+describe('Phase 9 SC#1: text payload typed as MessageContext (flat+lazy)', () => {
+  it('handler receives MessageContext with every core field populated', () => {
     const { client, socket } = setup()
     const seen = vi.fn()
     client.on('text', seen)
@@ -70,17 +67,20 @@ describe('Phase 4 SC#1: text payload typed {jid, content, fromMe, isGroup, sende
       type: 'notify',
     })
     expect(seen).toHaveBeenCalledTimes(1)
-    const payload = seen.mock.calls[0]?.[0] as MessagePayload
-    expect(payload.jid).toBe(GROUP)
-    expect(payload.content).toBe('hello')
-    expect(typeof payload.fromMe).toBe('boolean')
+    const payload = seen.mock.calls[0]?.[0] as MessageContext
+    expect(payload.senderId).toBe('p@s.whatsapp.net')
+    expect(payload.text).toBe('hello')
+    expect(typeof payload.isFromMe).toBe('boolean')
     expect(payload.isGroup).toBe(true)
-    expect(payload.sender.jid).toBe('p@s.whatsapp.net')
+    expect(payload.chatType).toBe('text')
+    expect(typeof payload.uniqueId).toBe('string')
     expect(typeof payload.timestamp).toBe('number')
-    expect(payload.quoted?.key.id).toBe('Q1')
+    expect(typeof payload.roomName).toBe('function')
+    expect(typeof payload.replied).toBe('function')
+    expect(typeof payload.message).toBe('function')
   })
 
-  it('fromMe true when key.fromMe set; isGroup false for direct chat', () => {
+  it('isFromMe true when key.fromMe set; isGroup false for direct chat', () => {
     const { client, socket } = setup()
     const seen = vi.fn()
     client.on('text', seen)
@@ -88,29 +88,29 @@ describe('Phase 4 SC#1: text payload typed {jid, content, fromMe, isGroup, sende
       messages: [msg({ key: { remoteJid: '999@s.whatsapp.net', id: 'M2', fromMe: true } })],
       type: 'notify',
     })
-    const payload = seen.mock.calls[0]?.[0] as MessagePayload
-    expect(payload.fromMe).toBe(true)
+    const payload = seen.mock.calls[0]?.[0] as MessageContext
+    expect(payload.isFromMe).toBe(true)
     expect(payload.isGroup).toBe(false)
-    expect(payload.sender.isMe).toBe(true)
   })
 
-  it('quoted is omitted when no context info present', () => {
+  it('replied() resolves null when no contextInfo quote present', async () => {
     const { client, socket } = setup()
     const seen = vi.fn()
     client.on('text', seen)
     socket.triggerMessagesUpsert({ messages: [msg()], type: 'notify' })
-    expect((seen.mock.calls[0]?.[0] as MessagePayload).quoted).toBeUndefined()
+    const payload = seen.mock.calls[0]?.[0] as MessageContext
+    await expect(payload.replied()).resolves.toBeNull()
   })
 
-  it('type-only: text listener arg equals MessagePayload (no any)', () => {
-    expectTypeOf<ClientEventMap['text']>().toEqualTypeOf<MessagePayload>()
+  it('type-only: text listener arg equals MessageContext (no any)', () => {
+    expectTypeOf<ClientEventMap['text']>().toEqualTypeOf<MessageContext>()
     expectTypeOf<ClientEventMap['text']>().not.toBeAny()
-    expectTypeOf<MessagePayload['quoted']>().not.toBeAny()
+    expectTypeOf<ClientEventMap['text']['chatType']>().not.toBeAny()
   })
 })
 
-describe('Phase 4 SC#2: media download returns Buffer+mime+size; audio PTT typed', () => {
-  it('image payload exposes media descriptor and a download function', () => {
+describe('Phase 9 SC#2: media messages return MessageContext with lazy media accessor', () => {
+  it('image payload has chatType:image and lazy media.buffer/stream accessors', () => {
     const { client, socket } = setup()
     const seen = vi.fn()
     client.on('image', seen)
@@ -118,14 +118,14 @@ describe('Phase 4 SC#2: media download returns Buffer+mime+size; audio PTT typed
       messages: [msg({ message: { imageMessage: { mimetype: 'image/jpeg', caption: 'pic', fileLength: 2048 } } })],
       type: 'notify',
     })
-    const payload = seen.mock.calls[0]?.[0] as MediaPayload<'image'>
-    expect(payload.kind).toBe('image')
-    expect(payload.media.mimetype).toBe('image/jpeg')
-    expect(payload.media.size).toBe(2048)
-    expect(typeof payload.download).toBe('function')
+    const payload = seen.mock.calls[0]?.[0] as MessageContext
+    expect(payload.chatType).toBe('image')
+    expect(payload.text).toBe('pic')
+    expect(typeof payload.media?.buffer).toBe('function')
+    expect(typeof payload.media?.stream).toBe('function')
   })
 
-  it('download() resolves {buffer, mime, size} from mocked baileys', async () => {
+  it('media.buffer() resolves a Buffer from mocked baileys', async () => {
     downloadMediaMessage.mockReset()
     const buffer = Buffer.from('binary-bytes')
     downloadMediaMessage.mockResolvedValueOnce(buffer)
@@ -136,14 +136,15 @@ describe('Phase 4 SC#2: media download returns Buffer+mime+size; audio PTT typed
       messages: [msg({ message: { videoMessage: { mimetype: 'video/mp4' } } })],
       type: 'notify',
     })
-    const payload = seen.mock.calls[0]?.[0] as MediaPayload<'video'>
-    const result = await payload.download()
-    expect(Buffer.isBuffer(result.buffer)).toBe(true)
-    expect(result.mime).toBe('video/mp4')
-    expect(result.size).toBe(buffer.byteLength)
+    const payload = seen.mock.calls[0]?.[0] as MessageContext
+    expect(payload.chatType).toBe('video')
+    expect(payload.media).toBeDefined()
+    const result = await payload.media!.buffer()
+    expect(Buffer.isBuffer(result)).toBe(true)
+    expect(result.byteLength).toBe(buffer.byteLength)
   })
 
-  it('audio voice note surfaces media.ptt === true', () => {
+  it('audio message has chatType:audio', () => {
     const { client, socket } = setup()
     const seen = vi.fn()
     client.on('audio', seen)
@@ -151,10 +152,12 @@ describe('Phase 4 SC#2: media download returns Buffer+mime+size; audio PTT typed
       messages: [msg({ message: { audioMessage: { mimetype: 'audio/ogg', ptt: true } } })],
       type: 'notify',
     })
-    expect((seen.mock.calls[0]?.[0] as MediaPayload<'audio'>).media.ptt).toBe(true)
+    const payload = seen.mock.calls[0]?.[0] as MessageContext
+    expect(payload.chatType).toBe('audio')
+    expect(payload.media).toBeDefined()
   })
 
-  it('document surfaces fileName and sticker emits with webp mime', () => {
+  it('document and sticker have correct chatType and lazy media', () => {
     const { client, socket } = setup()
     const doc = vi.fn()
     const sticker = vi.fn()
@@ -168,15 +171,16 @@ describe('Phase 4 SC#2: media download returns Buffer+mime+size; audio PTT typed
       messages: [msg({ message: { stickerMessage: { mimetype: 'image/webp' } } })],
       type: 'notify',
     })
-    expect((doc.mock.calls[0]?.[0] as MediaPayload<'document'>).media.fileName).toBe('spec.pdf')
-    expect((sticker.mock.calls[0]?.[0] as MediaPayload<'sticker'>).media.mimetype).toBe('image/webp')
+    expect((doc.mock.calls[0]?.[0] as MessageContext).chatType).toBe('document')
+    expect((sticker.mock.calls[0]?.[0] as MessageContext).chatType).toBe('sticker')
+    expect((doc.mock.calls[0]?.[0] as MessageContext).media).toBeDefined()
+    expect((sticker.mock.calls[0]?.[0] as MessageContext).media).toBeDefined()
   })
 
-  it('type-only: audio media.ptt is boolean|undefined; download resolves buffer', () => {
-    expectTypeOf<ClientEventMap['audio']['media']['ptt']>().toEqualTypeOf<boolean | undefined>()
-    expectTypeOf<MediaPayload<'image'>['download']>().returns.resolves.toHaveProperty('buffer')
-    expectTypeOf<MediaPayload<'image'>['download']>().returns.resolves.toHaveProperty('mime')
-    expectTypeOf<MediaPayload<'image'>['download']>().returns.resolves.toHaveProperty('size')
+  it('type-only: image event is MessageContext with optional media', () => {
+    expectTypeOf<ClientEventMap['image']>().toEqualTypeOf<MessageContext>()
+    expectTypeOf<ClientEventMap['audio']>().toEqualTypeOf<MessageContext>()
+    expectTypeOf<MessageContext['media']>().toEqualTypeOf<import('../../src/events/context.js').ContextMedia | undefined>()
   })
 })
 
@@ -254,7 +258,7 @@ describe('Phase 4 SC#3: mutation events fire with original key + mutation payloa
   })
 })
 
-describe('Phase 4 SC#4: group LID-aware + mention vs mention-all discriminated', () => {
+describe('Phase 9 SC#4: group LID-aware + mention vs mention-all discriminated', () => {
   it('group-join propagates participantAlt + authorPn + authorUsername', () => {
     const { client, socket } = setup()
     const seen = vi.fn()
@@ -299,7 +303,7 @@ describe('Phase 4 SC#4: group LID-aware + mention vs mention-all discriminated',
     })
     expect(mention).toHaveBeenCalledTimes(1)
     expect(mentionAll).not.toHaveBeenCalled()
-    expect((mention.mock.calls[0]?.[0] as MentionPayload).selfJid).toBe(SELF)
+    expect((mention.mock.calls[0]?.[0] as MentionContext).selfJid).toBe(SELF)
   })
 
   it('mention-all fires (not mention) on group @everyone, flagged isMentionAll', () => {
@@ -319,14 +323,14 @@ describe('Phase 4 SC#4: group LID-aware + mention vs mention-all discriminated',
     })
     expect(mentionAll).toHaveBeenCalledTimes(1)
     expect(mention).not.toHaveBeenCalled()
-    expect((mentionAll.mock.calls[0]?.[0] as MentionAllPayload).isMentionAll).toBe(true)
+    expect((mentionAll.mock.calls[0]?.[0] as MentionAllContext).isMentionAll).toBe(true)
   })
 
-  it('type-only: mention-all discriminated from mention, drops mentionedJids', () => {
-    expectTypeOf<ClientEventMap['mention-all']>().toEqualTypeOf<MentionAllPayload>()
-    expectTypeOf<ClientEventMap['mention-all']>().not.toEqualTypeOf<MentionPayload>()
-    expectTypeOf<MentionAllPayload['isMentionAll']>().toEqualTypeOf<true>()
-    expectTypeOf<MentionAllPayload>().not.toHaveProperty('mentionedJids')
+  it('type-only: mention-all discriminated from mention via isMentionAll', () => {
+    expectTypeOf<ClientEventMap['mention-all']>().toEqualTypeOf<MentionAllContext>()
+    expectTypeOf<ClientEventMap['mention']>().toEqualTypeOf<MentionContext>()
+    expectTypeOf<MentionAllContext['isMentionAll']>().toEqualTypeOf<true>()
+    expectTypeOf<MentionAllContext>().not.toHaveProperty('mentionedJids')
   })
 })
 

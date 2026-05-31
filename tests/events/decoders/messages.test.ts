@@ -3,7 +3,16 @@ import { describe, expect, it, vi } from 'vitest'
 
 vi.mock('baileys', async (importOriginal) => {
   const actual = await importOriginal<typeof import('baileys')>()
-  return { ...actual, downloadMediaMessage: vi.fn().mockResolvedValue(Buffer.alloc(8)) }
+  return {
+    ...actual,
+    downloadMediaMessage: vi.fn().mockImplementation((_msg: unknown, type: string) => {
+      if (type === 'stream') {
+        const { Readable } = require('stream')
+        return Promise.resolve(new Readable({ read() { this.push(null) } }))
+      }
+      return Promise.resolve(Buffer.alloc(8))
+    }),
+  }
 })
 
 const {
@@ -36,17 +45,17 @@ describe('decodeText', () => {
   it('decodes a plain conversation message', () => {
     const out = decodeText(base({ message: { conversation: 'hello' } }), ctx)
     expect(out).not.toBeNull()
-    expect(out?.content).toBe('hello')
-    expect(out?.fromMe).toBe(false)
+    expect(out?.text).toBe('hello')
+    expect(out?.isFromMe).toBe(false)
     expect(out?.isGroup).toBe(false)
-    expect(out?.sender.jid).toBe('628222@s.whatsapp.net')
-    expect(out?.key.id).toBe('M1')
-    expect(out?.key.remoteJid).toBe('628222@s.whatsapp.net')
+    expect(out?.senderId).toBe('628222@s.whatsapp.net')
+    expect(out?.chatId).toBe('M1')
+    expect(out?.chatType).toBe('text')
   })
 
   it('decodes an extendedTextMessage', () => {
     const out = decodeText(base({ message: { extendedTextMessage: { text: 'world' } } }), ctx)
-    expect(out?.content).toBe('world')
+    expect(out?.text).toBe('world')
   })
 
   it('returns null when message body is absent', () => {
@@ -70,11 +79,9 @@ describe('decodeText', () => {
       ctx,
     )
     expect(out).not.toBeNull()
-    expect(out?.content).toBe('tes')
+    expect(out?.text).toBe('tes')
     expect(out?.isGroup).toBe(false)
-    expect(out?.jid).toBe('123918899749051@lid')
-    expect(out?.sender.jid).toBe('123918899749051@lid')
-    expect(out?.sender.lid).toBe('6285136635787@s.whatsapp.net')
+    expect(out?.senderId).toBe('123918899749051@lid')
   })
 
   it('flags group context from participant key', () => {
@@ -86,32 +93,93 @@ describe('decodeText', () => {
       ctx,
     )
     expect(out?.isGroup).toBe(true)
-    expect(out?.jid).toBe(GROUP)
-    expect(out?.sender.jid).toBe('628333@s.whatsapp.net')
-    expect(out?.key.remoteJid).toBe(GROUP)
+    expect(out?.senderId).toBe('628333@s.whatsapp.net')
+    expect(out?.chatType).toBe('text')
   })
 
-  it('attaches quoted reference when present', () => {
+  it('honours isFromMe', () => {
+    const out = decodeText(
+      base({ key: { remoteJid: '628222@s.whatsapp.net', fromMe: true, id: 'X' }, message: { conversation: 'me' } }),
+      ctx,
+    )
+    expect(out?.isFromMe).toBe(true)
+  })
+
+  it('mentions array is populated from contextInfo.mentionedJid', () => {
     const out = decodeText(
       base({
         message: {
           extendedTextMessage: {
-            text: 're',
-            contextInfo: { stanzaId: 'Q1', participant: '628444@s.whatsapp.net' },
+            text: 'hey @628999',
+            contextInfo: { mentionedJid: ['628999@s.whatsapp.net'] },
           },
         },
       }),
       ctx,
     )
-    expect(out?.quoted?.key.id).toBe('Q1')
+    expect(out?.mentions).toContain('628999@s.whatsapp.net')
   })
 
-  it('honours fromMe', () => {
+  it('links extracted from text', () => {
+    const out = decodeText(base({ message: { conversation: 'visit https://example.com please' } }), ctx)
+    expect(out?.links).toContain('https://example.com')
+  })
+
+  it('does NOT call roomName resolver or downloadMediaMessage during decode (lazy invariant)', async () => {
+    const { downloadMediaMessage } = await import('baileys')
+    const downloadSpy = vi.mocked(downloadMediaMessage)
+    downloadSpy.mockClear()
+
+    const roomNameSpy = vi.fn().mockResolvedValue('Group Test')
     const out = decodeText(
-      base({ key: { remoteJid: '628222@s.whatsapp.net', fromMe: true, id: 'X' }, message: { conversation: 'me' } }),
-      ctx,
+      base({
+        key: { remoteJid: GROUP, fromMe: false, id: 'G2', participant: '628333@s.whatsapp.net' },
+        message: { conversation: 'hi' },
+      }),
+      { selfJid: SELF, resolveRoomName: roomNameSpy },
     )
-    expect(out?.fromMe).toBe(true)
+    expect(out).not.toBeNull()
+    expect(roomNameSpy).not.toHaveBeenCalled()
+    expect(downloadSpy).not.toHaveBeenCalled()
+  })
+})
+
+describe('Task 1a — graceful defaults (BLOCKER 1)', () => {
+  it('decodes without throwing when DecodeContext has only selfJid', () => {
+    const out = decodeText(base({ message: { conversation: 'hello' } }), { selfJid: SELF })
+    expect(out).not.toBeNull()
+  })
+
+  it('channelId is empty string when absent from context', () => {
+    const out = decodeText(base({ message: { conversation: 'hi' } }), { selfJid: SELF })
+    expect(out?.channelId).toBe('')
+  })
+
+  it('receiverId is empty string when absent from context', () => {
+    const out = decodeText(base({ message: { conversation: 'hi' } }), { selfJid: SELF })
+    expect(out?.receiverId).toBe('')
+  })
+
+  it('isPrefix is false when prefixes absent from context', () => {
+    const out = decodeText(base({ message: { conversation: '/start' } }), { selfJid: SELF })
+    expect(out?.isPrefix).toBe(false)
+  })
+
+  it('roomName() resolves null when resolveRoomName absent', async () => {
+    const out = decodeText(
+      base({
+        key: { remoteJid: GROUP, fromMe: false, id: 'GN', participant: '628333@s.whatsapp.net' },
+        message: { conversation: 'hi' },
+      }),
+      { selfJid: SELF },
+    )
+    expect(out).not.toBeNull()
+    await expect(out!.roomName()).resolves.toBeNull()
+  })
+
+  it('receiverName() resolves null when resolveReceiverName absent', async () => {
+    const out = decodeText(base({ message: { conversation: 'hi' } }), { selfJid: SELF })
+    await expect(out!.receiverName()).resolves.toBeNull()
   })
 })
 
@@ -119,14 +187,14 @@ const mediaMsg = (field: string, body: Record<string, unknown>, over: Partial<WA
   base({ message: { [field]: body }, ...over })
 
 describe('decodeImage', () => {
-  it('decodes image with mimetype, size, caption', () => {
+  it('decodes image with mimetype and chatType:image', () => {
     const out = decodeImage(mediaMsg('imageMessage', { mimetype: 'image/jpeg', fileLength: 2048, caption: 'pic' }), ctx)
-    expect(out?.kind).toBe('image')
-    expect(out?.media.mimetype).toBe('image/jpeg')
-    expect(out?.media.size).toBe(2048)
-    expect(out?.media.caption).toBe('pic')
-    expect(typeof out?.download).toBe('function')
-    expect(out?.key.id).toBe('M1')
+    expect(out?.chatType).toBe('image')
+    expect(out?.text).toBe('pic')
+    expect(out?.media).toBeDefined()
+    expect(typeof out?.media?.buffer).toBe('function')
+    expect(typeof out?.media?.stream).toBe('function')
+    expect(out?.chatId).toBe('M1')
   })
 
   it('returns null without imageMessage', () => {
@@ -134,21 +202,28 @@ describe('decodeImage', () => {
     expect(decodeImage(base({ message: null }), ctx)).toBeNull()
   })
 
-  it('falls back to octet-stream mimetype', () => {
-    const out = decodeImage(mediaMsg('imageMessage', {}), ctx)
-    expect(out?.media.mimetype).toBe('application/octet-stream')
-  })
-
-  it('resolves download to buffer/mime/size', async () => {
+  it('media.buffer() lazy download resolves a Buffer', async () => {
     const out = decodeImage(mediaMsg('imageMessage', { mimetype: 'image/png' }), ctx)
-    const dl = await out?.download()
-    expect(dl?.mime).toBe('image/png')
-    expect(dl?.size).toBe(8)
+    expect(out?.media).toBeDefined()
+    const buf = await out!.media!.buffer()
+    expect(buf).toBeInstanceOf(Buffer)
+    expect(buf.byteLength).toBe(8)
   })
 
-  it('omits caption when absent', () => {
-    const out = decodeImage(mediaMsg('imageMessage', { mimetype: 'image/webp' }), ctx)
-    expect(out?.media.caption).toBeUndefined()
+  it('media.stream() lazy download resolves a Readable', async () => {
+    const { Readable } = await import('stream')
+    const out = decodeImage(mediaMsg('imageMessage', { mimetype: 'image/png' }), ctx)
+    expect(out?.media).toBeDefined()
+    const stream = await out!.media!.stream()
+    expect(stream).toBeInstanceOf(Readable)
+  })
+
+  it('does NOT call downloadMediaMessage during decode (lazy invariant)', async () => {
+    const { downloadMediaMessage } = await import('baileys')
+    const downloadSpy = vi.mocked(downloadMediaMessage)
+    downloadSpy.mockClear()
+    decodeImage(mediaMsg('imageMessage', { mimetype: 'image/jpeg' }), ctx)
+    expect(downloadSpy).not.toHaveBeenCalled()
   })
 
   it('flags group context', () => {
@@ -161,20 +236,17 @@ describe('decodeImage', () => {
 })
 
 describe('decodeVideo', () => {
-  it('decodes video with caption', () => {
+  it('decodes video with chatType:video', () => {
     const out = decodeVideo(mediaMsg('videoMessage', { mimetype: 'video/mp4', fileLength: 99, caption: 'clip' }), ctx)
-    expect(out?.kind).toBe('video')
-    expect(out?.media.mimetype).toBe('video/mp4')
-    expect(out?.media.caption).toBe('clip')
+    expect(out?.chatType).toBe('video')
+    expect(out?.text).toBe('clip')
+    expect(out?.media).toBeDefined()
   })
   it('returns null without videoMessage', () => {
     expect(decodeVideo(base({ message: {} }), ctx)).toBeNull()
   })
-  it('falls back mimetype', () => {
-    expect(decodeVideo(mediaMsg('videoMessage', {}), ctx)?.media.mimetype).toBe('application/octet-stream')
-  })
-  it('exposes download', () => {
-    expect(typeof decodeVideo(mediaMsg('videoMessage', { mimetype: 'video/mp4' }), ctx)?.download).toBe('function')
+  it('exposes media accessor', () => {
+    expect(typeof decodeVideo(mediaMsg('videoMessage', { mimetype: 'video/mp4' }), ctx)?.media?.buffer).toBe('function')
   })
   it('returns null on null message', () => {
     expect(decodeVideo(base({ message: null }), ctx)).toBeNull()
@@ -182,41 +254,27 @@ describe('decodeVideo', () => {
 })
 
 describe('decodeAudio', () => {
-  it('decodes audio and sets ptt', () => {
+  it('decodes audio with chatType:audio', () => {
     const out = decodeAudio(mediaMsg('audioMessage', { mimetype: 'audio/ogg', ptt: true, fileLength: 12 }), ctx)
-    expect(out?.kind).toBe('audio')
-    expect(out?.media.ptt).toBe(true)
-    expect(out?.media.size).toBe(12)
-  })
-  it('defaults ptt false when absent', () => {
-    expect(decodeAudio(mediaMsg('audioMessage', { mimetype: 'audio/mp4' }), ctx)?.media.ptt).toBe(false)
+    expect(out?.chatType).toBe('audio')
+    expect(out?.media).toBeDefined()
   })
   it('returns null without audioMessage', () => {
     expect(decodeAudio(base({ message: {} }), ctx)).toBeNull()
   })
-  it('falls back mimetype', () => {
-    expect(decodeAudio(mediaMsg('audioMessage', {}), ctx)?.media.mimetype).toBe('application/octet-stream')
-  })
-  it('exposes download', () => {
-    expect(typeof decodeAudio(mediaMsg('audioMessage', { ptt: false }), ctx)?.download).toBe('function')
+  it('exposes media accessor', () => {
+    expect(typeof decodeAudio(mediaMsg('audioMessage', { ptt: false }), ctx)?.media?.buffer).toBe('function')
   })
 })
 
 describe('decodeDocument', () => {
-  it('decodes document with fileName', () => {
+  it('decodes document with chatType:document', () => {
     const out = decodeDocument(mediaMsg('documentMessage', { mimetype: 'application/pdf', fileName: 'a.pdf', fileLength: 500 }), ctx)
-    expect(out?.kind).toBe('document')
-    expect(out?.media.fileName).toBe('a.pdf')
-    expect(out?.media.size).toBe(500)
+    expect(out?.chatType).toBe('document')
+    expect(out?.media).toBeDefined()
   })
   it('returns null without documentMessage', () => {
     expect(decodeDocument(base({ message: {} }), ctx)).toBeNull()
-  })
-  it('omits fileName when absent', () => {
-    expect(decodeDocument(mediaMsg('documentMessage', { mimetype: 'application/zip' }), ctx)?.media.fileName).toBeUndefined()
-  })
-  it('falls back mimetype', () => {
-    expect(decodeDocument(mediaMsg('documentMessage', {}), ctx)?.media.mimetype).toBe('application/octet-stream')
   })
   it('returns null on null message', () => {
     expect(decodeDocument(base({ message: null }), ctx)).toBeNull()
@@ -224,19 +282,13 @@ describe('decodeDocument', () => {
 })
 
 describe('decodeSticker', () => {
-  it('decodes sticker', () => {
+  it('decodes sticker with chatType:sticker', () => {
     const out = decodeSticker(mediaMsg('stickerMessage', { mimetype: 'image/webp', fileLength: 30 }), ctx)
-    expect(out?.kind).toBe('sticker')
-    expect(out?.media.mimetype).toBe('image/webp')
+    expect(out?.chatType).toBe('sticker')
+    expect(out?.media).toBeDefined()
   })
   it('returns null without stickerMessage', () => {
     expect(decodeSticker(base({ message: {} }), ctx)).toBeNull()
-  })
-  it('falls back mimetype', () => {
-    expect(decodeSticker(mediaMsg('stickerMessage', {}), ctx)?.media.mimetype).toBe('application/octet-stream')
-  })
-  it('exposes download', () => {
-    expect(typeof decodeSticker(mediaMsg('stickerMessage', { mimetype: 'image/webp' }), ctx)?.download).toBe('function')
   })
   it('returns null on null message', () => {
     expect(decodeSticker(base({ message: null }), ctx)).toBeNull()

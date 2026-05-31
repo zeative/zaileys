@@ -4,7 +4,8 @@ import type {
   ClientEventName,
   ConnectionEventName,
 } from '../../src/client/types.js'
-import type { InboundEventName, MessagePayload } from '../../src/events/types.js'
+import type { InboundEventName } from '../../src/events/types.js'
+import type { MessageContext } from '../../src/events/context.js'
 
 describe('ClientEventMap intersection', () => {
   it('preserves Phase 3 connection event keys', () => {
@@ -15,9 +16,9 @@ describe('ClientEventMap intersection', () => {
     expectTypeOf<ClientEventMap['reconnecting']>().toHaveProperty('attempt')
   })
 
-  it('forwards Phase 4 inbound event keys', () => {
-    expectTypeOf<ClientEventMap['text']>().toEqualTypeOf<MessagePayload>()
-    expectTypeOf<ClientEventMap['image']>().toHaveProperty('media')
+  it('forwards Phase 9 inbound event keys as MessageContext', () => {
+    expectTypeOf<ClientEventMap['text']>().toEqualTypeOf<MessageContext>()
+    expectTypeOf<ClientEventMap['image']>().toEqualTypeOf<MessageContext>()
     expectTypeOf<ClientEventMap['reaction']>().toHaveProperty('emoji')
   })
 

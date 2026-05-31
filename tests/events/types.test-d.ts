@@ -12,11 +12,7 @@ import type {
   InboundEventName,
   LimitedPayload,
   ListSelectPayload,
-  MediaPayload,
   MemberTagPayload,
-  MentionAllPayload,
-  MentionPayload,
-  MessagePayload,
   NewsletterPayload,
   PollVotePayload,
   PresencePayload,
@@ -24,6 +20,7 @@ import type {
   ReactionPayload,
   SenderInfo,
 } from '../../src/events/types.js'
+import type { MentionAllContext, MentionContext, MessageContext } from '../../src/events/context.js'
 
 describe('InboundEventMap keys', () => {
   it('enumerates exactly 24 event keys', () => {
@@ -63,38 +60,39 @@ describe('InboundEventMap keys', () => {
   })
 })
 
-describe('MessagePayload', () => {
-  it('text event maps to MessagePayload', () => {
-    expectTypeOf<InboundEventMap['text']>().toEqualTypeOf<MessagePayload>()
+describe('MessageContext (replaces MessagePayload)', () => {
+  it('text event maps to MessageContext', () => {
+    expectTypeOf<InboundEventMap['text']>().toEqualTypeOf<MessageContext>()
   })
 
-  it('exposes core fields', () => {
-    expectTypeOf<MessagePayload>().toHaveProperty('jid').toEqualTypeOf<string>()
-    expectTypeOf<MessagePayload>().toHaveProperty('content').toEqualTypeOf<string>()
-    expectTypeOf<MessagePayload>().toHaveProperty('fromMe').toEqualTypeOf<boolean>()
-    expectTypeOf<MessagePayload>().toHaveProperty('isGroup').toEqualTypeOf<boolean>()
-    expectTypeOf<MessagePayload>().toHaveProperty('timestamp').toEqualTypeOf<number>()
-    expectTypeOf<MessagePayload>().toHaveProperty('sender').toEqualTypeOf<SenderInfo>()
+  it('exposes flat rich fields', () => {
+    expectTypeOf<MessageContext>().toHaveProperty('senderId').toEqualTypeOf<string>()
+    expectTypeOf<MessageContext>().toHaveProperty('text').toEqualTypeOf<string>()
+    expectTypeOf<MessageContext>().toHaveProperty('isFromMe').toEqualTypeOf<boolean>()
+    expectTypeOf<MessageContext>().toHaveProperty('isGroup').toEqualTypeOf<boolean>()
+    expectTypeOf<MessageContext>().toHaveProperty('timestamp').toEqualTypeOf<number>()
+    expectTypeOf<MessageContext>().toHaveProperty('chatType')
   })
 
-  it('text event does not carry media', () => {
-    expectTypeOf<InboundEventMap['text']>().not.toHaveProperty('media')
+  it('text event has lazy replied accessor', () => {
+    expectTypeOf<InboundEventMap['text']>().toHaveProperty('replied')
+    expectTypeOf<MessageContext['replied']>().returns.resolves.toEqualTypeOf<MessageContext | null>()
   })
 })
 
-describe('MediaPayload', () => {
-  it('image event carries media + download', () => {
-    expectTypeOf<InboundEventMap['image']>().toHaveProperty('media')
-    expectTypeOf<InboundEventMap['image']>().toHaveProperty('download')
-    expectTypeOf<MediaPayload<'image'>['download']>().returns.resolves.toHaveProperty('buffer')
+describe('MessageContext media events', () => {
+  it('image event is MessageContext with optional media', () => {
+    expectTypeOf<InboundEventMap['image']>().toEqualTypeOf<MessageContext>()
+    expectTypeOf<MessageContext['media']>().not.toBeAny()
   })
 
-  it('audio media exposes optional ptt boolean', () => {
-    expectTypeOf<InboundEventMap['audio']['media']['ptt']>().toEqualTypeOf<boolean | undefined>()
+  it('audio event is MessageContext', () => {
+    expectTypeOf<InboundEventMap['audio']>().toEqualTypeOf<MessageContext>()
   })
 
-  it('image kind is narrowed', () => {
-    expectTypeOf<InboundEventMap['image']['kind']>().toEqualTypeOf<'image'>()
+  it('media accessor buffer returns a Promise<Buffer>', () => {
+    type Media = NonNullable<MessageContext['media']>
+    expectTypeOf<Media['buffer']>().returns.resolves.toEqualTypeOf<Buffer>()
   })
 })
 
@@ -127,18 +125,18 @@ describe('interactive payloads', () => {
 })
 
 describe('mention vs mention-all', () => {
-  it('mention event maps to MentionPayload', () => {
-    expectTypeOf<InboundEventMap['mention']>().toEqualTypeOf<MentionPayload>()
+  it('mention event maps to MentionContext', () => {
+    expectTypeOf<InboundEventMap['mention']>().toEqualTypeOf<MentionContext>()
   })
 
-  it('mention-all event maps to MentionAllPayload not MentionPayload', () => {
-    expectTypeOf<InboundEventMap['mention-all']>().toEqualTypeOf<MentionAllPayload>()
-    expectTypeOf<InboundEventMap['mention-all']>().not.toEqualTypeOf<MentionPayload>()
+  it('mention-all event maps to MentionAllContext not MentionContext', () => {
+    expectTypeOf<InboundEventMap['mention-all']>().toEqualTypeOf<MentionAllContext>()
+    expectTypeOf<InboundEventMap['mention-all']>().not.toEqualTypeOf<MentionContext>()
   })
 
-  it('MentionAllPayload discriminator is literal true and drops mentionedJids', () => {
-    expectTypeOf<MentionAllPayload['isMentionAll']>().toEqualTypeOf<true>()
-    expectTypeOf<MentionAllPayload>().not.toHaveProperty('mentionedJids')
+  it('MentionAllContext discriminator is literal true and lacks mentionedJids', () => {
+    expectTypeOf<MentionAllContext['isMentionAll']>().toEqualTypeOf<true>()
+    expectTypeOf<MentionAllContext>().not.toHaveProperty('mentionedJids')
   })
 })
 

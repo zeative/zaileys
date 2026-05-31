@@ -1,3 +1,4 @@
+import { Readable } from 'stream'
 import type { WAMessage } from 'baileys'
 import type { MediaDownloadResult, MediaKind } from '../types.js'
 
@@ -38,6 +39,24 @@ export const createDownloadFn = (
     } catch (error) {
       logger?.warn({ error, kind, id: msg.key?.id }, 'media download failed')
       throw error instanceof Error ? error : new Error('media download failed')
+    }
+  }
+}
+
+/** Build a lazy media stream downloader that resolves a readable stream on first call. */
+export const createStreamFn = (
+  msg: WAMessage,
+  kind: MediaKind,
+  logger?: DownloadLogger,
+): (() => Promise<Readable>) => {
+  return async (): Promise<Readable> => {
+    try {
+      const { downloadMediaMessage } = await import('baileys')
+      const stream = (await downloadMediaMessage(msg, 'stream', {})) as Readable
+      return stream
+    } catch (error) {
+      logger?.warn({ error, kind, id: msg.key?.id }, 'media stream download failed')
+      throw error instanceof Error ? error : new Error('media stream download failed')
     }
   }
 }

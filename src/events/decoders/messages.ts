@@ -1,13 +1,15 @@
-import { jidNormalizedUser, type WAContextInfo, type WAMessage, type WAMessageKey } from 'baileys'
-import type {
-  MediaDescriptor,
-  MediaKind,
-  MediaPayload,
-  MentionAllPayload,
-  MentionPayload,
-  MessagePayload,
-} from '../types.js'
-import { createDownloadFn, type DownloadLogger } from './_media-download.js'
+import { jidNormalizedUser, type WAContextInfo, type WAMessage } from 'baileys'
+import {
+  buildMessageContext,
+  type ChatType,
+  type CitationConfig,
+  type ContextMedia,
+  type MessageContext,
+  type MentionAllContext,
+  type MentionContext,
+} from '../context.js'
+import type { MediaKind, MentionAllPayload, MentionPayload } from '../types.js'
+import { createDownloadFn, createStreamFn, type DownloadLogger } from './_media-download.js'
 import {
   extractMentions,
   extractQuoted,
@@ -20,6 +22,12 @@ import {
 export interface DecodeContext {
   selfJid: string
   logger?: DownloadLogger
+  channelId?: string
+  receiverId?: string
+  prefixes?: string[]
+  citationConfig?: CitationConfig
+  resolveRoomName?: (roomId: string) => Promise<string | null>
+  resolveReceiverName?: () => Promise<string | null>
 }
 
 interface MediaNode {
@@ -39,7 +47,7 @@ const MEDIA_FIELD: Record<MediaKind, string> = {
   sticker: 'stickerMessage',
 }
 
-const resolveJid = (key: WAMessageKey | undefined): string => {
+const resolveJid = (key: WAMessage['key'] | undefined): string => {
   const remote = key?.remoteJid
   return typeof remote === 'string' && remote.length > 0 ? remote : ''
 }
@@ -61,36 +69,18 @@ const textContent = (msg: WAMessage): string | null => {
 }
 
 const contextInfoOf = (msg: WAMessage): WAContextInfo | null => {
-  const ext = msg.message?.extendedTextMessage
-  return ext?.contextInfo ?? null
-}
-
-const basePayload = (msg: WAMessage, content: string): MessagePayload | null => {
-  const key = msg.key
-  if (key == null) return null
-  const sender = extractSender(key, msg.pushName ?? undefined)
-  if (sender === null) return null
-  const jid = resolveJid(key)
-  if (jid.length === 0) return null
-  const payload: MessagePayload = {
-    jid,
-    content,
-    fromMe: key.fromMe === true,
-    isGroup: isGroupJid(jid),
-    sender,
-    timestamp: timestampOf(msg),
-    key,
+  const content = msg.message
+  if (content == null) return null
+  const ext = content.extendedTextMessage?.contextInfo
+  if (ext != null) return ext
+  for (const field of Object.values(MEDIA_FIELD)) {
+    const node = (content as Record<string, unknown>)[field]
+    if (node != null && typeof node === 'object') {
+      const ci = (node as { contextInfo?: WAContextInfo | null }).contextInfo
+      if (ci != null) return ci
+    }
   }
-  const quoted = extractQuoted(contextInfoOf(msg))
-  if (quoted !== null) payload.quoted = quoted
-  return payload
-}
-
-/** Decode a plain or extended text message into a {@link MessagePayload}. */
-export const decodeText = (msg: WAMessage, _ctx: DecodeContext): MessagePayload | null => {
-  const content = textContent(msg)
-  if (content === null) return null
-  return basePayload(msg, content)
+  return null
 }
 
 const mediaNodeOf = (msg: WAMessage, kind: MediaKind): MediaNode | null => {
@@ -101,50 +91,148 @@ const mediaNodeOf = (msg: WAMessage, kind: MediaKind): MediaNode | null => {
   return node as MediaNode
 }
 
+const isViewOnceOf = (msg: WAMessage): boolean => {
+  const content = msg.message
+  if (content == null) return false
+  if (content.viewOnceMessage != null) return true
+  if (content.viewOnceMessageV2 != null) return true
+  if (content.viewOnceMessageV2Extension != null) return true
+  for (const field of Object.values(MEDIA_FIELD)) {
+    const node = (content as Record<string, unknown>)[field]
+    if (node != null && typeof node === 'object') {
+      const vo = (node as { viewOnce?: boolean | null }).viewOnce
+      if (vo === true) return true
+    }
+  }
+  return false
+}
+
+const isEphemeralOf = (msg: WAMessage, contextInfo: WAContextInfo | null): boolean => {
+  if (msg.message?.ephemeralMessage != null) return true
+  return typeof contextInfo?.expiration === 'number' && contextInfo.expiration > 0
+}
+
+const decodeQuotedContext = async (
+  _contextInfo: WAContextInfo | null,
+  _ctx: DecodeContext,
+): Promise<MessageContext | null> => null
+
+const buildContext = (
+  msg: WAMessage,
+  ctx: DecodeContext,
+  chatType: ChatType,
+  text: string,
+  media?: ContextMedia,
+): MessageContext | null => {
+  const key = msg.key
+  if (key == null) return null
+  const sender = extractSender(key, msg.pushName ?? undefined)
+  if (sender === null) return null
+  const jid = resolveJid(key)
+  if (jid.length === 0) return null
+
+  const contextInfo = contextInfoOf(msg)
+  const isGroup = isGroupJid(jid)
+  const isBroadcast = jid.endsWith('@broadcast')
+  const isNewsletter = jid.endsWith('@newsletter')
+  const isForwarded =
+    contextInfo?.isForwarded === true || (contextInfo?.forwardingScore ?? 0) > 0
+  const isViewOnce = isViewOnceOf(msg)
+  const isEphemeral = isEphemeralOf(msg, contextInfo)
+
+  const channelId = ctx.channelId ?? ''
+  const receiverId = ctx.receiverId ?? ''
+  const prefixes = ctx.prefixes ?? []
+
+  const resolveRoomName = (): Promise<string | null> =>
+    isGroup && ctx.resolveRoomName != null
+      ? ctx.resolveRoomName(jid)
+      : Promise.resolve(null)
+
+  const resolveReceiverName: () => Promise<string | null> =
+    ctx.resolveReceiverName ?? (() => Promise.resolve(null))
+
+  const resolveReplied = (): Promise<MessageContext | null> =>
+    decodeQuotedContext(contextInfo, ctx)
+
+  const { mentionedJids } = extractMentions(contextInfo)
+
+  const baseInput = {
+    message: msg,
+    key,
+    channelId,
+    receiverId,
+    selfJid: ctx.selfJid,
+    text,
+    chatType,
+    sender,
+    mentions: mentionedJids,
+    isViewOnce,
+    isEphemeral,
+    isForwarded,
+    isBroadcast,
+    isNewsletter,
+    prefixes,
+    resolveRoomName,
+    resolveReceiverName,
+    resolveReplied,
+  }
+  const withMedia = media !== undefined ? { ...baseInput, media } : baseInput
+  return buildMessageContext(
+    ctx.citationConfig !== undefined
+      ? { ...withMedia, citationConfig: ctx.citationConfig }
+      : withMedia,
+  )
+}
+
+/** Decode a plain or extended text message into a {@link MessageContext}. */
+export const decodeText = (msg: WAMessage, ctx: DecodeContext): MessageContext | null => {
+  const content = textContent(msg)
+  if (content === null) return null
+  return buildContext(msg, ctx, 'text', content)
+}
+
 const decodeMedia = <K extends MediaKind>(
   kind: K,
   msg: WAMessage,
   ctx: DecodeContext,
-): MediaPayload<K> | null => {
+): MessageContext | null => {
   const node = mediaNodeOf(msg, kind)
   if (node === null) return null
-  const caption = typeof node.caption === 'string' ? node.caption : undefined
-  const base = basePayload(msg, caption ?? '')
-  if (base === null) return null
-  const descriptor: MediaDescriptor = {
-    mimetype: typeof node.mimetype === 'string' && node.mimetype.length > 0 ? node.mimetype : 'application/octet-stream',
+  const caption = typeof node.caption === 'string' ? node.caption : ''
+  const chatType = kind as ChatType
+
+  const bufferFn = createDownloadFn(msg, kind, ctx.logger)
+  const streamFn = createStreamFn(msg, kind, ctx.logger)
+  const media: ContextMedia = {
+    buffer: async () => {
+      const result = await bufferFn()
+      return result.buffer
+    },
+    stream: streamFn,
   }
-  const size = safeNumber(node.fileLength ?? null)
-  if (size !== null) descriptor.size = size
-  if (caption !== undefined) descriptor.caption = caption
-  if (kind === 'document' && typeof node.fileName === 'string') descriptor.fileName = node.fileName
-  if (kind === 'audio') descriptor.ptt = node.ptt === true
-  return {
-    ...base,
-    kind,
-    media: descriptor,
-    download: createDownloadFn(msg, kind, ctx.logger),
-  }
+
+  return buildContext(msg, ctx, chatType, caption, media)
 }
 
-/** Decode an image message into a downloadable {@link MediaPayload}. */
-export const decodeImage = (msg: WAMessage, ctx: DecodeContext): MediaPayload<'image'> | null =>
+/** Decode an image message into a {@link MessageContext} with lazy media accessor. */
+export const decodeImage = (msg: WAMessage, ctx: DecodeContext): MessageContext | null =>
   decodeMedia('image', msg, ctx)
 
-/** Decode a video message into a downloadable {@link MediaPayload}. */
-export const decodeVideo = (msg: WAMessage, ctx: DecodeContext): MediaPayload<'video'> | null =>
+/** Decode a video message into a {@link MessageContext} with lazy media accessor. */
+export const decodeVideo = (msg: WAMessage, ctx: DecodeContext): MessageContext | null =>
   decodeMedia('video', msg, ctx)
 
-/** Decode an audio message, surfacing the `ptt` push-to-talk flag. */
-export const decodeAudio = (msg: WAMessage, ctx: DecodeContext): MediaPayload<'audio'> | null =>
+/** Decode an audio message, surfacing lazy media with push-to-talk context via media node. */
+export const decodeAudio = (msg: WAMessage, ctx: DecodeContext): MessageContext | null =>
   decodeMedia('audio', msg, ctx)
 
-/** Decode a document message, surfacing the original `fileName`. */
-export const decodeDocument = (msg: WAMessage, ctx: DecodeContext): MediaPayload<'document'> | null =>
+/** Decode a document message with lazy media accessor. */
+export const decodeDocument = (msg: WAMessage, ctx: DecodeContext): MessageContext | null =>
   decodeMedia('document', msg, ctx)
 
-/** Decode a sticker message into a downloadable {@link MediaPayload}. */
-export const decodeSticker = (msg: WAMessage, ctx: DecodeContext): MediaPayload<'sticker'> | null =>
+/** Decode a sticker message into a {@link MessageContext} with lazy media accessor. */
+export const decodeSticker = (msg: WAMessage, ctx: DecodeContext): MessageContext | null =>
   decodeMedia('sticker', msg, ctx)
 
 const normalizedEquals = (a: string, b: string): boolean => {
@@ -199,3 +287,5 @@ export const decodeMentionAll = (msg: WAMessage, ctx: DecodeContext): MentionAll
     timestamp: timestampOf(msg),
   }
 }
+
+export type { MentionContext, MentionAllContext }

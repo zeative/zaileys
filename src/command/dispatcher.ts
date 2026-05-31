@@ -1,5 +1,5 @@
 import type { Logger } from '../client/types.js'
-import type { MessagePayload } from '../events/types.js'
+import type { MessageContext } from '../events/context.js'
 import { ZaileysCommandError } from './errors.js'
 import { runMiddleware } from './middleware.js'
 import { parseCommand } from './parser.js'
@@ -23,8 +23,8 @@ export interface DispatcherDeps {
   registry: CommandRegistry
   middleware: Middleware[]
   prefixes: string[]
-  onText: (handler: (msg: MessagePayload) => void) => () => void
-  buildContext: (resolved: ResolvedCommand, msg: MessagePayload) => CommandContext
+  onText: (handler: (msg: MessageContext) => void) => () => void
+  buildContext: (resolved: ResolvedCommand, msg: MessageContext) => CommandContext
   logger: Logger
 }
 
@@ -52,8 +52,8 @@ export function attachCommandDispatcher(deps: DispatcherDeps): DispatcherHandle 
     return { detach() {} }
   }
 
-  const handle = (msg: MessagePayload): void => {
-    const parsed = parseCommand(msg.content, deps.prefixes)
+  const handle = (msg: MessageContext): void => {
+    const parsed = parseCommand(msg.text, deps.prefixes)
     if (!parsed.matched) return
     const resolution = deps.registry.resolve(parsed)
     if (resolution === undefined) return

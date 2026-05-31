@@ -83,7 +83,7 @@ describe('inbound integration — message events', () => {
     c.on('text', seen)
     sock.triggerMessagesUpsert({ messages: [textMsg('hi')], type: 'notify' })
     expect(seen).toHaveBeenCalledTimes(1)
-    expect(seen.mock.calls[0]?.[0]).toMatchObject({ content: 'hi' })
+    expect(seen.mock.calls[0]?.[0]).toMatchObject({ text: 'hi', chatType: 'text' })
   })
 
   it('image message fires image event with download fn', async () => {
@@ -95,7 +95,7 @@ describe('inbound integration — message events', () => {
       messages: [textMsg('', { message: { imageMessage: { mimetype: 'image/png', caption: 'c' } } })],
       type: 'notify',
     })
-    expect(typeof seen.mock.calls[0]?.[0].download).toBe('function')
+    expect(typeof seen.mock.calls[0]?.[0].media?.buffer).toBe('function')
   })
 
   it('reaction fires reaction event', async () => {

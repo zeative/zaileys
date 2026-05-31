@@ -72,12 +72,12 @@ describe('phase8 aggregate — cross-phase mocked-socket sentinel', () => {
     expect(seen).toHaveBeenCalledTimes(1)
     const payload = seen.mock.calls[0]?.[0]
     expect(payload).toMatchObject({
-      jid: '111@s.whatsapp.net',
-      content: 'aggregate-hi',
-      fromMe: false,
+      senderId: '111@s.whatsapp.net',
+      text: 'aggregate-hi',
+      isFromMe: false,
       isGroup: false,
     })
-    expect(typeof payload.sender?.jid).toBe('string')
+    expect(typeof payload.senderId).toBe('string')
     expect(typeof payload.timestamp).toBe('number')
 
     await c.disconnect()

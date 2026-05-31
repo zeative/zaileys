@@ -169,12 +169,20 @@ export class MessageBuilder<State extends BuilderState> {
     return this as unknown as MessageBuilder<'content-set'>
   }
 
-  /** Quote a previous message; rejects a missing reference. Chainable on any state. */
+  /**
+   * Quote a previous message; rejects a missing reference. Accepts a full
+   * {@link WAMessage} or a bare {@link WAMessageKey} — a bare key is wrapped into
+   * the `{ key }` shape Baileys requires (it reads `quoted.key.fromMe`), so passing
+   * only a key never crashes. Chainable on any state.
+   */
   reply(quoted: WAMessage | WAMessageKey): MessageBuilder<State> {
     if (quoted === undefined || quoted === null) {
       throw new ZaileysBuilderError('INVALID_OPTIONS', 'reply() requires a quoted message or key')
     }
-    this.internal.quoted = quoted
+    const isFullMessage = 'key' in quoted && (quoted as WAMessage).key != null
+    this.internal.quoted = isFullMessage
+      ? (quoted as WAMessage)
+      : ({ key: quoted as WAMessageKey } as WAMessage)
     return this as unknown as MessageBuilder<State>
   }
 

@@ -228,7 +228,7 @@ describe('Client command framework — ctx helpers', () => {
     const [jid, content, opts] = sock.sendMessage.mock.calls[0] as [string, Record<string, unknown>, Record<string, unknown>]
     expect(jid).toBe(SENDER)
     expect(content.text).toBe('pong')
-    expect((opts.quoted as { id: string }).id).toBe('CMD1')
+    expect((opts.quoted as { key: { id: string } }).key.id).toBe('CMD1')
   })
 
   it('ctx.react reacts to the command message key', async () => {

@@ -182,7 +182,7 @@ describe('SC#2 — middleware order + short-circuit + typed ctx (CMD-04, CMD-05)
     ]
     expect(jid).toBe(SENDER)
     expect(content.text).toBe('pong')
-    expect((opts.quoted as { id: string }).id).toBe('SC1')
+    expect((opts.quoted as { key: { id: string } }).key.id).toBe('SC1')
   })
 
   it('exposes typed ctx.react and ctx.edit helpers', async () => {

@@ -88,7 +88,7 @@ describe('[SC-1] chain text+reply+mentions returns key, type-safe', () => {
     expect(last.jid).toBe(RECIPIENT)
     expect(last.content.text).toBe('hi')
     expect(last.content.mentions).toEqual(['x@s.whatsapp.net'])
-    expect(last.options.quoted).toEqual(QUOTED)
+    expect(last.options.quoted).toEqual({ key: QUOTED })
   })
 
   it('[SC-1] merges mentions across multiple calls', async () => {

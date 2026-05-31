@@ -144,7 +144,7 @@ describe('smoke: realistic bot stories', () => {
     const { socket, calls } = makeSocket()
     const original: WAMessageKey = { id: 'orig', remoteJid: USER, fromMe: false }
     await MessageBuilder.create(socket, USER).text('Got it!').reply(original)
-    expect(calls[0]!.options.quoted).toEqual(original)
+    expect(calls[0]!.options.quoted).toEqual({ key: original })
   })
 
   it('story 7: bot tags everyone in a group announcement', async () => {

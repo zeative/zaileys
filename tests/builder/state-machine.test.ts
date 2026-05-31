@@ -85,7 +85,7 @@ describe('context modifiers', () => {
     const b = MessageBuilder.create(socket, RECIPIENT)
     const quoted: WAMessageKey = { remoteJid: RECIPIENT, fromMe: false, id: 'SRC' }
     b.reply(quoted)
-    expect(internalOf(b).quoted).toBe(quoted)
+    expect(internalOf(b).quoted).toEqual({ key: quoted })
   })
 
   it('context modifiers are chainable', () => {

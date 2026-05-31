@@ -491,8 +491,8 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       flags: resolved.flags,
       json: resolved.json,
       reply: async (content: string): Promise<WAMessageKey> => {
-        const target = msg.roomId ?? msg.senderId
-        const key = await this.send(target).text(content).reply(msg.message().key)
+        const target = msg.message().key.remoteJid ?? msg.roomId ?? msg.senderId
+        const key = await this.send(target).text(content).reply(msg.message())
         lastSentKey = key
         return key
       },

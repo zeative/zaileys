@@ -39,11 +39,13 @@ describe('reply modifier', () => {
     expect(internalOf(b).quoted).toBe(quoted)
   })
 
-  it('stores a WAMessageKey quoted reference', () => {
+  it('wraps a bare WAMessageKey into { key } so Baileys can read quoted.key.fromMe', () => {
     const b = builder()
     const quoted: WAMessageKey = { remoteJid: RECIPIENT, fromMe: false, id: 'SRC' }
     b.reply(quoted)
-    expect(internalOf(b).quoted).toBe(quoted)
+    const stored = internalOf(b).quoted as { key: WAMessageKey }
+    expect(stored).toEqual({ key: quoted })
+    expect(stored.key.fromMe).toBe(false)
   })
 
   it('propagates quoted to options regardless of chain order: reply then text', async () => {

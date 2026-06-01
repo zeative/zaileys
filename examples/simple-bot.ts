@@ -1,5 +1,12 @@
 import { Client } from '../src/index.js'
 
+const OWNER = (process.env['OWNER'] ?? '').replace(/\D/g, '')
+if (!OWNER) {
+  console.error('Set OWNER (nomor kamu), e.g. OWNER=6285xxxx bun run examples/simple-bot.ts')
+  process.exit(1)
+}
+const digitsOf = (jid: string): string => (jid.split(/[:@]/)[0] ?? '').replace(/\D/g, '')
+
 const client = new Client()
 
 client.on('qr', ({ qrString }) => {
@@ -11,7 +18,7 @@ client.on('connect', ({ me }) => {
 })
 
 client.on('text', async (message) => {
-  if (message.isFromMe) return
+  if (digitsOf(message.senderId) !== OWNER) return
 
   await message.react('👀')
 

@@ -11,7 +11,9 @@ export default defineConfig({
   tsconfig: './tsconfig.build.json',
 
   dts: true,
-  sourcemap: true,
+  // No sourcemaps in the published package — they reference src/ (not published),
+  // so they add ~1.2MB of dead weight for consumers without being resolvable.
+  sourcemap: false,
   treeshake: true,
   splitting: false,
   minify: false,

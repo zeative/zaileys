@@ -1,25 +1,19 @@
-import type { AnyMessageContent } from 'baileys'
+import { proto, type AnyMessageContent } from 'baileys'
 import { ZaileysBuilderError } from '../errors.js'
 import type { ButtonDef } from '../types.js'
 
 const MAX_BUTTONS = 3
 
 /**
- * A single quick-reply template button. `id` is echoed verbatim by WhatsApp as
- * `buttonsResponseMessage.selectedButtonId`, which Phase 4 `decodeButtonClick`
- * surfaces as `ButtonClickPayload.buttonId` — the cross-phase round-trip contract.
+ * Marker key on builder content whose value is a raw `proto.IMessage` to be sent
+ * via `relayMessage` (used for interactive messages Baileys' `sendMessage` content
+ * union does not cover). The builder detects this key and relays instead of calling
+ * `sendMessage`.
  */
-export type TemplateQuickReplyButton = {
-  index: number
-  quickReplyButton: { displayText: string; id: string }
-}
+export const RELAY_CONTENT_KEY = '__zaileysRelayMessage'
 
-/** Interactive button-message content; carried as a structural shape past the Baileys public `AnyMessageContent` type. */
-export type ButtonsContent = {
-  text: string
-  footer?: string
-  templateButtons: TemplateQuickReplyButton[]
-}
+/** Content shape carrying a pre-built proto message for the relay send path. */
+export type RelayContent = { [RELAY_CONTENT_KEY]: proto.IMessage }
 
 /** Optional decoration for {@link buildButtonsContent}. */
 export type ButtonsContentOptions = {
@@ -28,17 +22,15 @@ export type ButtonsContentOptions = {
 }
 
 /**
- * Build interactive button content from declarative {@link ButtonDef}s.
+ * Build a modern `interactiveMessage` (nativeFlow `quick_reply`) from declarative
+ * {@link ButtonDef}s, returned as relay-marker content. Each `ButtonDef.id` is
+ * encoded into `buttonParamsJson` and returns unchanged on tap via
+ * `interactiveResponseMessage.nativeFlowResponseMessage` -> `ButtonClickPayload.buttonId`.
  *
- * rc13 decision: the public `AnyMessageContent` union no longer exposes a
- * `templateButtons`/`buttons` branch (legacy outbound button generation was
- * dropped). The `templateButtons` shape is still accepted by the relay layer and
- * is what `decodeButtonClick` round-trips against, so it is emitted here and cast
- * to `AnyMessageContent` at the builder boundary rather than fabricating an
- * `interactiveMessage` proto by hand.
- *
- * Each `ButtonDef.id` lands in `quickReplyButton.id` and returns unchanged as
- * `ButtonClickPayload.buttonId` (Phase 4 EVT-11).
+ * NOTE: WhatsApp only RENDERS interactive buttons for eligible accounts
+ * (WhatsApp Business / Cloud API). On personal/regular accounts the message is
+ * delivered but the buttons are not displayed — a WhatsApp platform restriction,
+ * not a library limitation.
  *
  * @param buttons - 1..3 button definitions; ids and labels must be non-empty.
  * @param opts - optional body `text` and `footer`.
@@ -55,7 +47,7 @@ export const buildButtonsContent = (
     throw new ZaileysBuilderError('INVALID_OPTIONS', `buttons() accepts at most ${MAX_BUTTONS} buttons`)
   }
   const seen = new Set<string>()
-  const templateButtons = buttons.map((button, i): TemplateQuickReplyButton => {
+  const nativeButtons = buttons.map((button) => {
     if (typeof button.id !== 'string' || button.id.length === 0) {
       throw new ZaileysBuilderError('INVALID_OPTIONS', 'button id must be a non-empty string')
     }
@@ -66,13 +58,20 @@ export const buildButtonsContent = (
       throw new ZaileysBuilderError('INVALID_OPTIONS', `duplicate button id: ${button.id}`)
     }
     seen.add(button.id)
-    return { index: i + 1, quickReplyButton: { displayText: button.text, id: button.id } }
+    return {
+      name: 'quick_reply',
+      buttonParamsJson: JSON.stringify({ display_text: button.text, id: button.id }),
+    }
   })
 
-  const content: ButtonsContent = {
-    text: opts?.text && opts.text.length > 0 ? opts.text : ' ',
-    templateButtons,
+  const interactiveMessage: proto.Message.IInteractiveMessage = {
+    body: { text: opts?.text && opts.text.length > 0 ? opts.text : ' ' },
+    nativeFlowMessage: { buttons: nativeButtons, messageParamsJson: '' },
   }
-  if (opts?.footer && opts.footer.length > 0) content.footer = opts.footer
-  return content as unknown as AnyMessageContent
+  if (opts?.footer && opts.footer.length > 0) {
+    interactiveMessage.footer = { text: opts.footer }
+  }
+
+  const relay: RelayContent = { [RELAY_CONTENT_KEY]: { interactiveMessage } }
+  return relay as unknown as AnyMessageContent
 }

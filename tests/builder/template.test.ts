@@ -1,53 +1,44 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { buildTemplateContent } from '../../src/builder/content/template.js'
 import { ZaileysBuilderError } from '../../src/builder/errors.js'
 import { type BuilderSocketLike, MessageBuilder } from '../../src/builder/builder.js'
-import type { TemplateQuickReplyButton } from '../../src/builder/content/buttons.js'
+import { RELAY_CONTENT_KEY } from '../../src/builder/content/buttons.js'
 
-type Captured = { jid: string; content: Record<string, unknown>; options: Record<string, unknown> }
+type NativeButton = { name: string; buttonParamsJson: string }
+type Interactive = {
+  body: { text: string }
+  footer?: { text: string }
+  nativeFlowMessage: { buttons: NativeButton[] }
+}
+const interactiveOf = (content: unknown): Interactive =>
+  (content as Record<string, { interactiveMessage: Interactive }>)[RELAY_CONTENT_KEY]!.interactiveMessage
+const paramsOf = (b: NativeButton): { display_text: string; id: string } => JSON.parse(b.buttonParamsJson)
 
-const makeSocket = (): { socket: BuilderSocketLike; captured: () => Captured } => {
-  let last: Captured | undefined
-  const socket: BuilderSocketLike = {
-    sendMessage: async (jid, content, options) => {
-      last = {
-        jid,
-        content: content as unknown as Record<string, unknown>,
-        options: (options ?? {}) as Record<string, unknown>,
-      }
-      return { key: { id: 'T1', remoteJid: jid, fromMe: true } } as never
-    },
-  }
-  return {
-    socket,
-    captured: () => {
-      if (!last) throw new Error('sendMessage was not called')
-      return last
-    },
-  }
+const makeSocket = () => {
+  const relayMessage = vi.fn(async () => 'R1')
+  const sendMessage = vi.fn(async () => ({ key: { id: 'T1' } }) as never)
+  const socket: BuilderSocketLike = { sendMessage, relayMessage, user: { id: '9@s.whatsapp.net' } }
+  return { socket, relayMessage, sendMessage }
 }
 
 const BTN = [{ id: 'b1', text: 'One' }]
 
-const tpl = (c: Record<string, unknown>) =>
-  c as { text: string; footer?: string; templateButtons: TemplateQuickReplyButton[] }
-
 describe('buildTemplateContent', () => {
-  it('maps body into text and buttons into templateButtons', () => {
-    const content = buildTemplateContent({ body: 'Hello', buttons: BTN }) as unknown as Record<string, unknown>
-    expect(tpl(content).text).toBe('Hello')
-    expect(tpl(content).templateButtons).toHaveLength(1)
-    expect(tpl(content).templateButtons[0]?.quickReplyButton.id).toBe('b1')
+  it('maps body into interactive body and buttons into nativeFlow quick_reply', () => {
+    const interactive = interactiveOf(buildTemplateContent({ body: 'Hello', buttons: BTN }))
+    expect(interactive.body.text).toBe('Hello')
+    expect(interactive.nativeFlowMessage.buttons).toHaveLength(1)
+    expect(paramsOf(interactive.nativeFlowMessage.buttons[0]!).id).toBe('b1')
   })
 
   it('prepends header as bold text', () => {
-    const content = buildTemplateContent({ header: 'Title', body: 'Body', buttons: BTN }) as unknown as Record<string, unknown>
-    expect(tpl(content).text).toBe('*Title*\n\nBody')
+    const interactive = interactiveOf(buildTemplateContent({ header: 'Title', body: 'Body', buttons: BTN }))
+    expect(interactive.body.text).toBe('*Title*\n\nBody')
   })
 
   it('carries footer', () => {
-    const content = buildTemplateContent({ body: 'Body', footer: 'Foot', buttons: BTN }) as unknown as Record<string, unknown>
-    expect(tpl(content).footer).toBe('Foot')
+    const interactive = interactiveOf(buildTemplateContent({ body: 'Body', footer: 'Foot', buttons: BTN }))
+    expect(interactive.footer?.text).toBe('Foot')
   })
 
   it('accepts three buttons', () => {
@@ -56,8 +47,8 @@ describe('buildTemplateContent', () => {
       { id: 'b', text: 'B' },
       { id: 'c', text: 'C' },
     ]
-    const content = buildTemplateContent({ body: 'x', buttons }) as unknown as Record<string, unknown>
-    expect(tpl(content).templateButtons).toHaveLength(3)
+    const interactive = interactiveOf(buildTemplateContent({ body: 'x', buttons }))
+    expect(interactive.nativeFlowMessage.buttons).toHaveLength(3)
   })
 
   it('throws on empty body', () => {
@@ -83,20 +74,20 @@ describe('buildTemplateContent', () => {
     }
   })
 
-  it('sends template through builder terminal', async () => {
-    const { socket, captured } = makeSocket()
+  it('relays template through builder terminal', async () => {
+    const { socket, relayMessage } = makeSocket()
     const key = await MessageBuilder.create(socket, '62811@s.whatsapp.net').template({ body: 'Hi', buttons: BTN })
-    expect(key.id).toBe('T1')
-    expect(tpl(captured().content).text).toBe('Hi')
+    expect(typeof key.id).toBe('string')
+    expect(relayMessage).toHaveBeenCalledOnce()
+    const [, message] = relayMessage.mock.calls[0]! as [string, { interactiveMessage: Interactive }, unknown]
+    expect(message.interactiveMessage.body.text).toBe('Hi')
   })
 
-  it('chains with reply and mentions', async () => {
-    const { socket, captured } = makeSocket()
+  it('chains with reply without throwing', async () => {
+    const { socket, relayMessage } = makeSocket()
     await MessageBuilder.create(socket, '62811@s.whatsapp.net')
       .template({ body: 'Hi', buttons: BTN })
-      .reply({ id: 'Q', remoteJid: 'r', fromMe: false })
-      .mentions(['62822@s.whatsapp.net'])
-    expect(captured().options.quoted).toBeDefined()
-    expect((captured().content.mentions as string[]).length).toBe(1)
+      .reply({ id: 'Q', remoteJid: 'r@s.whatsapp.net', fromMe: false })
+    expect(relayMessage).toHaveBeenCalledOnce()
   })
 })

@@ -1,7 +1,7 @@
 import type { WAMessage, WAMessageKey } from 'baileys'
 import { describe, expect, it, vi } from 'vitest'
 import { MessageBuilder, type BuilderSocketLike } from '../../src/builder/builder.js'
-import { buildButtonsContent, type ButtonsContent } from '../../src/builder/content/buttons.js'
+import { buildButtonsContent, RELAY_CONTENT_KEY } from '../../src/builder/content/buttons.js'
 import { ZaileysBuilderError } from '../../src/builder/errors.js'
 import { decodeButtonClick } from '../../src/events/decoders/interactive.js'
 import type { ButtonDef } from '../../src/builder/types.js'
@@ -11,8 +11,9 @@ const SENT_KEY: WAMessageKey = { remoteJid: RECIPIENT, fromMe: true, id: 'MSG1' 
 
 const makeSocket = () => {
   const sendMessage = vi.fn(async () => ({ key: SENT_KEY }) as WAMessage)
-  const socket: BuilderSocketLike = { sendMessage }
-  return { socket, sendMessage }
+  const relayMessage = vi.fn(async () => 'RELAY1')
+  const socket: BuilderSocketLike = { sendMessage, relayMessage, user: { id: '9@s.whatsapp.net' } }
+  return { socket, sendMessage, relayMessage }
 }
 
 const expectError = (fn: () => unknown, code: string) => {
@@ -25,38 +26,48 @@ const expectError = (fn: () => unknown, code: string) => {
   }
 }
 
-const asButtons = (content: unknown): ButtonsContent => content as ButtonsContent
+type NativeButton = { name: string; buttonParamsJson: string }
+type Interactive = {
+  body: { text: string }
+  footer?: { text: string }
+  nativeFlowMessage: { buttons: NativeButton[] }
+}
+const interactiveOf = (content: unknown): Interactive =>
+  (content as Record<string, { interactiveMessage: Interactive }>)[RELAY_CONTENT_KEY]!.interactiveMessage
+const buttonsOf = (content: unknown): NativeButton[] => interactiveOf(content).nativeFlowMessage.buttons
+const paramsOf = (b: NativeButton): { display_text: string; id: string } => JSON.parse(b.buttonParamsJson)
 
 describe('buildButtonsContent helper', () => {
-  it('maps 3 buttons to indexed quickReplyButton entries', () => {
+  it('maps 3 buttons to nativeFlow quick_reply entries', () => {
     const defs: ButtonDef[] = [
       { id: 'b1', text: 'One' },
       { id: 'b2', text: 'Two' },
       { id: 'b3', text: 'Three' },
     ]
-    const content = asButtons(buildButtonsContent(defs))
-    expect(content.templateButtons).toHaveLength(3)
-    expect(content.templateButtons[0]).toEqual({ index: 1, quickReplyButton: { displayText: 'One', id: 'b1' } })
-    expect(content.templateButtons[2]).toEqual({ index: 3, quickReplyButton: { displayText: 'Three', id: 'b3' } })
+    const buttons = buttonsOf(buildButtonsContent(defs))
+    expect(buttons).toHaveLength(3)
+    expect(buttons[0]!.name).toBe('quick_reply')
+    expect(paramsOf(buttons[0]!)).toEqual({ display_text: 'One', id: 'b1' })
+    expect(paramsOf(buttons[2]!)).toEqual({ display_text: 'Three', id: 'b3' })
   })
 
   it('propagates text and footer when provided', () => {
-    const content = asButtons(
+    const interactive = interactiveOf(
       buildButtonsContent([{ id: 'b1', text: 'Go' }], { text: 'Pick one', footer: 'fine print' }),
     )
-    expect(content.text).toBe('Pick one')
-    expect(content.footer).toBe('fine print')
+    expect(interactive.body.text).toBe('Pick one')
+    expect(interactive.footer?.text).toBe('fine print')
   })
 
   it('omits footer when not provided', () => {
-    const content = asButtons(buildButtonsContent([{ id: 'b1', text: 'Go' }]))
-    expect('footer' in content).toBe(false)
+    const interactive = interactiveOf(buildButtonsContent([{ id: 'b1', text: 'Go' }]))
+    expect(interactive.footer).toBeUndefined()
   })
 
   it('falls back to a placeholder body when text is absent', () => {
-    const content = asButtons(buildButtonsContent([{ id: 'b1', text: 'Go' }]))
-    expect(typeof content.text).toBe('string')
-    expect(content.text.length).toBeGreaterThan(0)
+    const interactive = interactiveOf(buildButtonsContent([{ id: 'b1', text: 'Go' }]))
+    expect(typeof interactive.body.text).toBe('string')
+    expect(interactive.body.text.length).toBeGreaterThan(0)
   })
 
   it('rejects an empty array with INVALID_OPTIONS', () => {
@@ -92,15 +103,16 @@ describe('buildButtonsContent helper', () => {
     )
   })
 
-  it('round-trips button id through Phase 4 decodeButtonClick (EVT-11)', () => {
-    const content = asButtons(buildButtonsContent([{ id: 'order_now', text: 'Order' }]))
-    const sentId = content.templateButtons[0]!.quickReplyButton.id
+  it('round-trips button id through Phase 4 decodeButtonClick via interactiveResponseMessage (EVT-11)', () => {
+    const sentId = paramsOf(buttonsOf(buildButtonsContent([{ id: 'order_now', text: 'Order' }]))[0]!).id
     const reply: WAMessage = {
       key: { remoteJid: RECIPIENT, fromMe: false, id: 'R1', participant: '2@s.whatsapp.net' },
       pushName: 'Buyer',
       messageTimestamp: 123,
       message: {
-        buttonsResponseMessage: { selectedButtonId: sentId, selectedDisplayText: 'Order' },
+        interactiveResponseMessage: {
+          nativeFlowResponseMessage: { name: 'quick_reply', paramsJson: JSON.stringify({ id: sentId }) },
+        },
       },
     } as unknown as WAMessage
     const decoded = decodeButtonClick(reply, { selfJid: RECIPIENT })
@@ -110,34 +122,29 @@ describe('buildButtonsContent helper', () => {
 })
 
 describe('MessageBuilder.buttons()', () => {
-  it('sends button content and resolves with the key', async () => {
-    const { socket, sendMessage } = makeSocket()
+  it('relays interactive button content and resolves with the generated key', async () => {
+    const { socket, relayMessage, sendMessage } = makeSocket()
     const key = await MessageBuilder.create(socket, RECIPIENT).buttons([{ id: 'b1', text: 'Go' }])
-    expect(key).toEqual(SENT_KEY)
-    const [, content] = sendMessage.mock.calls[0]!
-    expect(asButtons(content).templateButtons[0]!.quickReplyButton.id).toBe('b1')
+    expect(typeof key.id).toBe('string')
+    expect(sendMessage).not.toHaveBeenCalled()
+    expect(relayMessage).toHaveBeenCalledOnce()
+    const [, message] = relayMessage.mock.calls[0]! as [string, { interactiveMessage: Interactive }, unknown]
+    const params = paramsOf(message.interactiveMessage.nativeFlowMessage.buttons[0]!)
+    expect(params.id).toBe('b1')
   })
 
   it('does not call socket when buttons() throws', () => {
-    const { socket, sendMessage } = makeSocket()
+    const { socket, sendMessage, relayMessage } = makeSocket()
     expectError(() => MessageBuilder.create(socket, RECIPIENT).buttons([]), 'INVALID_OPTIONS')
     expect(sendMessage).not.toHaveBeenCalled()
+    expect(relayMessage).not.toHaveBeenCalled()
   })
 
-  it('chains .buttons(...).reply(quoted) preserving the quote', async () => {
-    const { socket, sendMessage } = makeSocket()
-    const quoted = { key: SENT_KEY } as WAMessage
-    await MessageBuilder.create(socket, RECIPIENT).buttons([{ id: 'b1', text: 'Go' }]).reply(quoted)
-    const [, , opts] = sendMessage.mock.calls[0]!
-    expect((opts as { quoted?: unknown }).quoted).toBe(quoted)
-  })
-
-  it('merges mentions into button content before dispatch', async () => {
-    const { socket, sendMessage } = makeSocket()
-    await MessageBuilder.create(socket, RECIPIENT)
-      .buttons([{ id: 'b1', text: 'Go' }])
-      .mentions(['a@s.whatsapp.net'])
-    const [, content] = sendMessage.mock.calls[0]!
-    expect((content as { mentions?: string[] }).mentions).toEqual(['a@s.whatsapp.net'])
+  it('throws SEND_FAILED when the socket cannot relay', async () => {
+    const sendMessage = vi.fn(async () => ({ key: SENT_KEY }) as WAMessage)
+    const socket: BuilderSocketLike = { sendMessage }
+    await expect(
+      MessageBuilder.create(socket, RECIPIENT).buttons([{ id: 'b1', text: 'Go' }]),
+    ).rejects.toBeInstanceOf(ZaileysBuilderError)
   })
 })

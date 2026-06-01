@@ -54,6 +54,16 @@ const makeSocket = () => {
       })
       return { key: { id: `sc-${n}`, remoteJid: jid, fromMe: true } } as unknown as WAMessage
     },
+    relayMessage: async (jid: string, message: unknown, _opts: { messageId: string }) => {
+      n += 1
+      calls.push({
+        jid,
+        content: message as Record<string, unknown>,
+        options: {},
+      })
+      return `sc-relay-${n}`
+    },
+    user: { id: '9@s.whatsapp.net' },
     lastCall: () => calls[calls.length - 1],
   }
   return { socket, calls }
@@ -187,10 +197,9 @@ describe('[SC-4] interactive typed IDs roundtrip', () => {
   it('[SC-4] .buttons preserves the developer-supplied button id', async () => {
     const { socket, calls } = makeSocket()
     await MessageBuilder.create(socket, RECIPIENT).buttons([{ id: 'btn-1', text: 'Yes' }])
-    const tpl = calls[0]!.content.templateButtons as Array<{
-      quickReplyButton: { id: string }
-    }>
-    expect(tpl[0]!.quickReplyButton.id).toBe('btn-1')
+    const interactive = (calls[0]!.content as { interactiveMessage: { nativeFlowMessage: { buttons: Array<{ buttonParamsJson: string }> } } }).interactiveMessage
+    const params = JSON.parse(interactive.nativeFlowMessage.buttons[0]!.buttonParamsJson) as { id: string }
+    expect(params.id).toBe('btn-1')
   })
 
   it('[SC-4] .list preserves the developer-supplied row id', async () => {

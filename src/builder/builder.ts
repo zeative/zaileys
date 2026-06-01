@@ -1,12 +1,14 @@
-import type {
-  AnyMessageContent,
-  MiscMessageGenerationOptions,
-  WAMessage,
-  WAMessageKey,
+import {
+  generateWAMessageFromContent,
+  type AnyMessageContent,
+  type MiscMessageGenerationOptions,
+  type proto,
+  type WAMessage,
+  type WAMessageKey,
 } from 'baileys'
 import { sendAlbum } from './album.js'
 import { buildAudioContent } from './content/audio.js'
-import { buildButtonsContent } from './content/buttons.js'
+import { buildButtonsContent, RELAY_CONTENT_KEY } from './content/buttons.js'
 import { buildContactContent } from './content/contact.js'
 import { buildDocumentContent } from './content/document.js'
 import { buildImageContent } from './content/image.js'
@@ -46,6 +48,8 @@ export interface BuilderSocketLike {
     content: AnyMessageContent,
     options?: MiscMessageGenerationOptions,
   ): Promise<WAMessage | undefined>
+  relayMessage?(jid: string, message: unknown, options: { messageId: string }): Promise<string>
+  user?: { id?: string | null } | null
 }
 
 /**
@@ -248,6 +252,10 @@ export class MessageBuilder<State extends BuilderState> {
       if (!this.internal.content) {
         throw new ZaileysBuilderError('EMPTY_CONTENT', 'no content set')
       }
+      const relayInner = (this.internal.content as Record<string, unknown>)[RELAY_CONTENT_KEY]
+      if (relayInner !== undefined) {
+        return this.sendRelay(relayInner as proto.IMessage)
+      }
       const content = this.internal.content as AnyMessageContent & {
         mentions?: string[]
         mentionAll?: boolean
@@ -277,5 +285,28 @@ export class MessageBuilder<State extends BuilderState> {
       return result.key
     }
     return send().then(onResolved, onRejected)
+  }
+
+  private async sendRelay(inner: proto.IMessage): Promise<WAMessageKey> {
+    const relay = this.socket.relayMessage
+    if (typeof relay !== 'function') {
+      throw new ZaileysBuilderError('SEND_FAILED', 'socket does not support relayMessage (interactive content)')
+    }
+    const userJid = this.socket.user?.id ?? ''
+    const genOptions = { userJid } as Parameters<typeof generateWAMessageFromContent>[2]
+    const quoted = this.internal.quoted as { message?: unknown } | undefined
+    if (quoted !== undefined && quoted.message != null) {
+      ;(genOptions as { quoted?: unknown }).quoted = quoted
+    }
+    const waMsg = generateWAMessageFromContent(this.internal.recipient, inner, genOptions)
+    if (typeof waMsg.key?.id !== 'string') {
+      throw new ZaileysBuilderError('SEND_FAILED', 'failed to generate relay message key')
+    }
+    try {
+      await relay(this.internal.recipient, waMsg.message, { messageId: waMsg.key.id })
+    } catch (err) {
+      throw new ZaileysBuilderError('SEND_FAILED', 'socket relayMessage rejected', { cause: err })
+    }
+    return waMsg.key as WAMessageKey
   }
 }

@@ -1,5 +1,6 @@
 import { Jimp } from 'jimp';
-import { BufferConverter, FFMPEG_CONSTANTS, FFmpegProcessor, FileManager, type MediaInput } from './core.js';
+import { BufferConverter, FFMPEG_CONSTANTS, type MediaInput } from './core.js';
+import { ffmpegTransform } from './transform.js';
 
 interface SharpInstance {
   resize(width: number, height: number, options?: Record<string, unknown>): SharpInstance;
@@ -28,6 +29,53 @@ function getSharp(): SharpLike | null {
     _sharp = null;
   }
   return _sharp;
+}
+
+/**
+ * Build a `size x size` single-channel alpha mask (0 or 255 per pixel) for a
+ * sticker shape. Shared by the Sharp and Jimp sticker paths so the geometry has
+ * one source of truth. An unknown shape yields an all-transparent mask.
+ */
+function buildShapeMask(size: number, shape: string): Uint8Array {
+  const mask = new Uint8Array(size * size);
+  const cx = size / 2;
+  const cy = size / 2;
+  const radius = size / 10;
+  const corners = [
+    [radius, radius],
+    [size - radius, radius],
+    [radius, size - radius],
+    [size - radius, size - radius],
+  ];
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      let isInShape = false;
+      if (shape === 'circle') {
+        const dx = x - cx;
+        const dy = y - cy;
+        isInShape = dx * dx + dy * dy <= cx * cx;
+      } else if (shape === 'rounded') {
+        const inMainRect = x >= radius && x < size - radius && y >= 0 && y < size;
+        const inVertRect = x >= 0 && x < size && y >= radius && y < size - radius;
+        let inCorner = false;
+        for (const corner of corners) {
+          const dx = x - corner[0]!;
+          const dy = y - corner[1]!;
+          if (dx * dx + dy * dy <= radius * radius) {
+            inCorner = true;
+            break;
+          }
+        }
+        isInShape = inMainRect || inVertRect || inCorner;
+      } else if (shape === 'oval') {
+        const dx = (x - cx) / (size / 2);
+        const dy = (y - cy) / (size / 3);
+        isInShape = dx * dx + dy * dy <= 1;
+      }
+      mask[y * size + x] = isInShape ? 255 : 0;
+    }
+  }
+  return mask;
 }
 
 class SharpImageProcessor {
@@ -76,62 +124,7 @@ class SharpImageProcessor {
     let img = sharp(buffer).resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } });
 
     if (shape !== 'default') {
-      const mask = Buffer.alloc(size * size);
-
-      for (let y = 0; y < size; y++) {
-        for (let x = 0; x < size; x++) {
-          let isInShape = false;
-          const cx = size / 2;
-          const cy = size / 2;
-
-          switch (shape) {
-            case 'circle': {
-              const dx = x - cx;
-              const dy = y - cy;
-              isInShape = (dx * dx + dy * dy) <= (cx * cx);
-              break;
-            }
-            case 'rounded': {
-              const radius = size / 10;
-              const inMainRect = x >= radius && x < size - radius && y >= 0 && y < size;
-              const inVertRect = x >= 0 && x < size && y >= radius && y < size - radius;
-
-              let inCorner = false;
-              const corners = [
-                [radius, radius],
-                [size - radius, radius],
-                [radius, size - radius],
-                [size - radius, size - radius],
-              ];
-
-              for (const corner of corners) {
-                const ccx = corner[0]!;
-                const ccy = corner[1]!;
-                const dx = x - ccx;
-                const dy = y - ccy;
-                if (dx * dx + dy * dy <= radius * radius) {
-                  inCorner = true;
-                  break;
-                }
-              }
-
-              isInShape = inMainRect || inVertRect || inCorner;
-              break;
-            }
-            case 'oval': {
-              const rx = size / 2;
-              const ry = size / 3;
-              const dx = (x - cx) / rx;
-              const dy = (y - cy) / ry;
-              isInShape = (dx * dx + dy * dy) <= 1;
-              break;
-            }
-          }
-
-          mask[y * size + x] = isInShape ? 255 : 0;
-        }
-      }
-
+      const mask = Buffer.from(buildShapeMask(size, shape));
       const maskImg = sharp(mask, { raw: { width: size, height: size, channels: 1 } });
       img = img.joinChannel(await maskImg.png().toBuffer());
     }
@@ -176,101 +169,23 @@ class JimpImageProcessor {
     image.contain({ w: size, h: size });
 
     if (shape !== 'default') {
+      const mask = buildShapeMask(size, shape);
       const maskImage = new Jimp({ width: size, height: size, color: 0x000000ff });
-
       for (let y = 0; y < size; y++) {
         for (let x = 0; x < size; x++) {
-          let isInShape = false;
-          const cx = size / 2;
-          const cy = size / 2;
-
-          switch (shape) {
-            case 'circle': {
-              const dx = x - cx;
-              const dy = y - cy;
-              isInShape = (dx * dx + dy * dy) <= (cx * cx);
-              break;
-            }
-            case 'rounded': {
-              const radius = size / 10;
-              const inMainRect = x >= radius && x < size - radius && y >= 0 && y < size;
-              const inVertRect = x >= 0 && x < size && y >= radius && y < size - radius;
-
-              let inCorner = false;
-              const corners = [
-                [radius, radius],
-                [size - radius, radius],
-                [radius, size - radius],
-                [size - radius, size - radius],
-              ];
-
-              for (const corner of corners) {
-                const ccx = corner[0]!;
-                const ccy = corner[1]!;
-                const dx = x - ccx;
-                const dy = y - ccy;
-                if (dx * dx + dy * dy <= radius * radius) {
-                  inCorner = true;
-                  break;
-                }
-              }
-
-              isInShape = inMainRect || inVertRect || inCorner;
-              break;
-            }
-            case 'oval': {
-              const rx = size / 2;
-              const ry = size / 3;
-              const dx = (x - cx) / rx;
-              const dy = (y - cy) / ry;
-              isInShape = (dx * dx + dy * dy) <= 1;
-              break;
-            }
-          }
-
-          if (isInShape) {
-            maskImage.setPixelColor(0xffffffff, x, y);
-          }
+          if (mask[y * size + x] === 255) maskImage.setPixelColor(0xffffffff, x, y);
         }
       }
-
       image.mask(maskImage);
     }
 
     const pngBuffer = Buffer.from(await image.getBuffer('image/png'));
-    return this.convertToWebp(pngBuffer, quality);
-  }
-
-  private async convertToWebp(pngBuffer: Buffer, quality: number): Promise<Buffer> {
-    const tempIn = FileManager.createTempPath('sticker_jimp_in', 'png');
-    const tempOut = FileManager.createTempPath('sticker_jimp_out', 'webp');
-
-    await FileManager.safeWriteFile(tempIn, pngBuffer);
-
     const qualityValue = Math.max(1, Math.min(100, quality));
-
-    try {
-      await FFmpegProcessor.process({
-        input: tempIn,
-        output: tempOut,
-        options: [
-          '-vcodec', 'libwebp',
-          `-q:v`, `${qualityValue}`,
-          '-preset', 'default',
-        ],
-        onEnd: async () => {},
-        onError: async () => {
-          await FileManager.cleanup([tempIn, tempOut]);
-        },
-      });
-
-      const webpBuffer = await FileManager.safeReadFile(tempOut);
-      await FileManager.cleanup([tempIn, tempOut]);
-      return webpBuffer;
-    } catch (error: unknown) {
-      await FileManager.cleanup([tempIn, tempOut]);
-      throw new Error(`Jimp WebP conversion failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    return ffmpegTransform(pngBuffer, 'png', 'webp', 'Jimp WebP conversion', [
+      '-vcodec', 'libwebp',
+      '-q:v', `${qualityValue}`,
+      '-preset', 'default',
+    ]);
   }
 }
 

@@ -2,7 +2,8 @@ import { fileTypeFromBuffer } from 'file-type';
 import webp from 'node-webpmux';
 import type { StickerMetadataType } from '../types.js';
 import { generateId } from '../utils.js';
-import { BufferConverter, FFMPEG_CONSTANTS, FFmpegProcessor, FileManager, MimeValidator, type MediaInput } from './core.js';
+import { BufferConverter, FFMPEG_CONSTANTS, MimeValidator, type MediaInput } from './core.js';
+import { ffmpegTransform } from './transform.js';
 import { ImageProcessor } from './image.js';
 import { VideoProcessor } from './video.js';
 
@@ -60,56 +61,30 @@ export class StickerProcessor {
   }
 
   private static async processAnimated(buffer: Buffer, mime: string, quality: number): Promise<Buffer> {
-    const ext = this.getExtension(mime);
-    const tempIn = FileManager.createTempPath('sticker_in', ext);
-    const tempOut = FileManager.createTempPath('sticker_out', 'webp');
-
-    await FileManager.safeWriteFile(tempIn, buffer);
-
-    let duration: number = FFMPEG_CONSTANTS.STICKER.MAX_DURATION;
-    try {
-      const videoDuration = await VideoProcessor.duration(tempIn);
-      duration = Math.min(videoDuration, FFMPEG_CONSTANTS.STICKER.MAX_DURATION);
-    } catch {
-      console.warn('Using default duration:', FFMPEG_CONSTANTS.STICKER.MAX_DURATION);
-    }
-
     const size = FFMPEG_CONSTANTS.STICKER.SIZE;
     const fps = FFMPEG_CONSTANTS.STICKER.FPS;
     const videoFilter = `scale=${size}:${size}:force_original_aspect_ratio=decrease,fps=${fps},pad=${size}:${size}:(ow-iw)/2:(oh-ih)/2:color=0x00000000,format=rgba`;
     const qualityValue = Math.max(1, Math.min(100, quality));
 
-    let webpBuffer: Buffer;
-
-    try {
-      await FFmpegProcessor.process({
-        input: tempIn,
-        output: tempOut,
-        options: [
-          '-vcodec libwebp',
-          `-vf ${videoFilter}`,
-          `-q:v ${qualityValue}`,
-          '-loop 0',
-          '-preset default',
-          '-an',
-          '-vsync 0',
-          `-t ${duration}`,
-          `-compression_level ${FFMPEG_CONSTANTS.STICKER.COMPRESSION_LEVEL}`,
-        ],
-        onEnd: async () => {
-          webpBuffer = await FileManager.safeReadFile(tempOut);
-        },
-        onError: async () => {
-          await FileManager.cleanup([tempIn, tempOut]);
-        },
-      });
-
-      await FileManager.cleanup([tempIn, tempOut]);
-      return webpBuffer!;
-    } catch (error: unknown) {
-      await FileManager.cleanup([tempIn, tempOut]);
-      throw new Error(`Animated sticker processing failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    return ffmpegTransform(buffer, this.getExtension(mime), 'webp', 'Animated sticker processing', async (tempIn) => {
+      let duration: number = FFMPEG_CONSTANTS.STICKER.MAX_DURATION;
+      try {
+        duration = Math.min(await VideoProcessor.duration(tempIn), FFMPEG_CONSTANTS.STICKER.MAX_DURATION);
+      } catch {
+        console.warn('Using default duration:', FFMPEG_CONSTANTS.STICKER.MAX_DURATION);
+      }
+      return [
+        '-vcodec libwebp',
+        `-vf ${videoFilter}`,
+        `-q:v ${qualityValue}`,
+        '-loop 0',
+        '-preset default',
+        '-an',
+        '-vsync 0',
+        `-t ${duration}`,
+        `-compression_level ${FFMPEG_CONSTANTS.STICKER.COMPRESSION_LEVEL}`,
+      ];
+    });
   }
 
   private static getExtension(mime: string): FileExtension {

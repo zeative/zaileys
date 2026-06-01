@@ -1,95 +1,38 @@
 import { fileTypeFromBuffer } from 'file-type';
-import { BufferConverter, FFMPEG_CONSTANTS, FFmpegProcessor, FileManager, MimeValidator, type MediaInput } from './core.js';
+import { BufferConverter, FFMPEG_CONSTANTS, FFmpegProcessor, MimeValidator, type MediaInput } from './core.js';
+import { ffmpegTransform } from './transform.js';
+
+const MP4_OPTIONS = [
+  '-c:v', 'libx264',
+  '-preset', 'ultrafast',
+  '-crf', '28',
+  '-c:a', 'aac',
+  '-b:a', '128k',
+  '-movflags', '+faststart',
+  '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
+  '-pix_fmt', 'yuv420p',
+  '-f', 'mp4',
+];
 
 export class VideoProcessor {
   static async toMp4(input: MediaInput): Promise<Buffer> {
     const buffer = await BufferConverter.toBuffer(input);
-    const fileType = await fileTypeFromBuffer(buffer);
-
-    MimeValidator.validate(fileType, FFMPEG_CONSTANTS.MIME.VIDEO);
-
+    MimeValidator.validate(await fileTypeFromBuffer(buffer), FFMPEG_CONSTANTS.MIME.VIDEO);
     const inputExt = await BufferConverter.getExtension(buffer);
-    const tempIn = FileManager.createTempPath('video_in', inputExt);
-    const tempOut = FileManager.createTempPath('video_out', 'mp4');
-
-    await FileManager.safeWriteFile(tempIn, buffer);
-
-    let outputBuffer: Buffer;
-
-    try {
-      const options = [
-        '-c:v', 'libx264',
-        '-preset', 'ultrafast',
-        '-crf', '28',
-        '-c:a', 'aac',
-        '-b:a', '128k',
-        '-movflags', '+faststart',
-        '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
-        '-pix_fmt', 'yuv420p',
-        '-f', 'mp4',
-      ];
-
-      await FFmpegProcessor.process({
-        input: tempIn,
-        output: tempOut,
-        options,
-        onEnd: async () => {
-          outputBuffer = await FileManager.safeReadFile(tempOut);
-        },
-        onError: async () => {
-          await FileManager.cleanup([tempIn, tempOut]);
-        },
-      });
-
-      await FileManager.cleanup([tempIn, tempOut]);
-      return outputBuffer!;
-    } catch (error: unknown) {
-      await FileManager.cleanup([tempIn, tempOut]);
-      throw new Error(`Video re-encoding failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
+    return ffmpegTransform(buffer, inputExt, 'mp4', 'Video re-encoding', MP4_OPTIONS);
   }
 
   static async thumbnail(input: MediaInput): Promise<string> {
     const buffer = await BufferConverter.toBuffer(input);
-    const fileType = await fileTypeFromBuffer(buffer);
-
-    MimeValidator.validate(fileType, FFMPEG_CONSTANTS.MIME.VIDEO);
-
+    MimeValidator.validate(await fileTypeFromBuffer(buffer), FFMPEG_CONSTANTS.MIME.VIDEO);
     const inputExt = await BufferConverter.getExtension(buffer);
-    const tempIn = FileManager.createTempPath('video', inputExt);
-    const tempThumb = FileManager.createTempPath('thumb', 'jpg');
-
-    await FileManager.safeWriteFile(tempIn, buffer);
-
-    let thumbnailBase64: string;
-
-    try {
+    const size = FFMPEG_CONSTANTS.THUMBNAIL.SIZE;
+    const thumb = await ffmpegTransform(buffer, inputExt, 'jpg', 'Thumbnail generation', async (tempIn) => {
       const duration = await FFmpegProcessor.getDuration(tempIn);
       const targetTime = Math.max(0, duration * 0.1);
-
-      await FFmpegProcessor.process({
-        input: tempIn,
-        output: tempThumb,
-        options: [
-          '-ss', targetTime.toString(),
-          '-vframes', '1',
-          '-s', `${FFMPEG_CONSTANTS.THUMBNAIL.SIZE}x${FFMPEG_CONSTANTS.THUMBNAIL.SIZE}`
-        ],
-        onEnd: async () => {
-          const thumbBuffer = await FileManager.safeReadFile(tempThumb);
-          thumbnailBase64 = thumbBuffer.toString('base64');
-        },
-        onError: async (error) => {
-          throw error;
-        }
-      });
-
-      await FileManager.cleanup([tempIn, tempThumb]);
-      return thumbnailBase64!;
-    } catch (error: unknown) {
-      await FileManager.cleanup([tempIn, tempThumb]);
-      throw new Error(`Thumbnail generation failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
+      return ['-ss', targetTime.toString(), '-vframes', '1', '-s', `${size}x${size}`];
+    });
+    return thumb.toString('base64');
   }
 
   static async duration(filePath: string): Promise<number> {

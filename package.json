@@ -11,8 +11,12 @@
     "dist"
   ],
   "author": "zaadevofc",
+  "homepage": "https://zeative.github.io/zaileys/",
   "repository": {
     "url": "git+https://github.com/zeative/zaileys.git"
+  },
+  "bugs": {
+    "url": "https://github.com/zeative/zaileys/issues"
   },
   "keywords": [
     "baileys",

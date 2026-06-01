@@ -10,12 +10,11 @@
   <a href="https://www.npmjs.com/package/zaileys"><img src="https://img.shields.io/npm/v/zaileys.svg" alt="NPM Version"></a>
   <a href="https://www.npmjs.com/package/zaileys"><img src="https://img.shields.io/npm/dw/zaileys?label=npm&color=%23CB3837" alt="NPM Downloads"></a>
   <a href="https://github.com/zeative/zaileys/releases"><img src="https://img.shields.io/npm/dt/zaileys" alt="NPM Downloads"></a>
-  <a href="https://github.com/zeative/zaileys/actions"><img src="https://img.shields.io/github/actions/workflow/status/zeative/zaileys/ci.yml?branch=main&label=build" alt="Build Status"></a>
   <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/badge/TypeScript-7%20native-blue?style=flat-square&logo=typescript" alt="TypeScript 7"></a>
 </div>
 
 <div align="center">
-  <a href="https://github.com/zeative/zaileys/blob/main/LICENSE"><img src="https://img.shields.io/github/license/zeative/zaileys" alt="GitHub License"></a>
+  <a href="https://github.com/zeative/zaileys/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
   <a href="https://discord.gg/KBHhTTVUc5"><img alt="Discord" src="https://img.shields.io/discord/1105833273415962654?logo=discord&label=discord&link=https%3A%2F%2Fgithub.com%2Fzeative%2Fzaileys"></a>
   <a href="https://chat.whatsapp.com/GlQfvc83mSH3F6ov06vuCt"><img alt="WhatsApp" src="https://img.shields.io/badge/WhatsApp-Group-25D366?logo=whatsapp&logoColor=white"></a>
   <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/stars/zeative/zaileys" alt="GitHub Stars"></a>
@@ -39,7 +38,7 @@
 [What you can build](#what-you-can-build) &nbsp;•&nbsp;
 [Storage](#storage) &nbsp;•&nbsp;
 [Runtimes](#runtime-support) &nbsp;•&nbsp;
-[Docs](#documentation)
+[Docs](https://zeative.github.io/zaileys/)
 
 </div>
 
@@ -48,7 +47,7 @@
 <br>
 
 > [!NOTE]
-> This README is a **high-level overview**. The complete API reference, guides, and recipes live in the dedicated documentation site (coming soon). Runnable code lives in [`examples/`](./examples).
+> This README is a **high-level overview**. The complete API reference, guides, and recipes live in the documentation site at **<https://zeative.github.io/zaileys/>**. Runnable code lives in [`examples/`](./examples).
 
 ---
 
@@ -218,6 +217,7 @@ Package managers: **npm**, **pnpm**, **yarn**, and **bun** are all supported.
 
 ## Documentation
 
+- 🌐 [**zeative.github.io/zaileys**](https://zeative.github.io/zaileys/) — full documentation site: guides, API reference, recipes
 - 📦 [**examples/**](./examples) — runnable bots: quickstart, interactive buttons, AIRich, storage adapters, broadcast
 - 🔀 [**MIGRATION.md**](./MIGRATION.md) — upgrading from v3.x to v4.0.0 (breaking changes, side-by-side snippets)
 - 🤝 [**CONTRIBUTING.md**](./CONTRIBUTING.md) — dev setup, tests, commit convention, release flow

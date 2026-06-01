@@ -16,8 +16,8 @@ coverage/
 !tests/
 
 # Misc
-zaileys
-index.js
+/zaileys
+/index.js
 
 # Generated API docs
 docs/api/

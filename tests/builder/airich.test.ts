@@ -45,7 +45,7 @@ describe('buildAIRichContent', () => {
   it('extracts a [label](url) hyperlink into inline_entities + a tagged text', () => {
     const prims = primitivesOf(buildAIRichContent([{ type: 'text', text: 'see [GitHub](https://github.com/zeative/zaileys)' }]))
     const prim = prims[0] as { text: string; inline_entities: Array<{ key: string; metadata: Record<string, unknown> }> }
-    expect(prim.text).toContain('{{NIXEL_HYPERLINK_0}}')
+    expect(prim.text).toContain('{{zaileys_HYPERLINK_0}}')
     expect(prim.inline_entities[0]!.metadata).toMatchObject({ display_name: 'GitHub', url: 'https://github.com/zeative/zaileys', __typename: 'GenAIInlineLinkItem' })
   })
 

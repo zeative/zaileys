@@ -10,6 +10,8 @@ import { RELAY_CONTENT_KEY } from './buttons.js'
  * format (`botForwardedMessage` -> `richResponseMessage` with a base64 unified
  * response). It is NOT a documented WhatsApp protocol and may break with any
  * WhatsApp update. Renders as an AI-bot response on supporting clients.
+ *
+ * Format reference (credit): https://gist.github.com/ValdazGT/3a1a10bb7017209ba6fa35d42d4d559d
  */
 export type AIRichPart =
   | { type: 'text'; text: string }
@@ -52,11 +54,11 @@ const extractIE = (input: string): ExtractedIE => {
       let key: string
       let tag: string
       if (raw) {
-        key = `NIXEL_HYPERLINK_${hyperlinkIndex++}`
+        key = `zaileys_HYPERLINK_${hyperlinkIndex++}`
         tag = `{{${key}}}${url}{{/${key}}}`
         ie.push({ type: 'hyperlink', ie: { key, text: raw, url } })
       } else {
-        key = `NIXEL_CITATION_${citationIndex - 1}`
+        key = `zaileys_CITATION_${citationIndex - 1}`
         tag = `{{${key}}}${url}{{/${key}}}`
         ie.push({ type: 'citation', ie: { key, reference_id: String(citationIndex++), url } })
       }

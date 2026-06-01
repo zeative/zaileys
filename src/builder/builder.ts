@@ -9,7 +9,7 @@ import {
 } from 'baileys'
 import { sendAlbum } from './album.js'
 import { buildAudioContent } from './content/audio.js'
-import { buildButtonsContent, RELAY_CONTENT_KEY, RELAY_MEDIA_KEY, type HeaderMedia } from './content/buttons.js'
+import { buildButtonsContent, RELAY_CONTENT_KEY, RELAY_MEDIA_KEY, type ButtonsContentOptions, type HeaderMedia } from './content/buttons.js'
 import { buildCarouselContent, RELAY_CARDS_MEDIA_KEY, type CardMedia, type CarouselCard } from './content/carousel.js'
 import { buildAIRichContent, type AIRichOptions, type AIRichPart } from './content/airich.js'
 import { loadMedia } from './media-loader.js'
@@ -156,7 +156,7 @@ export class MessageBuilder<State extends BuilderState> {
   buttons(
     this: MessageBuilder<'init'>,
     buttons: Array<ButtonDef | InteractiveButton>,
-    opts?: { text?: string; footer?: string; title?: string; subtitle?: string; image?: MediaSource; video?: MediaSource },
+    opts?: ButtonsContentOptions,
   ): MessageBuilder<'content-set'> {
     this.internal.content = buildButtonsContent(buttons, opts)
     return this as unknown as MessageBuilder<'content-set'>

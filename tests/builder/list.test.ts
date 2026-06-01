@@ -1,19 +1,24 @@
 import type { WAMessage, WAMessageKey } from 'baileys'
 import { describe, expect, it, vi } from 'vitest'
 import { MessageBuilder, type BuilderSocketLike } from '../../src/builder/builder.js'
-import { buildListContent, type ListContent } from '../../src/builder/content/list.js'
+import { buildListContent } from '../../src/builder/content/list.js'
+import { RELAY_CONTENT_KEY } from '../../src/builder/content/buttons.js'
 import { ZaileysBuilderError } from '../../src/builder/errors.js'
 import { decodeListSelect } from '../../src/events/decoders/interactive.js'
 import type { ListOptions } from '../../src/builder/types.js'
 
 const RECIPIENT = '1@s.whatsapp.net'
-const SENT_KEY: WAMessageKey = { remoteJid: RECIPIENT, fromMe: true, id: 'MSG1' }
 
-const makeSocket = () => {
-  const sendMessage = vi.fn(async () => ({ key: SENT_KEY }) as WAMessage)
-  const socket: BuilderSocketLike = { sendMessage }
-  return { socket, sendMessage }
+type SelectSection = { title: string; highlight_label: string; rows: Array<{ header: string; title: string; description: string; id: string }> }
+type SelectParams = { title: string; sections: SelectSection[] }
+
+const selectButtonOf = (content: unknown): { name: string; params: SelectParams } => {
+  const inner = (content as Record<string, { interactiveMessage?: { nativeFlowMessage?: { buttons?: Array<{ name: string; buttonParamsJson: string }> } } }>)[RELAY_CONTENT_KEY]!
+  const button = inner.interactiveMessage!.nativeFlowMessage!.buttons![0]!
+  return { name: button.name, params: JSON.parse(button.buttonParamsJson) as SelectParams }
 }
+const headerOf = (content: unknown): { footer?: { text: string }; header?: { title: string }; body?: { text: string } } =>
+  (content as Record<string, { interactiveMessage: { footer?: { text: string }; header?: { title: string }; body?: { text: string } } }>)[RELAY_CONTENT_KEY]!.interactiveMessage
 
 const expectError = (fn: () => unknown, code: string) => {
   try {
@@ -24,8 +29,6 @@ const expectError = (fn: () => unknown, code: string) => {
     expect((e as ZaileysBuilderError).code).toBe(code)
   }
 }
-
-const asList = (content: unknown): ListContent => content as ListContent
 
 const simple = (): ListOptions => ({
   buttonText: 'Menu',
@@ -41,34 +44,33 @@ const simple = (): ListOptions => ({
 })
 
 describe('buildListContent helper', () => {
-  it('maps a simple section with 2 rows to rowId-keyed rows', () => {
-    const content = asList(buildListContent(simple()))
-    expect(content.buttonText).toBe('Menu')
-    expect(content.sections).toHaveLength(1)
-    expect(content.sections[0]!.rows).toHaveLength(2)
-    expect(content.sections[0]!.rows[0]).toEqual({ rowId: 'coffee', title: 'Coffee' })
-    expect(content.sections[0]!.rows[1]).toEqual({ rowId: 'tea', title: 'Tea', description: 'green' })
+  it('emits a single_select nativeFlow button titled by buttonText', () => {
+    const { name, params } = selectButtonOf(buildListContent(simple()))
+    expect(name).toBe('single_select')
+    expect(params.title).toBe('Menu')
+    expect(params.sections).toHaveLength(1)
+    expect(params.sections[0]!.rows).toHaveLength(2)
+    expect(params.sections[0]!.rows[0]).toEqual({ header: '', title: 'Coffee', description: '', id: 'coffee' })
+    expect(params.sections[0]!.rows[1]).toEqual({ header: '', title: 'Tea', description: 'green', id: 'tea' })
   })
 
-  it('propagates title, description, and footer', () => {
-    const content = asList(
-      buildListContent({ ...simple(), title: 'Order', description: 'Choose', footerText: 'thanks' }),
-    )
-    expect(content.title).toBe('Order')
-    expect(content.text).toBe('Choose')
-    expect(content.footer).toBe('thanks')
+  it('propagates title (header), description (body), and footer', () => {
+    const im = headerOf(buildListContent({ ...simple(), title: 'Order', description: 'Choose', footerText: 'thanks' }))
+    expect(im.header?.title).toBe('Order')
+    expect(im.body?.text).toBe('Choose')
+    expect(im.footer?.text).toBe('thanks')
   })
 
-  it('omits title and footer when not provided', () => {
-    const content = asList(buildListContent(simple()))
-    expect('title' in content).toBe(false)
-    expect('footer' in content).toBe(false)
+  it('omits header and footer when not provided', () => {
+    const im = headerOf(buildListContent(simple()))
+    expect(im.header).toBeUndefined()
+    expect(im.footer).toBeUndefined()
   })
 
   it('falls back to a placeholder body when description is absent', () => {
-    const content = asList(buildListContent(simple()))
-    expect(typeof content.text).toBe('string')
-    expect(content.text.length).toBeGreaterThan(0)
+    const im = headerOf(buildListContent(simple()))
+    expect(typeof im.body?.text).toBe('string')
+    expect((im.body?.text ?? '').length).toBeGreaterThan(0)
   })
 
   it('rejects a blank buttonText', () => {
@@ -115,15 +117,17 @@ describe('buildListContent helper', () => {
     )
   })
 
-  it('round-trips row id through Phase 4 decodeListSelect (EVT-12)', () => {
-    const content = asList(buildListContent(simple()))
-    const sentRowId = content.sections[0]!.rows[1]!.rowId
+  it('round-trips row id through decodeListSelect (nativeFlow single_select reply)', () => {
+    const { params } = selectButtonOf(buildListContent(simple()))
+    const sentRowId = params.sections[0]!.rows[1]!.id
     const reply: WAMessage = {
       key: { remoteJid: RECIPIENT, fromMe: false, id: 'R1', participant: '2@s.whatsapp.net' },
       pushName: 'Buyer',
       messageTimestamp: 123,
       message: {
-        listResponseMessage: { title: 'Tea', singleSelectReply: { selectedRowId: sentRowId } },
+        interactiveResponseMessage: {
+          nativeFlowResponseMessage: { name: 'single_select', paramsJson: JSON.stringify({ id: sentRowId }) },
+        },
       },
     } as unknown as WAMessage
     const decoded = decodeListSelect(reply, { selfJid: RECIPIENT })
@@ -133,17 +137,24 @@ describe('buildListContent helper', () => {
 })
 
 describe('MessageBuilder.list()', () => {
-  it('sends list content and resolves with the key', async () => {
-    const { socket, sendMessage } = makeSocket()
+  it('relays list content (with the interactive node) and resolves with the key', async () => {
+    const relayMessage = vi.fn(async () => 'R1')
+    const sendMessage = vi.fn(async () => ({ key: { id: 'X' } as WAMessageKey }) as WAMessage)
+    const socket: BuilderSocketLike = { sendMessage, relayMessage, user: { id: '9@s.whatsapp.net' } }
     const key = await MessageBuilder.create(socket, RECIPIENT).list(simple())
-    expect(key).toEqual(SENT_KEY)
-    const [, content] = sendMessage.mock.calls[0]!
-    expect(asList(content).sections[0]!.rows[0]!.rowId).toBe('coffee')
+    expect(typeof key.id).toBe('string')
+    expect(sendMessage).not.toHaveBeenCalled()
+    expect(relayMessage).toHaveBeenCalledOnce()
+    const [, , opts] = relayMessage.mock.calls[0]! as [string, unknown, { additionalNodes?: unknown[] }]
+    expect(opts.additionalNodes).toBeDefined()
   })
 
   it('does not call socket when list() throws', () => {
-    const { socket, sendMessage } = makeSocket()
+    const relayMessage = vi.fn(async () => 'R1')
+    const sendMessage = vi.fn(async () => ({ key: { id: 'X' } as WAMessageKey }) as WAMessage)
+    const socket: BuilderSocketLike = { sendMessage, relayMessage, user: { id: '9@s.whatsapp.net' } }
     expectError(() => MessageBuilder.create(socket, RECIPIENT).list({ buttonText: '', sections: [] }), 'INVALID_OPTIONS')
+    expect(relayMessage).not.toHaveBeenCalled()
     expect(sendMessage).not.toHaveBeenCalled()
   })
 })

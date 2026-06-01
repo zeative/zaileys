@@ -37,6 +37,8 @@ const showcase = async (target: string): Promise<void> => {
     'Rangkuman harian dari [zaileys](https://github.com/zeative/zaileys).',
     'Sumber data dipantau otomatis. [](https://github.com/zeative/zaileys)',
     '',
+    'Rumus hari ini: [E = mc^2|160|44]<https://latex.codecogs.com/png.image?E%20%3D%20mc%5E2>',
+    '',
     'Tiga sorotan utama hari ini, plus cuplikan kode untuk bikin bot interaktif.',
   ].join('\n')
 

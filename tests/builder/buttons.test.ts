@@ -416,3 +416,57 @@ describe('buttons — full outbound→inbound round-trip', () => {
     }
   })
 })
+
+describe('buildButtonsContent — reminder/location/address buttons', () => {
+  it('maps a reminder button to cta_reminder', () => {
+    const b = buttonsOf(buildButtonsContent([{ type: 'reminder', text: 'Remind me', id: 'r1' }]))[0]!
+    expect(b.name).toBe('cta_reminder')
+    expect(paramsOf(b)).toMatchObject({ display_text: 'Remind me', id: 'r1' })
+  })
+
+  it('maps a cancel-reminder button to cta_cancel_reminder, defaulting id to text', () => {
+    const b = buttonsOf(buildButtonsContent([{ type: 'cancel-reminder', text: 'Cancel' }]))[0]!
+    expect(b.name).toBe('cta_cancel_reminder')
+    expect(paramsOf(b)).toMatchObject({ display_text: 'Cancel', id: 'Cancel' })
+  })
+
+  it('maps an address button to address_message', () => {
+    const b = buttonsOf(buildButtonsContent([{ type: 'address', text: 'Add address', id: 'addr' }]))[0]!
+    expect(b.name).toBe('address_message')
+    expect(paramsOf(b)).toMatchObject({ display_text: 'Add address', id: 'addr' })
+  })
+
+  it('maps a location button to send_location (text optional)', () => {
+    const b = buttonsOf(buildButtonsContent([{ type: 'location' }]))[0]!
+    expect(b.name).toBe('send_location')
+    expect(b.buttonParamsJson).toBe('{}')
+  })
+
+  it('includes display_text in send_location when provided', () => {
+    const b = buttonsOf(buildButtonsContent([{ type: 'location', text: 'Share location' }]))[0]!
+    expect(JSON.parse(b.buttonParamsJson)).toMatchObject({ display_text: 'Share location' })
+  })
+})
+
+describe('buildButtonsContent — bottomSheet / limitedTimeOffer params', () => {
+  it('serializes bottomSheet into messageParamsJson', () => {
+    const content = buildButtonsContent([{ id: 'a', text: 'A' }], {
+      bottomSheet: { listTitle: 'Pilih', buttonTitle: 'Lihat opsi', buttonsLimit: 2, dividers: [1] },
+    })
+    const params = JSON.parse(interactiveOf(content).nativeFlowMessage.messageParamsJson ?? '{}')
+    expect(params.bottom_sheet).toMatchObject({ list_title: 'Pilih', button_title: 'Lihat opsi', in_thread_buttons_limit: 2, divider_indices: [1] })
+  })
+
+  it('serializes limitedTimeOffer into messageParamsJson', () => {
+    const content = buildButtonsContent([{ id: 'a', text: 'A' }], {
+      limitedTimeOffer: { text: 'Flash sale', url: 'https://x.test', copyCode: 'SALE', expiresAt: 1800000000 },
+    })
+    const params = JSON.parse(interactiveOf(content).nativeFlowMessage.messageParamsJson ?? '{}')
+    expect(params.limited_time_offer).toMatchObject({ text: 'Flash sale', url: 'https://x.test', copy_code: 'SALE', expiration_time: 1800000000 })
+  })
+
+  it('leaves messageParamsJson empty when no params given', () => {
+    const content = buildButtonsContent([{ id: 'a', text: 'A' }])
+    expect(interactiveOf(content).nativeFlowMessage.messageParamsJson).toBe('')
+  })
+})

@@ -56,6 +56,17 @@ describe('buildAIRichContent', () => {
     expect(prim.inline_entities[0]!.metadata).toMatchObject({ reference_url: 'https://src.example', __typename: 'GenAISearchCitationItem' })
   })
 
+  it('extracts a [expr|w|h]<url> LaTeX entity into a GenAILatexItem', () => {
+    const prims = primitivesOf(buildAIRichContent([{ type: 'text', text: 'rumus [E=mc^2|120|40]<https://latex.test/e.png>' }]))
+    const prim = prims[0] as { text: string; inline_entities: Array<{ key: string; metadata: Record<string, unknown> }> }
+    expect(prim.text).toContain('{{zaileys_LATEX_0}}')
+    expect(prim.inline_entities[0]!.metadata).toMatchObject({
+      latex_expression: 'E=mc^2',
+      latex_image: { url: 'https://latex.test/e.png', width: 120, height: 40 },
+      __typename: 'GenAILatexItem',
+    })
+  })
+
   it('encodes a code section as a GenAICodeUXPrimitive with syntax-highlighted tokens', () => {
     const prims = primitivesOf(buildAIRichContent([{ type: 'code', language: 'js', content: 'const x = 1' }]))
     expect(prims[0]).toMatchObject({ language: 'js', __typename: 'GenAICodeUXPrimitive' })

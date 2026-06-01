@@ -208,8 +208,9 @@ describe('[SC-4] interactive typed IDs roundtrip', () => {
       buttonText: 'Open',
       sections: [{ title: 'S', rows: [{ id: 'row-9', title: 'Pick me' }] }],
     })
-    const sections = calls[0]!.content.sections as Array<{ rows: Array<{ rowId: string }> }>
-    expect(sections[0]!.rows[0]!.rowId).toBe('row-9')
+    const interactive = (calls[0]!.content as { interactiveMessage: { nativeFlowMessage: { buttons: Array<{ buttonParamsJson: string }> } } }).interactiveMessage
+    const params = JSON.parse(interactive.nativeFlowMessage.buttons[0]!.buttonParamsJson) as { sections: Array<{ rows: Array<{ id: string }> }> }
+    expect(params.sections[0]!.rows[0]!.id).toBe('row-9')
   })
 
   it('[SC-4] .poll preserves the developer-supplied option values', async () => {

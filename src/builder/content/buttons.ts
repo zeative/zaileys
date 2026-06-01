@@ -1,6 +1,6 @@
 import { proto, type AnyMessageContent } from 'baileys'
 import { ZaileysBuilderError } from '../errors.js'
-import type { ButtonDef, InteractiveButton, MediaSource } from '../types.js'
+import type { BottomSheetOptions, ButtonDef, InteractiveButton, LimitedTimeOfferOptions, MediaSource } from '../types.js'
 
 const MAX_BUTTONS = 10
 
@@ -21,7 +21,7 @@ export type HeaderMedia = { kind: 'image' | 'video'; src: MediaSource }
 /** Content shape carrying a pre-built proto message (+ optional header media) for the relay send path. */
 export type RelayContent = { [RELAY_CONTENT_KEY]: proto.IMessage; [RELAY_MEDIA_KEY]?: HeaderMedia }
 
-/** Optional decoration for {@link buildButtonsContent}: body text, footer, and a text/media header. */
+/** Optional decoration for {@link buildButtonsContent}: body text, footer, a text/media header, and nativeFlow params. */
 export type ButtonsContentOptions = {
   text?: string
   footer?: string
@@ -29,18 +29,29 @@ export type ButtonsContentOptions = {
   subtitle?: string
   image?: MediaSource
   video?: MediaSource
+  bottomSheet?: BottomSheetOptions
+  limitedTimeOffer?: LimitedTimeOfferOptions
 }
 
 type NativeButton = { name: string; buttonParamsJson: string }
 
 const nonEmpty = (value: unknown): value is string => typeof value === 'string' && value.length > 0
 
-const toNativeButton = (button: ButtonDef | InteractiveButton, seen: Set<string>): NativeButton => {
+const requireText = (button: ButtonDef | InteractiveButton): string => {
   const text = (button as { text?: unknown }).text
   if (!nonEmpty(text) || text.trim().length === 0) {
     throw new ZaileysBuilderError('INVALID_OPTIONS', 'button text must be a non-empty string')
   }
+  return text
+}
+
+const toNativeButton = (button: ButtonDef | InteractiveButton, seen: Set<string>): NativeButton => {
   const type = (button as InteractiveButton).type ?? 'reply'
+  if (type === 'location') {
+    const text = (button as { text?: unknown }).text
+    return { name: 'send_location', buttonParamsJson: JSON.stringify(nonEmpty(text) ? { display_text: text } : {}) }
+  }
+  const text = requireText(button)
   if (type === 'reply') {
     const id = (button as ButtonDef).id
     if (!nonEmpty(id)) {
@@ -77,7 +88,40 @@ const toNativeButton = (button: ButtonDef | InteractiveButton, seen: Set<string>
     }
     return { name: 'cta_call', buttonParamsJson: JSON.stringify({ display_text: text, id: phone, phone_number: phone }) }
   }
+  if (type === 'reminder' || type === 'cancel-reminder') {
+    const id = (button as { id?: unknown }).id
+    const name = type === 'reminder' ? 'cta_reminder' : 'cta_cancel_reminder'
+    return { name, buttonParamsJson: JSON.stringify({ display_text: text, id: nonEmpty(id) ? id : text }) }
+  }
+  if (type === 'address') {
+    const id = (button as { id?: unknown }).id
+    return { name: 'address_message', buttonParamsJson: JSON.stringify({ display_text: text, id: nonEmpty(id) ? id : text }) }
+  }
   throw new ZaileysBuilderError('INVALID_OPTIONS', `unknown button type: ${String(type)}`)
+}
+
+/** Serialize {@link BottomSheetOptions}/{@link LimitedTimeOfferOptions} into the nativeFlow `messageParamsJson` string. */
+export const buildMessageParamsJson = (opts?: ButtonsContentOptions): string => {
+  const params: Record<string, unknown> = {}
+  if (opts?.bottomSheet) {
+    const b = opts.bottomSheet
+    params['bottom_sheet'] = {
+      ...(b.buttonsLimit !== undefined ? { in_thread_buttons_limit: b.buttonsLimit } : {}),
+      ...(b.dividers !== undefined ? { divider_indices: b.dividers } : {}),
+      ...(b.listTitle !== undefined ? { list_title: b.listTitle } : {}),
+      ...(b.buttonTitle !== undefined ? { button_title: b.buttonTitle } : {}),
+    }
+  }
+  if (opts?.limitedTimeOffer) {
+    const o = opts.limitedTimeOffer
+    params['limited_time_offer'] = {
+      ...(o.text !== undefined ? { text: o.text } : {}),
+      ...(o.url !== undefined ? { url: o.url } : {}),
+      ...(o.copyCode !== undefined ? { copy_code: o.copyCode } : {}),
+      ...(o.expiresAt !== undefined ? { expiration_time: o.expiresAt } : {}),
+    }
+  }
+  return Object.keys(params).length > 0 ? JSON.stringify(params) : ''
 }
 
 /**
@@ -120,7 +164,7 @@ export const buildButtonsContent = (
 
   const interactiveMessage: proto.Message.IInteractiveMessage = {
     body: { text: opts?.text && opts.text.length > 0 ? opts.text : ' ' },
-    nativeFlowMessage: { buttons: nativeButtons, messageParamsJson: '' },
+    nativeFlowMessage: { buttons: nativeButtons, messageParamsJson: buildMessageParamsJson(opts) },
   }
   if (opts?.footer && opts.footer.length > 0) {
     interactiveMessage.footer = { text: opts.footer }

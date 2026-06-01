@@ -1,34 +1,28 @@
-import type { AnyMessageContent } from 'baileys'
+import { proto, type AnyMessageContent } from 'baileys'
 import { ZaileysBuilderError } from '../errors.js'
 import type { ListOptions } from '../types.js'
+import { RELAY_CONTENT_KEY, type RelayContent } from './buttons.js'
 
 const MAX_ROWS = 10
 
-/** A single list row in the emitted content; `rowId` is the round-trip field. */
-export type ListContentRow = { rowId: string; title: string; description?: string }
+/** A single nativeFlow `single_select` row; `id` is the round-trip field surfaced as `ListSelectPayload.rowId`. */
+export type ListContentRow = { header: string; title: string; description: string; id: string }
 
-/** A list section in the emitted content. */
-export type ListContentSection = { title: string; rows: ListContentRow[] }
-
-/** Interactive list-message content; carried structurally past the Baileys public `AnyMessageContent` type. */
-export type ListContent = {
-  text: string
-  footer?: string
-  title?: string
-  buttonText: string
-  sections: ListContentSection[]
-}
+/** A nativeFlow `single_select` section. */
+export type ListContentSection = { title: string; highlight_label: string; rows: ListContentRow[] }
 
 /**
- * Build list-message content from declarative {@link ListOptions}.
+ * Build a nativeFlow `single_select` list message from declarative {@link ListOptions},
+ * returned as relay-marker content.
  *
- * rc13 decision: as with buttons, the public `AnyMessageContent` union no longer
- * exposes a `listMessage` branch. The legacy list shape is still accepted by the
- * relay layer and is what `decodeListSelect` round-trips against, so it is emitted
- * here and cast at the builder boundary.
+ * rc13 decision: the legacy `listMessage` shape no longer renders on personal
+ * WhatsApp accounts. A `single_select` button inside an `interactiveMessage`
+ * renders through the same `biz > interactive (native_flow)` node the builder
+ * attaches for buttons, so lists now render everywhere buttons do.
  *
- * Each `ListSection.rows[].id` is mapped to `rowId` and returns unchanged as
- * `ListSelectPayload.rowId` when a user picks a row (Phase 4 EVT-12).
+ * Each `ListSection.rows[].id` is emitted as the row `id` and returns unchanged as
+ * `ListSelectPayload.rowId` when a user picks a row (decoded from
+ * `interactiveResponseMessage.nativeFlowResponseMessage`).
  *
  * @param opts - sections (≥1, ≤10 total rows) plus `buttonText` and optional decoration.
  * @throws ZaileysBuilderError `INVALID_OPTIONS` on blank button text, no sections,
@@ -60,23 +54,30 @@ export const buildListContent = (opts: ListOptions): AnyMessageContent => {
       }
       seen.add(row.id)
       rowCount += 1
-      const built: ListContentRow = { rowId: row.id, title: row.title }
-      if (row.description !== undefined) built.description = row.description
-      return built
+      return { header: '', title: row.title, description: row.description ?? '', id: row.id }
     })
-    return { title: section.title, rows }
+    return { title: section.title, highlight_label: '', rows }
   })
 
   if (rowCount > MAX_ROWS) {
     throw new ZaileysBuilderError('INVALID_OPTIONS', `list() accepts at most ${MAX_ROWS} rows total`)
   }
 
-  const content: ListContent = {
-    text: opts.description && opts.description.length > 0 ? opts.description : ' ',
-    buttonText: opts.buttonText,
-    sections,
+  const selectButton = {
+    name: 'single_select',
+    buttonParamsJson: JSON.stringify({ title: opts.buttonText, sections }),
   }
-  if (opts.title && opts.title.length > 0) content.title = opts.title
-  if (opts.footerText && opts.footerText.length > 0) content.footer = opts.footerText
-  return content as unknown as AnyMessageContent
+  const interactiveMessage: proto.Message.IInteractiveMessage = {
+    body: { text: opts.description && opts.description.length > 0 ? opts.description : ' ' },
+    nativeFlowMessage: { buttons: [selectButton], messageParamsJson: '' },
+  }
+  if (opts.footerText && opts.footerText.length > 0) {
+    interactiveMessage.footer = { text: opts.footerText }
+  }
+  if (opts.title && opts.title.length > 0) {
+    interactiveMessage.header = { title: opts.title, subtitle: '', hasMediaAttachment: false }
+  }
+
+  const relay: RelayContent = { [RELAY_CONTENT_KEY]: { interactiveMessage } }
+  return relay as unknown as AnyMessageContent
 }

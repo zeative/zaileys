@@ -87,18 +87,22 @@ const extractIE = (input: string): ExtractedIE => {
   let last = 0
   let citationIndex = 1
   let hyperlinkIndex = 0
+  let latexIndex = 0
   const stack: number[] = []
   for (let i = 0; i < input.length; i++) {
     if (input[i] === '[' && input[i - 1] !== '\\') {
       stack.push(i)
-    } else if (input[i] === ']' && input[i + 1] === '(') {
+    } else if (input[i] === ']' && (input[i + 1] === '(' || input[i + 1] === '<')) {
       const start = stack.pop()
       if (start == null) continue
+      const open = input[i + 1]
+      const close = open === '(' ? ')' : '>'
+      const isLatex = open === '<'
       let end = i + 2
       let depth = 1
       while (end < input.length && depth > 0) {
-        if (input[end] === '(' && input[end - 1] !== '\\') depth++
-        else if (input[end] === ')' && input[end - 1] !== '\\') depth--
+        if (input[end] === open && input[end - 1] !== '\\') depth++
+        else if (input[end] === close && input[end - 1] !== '\\') depth--
         end++
       }
       if (depth > 0) continue
@@ -106,7 +110,12 @@ const extractIE = (input: string): ExtractedIE => {
       const url = input.slice(i + 2, end - 1).trim()
       let key: string
       let tag: string
-      if (raw) {
+      if (isLatex) {
+        const [txt = '', width = '', height = '', fontHeight = '', padding = ''] = raw.split('|').map((s) => s.trim())
+        key = `zaileys_LATEX_${latexIndex++}`
+        tag = `{{${key}}}${txt || 'image'}{{/${key}}}`
+        ie.push({ type: 'latex', ie: { key, text: txt, url, width, height, font_height: fontHeight, padding } })
+      } else if (raw) {
         key = `zaileys_HYPERLINK_${hyperlinkIndex++}`
         tag = `{{${key}}}${url}{{/${key}}}`
         ie.push({ type: 'hyperlink', ie: { key, text: raw, url } })
@@ -130,6 +139,22 @@ const toInlineEntities = (extracted: ExtractedIE): InlineEntity[] =>
       return {
         key: ie['key']!,
         metadata: { display_name: ie['text'], is_trusted: true, url: ie['url'], __typename: 'GenAIInlineLinkItem' },
+      }
+    }
+    if (type === 'latex') {
+      return {
+        key: ie['key']!,
+        metadata: {
+          latex_expression: ie['text'],
+          latex_image: {
+            url: ie['url'],
+            width: Number(ie['width']) || 100,
+            height: Number(ie['height']) || 100,
+          },
+          font_height: Number(ie['font_height']) || 83.33333333333333,
+          padding: Number(ie['padding']) || 15,
+          __typename: 'GenAILatexItem',
+        },
       }
     }
     return {
@@ -251,7 +276,8 @@ const SOURCE_URL = 'https://github.com/zeative/zaileys'
 
 /**
  * Build an EXPERIMENTAL AIRich message (Meta AI rich-response format). Composes
- * text (with `[label](url)` hyperlinks and `[](url)` citations), code blocks,
+ * text (with `[label](url)` hyperlinks, `[](url)` citations, and `[expr]<imageUrl>`
+ * LaTeX where `expr` may be `txt|width|height|fontHeight|padding`), code blocks,
  * tables, images, videos, product carousels, reels, posts, tips, and suggestion
  * pills into a `botForwardedMessage` relayed as an AI response.
  *

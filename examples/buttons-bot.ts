@@ -93,6 +93,59 @@ client.on('connect', async ({ me }) => {
     ),
   )
 
+  await send('reminder + cancel-reminder', () =>
+    client.send(TO).buttons(
+      [
+        { type: 'reminder', text: 'Ingatkan saya', id: 'remind_1' },
+        { type: 'cancel-reminder', text: 'Batalkan' },
+      ],
+      { title: '⏰ Reminder', text: 'Set / batalkan pengingat WhatsApp' },
+    ),
+  )
+  await send('location + address request', () =>
+    client.send(TO).buttons(
+      [
+        { type: 'location', text: 'Kirim lokasi' },
+        { type: 'address', text: 'Isi alamat', id: 'addr_1' },
+      ],
+      { title: '📍 Checkout', text: 'Bagikan lokasi atau alamat pengiriman' },
+    ),
+  )
+  await send('bottomSheet (overflow → sheet)', () =>
+    client.send(TO).buttons(
+      [
+        { id: 's1', text: 'Opsi 1' },
+        { id: 's2', text: 'Opsi 2' },
+        { id: 's3', text: 'Opsi 3' },
+        { id: 's4', text: 'Opsi 4' },
+        { id: 's5', text: 'Opsi 5' },
+      ],
+      { text: 'Banyak opsi — dikelompokkan jadi bottom sheet', bottomSheet: { listTitle: 'Semua opsi', buttonTitle: 'Lihat 5 opsi', buttonsLimit: 2 } },
+    ),
+  )
+  await send('limitedTimeOffer (countdown CTA)', () =>
+    client.send(TO).buttons(
+      [{ type: 'url', text: 'Ambil promo', url: 'https://github.com/zeative/zaileys' }, { type: 'copy', text: 'Salin kode', code: 'FLASH50' }],
+      {
+        title: '⚡ Flash Sale',
+        text: 'Diskon 50% — berakhir sebentar lagi!',
+        limitedTimeOffer: { text: 'Promo berakhir dalam', copyCode: 'FLASH50', expiresAt: Math.floor(Date.now() / 1000) + 3600 },
+      },
+    ),
+  )
+  await send('list (single_select)', () =>
+    client.send(TO).list({
+      title: '🍔 Menu',
+      description: 'Pilih pesananmu',
+      buttonText: 'Lihat menu',
+      footerText: 'zaileys',
+      sections: [
+        { title: 'Makanan', rows: [{ id: 'pizza', title: 'Pizza', description: '$6' }, { id: 'ramen', title: 'Ramen', description: '$5' }] },
+        { title: 'Minuman', rows: [{ id: 'coffee', title: 'Kopi', description: '$2' }, { id: 'tea', title: 'Teh', description: '$1' }] },
+      ],
+    }),
+  )
+
   if (headerImage) {
     await send('IMAGE header + reply buttons', () =>
       client.send(TO).buttons([{ id: 'ok', text: 'OK' }, { id: 'no', text: 'No' }], {
@@ -130,4 +183,8 @@ client.on('connect', async ({ me }) => {
 
 client.on('button-click', (ctx) => {
   console.log('>>> button-click FIRED | id:', ctx.buttonId, '| text:', ctx.buttonText, '| from:', ctx.sender.jid)
+})
+
+client.on('list-select', (ctx) => {
+  console.log('>>> list-select FIRED | rowId:', ctx.rowId, '| title:', ctx.title, '| from:', ctx.sender.jid)
 })

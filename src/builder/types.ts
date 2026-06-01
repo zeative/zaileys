@@ -52,9 +52,41 @@ export type UrlButton = { type: 'url'; text: string; url: string; webview?: bool
 export type CopyButton = { type: 'copy'; text: string; code: string }
 /** A button that dials `phone`. */
 export type CallButton = { type: 'call'; text: string; phone: string }
+/** A button that sets a native WhatsApp reminder when tapped. */
+export type ReminderButton = { type: 'reminder'; text: string; id?: string }
+/** A button that cancels a previously-set WhatsApp reminder. */
+export type CancelReminderButton = { type: 'cancel-reminder'; text: string; id?: string }
+/** A button that prompts the user to share their current location. */
+export type LocationRequestButton = { type: 'location'; text?: string }
+/** A button that prompts the user to fill in / send a delivery address. */
+export type AddressButton = { type: 'address'; text: string; id?: string }
 
 /** Any interactive (nativeFlow) button accepted by {@link MessageBuilder.buttons}. */
-export type InteractiveButton = ReplyButton | UrlButton | CopyButton | CallButton
+export type InteractiveButton =
+  | ReplyButton
+  | UrlButton
+  | CopyButton
+  | CallButton
+  | ReminderButton
+  | CancelReminderButton
+  | LocationRequestButton
+  | AddressButton
+
+/** Groups overflow buttons into a tap-to-open bottom sheet (nativeFlow `bottom_sheet` param). */
+export type BottomSheetOptions = {
+  listTitle?: string
+  buttonTitle?: string
+  buttonsLimit?: number
+  dividers?: number[]
+}
+
+/** Renders a countdown limited-time-offer banner above the buttons (nativeFlow `limited_time_offer` param). */
+export type LimitedTimeOfferOptions = {
+  text?: string
+  url?: string
+  copyCode?: string
+  expiresAt?: number
+}
 
 /** A quick-reply button definition (legacy alias of {@link ReplyButton}). */
 export type ButtonDef = {

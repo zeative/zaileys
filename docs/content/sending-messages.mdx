@@ -1,65 +1,411 @@
+import { Callout, Tabs, Steps } from 'nextra/components'
+
 # Sending Messages
 
-`client.send(jid)` returns a chainable builder. Add exactly one content method, optionally chain
-modifiers, then `await` to send. The result is the new `WAMessageKey`.
+`client.send(recipient)` returns a chainable, lazy message builder. You add **exactly one** content
+method (`.text`, `.image`, `.poll`, …), optionally chain modifiers (`.reply`, `.mentions`,
+`.disappearing`, …), then `await` the builder to actually send. Every successful send resolves to the
+new message's `WAMessageKey`, which you can later pass to [`client.edit`/`client.delete`/`client.forward`](/client).
 
 ```typescript
-await client.send(jid).text('Hello there')
-```
+import { Client } from 'zaileys'
 
-## Content methods
+const client = new Client({ authType: 'qr' })
 
-```typescript
-await client.send(jid).text('plain text')
-await client.send(jid).image('https://example.com/p.jpg', { caption: 'Nice' })
-await client.send(jid).video('./clip.mp4', { gifPlayback: false })
-await client.send(jid).audio('./voice.ogg', { ptt: true })       // voice note
-await client.send(jid).document('./report.pdf', { fileName: 'report.pdf' })
-await client.send(jid).sticker('./img.png', { animated: false })
-await client.send(jid).poll('Pick one', ['Red', 'Green', 'Blue'])
-await client.send(jid).location(-6.2, 106.8, { name: 'Jakarta' })
-await client.send(jid).contact(vcardString)
-await client.send(jid).album([
-  { type: 'image', src: './a.jpg' },
-  { type: 'video', src: './b.mp4' },
-])
-```
-
-A `MediaSource` is a URL string, a local path, a `Buffer`, or a `URL`.
-
-## Modifiers
-
-Modifiers are orthogonal and chainable on top of any content:
-
-```typescript
-await client
-  .send(jid)
-  .text('Reply with a mention')
-  .reply(quotedKeyOrMessage)                       // quote a message
-  .mentions(['6281234567890@s.whatsapp.net'])      // tag specific JIDs
-  .mentionAll()                                    // tag every group member
-  .disappearing(86400)                             // ephemeral, seconds
-```
-
-## Replying from a handler
-
-Inside an event handler you usually do not need `client.send` — the context replies for you:
-
-```typescript
-client.on('text', async (msg) => {
-  await msg.reply('quoted reply')
-  await msg.react('👍')
+client.on('connect', async () => {
+  const key = await client.send('6281234567890@s.whatsapp.net').text('Hello there')
+  console.log('sent', key.id)
 })
 ```
 
-## Mutating sent messages
+<Callout type="info">
+  The builder is a *thenable*: nothing is sent until you `await` it (or call `.then`). Build the
+  message fully, then await once. There is no separate `.send()` call at the end.
+</Callout>
+
+## The recipient: JID vs username
+
+`client.send(to)` accepts either a fully-qualified **JID** or a plain **phone number / username**.
+
+- A **JID** is used as-is. Recognised suffixes: `@s.whatsapp.net` (DM), `@g.us` (group), plus
+  `@lid`, `@newsletter`, `@broadcast`, `@c.us`.
+- Anything **without** a JID suffix is treated as a username/number and is resolved to a JID via
+  WhatsApp's `onWhatsApp` lookup **at await time** (the lookup is cached per client and de-duplicated
+  for concurrent sends). If the number is not on WhatsApp, the send rejects with a
+  `USERNAME_NOT_FOUND` error.
 
 ```typescript
-const key = await client.send(jid).text('Original')
-await client.edit(key).text('Edited')
-await client.delete(key, { forEveryone: true })
-await client.forward(key, otherJid)
+await client.send('6281234567890@s.whatsapp.net').text('explicit JID')
+await client.send('120363012345678901@g.us').text('to a group')
+await client.send('6281234567890').text('bare number — resolved automatically')
 ```
 
-Next: [interactive messages](/interactive) (buttons, lists, carousels) and
-[rich responses](/rich-responses).
+<Callout type="warning">
+  Username resolution happens lazily when the builder is awaited, so an invalid number surfaces as a
+  rejected promise from the `await client.send(...)` call, not from `client.send(...)` itself.
+</Callout>
+
+## Media sources
+
+Every media method (`image`, `video`, `audio`, `document`, `sticker`, and album items) accepts a
+`MediaSource`, which is one of:
+
+| Source | Type | How it's loaded |
+| --- | --- | --- |
+| Remote URL | `string` starting with `http://` / `https://` | `fetch`ed (30s timeout) |
+| `URL` object | `URL` | `http(s):` is fetched; `file:` is read from disk |
+| Local path | `string` | read from the filesystem |
+| In-memory bytes | `Buffer` | used directly |
+
+```typescript
+await client.send(to).image('https://example.com/photo.jpg')        // remote URL
+await client.send(to).image('./assets/photo.jpg')                   // local path
+await client.send(to).image(new URL('file:///tmp/photo.jpg'))       // URL object
+await client.send(to).image(myBuffer)                               // Buffer
+```
+
+The MIME type is auto-detected from the bytes. `video()` rejects with `INVALID_OPTIONS` if the
+detected MIME is not `video/*`; `audio()` and `sticker()` transcode the source automatically (see
+[Media Processing](/media)). Failed loads (bad URL, missing file, non-2xx response) reject with a
+`MEDIA_LOAD_FAILED` error.
+
+---
+
+## Text
+
+The simplest message. Pass a string.
+
+```typescript
+await client.send(to).text('Hello, world!')
+```
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `rich` | `boolean` | `false` | Render the string as an AIRich card with markdown formatting instead of a plain text message. See [Rich Responses](/rich-responses). |
+
+```typescript
+await client.send(to).text('**bold** and _italic_ rendered as a card', { rich: true })
+```
+
+<Callout type="info">
+  `rich: true` switches to the AIRich renderer (markdown, LaTeX, headers). For ordinary chat text,
+  omit it. Full options for rich text live in [Rich Responses](/rich-responses).
+</Callout>
+
+## Image
+
+```typescript
+await client.send(to).image('./photo.jpg', { caption: 'A nice view' })
+```
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `caption` | `string` | — | Text shown beneath the image. |
+| `viewOnce` | `boolean` | `false` | Send as a view-once (disappears after the recipient opens it). |
+
+## Video
+
+```typescript
+await client.send(to).video('./clip.mp4', { caption: 'Watch this' })
+```
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `caption` | `string` | — | Text shown beneath the video. |
+| `gifPlayback` | `boolean` | `false` | Loop silently like a GIF (see below). |
+| `viewOnce` | `boolean` | `false` | Send as a view-once video. |
+
+<Callout type="warning">
+  The source must decode to a `video/*` MIME type, otherwise the send rejects with `INVALID_OPTIONS`.
+</Callout>
+
+## GIF
+
+WhatsApp has no real GIF message type — animated "GIFs" are videos played in a silent loop. Use
+`video()` with `gifPlayback: true`. The source should be an MP4 (convert real `.gif` files first; see
+[Media Processing](/media)).
+
+```typescript
+await client.send(to).video('./animation.mp4', { gifPlayback: true, caption: 'lol' })
+```
+
+## Audio
+
+A regular audio file (music player UI). The source is transcoded to Opus automatically.
+
+```typescript
+await client.send(to).audio('./song.mp3')
+```
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `ptt` | `boolean` | `true` | Send as a voice note (push-to-talk) rather than a music file. |
+| `seconds` | `number` | auto | Reported duration. When omitted and `ptt` is on, it's derived from the computed waveform. |
+
+<Callout type="warning">
+  `ptt` defaults to **`true`** — a bare `.audio(src)` is sent as a **voice note**. Pass
+  `{ ptt: false }` for a regular audio/music message.
+</Callout>
+
+## Voice note (PTT)
+
+A voice note is just `audio()` with `ptt: true` (the default). When sent as a voice note, zaileys
+computes a waveform and duration so the chat shows the speech-bubble player.
+
+```typescript
+await client.send(to).audio('./voice.ogg', { ptt: true })   // explicit
+await client.send(to).audio('./voice.ogg')                  // ptt:true is the default
+```
+
+## Document
+
+Send any file as a downloadable attachment. `fileName` is **required**.
+
+```typescript
+await client.send(to).document('./report.pdf', { fileName: 'Q3-report.pdf' })
+```
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `fileName` | `string` | **required** | Display name (and extension) shown to the recipient. Must be non-empty. |
+| `mimetype` | `string` | auto-detected | Override the auto-detected MIME type. |
+| `caption` | `string` | — | Text shown beneath the document. |
+
+```typescript
+await client.send(to).document(docBuffer, {
+  fileName: 'notes.txt',
+  mimetype: 'text/plain',
+  caption: 'meeting notes',
+})
+```
+
+<Callout type="error">
+  Omitting `fileName` (or passing an empty string) rejects with `INVALID_OPTIONS`.
+</Callout>
+
+## Sticker
+
+The source (image or animated webp/gif/video) is converted to a WhatsApp sticker automatically.
+
+```typescript
+await client.send(to).sticker('./logo.png')
+```
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `animated` | `boolean` | `false` | Mark the sticker as animated. Use for animated/looping sources. |
+
+## Location
+
+```typescript
+await client.send(to).location(-6.2, 106.816666, { name: 'Jakarta', address: 'Indonesia' })
+```
+
+The first two arguments are **latitude** then **longitude**.
+
+| Argument / Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `lat` (arg 1) | `number` | **required** | Latitude, must be within `-90..90`. |
+| `lon` (arg 2) | `number` | **required** | Longitude, must be within `-180..180`. |
+| `name` | `string` | — | Place name shown on the location card. |
+| `address` | `string` | — | Street address shown beneath the name. |
+
+<Callout type="error">
+  Out-of-range coordinates reject with `INVALID_OPTIONS`.
+</Callout>
+
+## Contact (vCard)
+
+Send a contact card. Pass a raw vCard string — it must start with `BEGIN:VCARD`.
+
+```typescript
+const vcard = [
+  'BEGIN:VCARD',
+  'VERSION:3.0',
+  'FN:Zaileys Bot',
+  'TEL;type=CELL;type=VOICE;waid=6281234567890:+62 812-3456-7890',
+  'END:VCARD',
+].join('\n')
+
+await client.send(to).contact(vcard)
+```
+
+`contact()` takes the vCard string directly (no options object). A string that does not begin with
+`BEGIN:VCARD` rejects with `INVALID_OPTIONS`.
+
+## Poll
+
+```typescript
+await client.send(to).poll('Pick a colour', ['Red', 'Green', 'Blue'])
+```
+
+Signature: `poll(question, options, opts?)`.
+
+| Argument / Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `question` (arg 1) | `string` | **required** | Poll title. Must be non-empty. |
+| `options` (arg 2) | `string[]` | **required** | 2–12 unique, non-empty choices. |
+| `multipleChoice` | `boolean` | `false` | Allow selecting more than one option. When `false`, voters pick exactly one. |
+
+```typescript
+await client.send(to).poll('Toppings?', ['Cheese', 'Pepperoni', 'Mushroom'], {
+  multipleChoice: true,
+})
+```
+
+<Callout type="error">
+  Fewer than 2 or more than 12 options, empty strings, or duplicate options each reject with
+  `INVALID_OPTIONS` (an empty question rejects with `EMPTY_CONTENT`).
+</Callout>
+
+## Album
+
+Send multiple images and/or videos as a single grouped album. Internally zaileys sends one parent
+message followed by each child, and resolves to the **parent** `WAMessageKey`.
+
+```typescript
+await client.send(to).album([
+  { type: 'image', src: './a.jpg', caption: 'first' },
+  { type: 'video', src: './b.mp4' },
+  { type: 'image', src: imageBuffer },
+])
+```
+
+Each item is an `AlbumItem`:
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `type` | `'image' \| 'video'` | **required** | Media kind for this item. |
+| `src` | `MediaSource` | **required** | URL, path, `URL`, or `Buffer`. |
+| `caption` | `string` | — | Per-item caption. |
+
+<Callout type="error">
+  An album requires **2–30** items. Anything outside that range, or an item with a `type` other than
+  `image`/`video`, rejects with `INVALID_OPTIONS`.
+</Callout>
+
+---
+
+## Modifiers (chaining)
+
+Modifiers are orthogonal and can be chained on top of any content method, in any order, before the
+`await`.
+
+```typescript
+await client
+  .send(to)
+  .text('Heads up, team!')
+  .reply(quotedKeyOrMessage)                    // quote a message
+  .mentions(['6281234567890@s.whatsapp.net'])   // tag specific JIDs
+  .disappearing(86400)                          // ephemeral, in seconds
+```
+
+### `.reply(quoted)`
+
+Quote an earlier message. Accepts either a full `WAMessage` (best — shows the quoted body) or a bare
+`WAMessageKey`. Passing `null`/`undefined` rejects with `INVALID_OPTIONS`.
+
+```typescript
+const key = await client.send(to).text('Original')
+await client.send(to).text('A reply').reply(key)
+
+// inside a handler, you typically already have the full message:
+client.on('message', async (msg) => {
+  await client.send(msg.chat.id).text('got it').reply(msg)
+})
+```
+
+### `.mentions(jids)`
+
+Tag specific participants. Each entry must be a JID-shaped string containing `@`. Repeated calls
+merge and de-duplicate; an empty array rejects with `INVALID_OPTIONS`.
+
+```typescript
+await client
+  .send(groupJid)
+  .text('@alice @bob standup in 5')
+  .mentions(['6281111111111@s.whatsapp.net', '6282222222222@s.whatsapp.net'])
+```
+
+<Callout type="info">
+  `.mentions()` only sets the *mention metadata*. To make the names render as tappable links in the
+  bubble, also include the matching `@number` text in your message body.
+</Callout>
+
+### `.mentionAll()`
+
+Tag every member of a group (no arguments).
+
+```typescript
+await client.send(groupJid).text('Important: read this').mentionAll()
+```
+
+### `.disappearing(seconds)`
+
+Send as an ephemeral/disappearing message. Takes a **positive integer** number of seconds
+(e.g. `86400` = 24h, `604800` = 7 days). Non-positive or non-integer values reject with
+`INVALID_OPTIONS`.
+
+```typescript
+await client.send(to).text('self-destructs in a day').disappearing(86400)
+```
+
+### `.to(recipient)`
+
+Reassign the recipient on an `init`-state builder before adding content (rarely needed since
+`client.send(to)` already sets it).
+
+```typescript
+await client.send('placeholder').to('6281234567890@s.whatsapp.net').text('redirected')
+```
+
+---
+
+## The return value
+
+Every successful send resolves to a `WAMessageKey`:
+
+```typescript
+import type { WAMessageKey } from 'zaileys'
+
+const key: WAMessageKey = await client.send(to).text('keep this key')
+// key.id, key.remoteJid, key.fromMe …
+
+await client.edit(key).text('edited text')
+await client.delete(key, { forEveryone: true })
+await client.forward(key, anotherJid)
+```
+
+For albums, the returned key is the **parent** message's key. See [Client](/client) for `edit`,
+`delete`, `forward`, and `react`.
+
+## Error handling
+
+The builder throws typed `ZaileysBuilderError`s. Common codes:
+
+| Code | When |
+| --- | --- |
+| `EMPTY_CONTENT` | Awaited a builder with no content method set (or an empty poll question). |
+| `INVALID_OPTIONS` | Bad arguments — missing `fileName`, out-of-range coords, bad poll/album size, empty mentions, etc. |
+| `MEDIA_LOAD_FAILED` | A media source failed to load or transcode. |
+| `USERNAME_NOT_FOUND` | A bare number/username could not be resolved to a WhatsApp account. |
+| `SEND_FAILED` | The underlying socket rejected the send or returned no key. |
+
+```typescript
+try {
+  await client.send(to).document(buf, { fileName: 'x.pdf' })
+} catch (err) {
+  console.error('send failed:', err)
+}
+```
+
+See [Error Handling](/error-handling) for the full taxonomy.
+
+## What's next
+
+This page covers the plain content types. For richer experiences:
+
+- [Interactive Messages](/interactive) — `.buttons()`, `.list()`, `.carousel()`, `.template()`.
+- [Rich Responses](/rich-responses) — `.text(..., { rich: true })` AIRich cards (markdown, LaTeX).
+- [Media Processing](/media) — converting, resizing, and inspecting media before sending.
+- [Client](/client) — `edit`, `delete`, `forward`, `react`, and broadcast helpers.

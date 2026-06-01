@@ -1,63 +1,448 @@
+import { Callout, Tabs, Steps } from 'nextra/components'
+
 # Events
 
-Every inbound event has its own typed payload — no manual decoding.
+Everything that happens on your WhatsApp connection — new messages, button taps, group changes, calls, the QR code — is delivered to your code as a typed **event**. You subscribe with `client.on(name, handler)`, and zaileys hands your handler a fully-typed payload for that specific event.
+
+```typescript
+import { Client } from 'zaileys'
+
+const client = new Client()
+
+client.on('qr', ({ qrString }) => console.log('Scan QR:', qrString))
+client.on('connect', ({ me }) => console.log('Connected as', me.id))
+
+client.on('text', async (msg) => {
+  console.log(msg.senderId, '|', msg.text)
+  await msg.reply(`You said: ${msg.text}`)
+})
+```
+
+<Callout type="info">
+Every handler is fully type-safe. The payload type is inferred from the event name — TypeScript knows that `'text'` gives you a [message context](#the-message-context) while `'button-click'` gives you a `ButtonClickPayload`. No casting required.
+</Callout>
+
+## Subscribing & unsubscribing
+
+`client.on` returns an **unsubscribe function**. Call it to stop listening. There is also `client.off(name, handler)` if you kept a reference to the original handler.
+
+```typescript
+// on() returns a disposer
+const stop = client.on('text', (msg) => console.log(msg.text))
+stop() // remove this listener later
+
+// or remove by reference
+const handler = (msg: MessageContext) => console.log(msg.text)
+client.on('text', handler)
+client.off('text', handler)
+```
+
+<Callout type="default">
+A handler that throws is caught and logged by zaileys — one bad listener will not crash the connection or block other listeners for the same event. Still, prefer `try/catch` inside async handlers so you control the failure.
+</Callout>
+
+The `Client` is a typed event emitter (`TypedEventEmitter<ClientEventMap>`), where `ClientEventMap` is the union of connection lifecycle events and inbound message events. See [Client](/client) for the full constructor and `connect()` / `disconnect()` API.
+
+## Event catalog
+
+### Connection lifecycle
+
+These fire as your session connects, authenticates, and (occasionally) drops. Every payload carries the `sessionId` of the client.
+
+| Event | Payload | When |
+| --- | --- | --- |
+| `qr` | `{ sessionId, qrString, expiresAt }` | A QR code is ready to scan (only in `authType: 'qr'`). `qrString` is the raw string to render; `expiresAt` is an epoch ms timestamp. |
+| `pairing-code` | `{ sessionId, code, expiresAt }` | A pairing code is ready (only in `authType: 'pairing'`). Enter `code` on your phone under *Link with phone number*. |
+| `connect` | `{ sessionId, me }` | The socket is fully open and authenticated. `me` is `{ id, lid?, name? }` — your own account. |
+| `reconnecting` | `{ sessionId, attempt, delayMs, reason }` | A reconnect is scheduled after a recoverable drop. `attempt` is the 1-based try number, `delayMs` is the backoff wait, `reason` is a `DisconnectReasonDomain`. |
+| `disconnect` | `{ sessionId, reason, willReconnect }` | The connection closed. `reason` is a `DisconnectReasonDomain`; `willReconnect` tells you whether zaileys will retry. |
+| `error` | `{ sessionId, error }` | An internal connection error surfaced as an `Error`. |
+
+### Inbound messages
+
+These deliver a rich [message context](#the-message-context) object — the same shape across every message type. The `media` accessor is populated only for media kinds.
+
+| Event | Payload | When |
+| --- | --- | --- |
+| `text` | `MessageContext` | A plain text (or extended text) message arrives. |
+| `image` | `MessageContext` (with `media`) | An image message arrives. `msg.text` holds the caption. |
+| `video` | `MessageContext` (with `media`) | A video message arrives. `msg.text` holds the caption. |
+| `audio` | `MessageContext` (with `media`) | An audio message / voice note arrives. |
+| `document` | `MessageContext` (with `media`) | A document/file message arrives. |
+| `sticker` | `MessageContext` (with `media`) | A sticker arrives. |
+| `mention` | `MentionContext` | An incoming message mentions someone. Adds `mentionedJids` and `selfJid`. |
+| `mention-all` | `MentionAllContext` | A message tags everyone (`@all` / hidetags). Adds `isMentionAll`, `selfJid`, `members?`. |
+
+### Message mutations
+
+| Event | Payload | When |
+| --- | --- | --- |
+| `edit` | `EditPayload` | A previously sent message was edited. `{ key, newContent, editedAt, sender }`. |
+| `delete` | `DeletePayload` | A message was deleted. `{ key, deletedFor: 'everyone' \| 'me', sender, timestamp }`. |
+| `reaction` | `ReactionPayload` | Someone reacted to (or un-reacted from) a message. `{ key, emoji, sender, timestamp }`. `emoji` is `null` when the reaction is removed. |
+| `poll-vote` | `PollVotePayload` | A poll vote was cast/changed. `{ pollKey, selectedOptions, voter, timestamp }`. |
+
+### Interactive replies
+
+| Event | Payload | When |
+| --- | --- | --- |
+| `button-click` | `ButtonClickPayload` | A user tapped a reply button. `{ key, buttonId, buttonText?, sender, timestamp }`. |
+| `list-select` | `ListSelectPayload` | A user picked a row from a list message. `{ key, rowId, title?, sender, timestamp }`. |
+
+See [Interactive Messages](/interactive) for how to send buttons, lists, templates, and carousels.
+
+### Groups
+
+| Event | Payload | When |
+| --- | --- | --- |
+| `group-update` | `GroupUpdatePayload` | Group metadata changed. `{ groupId, update, timestamp }` where `update` is a partial of `{ subject, description, announce, restrict, ephemeralDuration }`. |
+| `group-join` | `GroupJoinPayload` | Participants joined. `{ groupId, participants, action: 'add' \| 'invite' \| 'invite-link', by?, timestamp }`. |
+| `group-leave` | `GroupLeavePayload` | Participants left/removed. `{ groupId, participants, action: 'remove' \| 'leave', by?, timestamp }`. |
+| `member-tag` | `MemberTagPayload` | A member was tagged with a label. `{ groupId, participant, participantAlt?, label, timestamp }`. |
+
+### Calls, presence, lifecycle
+
+| Event | Payload | When |
+| --- | --- | --- |
+| `call-incoming` | `CallPayload` (`kind: 'incoming'`) | An incoming call. `{ callId, from, isGroup, isVideo, timestamp, status?, kind }`. |
+| `call-ended` | `CallPayload` (`kind: 'ended'`) | A call ended. Same shape as above with `kind: 'ended'`. |
+| `presence` | `PresencePayload` | A contact's presence changed. `{ jid, participant?, status }` where `status` is `available \| unavailable \| composing \| recording \| paused`. |
+| `history-sync` | `HistorySyncPayload` | A history sync batch progressed. `{ syncType, status: 'complete' \| 'paused', explicit }`. |
+| `newsletter` | `NewsletterPayload` | A newsletter/channel event (reaction, view, participants, settings). `{ newsletterId, timestamp, action, ... }`. |
+| `limited` | `LimitedPayload` | WhatsApp rate-limited the session. Either `{ reason: 'reachout-timelock', retryAt }` or `{ reason: 'chat-limit-reached', usedQuota?, totalQuota? }`. |
+
+---
+
+## Connection events in depth
+
+<Steps>
+
+### `qr` — render the login QR
+
+Fires whenever a fresh QR is available. The simplest integration prints the raw string; for a scannable terminal QR, enable `qrTerminal: true` in [client options](/configuration) or render `qrString` with your own QR library.
+
+```typescript
+client.on('qr', ({ qrString, expiresAt }) => {
+  console.log('Scan this QR:', qrString)
+  console.log('Expires at:', new Date(expiresAt).toLocaleTimeString())
+})
+```
+
+### `connect` — you are online
+
+Fires once the socket is authenticated and ready. This is the right place to kick off work that needs an active connection (sending a startup message, syncing state, etc.).
+
+```typescript
+client.on('connect', async ({ sessionId, me }) => {
+  console.log(`[${sessionId}] connected as ${me.id}${me.name ? ` (${me.name})` : ''}`)
+})
+```
+
+### `disconnect` — the connection closed
+
+`reason` is a normalized `DisconnectReasonDomain` (one of `logged-out`, `connection-replaced`, `forbidden`, `restart-required`, `bad-session`, `connection-closed`, `connection-lost`, `multi-device-mismatch`, `unavailable-service`, `unknown`). `willReconnect` tells you whether zaileys is going to retry automatically.
+
+```typescript
+client.on('disconnect', ({ reason, willReconnect }) => {
+  console.log('Disconnected:', reason, willReconnect ? '(reconnecting…)' : '(stopped)')
+})
+```
+
+</Steps>
+
+<Callout type="warning">
+When `reason` is `logged-out`, `connection-replaced`, or `forbidden`, the session is fatal — zaileys will **not** reconnect and the stored auth is cleared. You will need to scan/pair again. See [Error Handling](/error-handling) for reconnect tuning.
+</Callout>
+
+For pairing-code login instead of QR, listen for `pairing-code`:
+
+```typescript
+const client = new Client({ authType: 'pairing', phoneNumber: '628xxxxxxxxxx' })
+client.on('pairing-code', ({ code }) => console.log('Enter on phone:', code))
+```
+
+The `reconnecting` event lets you observe backoff before the retry actually happens:
+
+```typescript
+client.on('reconnecting', ({ attempt, delayMs, reason }) => {
+  console.log(`Reconnect #${attempt} in ${delayMs}ms (was: ${reason})`)
+})
+```
+
+---
+
+## The message context
+
+Every message event (`text`, `image`, `video`, `audio`, `document`, `sticker`, `mention`, `mention-all`) hands your handler a **`MessageContext`** — a single object with all the metadata plus action methods (`reply`, `react`, `replied`, …). This is the workhorse object of zaileys.
 
 ```typescript
 client.on('text', async (msg) => {
-  console.log(msg.senderId, msg.text)
-  await msg.reply('got it')
+  console.log(msg.senderId)   // "628xxxxxxxxxx"
+  console.log(msg.senderName) // "Andi" | null
+  console.log(msg.text)       // "hello"
+  console.log(msg.isGroup)    // false
+  await msg.reply('Hi!')      // quoted reply
+  await msg.react('👍')        // react to the message
 })
-
-client.on('image', async (msg) => {
-  const buffer = await msg.media?.buffer()
-  console.log('image bytes:', buffer?.length)
-})
-
-client.on('button-click', (ctx) => console.log('tapped:', ctx.buttonId))
-client.on('reaction', (msg) => console.log(msg.emoji))
 ```
 
-## Message context
+### Identity & routing fields
 
-Message events (`text`, `image`, `video`, `audio`, `document`, `sticker`, `mention`,
-`mention-all`) deliver a rich, flat context. Highlights:
+| Property | Type | Description |
+| --- | --- | --- |
+| `uniqueId` | `string` | Stable 8-char hash of the message key (`remoteJid \| id \| fromMe`). Handy as a dedupe key. |
+| `channelId` | `string` | The configured `sessionId` / channel this message came through. |
+| `chatId` | `string` | The raw WhatsApp message id (`key.id`). |
+| `chatType` | `ChatType` | `'text' \| 'image' \| 'video' \| 'audio' \| 'document' \| 'sticker' \| 'unknown'`. |
+| `receiverId` | `string` | Your own account id (the receiver of this inbound message). |
+| `roomId` | `string \| null` | The group JID (`xxx@g.us`) when in a group, otherwise `null`. |
+| `senderId` | `string` | The sender's phone-number JID (e.g. `628xxxxxxxxxx`). |
+| `senderLid` | `string \| null` | The sender's LID (linked-device identifier), if known. |
+| `senderName` | `string \| null` | The sender's WhatsApp push name. |
+| `senderDevice` | `SenderDevice` | `'android' \| 'ios' \| 'web' \| 'desktop' \| 'unknown'`. |
+| `timestamp` | `number` | Message time in epoch **milliseconds**. |
 
-| Field | Description |
-| ----- | ----------- |
-| `text` | message text / caption |
-| `senderId` / `senderName` | sender JID and push name |
-| `senderLid` | sender LID (or `null`) |
-| `roomId` | group JID, or `null` for DMs |
-| `isGroup` / `isFromMe` / `isForwarded` | flags |
-| `mentions` / `links` | extracted JIDs and URLs |
-| `media` | `{ buffer(), stream() }` (media messages only) |
-| `replied()` | resolves the quoted message context, or `null` |
-| `message()` | the raw `WAMessage` |
+### Content fields
 
-Every context also carries **actions**:
+| Property | Type | Description |
+| --- | --- | --- |
+| `text` | `string` | The message body. For media this is the caption (empty string if none). |
+| `mentions` | `string[]` | JIDs explicitly mentioned in the message. |
+| `links` | `string[]` | URLs auto-extracted from `text` (trailing punctuation stripped). |
+
+### Boolean flags
+
+All of these are plain `boolean` fields you can branch on directly.
+
+| Flag | Meaning |
+| --- | --- |
+| `isFromMe` | The message was sent by your own account. |
+| `isGroup` | The chat is a group. |
+| `isNewsletter` | The chat is a newsletter/channel. |
+| `isBroadcast` | A broadcast-list message. |
+| `isViewOnce` | A view-once message. |
+| `isEphemeral` | Sent in a disappearing-messages chat. |
+| `isForwarded` | The message was forwarded. |
+| `isQuestion` | `text` ends with `?`. |
+| `isPrefix` | `text` starts with one of your configured command prefixes. |
+| `isTagMe` | You (`receiverId`) are among the `mentions`. |
+| `isEdited` | Message is an edit. |
+| `isDeleted` | Message was deleted. |
+| `isPinned` / `isUnPinned` | Pin / unpin state. |
+| `isBot` | Detected as a bot message. |
+| `isSpam` | Flagged as spam. |
+| `isHideTags` | A hidetag (silent @all) message. |
+| `isStatusMention` / `isGroupStatusMention` | Status-mention variants. |
+| `isStory` | A status/story message. |
+
+### Methods
+
+| Method | Returns | Description |
+| --- | --- | --- |
+| `reply(content, opts?)` | `Promise<WAMessageKey>` | Send a text reply quoting this message. `opts` is the same `TextOptions` accepted by `send().text()` — including `rich`, `title`, etc. |
+| `react(emoji)` | `Promise<WAMessageKey>` | React to this message with an emoji. |
+| `replied()` | `Promise<MessageContext \| null>` | Resolve the quoted message (the one this message replied to) as a full context, or `null` if none. |
+| `roomName()` | `Promise<string \| null>` | The group subject when in a group, else `null`. Cached per room. |
+| `receiverName()` | `Promise<string \| null>` | Your own account's display name. |
+| `message()` | `WAMessage` | The raw underlying Baileys message object (escape hatch). |
+| `media?` | `ContextMedia` | Present only on media events — `{ buffer(), stream() }` to download the attachment. See [Media](/media). |
+| `citation` | `CitationPredicates` | `{ authors(), banned() }` — async predicates resolving whether the sender is in your configured `authors` / `banned` lists. |
+
+<Callout type="info">
+`reply`, `react`, `replied`, `roomName`, and `receiverName` are all **async** (they return Promises). Always `await` them inside your handler.
+</Callout>
+
+#### `reply()` — quoted text reply
 
 ```typescript
-await msg.reply('text')                    // quotes the message
-await msg.reply(markdown, { rich: true })  // rich reply — see /rich-responses
-await msg.react('🔥')
+client.on('text', async (msg) => {
+  // plain quoted reply
+  await msg.reply(`Echo: ${msg.text}`)
+
+  // rich reply (markdown + suggestions) — see /rich-responses
+  await msg.reply(
+    ['*Rich reply* ✨', '', '```ts', 'const x = 1', '```'].join('\n'),
+    { rich: true, title: '🤖 zaileys' },
+  )
+})
 ```
 
-## Event reference
+#### `react()` — emoji reaction
 
-| Event | Payload | Fires when |
-| ----- | ------- | ---------- |
-| `text` / `image` / `video` / `audio` / `document` / `sticker` | `MessageContext` | a message of that type arrives |
-| `reaction` | reaction payload | someone reacts |
-| `edit` / `delete` | mutation payload | a message is edited / revoked |
-| `poll-vote` | vote payload | a poll vote is cast |
-| `button-click` | `{ buttonId, buttonText, sender }` | an interactive button is tapped |
-| `list-select` | `{ rowId, title, sender }` | a list row is selected |
-| `mention` / `mention-all` | mention context | the bot (or everyone) is mentioned |
-| `group-update` / `group-join` / `group-leave` / `member-tag` | group payloads | group changes |
-| `call-incoming` / `call-ended` | call payload | call state |
-| `history-sync` | history payload | initial history sync |
-| `presence` | presence payload | presence updates |
-| `newsletter` | newsletter payload | channel updates |
-| `limited` | limited payload | rate/reach limits hit |
+```typescript
+client.on('text', async (msg) => {
+  await msg.react('👀') // acknowledge receipt
+})
+```
 
-Connection events: `qr`, `connect`, `disconnect`.
+#### `replied()` — look up the quoted message
+
+Resolves the message this one was a reply to, as a full `MessageContext`. Great for context-aware bots ("reply to my message to translate it").
+
+```typescript
+client.on('text', async (msg) => {
+  const quoted = await msg.replied()
+  if (quoted) {
+    console.log('In reply to:', quoted.senderId, '|', quoted.text)
+    await msg.reply(`You quoted: "${quoted.text}"`)
+  }
+})
+```
+
+#### `media` — download attachments
+
+On `image` / `video` / `audio` / `document` / `sticker` events, `msg.media` exposes a `buffer()` and a `stream()`:
+
+```typescript
+import { writeFile } from 'node:fs/promises'
+
+client.on('image', async (msg) => {
+  console.log('caption:', msg.text)
+  if (!msg.media) return
+  const buf = await msg.media.buffer()
+  await writeFile('received.jpg', buf)
+})
+```
+
+See [Media](/media) for streaming, MIME handling, and re-uploading.
+
+#### `citation` — author / banned checks
+
+If you configured `citation` in [client options](/configuration), these predicates tell you whether the sender qualifies.
+
+```typescript
+client.on('text', async (msg) => {
+  if (await msg.citation.banned()) return            // ignore banned users
+  if (!(await msg.citation.authors())) return         // owner-only command
+  await msg.reply('Welcome, author!')
+})
+```
+
+### Mention context
+
+The `mention` event extends `MessageContext` with the JIDs mentioned and your own JID; `mention-all` additionally flags `isMentionAll` and may include group `members`.
+
+```typescript
+client.on('mention', async (msg) => {
+  if (msg.mentionedJids.includes(msg.selfJid)) {
+    await msg.reply('You tagged me!')
+  }
+})
+
+client.on('mention-all', async (msg) => {
+  console.log('Tagged everyone in', msg.roomId, 'members:', msg.members?.length)
+})
+```
+
+---
+
+## Interactive events in depth
+
+When you send buttons or lists (see [Interactive Messages](/interactive)), taps come back as `button-click` and `list-select`. These carry the original message `key`, the selected id, and the `sender` — not a full message context.
+
+```typescript
+client.on('button-click', (ctx) => {
+  console.log('button:', ctx.buttonId, '|', ctx.buttonText, '| from', ctx.sender.jid)
+  if (ctx.buttonId === 'yes') {
+    client.send(ctx.sender.jid).text('You tapped Yes ✅')
+  }
+})
+
+client.on('list-select', (ctx) => {
+  console.log('row:', ctx.rowId, '|', ctx.title, '| from', ctx.sender.jid)
+})
+```
+
+<Callout type="default">
+`sender` here is a `SenderInfo` (`{ jid, lid?, pn?, username?, pushName?, isMe? }`). Use `ctx.sender.jid` as the recipient when you want to respond via `client.send(...)`.
+</Callout>
+
+---
+
+## Type-safe handlers
+
+Because `on` is generic over the event name, payloads are inferred automatically — but you can also import the payload types for standalone handler functions.
+
+```typescript
+import { Client } from 'zaileys'
+import type {
+  MessageContext,
+  ButtonClickPayload,
+} from 'zaileys'
+
+const onText = (msg: MessageContext): void => {
+  console.log(msg.senderId, msg.text)
+}
+
+const onButton = (ctx: ButtonClickPayload): void => {
+  console.log(ctx.buttonId)
+}
+
+const client = new Client()
+client.on('text', onText)
+client.on('button-click', onButton)
+```
+
+<Callout type="info">
+The payload interfaces (`MessageContext`, `MentionContext`, `MentionAllContext`, `ButtonClickPayload`, `ListSelectPayload`, `ReactionPayload`, `EditPayload`, `DeletePayload`, `PollVotePayload`, `GroupJoinPayload`, `GroupLeavePayload`, `GroupUpdatePayload`, `MemberTagPayload`, `CallPayload`, `PresencePayload`, `HistorySyncPayload`, `NewsletterPayload`, `LimitedPayload`, `SenderInfo`) are exported from `zaileys` as `type` exports.
+</Callout>
+
+---
+
+## Filtering inbound messages
+
+zaileys does not expose middleware on raw events, but two mechanisms control what you receive:
+
+**`ignoreMe`** — drop your own outgoing messages before they reach handlers. Set it in [client options](/configuration).
+
+```typescript
+const client = new Client({ ignoreMe: true })
+client.on('text', (msg) => {
+  // msg.isFromMe is never true here when ignoreMe is set
+})
+```
+
+**Branch inside the handler** — the flags and `citation` predicates on the context are your filter toolkit.
+
+```typescript
+const OWNER = '628xxxxxxxxxx'
+
+client.on('text', async (msg) => {
+  if (msg.isFromMe) return                              // ignore self
+  if (msg.isGroup) return                               // private chats only
+  if (msg.senderId.replace(/\D/g, '') !== OWNER) return // owner only
+  await msg.react('👀')
+  await msg.reply(`Echo: ${msg.text}`)
+})
+```
+
+<Callout type="info">
+zaileys also internally drops spoofed self-only protocol messages (history-sync key shares, LID migration, peer-data responses, etc.) so they never reach your handlers — you only see real conversational events.
+</Callout>
+
+For prefix-based command routing instead of manual branching, use `client.command(...)` — see [Commands](/commands) and [Automation](/automation).
+
+---
+
+## Tips & gotchas
+
+<Callout type="warning">
+`timestamp` is in **milliseconds** (already multiplied from WhatsApp's seconds). Pass it straight into `new Date(timestamp)`.
+</Callout>
+
+<Callout type="default">
+Media is **lazy** — nothing is downloaded until you call `msg.media.buffer()` or `msg.media.stream()`. Skip the call to skip the download.
+</Callout>
+
+<Callout type="default">
+A single incoming message can fan out to multiple events (e.g. a group image that mentions you fires `image` and `mention`). Use `uniqueId` if you must dedupe across handlers.
+</Callout>
+
+## Related
+
+- [Client](/client) — constructor, options, `connect()` / `disconnect()`
+- [Interactive Messages](/interactive) — sending the buttons and lists that produce `button-click` / `list-select`
+- [Commands](/commands) — prefix-based routing on top of the `text` event
+- [Media](/media) — downloading and re-sending attachments
+- [Configuration](/configuration) — `ignoreMe`, `citation`, `qrTerminal`, `authType`, reconnect tuning
+- [Error Handling](/error-handling) — disconnect reasons and reconnection behavior

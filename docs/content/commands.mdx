@@ -1,61 +1,406 @@
+import { Callout, Tabs, Steps } from 'nextra/components'
+
 # Commands
 
-Set a `commandPrefix` to activate the command framework. Handlers receive a typed context that
-extends the [message context](/events) with parsed command fields and reply helpers.
+Zaileys ships a small but capable command framework on top of the message pipeline. Set a
+`commandPrefix` in your [client options](/configuration), register handlers with
+`client.command()`, and each matching message is parsed into a typed context with positional
+arguments, flags, JSON payloads, and reply helpers.
+
+## Enabling commands
+
+The framework is **off by default**. It only activates when you pass `commandPrefix` to the
+`Client` constructor. The option accepts a single prefix string or an array of prefixes.
 
 ```typescript
+import { Client } from 'zaileys'
+
+// Single prefix
+const client = new Client({ commandPrefix: '/' })
+
+// Multiple prefixes — any of them triggers a command
+const multi = new Client({ commandPrefix: ['/', '!', '.'] })
+```
+
+| Option | Type | Default | Description |
+| ------ | ---- | ------- | ----------- |
+| `commandPrefix` | `string \| string[]` | `undefined` | Prefix(es) that mark a message as a command. Omit to disable the framework entirely. |
+
+<Callout type="info">
+Empty strings are stripped from the prefix list. `commandPrefix: ''`, `commandPrefix: []`, or
+omitting the option all leave the command framework disabled — your `command()` handlers will
+never fire.
+</Callout>
+
+Commands are matched on the `text` event stream, so they work in DMs, groups, and any chat that
+produces a text message. See [Events](/events) for the full event surface.
+
+## Registering a command
+
+Use `client.command(name, handler)`. The handler receives a single `ctx` argument and may be
+sync or async. `command()` returns the client, so calls are chainable.
+
+```typescript
+import { Client } from 'zaileys'
+
 const client = new Client({ commandPrefix: ['/', '!'] })
 
 client.command('ping', async (ctx) => {
-  await ctx.reply('pong 🏓')
-})
-
-client.command('echo', async (ctx) => {
-  await ctx.reply(ctx.args.join(' '))
+  await ctx.reply('pong')
 })
 ```
 
-## Aliases
+With `commandPrefix: ['/', '!']`, both `/ping` and `!ping` invoke this handler.
 
-Separate multiple names with `|`:
+<Callout type="info">
+Command names are **case-insensitive**. `/PING`, `/Ping`, and `/ping` all resolve to the command
+registered as `ping`. Internally every name is lowercased on both registration and lookup.
+</Callout>
+
+### Aliases
+
+Separate alternative names with a pipe (`|`). The first segment is the canonical name (the value
+you receive in `ctx.command`); the rest are aliases that resolve to the same handler.
 
 ```typescript
 client.command('help|h|?', async (ctx) => {
-  await ctx.reply('Commands: /ping, /echo, /help')
+  await ctx.reply('Commands: /ping, /weather <city>, /help')
 })
 ```
 
-## Command context
+Now `/help`, `/h`, and `/?` all run the handler, and `ctx.command` is always `'help'`.
 
-In addition to every [message-context](/events) field, a command context adds:
+<Callout type="warning">
+Registering a name or alias that already exists throws a `ZaileysCommandError` with code
+`DUPLICATE_COMMAND`. Empty specs (`''`) throw `INVALID_COMMAND_NAME`. Keep your command names
+unique across all aliases.
+</Callout>
 
-| Field | Description |
-| ----- | ----------- |
-| `command` | matched command name (normalized) |
-| `args` | positional arguments (`string[]`) |
-| `flags` | parsed `--flag` / `--key value` map |
-| `json` | parsed JSON argument, when present |
-| `raw` | the raw text after the prefix |
-| `reply(content, opts?)` | reply (supports `{ rich: true }`) |
-| `react(emoji)` | react to the triggering message |
-| `edit(content)` | edit the bot's last reply in this turn |
+### Multi-word commands
+
+A single segment may contain spaces, which registers a multi-word (sub)command. Resolution
+prefers the **longest** match, so you can layer specific subcommands over a general one.
+
+```typescript
+client.command('group info', async (ctx) => {
+  await ctx.reply('Group subcommand: info')
+})
+
+client.command('group kick', async (ctx) => {
+  await ctx.reply(`Kicking: ${ctx.args.join(', ')}`)
+})
+```
+
+`/group kick 628123` resolves to `group kick` with `ctx.args === ['628123']`. The leading words
+that form the command name are consumed and never appear in `ctx.args`.
+
+## The command context
+
+A `CommandContext` extends the full [message context](/events) — every field and method from a
+normal text message is available (`ctx.senderId`, `ctx.roomId`, `ctx.isGroup`, `ctx.message()`,
+`ctx.replied()`, and so on). On top of that base, the command framework adds the following:
+
+| Field / Method | Type | Description |
+| -------------- | ---- | ----------- |
+| `command` | `string` | The canonical command name that matched (e.g. `'help'`, `'group kick'`). |
+| `args` | `string[]` | Positional arguments after the command name. Flags and the leading command words are removed. |
+| `flags` | `Record<string, string \| boolean>` | Parsed `--flag` options. `true` for boolean flags, the string value otherwise. |
+| `json` | `unknown` | The first argument that parsed as valid JSON (object/array), or `undefined`. |
+| `raw` | `string` | The original message text, including the prefix. |
+| `reply(content, opts?)` | `Promise<WAMessageKey>` | Sends a reply quoting the triggering message. `opts` is [`TextOptions`](/sending-messages) (supports `{ rich: true }`). |
+| `react(emoji)` | `Promise<WAMessageKey>` | Reacts to the triggering message with an emoji. |
+| `edit(content)` | `Promise<void>` | Edits the **last message sent via `ctx.reply()`** in this handler run. |
 
 ```typescript
 client.command('weather', async (ctx) => {
   const city = ctx.args[0]
-  if (!city) return ctx.reply('Usage: /weather <city>')
-  await ctx.reply(`Weather in ${city}: sunny, 28°`)
+  if (!city) {
+    await ctx.reply('Usage: /weather <city>')
+    return
+  }
+  await ctx.reply(`Weather in ${city}: sunny, 28 degrees`)
 })
 ```
+
+Because the context inherits everything from the message context, you can branch on the chat:
+
+```typescript
+client.command('whoami', async (ctx) => {
+  if (ctx.isGroup) {
+    await ctx.reply(`You are ${ctx.senderId} in room ${ctx.roomId}`)
+    return
+  }
+  await ctx.reply(`You are ${ctx.senderId} (${ctx.senderName ?? 'unknown'})`)
+})
+```
+
+<Callout type="warning">
+`ctx.edit()` throws a `ZaileysCommandError` with code `NO_SENT_MESSAGE` if you call it before any
+`ctx.reply()`. Reply first, then edit.
+</Callout>
+
+```typescript
+client.command('progress', async (ctx) => {
+  await ctx.reply('Working...')
+  // ...do something...
+  await ctx.edit('Done.')
+})
+```
+
+## Argument parsing
+
+When a message matches a prefix, the text after the prefix is tokenized. The parser is
+quote- and flag-aware. Understanding the rules helps you design predictable commands.
+
+### Tokenization
+
+- Whitespace separates tokens.
+- Double (`"`) or single (`'`) quotes group a token, so `/say "hello world"` yields one argument
+  `hello world`. Quotes are only treated as openers at the **start** of a token.
+- Inside quotes, `\` escapes the next character (e.g. `"a\"b"` → `a"b`).
+- The **first** token is the command name (lowercased); the rest are candidate args/flags.
+
+```typescript
+client.command('say', async (ctx) => {
+  // /say "hello world" loud  ->  args = ['hello world', 'loud']
+  await ctx.reply(ctx.args.join(' | '))
+})
+```
+
+### Flags
+
+Tokens starting with `--` become entries in `ctx.flags`:
+
+| Input | Result |
+| ----- | ------ |
+| `--verbose` | `flags.verbose === true` (boolean — no following value, or followed by another flag) |
+| `--level=high` | `flags.level === 'high'` (inline `=` value) |
+| `--level high` | `flags.level === 'high'` (next token consumed as the value) |
+| `--` | pushed into `ctx.args` as the literal string `"--"` (empty flag body) |
+
+```typescript
+client.command('deploy', async (ctx) => {
+  // /deploy app1 --env=prod --force
+  const target = ctx.args[0]          // 'app1'
+  const env = ctx.flags.env           // 'prod'
+  const force = ctx.flags.force === true
+  await ctx.reply(`Deploy ${target} to ${env}${force ? ' (forced)' : ''}`)
+})
+```
+
+<Callout type="info">
+A bare flag followed by a non-flag token consumes that token as its value: `--level high` sets
+`flags.level = 'high'` and `high` does **not** appear in `ctx.args`. If you want a positional
+`high`, put the flag last or use the `--level=high` form.
+</Callout>
+
+### JSON arguments
+
+The first token that begins with `{` or `[` and parses as valid JSON is exposed on `ctx.json`.
+The token also remains in `ctx.args` (JSON parsing is additive, not consuming). Invalid JSON is
+left untouched and simply stays an arg.
+
+```typescript
+client.command('config', async (ctx) => {
+  // /config {"theme":"dark","notify":true}
+  const cfg = ctx.json as { theme: string; notify: boolean } | undefined
+  if (!cfg) {
+    await ctx.reply('Send a JSON object: /config {"theme":"dark"}')
+    return
+  }
+  await ctx.reply(`Theme set to ${cfg.theme}`)
+})
+```
+
+<Callout type="info">
+A JSON object/array passed as a single argument almost always needs quoting at the WhatsApp level
+to survive intact, or it must contain no spaces (as above). Spaces split tokens, so
+`{"theme": "dark"}` (with a space) would break across tokens unless quoted.
+</Callout>
 
 ## Middleware
 
-`client.use()` registers middleware that runs before handlers — useful for logging, auth, or
-rate limiting:
+Register middleware with `client.use(middleware)`. Each middleware has the signature
+`(ctx, next) => void | Promise<void>` and runs **before** the matched command handler — ideal for
+logging, authentication, and rate limiting. Like `command()`, `use()` returns the client and is
+chainable.
+
+```typescript
+import { Client, type Middleware } from 'zaileys'
+
+const client = new Client({ commandPrefix: ['/', '!'] })
+
+const loggingMiddleware: Middleware = async (ctx, next) => {
+  console.log(`[command] ${ctx.command} from ${ctx.senderId} args=${ctx.args.join(',')}`)
+  await next()
+}
+
+client.use(loggingMiddleware)
+```
+
+### Ordering and the onion model
+
+Middleware runs in registration order, wrapping the handler like layers of an onion. Call
+`next()` to pass control to the next middleware (and eventually the handler); skip `next()` to
+short-circuit and stop the chain.
+
+```typescript
+// 1. Outermost: timing
+client.use(async (ctx, next) => {
+  const start = Date.now()
+  await next()
+  console.log(`${ctx.command} took ${Date.now() - start}ms`)
+})
+
+// 2. Auth gate — short-circuits unauthorized callers
+const ADMINS = ['628123@s.whatsapp.net']
+client.use(async (ctx, next) => {
+  if (!ADMINS.includes(ctx.senderId)) {
+    await ctx.reply('Not authorized.')
+    return // do NOT call next() — handler never runs
+  }
+  await next()
+})
+
+// 3. Handler runs only if both middlewares called next()
+client.command('shutdown', async (ctx) => {
+  await ctx.reply('Shutting down...')
+})
+```
+
+For `/shutdown`, the execution order is: timing (before `next`) → auth → handler → timing (after
+`next`). If the auth middleware returns without calling `next()`, the handler and the rest of the
+chain are skipped, but the timing middleware's "after" code still runs because it already awaited
+`next()`.
+
+<Callout type="warning">
+Calling `next()` more than once in a single middleware throws a `ZaileysCommandError` with code
+`MIDDLEWARE_ERROR`. Call it exactly once (to continue) or not at all (to stop).
+</Callout>
+
+### Error handling in the chain
+
+Errors thrown by middleware or handlers are caught by the dispatcher and logged via the client
+logger; they do not crash the process. Non-`ZaileysCommandError` throws are wrapped: a handler
+failure becomes a `HANDLER_ERROR`, and a middleware failure becomes a `MIDDLEWARE_ERROR`. See
+[Error handling](/error-handling) for the full error model.
 
 ```typescript
 client.use(async (ctx, next) => {
-  console.log('command:', ctx.command, 'from', ctx.senderId)
-  await next()
+  try {
+    await next()
+  } catch (err) {
+    await ctx.reply('Something went wrong.')
+    throw err // re-throw so the client logger still records it
+  }
 })
 ```
+
+## A complete bot
+
+This mirrors `examples/command-bot.ts` — a small router with logging middleware and a few
+commands.
+
+```typescript
+import { Client, type Middleware } from 'zaileys'
+
+const client = new Client({ commandPrefix: ['/', '!'] })
+
+client.on('qr', ({ qrString }) => console.log('Scan QR:', qrString))
+
+const loggingMiddleware: Middleware = async (ctx, next) => {
+  console.log(`[command] ${ctx.command} from ${ctx.senderId} args=${ctx.args.join(',')}`)
+  await next()
+}
+
+client.use(loggingMiddleware)
+
+client.command('ping', async (ctx) => {
+  await ctx.reply('pong')
+})
+
+client.command('help|h|?', async (ctx) => {
+  await ctx.reply('Commands: /ping, /weather <city>, /help')
+})
+
+client.command('weather', async (ctx) => {
+  const city = ctx.args[0]
+  if (!city) {
+    await ctx.reply('Usage: /weather <city>')
+    return
+  }
+  await ctx.reply(`Weather in ${city}: sunny, 28 degrees`)
+})
+
+client.on('connect', ({ me }) => {
+  console.log('Command bot ready as', me.id)
+})
+```
+
+<Callout type="info">
+You can register commands and middleware before the connection is established. They are attached
+lazily once the socket is ready, so order between `command()`, `use()`, and `connect()` does not
+matter for setup. See [Configuration](/configuration) for `autoConnect` behavior.
+</Callout>
+
+## Edge cases & gotchas
+
+<Steps>
+
+### Unknown commands are silently ignored
+
+If a message matches a prefix but no registered command (or alias) resolves, nothing happens — no
+error, no reply. Add a `help` command and tell users which commands exist, or add a catch-all by
+checking unmatched text on the `text` event.
+
+### A bare prefix does nothing
+
+A message that is just the prefix (e.g. `/` with no command) parses to an empty command name and
+resolves to no handler. It is ignored.
+
+### Prefix matching is literal and ordered
+
+Prefixes are matched with a simple `startsWith` against the message text, in the order you listed
+them. The first prefix that matches wins. Because matching is literal, a prefix like `.` will also
+trigger on messages that merely start with a period — choose prefixes that are unlikely to collide
+with normal chat.
+
+### Commands fire on text messages only
+
+The dispatcher subscribes to the `text` event. Media captions and other non-text payloads do not
+go through the command router. Use the relevant [Events](/events) for those.
+
+### Reactions and edits target the triggering message
+
+`ctx.react()` reacts to the message that invoked the command. `ctx.edit()` edits the most recent
+message you sent with `ctx.reply()` during this handler run — it does not edit the user's message.
+
+</Steps>
+
+## Types reference
+
+All command types are exported from `zaileys`:
+
+```typescript
+import type {
+  CommandContext,
+  CommandHandler,
+  Middleware,
+  CommandPrefix,
+  ParsedArgs,
+} from 'zaileys'
+```
+
+| Type | Shape |
+| ---- | ----- |
+| `CommandPrefix` | `string \| string[]` |
+| `CommandHandler` | `(ctx: CommandContext) => Promise<void> \| void` |
+| `Middleware` | `(ctx: CommandContext, next: () => Promise<void>) => Promise<void> \| void` |
+| `CommandContext` | `MessageContext` + `command`, `args`, `flags`, `json`, `raw`, `reply`, `react`, `edit` |
+
+## Related
+
+- [Configuration](/configuration) — `commandPrefix`, `autoConnect`, and other client options.
+- [Events](/events) — the `text` event and the full message context that commands inherit.
+- [Sending messages](/sending-messages) — `TextOptions` accepted by `ctx.reply()`.
+- [Error handling](/error-handling) — `ZaileysCommandError` codes and the dispatcher's error model.

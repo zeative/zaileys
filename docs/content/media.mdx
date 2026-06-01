@@ -1,0 +1,312 @@
+import { Callout, Tabs, Steps } from 'nextra/components'
+
+# Media Processing
+
+Zaileys ships a standalone `Media` class for converting and transforming audio, video, images,
+stickers, and documents before you send them. It wraps `ffmpeg` plus an image backend
+(`sharp` if available, otherwise `jimp`) behind a small, namespaced facade, and every method
+returns a plain `Buffer` (or base64 string / metadata object) that feeds straight into the
+[send builder](/sending-messages).
+
+## Constructing a `Media`
+
+Import `Media` from `zaileys` and pass it your source once — every namespace below operates on
+that same input.
+
+```typescript
+import { Media } from 'zaileys'
+
+const media = new Media(input)
+```
+
+The constructor accepts a single `MediaInput`, which is one of:
+
+| Input type    | Example                                | Notes                                                        |
+| ------------- | -------------------------------------- | ------------------------------------------------------------ |
+| `string` URL  | `'https://example.com/song.mp3'`       | Fetched over HTTP(S) with the global `fetch`.                |
+| `string` path | `'./assets/clip.mp4'`                  | Read from disk if the path points to an existing file.       |
+| `string` b64  | `'iVBORw0KGgo...'`                     | Falls back to base64 decoding when it is neither URL nor file. |
+| `Buffer`      | `await fs.readFile('./img.png')`       | Used as-is.                                                  |
+| `ArrayBuffer` | `await res.arrayBuffer()`              | Wrapped into a `Buffer`.                                     |
+
+```typescript
+import { Media } from 'zaileys'
+import fs from 'node:fs/promises'
+
+const fromUrl = new Media('https://example.com/voice.mp3')
+const fromPath = new Media('./assets/photo.jpg')
+const fromBuffer = new Media(await fs.readFile('./assets/clip.mp4'))
+```
+
+<Callout type="info">
+  Resolution is lazy. Nothing is downloaded or read until you call a processing method, so
+  constructing a `Media` is cheap. The same instance can be reused across namespaces — for
+  example call both `media.thumbnail.get()` and `media.image.toJpeg()` on one `Media`.
+</Callout>
+
+## Requirements: ffmpeg, sharp, and jimp
+
+<Callout type="warning">
+  **ffmpeg / ffprobe** power all audio, video, and animated-sticker work. The published package
+  bundles `ffmpeg` and `ffprobe` binaries (via `@ffmpeg-installer/ffmpeg` and
+  `@ffprobe-installer/ffprobe`), so most platforms need no system install — they are added to
+  `PATH` automatically on first use. On platforms without a prebuilt binary (e.g. Termux), install
+  a system ffmpeg (`pkg install ffmpeg`). See [Installation](/installation) for details.
+
+  **Image backend** — `image.toJpeg`, `image.thumbnail`, `image.resize`, and `sticker.create`
+  (for non-animated stickers) need an image processor. `sharp` is used when installed (fast,
+  native). If `sharp` is absent, Zaileys transparently falls back to the pure-JS `jimp` path and
+  prints a one-line warning suggesting `npm install sharp`. Everything works either way — `sharp`
+  is purely an accelerator.
+</Callout>
+
+<Tabs items={['npm', 'pnpm', 'yarn', 'bun']}>
+  <Tabs.Tab>
+```bash npm i sharp ```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash pnpm add sharp ```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash yarn add sharp ```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash bun add sharp ```
+</Tabs.Tab>
+</Tabs>
+
+## `media.audio`
+
+Convert any audio (or the audio track of a video) into WhatsApp-friendly formats. Each method
+first validates that the source is `audio/*`.
+
+| Method            | Returns                                       | Description                                                         |
+| ----------------- | --------------------------------------------- | ------------------------------------------------------------------- |
+| `toOpus()`        | `Promise<Buffer>`                             | Opus in an Ogg container — the format WhatsApp voice notes use. Mono, 48 kHz, 48 kbps. |
+| `toMp3()`         | `Promise<Buffer>`                             | MP3 (libmp3lame). Stereo, 128 kbps.                                 |
+| `convert(type?)`  | `Promise<Buffer>`                             | Convert to `'opus'` (default) or `'mp3'`. `toOpus`/`toMp3` are thin wrappers around this. |
+| `waveform()`      | `Promise<{ waveform: Uint8Array; seconds: number }>` | A 64-sample amplitude envelope (values 0–100) plus duration in seconds, for voice-note waveform display. |
+
+```typescript
+import { Client, Media } from 'zaileys'
+
+const client = new Client({ /* ... */ })
+
+const media = new Media('./assets/recording.m4a')
+
+const opus = await media.audio.toOpus()
+await client.send('6281234567890@s.whatsapp.net').audio(opus, { ptt: true })
+
+const mp3 = await media.audio.toMp3()
+// or, equivalently: await media.audio.convert('mp3')
+```
+
+```typescript
+const { waveform, seconds } = await new Media('./assets/voice.ogg').audio.waveform()
+console.log(seconds)            // e.g. 7
+console.log(waveform.length)    // 64
+```
+
+## `media.video`
+
+Re-encode video for reliable WhatsApp playback or grab a poster frame. Both methods validate that
+the source is `video/*`.
+
+| Method        | Returns             | Description                                                                 |
+| ------------- | ------------------- | --------------------------------------------------------------------------- |
+| `toMp4()`     | `Promise<Buffer>`   | H.264/AAC MP4 with `+faststart`, `yuv420p`, even dimensions, `crf 28`, `ultrafast` preset. |
+| `thumbnail()` | `Promise<string>`   | A 100×100 JPEG poster frame, taken ~10% into the clip, returned base64-encoded. |
+
+```typescript
+import { Client, Media } from 'zaileys'
+
+const client = new Client({ /* ... */ })
+
+const mp4 = await new Media('https://example.com/clip.mov').video.toMp4()
+await client.send('6281234567890@s.whatsapp.net').video(mp4, { caption: 'Re-encoded' })
+```
+
+```typescript
+const poster = await new Media('./assets/movie.mp4').video.thumbnail()
+// `poster` is a base64 JPEG string (no data: prefix)
+```
+
+## `media.image`
+
+| Method                  | Returns             | Description                                                                                   |
+| ----------------------- | ------------------- | --------------------------------------------------------------------------------------------- |
+| `toJpeg()`              | `Promise<Buffer>`   | Convert PNG/WebP to JPEG. Other formats are returned unchanged.                               |
+| `thumbnail()`           | `Promise<string>`   | A 100×100 (cover-fit) JPEG, base64-encoded, quality 50. Animated GIFs use the first frame.    |
+| `resize(width, height)` | `Promise<Buffer>`   | Cover-fit resize to the given pixel dimensions. Output is PNG.                                 |
+
+```typescript
+import { Client, Media } from 'zaileys'
+
+const client = new Client({ /* ... */ })
+
+const media = new Media('./assets/banner.png')
+
+const jpeg = await media.image.toJpeg()
+await client.send('6281234567890@s.whatsapp.net').image(jpeg, { caption: 'Compressed' })
+
+const small = await media.image.resize(640, 640)
+const thumb = await media.image.thumbnail()  // base64 JPEG string
+```
+
+## `media.sticker`
+
+Turn an image, GIF, or video into a WhatsApp WebP sticker. Animated sources (GIF/video) produce
+animated stickers (capped at 6 s, 10 fps, 512×512); static images become static stickers. Already-WebP
+inputs are passed through. EXIF pack metadata is embedded automatically.
+
+```typescript
+create(metadata?: StickerMetadataType): Promise<Buffer>
+```
+
+`StickerMetadataType` options (all optional):
+
+| Option        | Type                                        | Default                                  | Description                                                 |
+| ------------- | ------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------- |
+| `packageName` | `string`                                    | `'Zaileys Library'`                      | Sticker pack name stored in EXIF.                           |
+| `authorName`  | `string`                                    | `'https://github.com/zeative/zaileys'`   | Sticker pack publisher stored in EXIF.                      |
+| `quality`     | `number`                                    | `60`                                     | WebP quality, clamped to 1–100.                             |
+| `shape`       | `'circle' \| 'rounded' \| 'oval' \| 'default'` | `'default'`                           | Crops static stickers to a shape mask. (Static only.)       |
+
+```typescript
+import { Client, Media } from 'zaileys'
+
+const client = new Client({ /* ... */ })
+
+const sticker = await new Media('./assets/cat.png').sticker.create({
+  packageName: 'My Pack',
+  authorName: 'Me',
+  quality: 80,
+  shape: 'rounded',
+})
+
+await client.send('6281234567890@s.whatsapp.net').sticker(sticker)
+```
+
+```typescript
+// Animated sticker from a GIF or short video
+const animated = await new Media('./assets/loop.gif').sticker.create({ quality: 70 })
+await client.send('6281234567890@s.whatsapp.net').sticker(animated)
+```
+
+<Callout type="info">
+  `shape` only affects static stickers. Animated stickers are always padded to a square. Both
+  static and animated paths require their image backend / ffmpeg — see the requirements callout
+  above.
+</Callout>
+
+## `media.document`
+
+Wrap any file as a sendable document, auto-detecting its MIME type, extension, and a thumbnail
+(video poster frame or image thumbnail, empty for non-media files).
+
+```typescript
+create(): Promise<{
+  document: Buffer
+  mimetype: string
+  ext: string
+  fileName: string
+  jpegThumbnail: string
+}>
+```
+
+| Field           | Type     | Description                                                          |
+| --------------- | -------- | -------------------------------------------------------------------- |
+| `document`      | `Buffer` | The raw file bytes.                                                  |
+| `mimetype`      | `string` | Detected MIME type (e.g. `application/pdf`).                         |
+| `ext`           | `string` | Detected file extension (e.g. `pdf`).                               |
+| `fileName`      | `string` | An auto-generated unique id (override it when sending).             |
+| `jpegThumbnail` | `string` | Base64 JPEG thumbnail for media files; empty string otherwise.      |
+
+```typescript
+import { Client, Media } from 'zaileys'
+
+const client = new Client({ /* ... */ })
+
+const doc = await new Media('./assets/report.pdf').document.create()
+
+await client.send('6281234567890@s.whatsapp.net').document(doc.document, {
+  fileName: 'report.pdf',
+  mimetype: doc.mimetype,
+})
+```
+
+## `media.thumbnail`
+
+A convenience that detects the source type and produces a 100×100 base64 JPEG thumbnail —
+routing to the video poster-frame path for `video/*` and the image path for `image/*`.
+
+```typescript
+get(): Promise<string>
+```
+
+```typescript
+import { Media } from 'zaileys'
+
+// Works for both images and videos
+const thumb = await new Media('./assets/whatever.mp4').thumbnail.get()
+```
+
+<Callout type="error">
+  `thumbnail.get()` throws `Invalid media type: expected image or video` when the source is not
+  an image or video (e.g. a PDF), or when the file type cannot be detected. Wrap it in a
+  `try/catch` if the input is untrusted.
+</Callout>
+
+## `media.toBuffer()`
+
+Resolve the original source to a raw `Buffer` without any processing — handy for downloading a URL
+or reading a file once and reusing the bytes.
+
+```typescript
+import { Media } from 'zaileys'
+
+const buffer = await new Media('https://example.com/file.bin').toBuffer()
+```
+
+## Feeding results into the send builder
+
+Every processing method returns a `Buffer` (or a metadata object whose `document` field is a
+`Buffer`), and the [send builder](/sending-messages) accepts a `Buffer` anywhere a `MediaSource`
+is expected. So the pattern is always: process → pass the buffer to the matching content method.
+
+```typescript
+import { Client, Media } from 'zaileys'
+
+const client = new Client({ /* ... */ })
+const jid = '6281234567890@s.whatsapp.net'
+
+// Image → sticker
+const sticker = await new Media('./assets/photo.jpg').sticker.create()
+await client.send(jid).sticker(sticker)
+
+// Any audio → voice note
+const opus = await new Media('./assets/song.mp3').audio.toOpus()
+await client.send(jid).audio(opus, { ptt: true })
+
+// Re-encode then send video
+const mp4 = await new Media('./assets/clip.mov').video.toMp4()
+await client.send(jid).video(mp4)
+```
+
+<Callout type="info">
+  You only need `Media` when you want to **transform** bytes (convert formats, build stickers,
+  generate thumbnails). To send a file as-is, hand the URL, path, or `Buffer` directly to the
+  send builder — it handles plain media uploads on its own.
+</Callout>
+
+## Tips and gotchas
+
+- **Type validation throws.** `audio.*` requires `audio/*`, `video.*` requires `video/*`. Passing
+  a mismatched file rejects with an `Invalid file type` error.
+- **Thumbnails are base64 strings**, not buffers. `video.thumbnail`, `image.thumbnail`, and
+  `thumbnail.get` all return base64-encoded JPEG text (no `data:` prefix).
+- **Sticker `quality` is clamped** to 1–100; out-of-range values are coerced.
+- **Reuse the instance.** Building one `Media` and calling several namespaces avoids re-reading
+  the source repeatedly when you process the same file in multiple ways.
+
+See also: [Sending Messages](/sending-messages) and [Installation](/installation).

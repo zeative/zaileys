@@ -1,37 +1,334 @@
+import { Callout, Tabs, Steps } from 'nextra/components'
+
 # Runtime Support
 
-Zaileys ships dual **ESM** and **CommonJS** entry points with type declarations for both module
-systems (`.d.ts` + `.d.cts`), and is verified to load on every major runtime.
-
-| Runtime | ESM (`import`) | CJS (`require`) |
-| ------- | -------------- | --------------- |
-| Node.js `>=20` | ✅ | ✅ |
-| Bun | ✅ | ✅ |
-| Deno (`--node-modules-dir`) | ✅ | ✅ |
-| Termux (Android) | ✅ | ✅ |
-
-Package managers **npm**, **pnpm**, **yarn**, and **bun** are all supported.
+Zaileys ships **dual ESM and CommonJS** entry points (`dist/index.mjs` + `dist/index.cjs`) with
+matching type declarations (`dist/index.d.ts` + `dist/index.d.cts`). The same package runs on
+Node.js, Bun, Deno, and Termux (Android) — both `import` and `require('zaileys')` resolve correctly
+through the `exports` map.
 
 ```typescript
-import { Client } from 'zaileys'        // ESM / TypeScript
-const { Client } = require('zaileys')   // CommonJS
+import { Client } from 'zaileys'           // ESM / TypeScript
 ```
 
-## Notes per runtime
+```javascript
+const { Client } = require('zaileys')       // CommonJS
+```
 
-- **Node.js** — requires v20+ (`engines.node >= 20`).
-- **Bun** — runs both bundles directly (`bun add zaileys`).
-- **Deno** — use `deno run --node-modules-dir` so npm dependencies resolve. All Node builtins in
-  the published bundle use the `node:` protocol, which Deno requires.
-- **Termux / Android** — works as a normal Node install. The bundled ffmpeg/ffprobe binaries fall
-  back to a `ffmpeg` on `PATH` when no Android prebuilt exists (`pkg install ffmpeg`).
+## Compatibility matrix
 
-## Optional native acceleration
+| Runtime | Minimum | ESM (`import`) | CJS (`require`) | Notes |
+| ------- | ------- | -------------- | --------------- | ----- |
+| Node.js | `>=20.0.0` | ✅ | ✅ | Primary target (`engines.node`) |
+| Bun | latest | ✅ | ✅ | Runs both bundles + TypeScript directly |
+| Deno | latest | ✅ | ✅ | Needs `--node-modules-dir` for npm deps |
+| Termux (Android) | Node 20+ | ✅ | ✅ | Native deps may need build tools |
 
-`sharp` speeds up image/sticker processing when installed. It is **not** a declared dependency —
-Zaileys loads it opportunistically in both ESM and CJS and falls back to the bundled pure-JS
-`jimp` path when it is absent. Install it for the fast path:
+<Callout type="info">
+  The `exports` map in `package.json` resolves `types` → `import` → `require` automatically.
+  TypeScript users should set `"module": "NodeNext"` (or `"Node16"` / `"Bundler"`) so the compiler
+  picks the right declaration file. See [Installation](/installation) for the full setup.
+</Callout>
+
+## ESM vs CommonJS
+
+The package is `"type": "module"` with a fully specified `exports` field:
+
+```json
+{
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  }
+}
+```
+
+That means both styles are first-class — pick whichever matches your project:
+
+<Tabs items={['ESM / TypeScript', 'CommonJS']}>
+  <Tabs.Tab>
+    ```typescript
+    import { Client } from 'zaileys'
+
+    const client = new Client({
+      authType: 'pairing',
+      phoneNumber: 628000000000,
+    })
+
+    client.on('connection', ({ status }) => console.log(status))
+    await client.connect()
+    ```
+  </Tabs.Tab>
+  <Tabs.Tab>
+    ```javascript
+    const { Client } = require('zaileys')
+
+    const client = new Client({
+      authType: 'pairing',
+      phoneNumber: 628000000000,
+    })
+
+    client.on('connection', ({ status }) => console.log(status))
+    client.connect()
+    ```
+  </Tabs.Tab>
+</Tabs>
+
+<Callout type="info">
+  Internally the published bundle rewrites all Node built-ins to the `node:` protocol
+  (`node:fs/promises`, `node:path`, `node:child_process`, …). This is what lets the same bundle
+  load on stricter runtimes like Deno without extra configuration.
+</Callout>
+
+## Node.js
+
+Node.js is the primary target. Any release `>=20.0.0` works; LTS (20/22/24) is recommended.
+
+<Steps>
+### Install
+
+<Tabs items={['npm', 'pnpm', 'yarn']}>
+  <Tabs.Tab>
+    ```bash
+    npm install zaileys
+    ```
+  </Tabs.Tab>
+  <Tabs.Tab>
+    ```bash
+    pnpm add zaileys
+    ```
+  </Tabs.Tab>
+  <Tabs.Tab>
+    ```bash
+    yarn add zaileys
+    ```
+  </Tabs.Tab>
+</Tabs>
+
+### Run
+
+```bash
+# Compile then run
+node dist/bot.js
+
+# Or run TypeScript directly with tsx (no build step)
+npx tsx bot.ts
+```
+</Steps>
+
+<Callout type="warning">
+  Node 18 and below are not supported. The library uses modern APIs (top-level `await` in examples,
+  global `fetch`) and is published targeting ES2022. Upgrade to Node 20+ if you see syntax or
+  resolution errors.
+</Callout>
+
+## Bun
+
+Bun runs both the ESM and CJS bundles directly and executes TypeScript natively, so there is no
+separate build step.
+
+<Steps>
+### Install
+
+```bash
+bun add zaileys
+```
+
+### Run
+
+```bash
+# Bun runs .ts files directly
+bun run bot.ts
+```
+</Steps>
+
+```typescript
+import { Client } from 'zaileys'
+
+const client = new Client({ authType: 'qr' })
+await client.connect()
+```
+
+<Callout type="warning">
+  Bun may print WebSocket upgrade-event warnings (for example about the `ws` `upgrade` listener)
+  while the WhatsApp socket connects. These come from Bun's `ws` compatibility layer and are
+  harmless — the connection still establishes normally. If they are noisy, lower the
+  [logger level](/configuration) or filter Bun's diagnostics.
+</Callout>
+
+<Callout type="info">
+  Native peer dependencies (`better-sqlite3`, `pg`, `redis`) install fine under Bun. Bun runs their
+  prebuilt binaries when available; if a package has no Bun-compatible prebuild it falls back to a
+  source build, which needs the platform build tools described under Termux below.
+</Callout>
+
+## Deno
+
+Deno can run Zaileys through the `npm:` specifier or from a local `node_modules` directory. Because
+the bundle uses the `node:` protocol for every built-in, no shimming is required — but npm
+dependencies must be materialized to disk.
+
+<Steps>
+### Install dependencies to disk
+
+```bash
+deno cache --node-modules-dir npm:zaileys
+```
+
+### Run with a node_modules directory
+
+```bash
+deno run --node-modules-dir --allow-all bot.ts
+```
+</Steps>
+
+```typescript
+import { Client } from 'npm:zaileys'
+
+const client = new Client({ authType: 'qr' })
+await client.connect()
+```
+
+<Callout type="warning">
+  The `--node-modules-dir` flag is **required**. Several dependencies (Baileys, the storage adapters,
+  the bundled ffmpeg/ffprobe binaries) expect a real `node_modules` layout and the ability to spawn
+  child processes, which Deno's virtual npm cache does not provide. Without it, media conversion and
+  the native storage adapters will fail to resolve.
+</Callout>
+
+<Callout type="info">
+  Grant the permissions Zaileys needs: file access for the auth/session store (`--allow-read`,
+  `--allow-write`), network for the WhatsApp socket (`--allow-net`), running ffmpeg/ffprobe
+  (`--allow-run`), and environment access (`--allow-env`). `--allow-all` covers all of them while
+  prototyping.
+</Callout>
+
+## Termux (Android)
+
+Termux installs Zaileys as a normal Node project. Install a Node 20+ runtime and the build
+toolchain so optional native modules can compile when a prebuilt binary is unavailable for the
+ARM/Android target.
+
+<Steps>
+### Install Node and build tools
+
+```bash
+pkg update && pkg upgrade
+pkg install nodejs-lts python make clang ffmpeg
+```
+
+### Install Zaileys
+
+```bash
+npm install zaileys
+```
+
+### Run
+
+```bash
+npx tsx bot.ts
+# or: node dist/bot.js
+```
+</Steps>
+
+<Callout type="info">
+  Zaileys bundles `ffmpeg` and `ffprobe` binaries via `@ffmpeg-installer/ffmpeg` /
+  `@ffprobe-installer/ffprobe`. When no Android/ARM prebuilt binary exists, it falls back to an
+  `ffmpeg` found on `PATH` — that is why `pkg install ffmpeg` is in the setup above. Media features
+  (stickers, voice notes, video thumbnails) depend on ffmpeg being reachable one way or the other.
+</Callout>
+
+<Callout type="warning">
+  Native add-ons such as `better-sqlite3` and `sharp` compile from source on Termux because prebuilt
+  binaries rarely ship for Android. Install `python`, `make`, and `clang` (above) so `node-gyp` can
+  build them. If a build fails, fall back to a pure-JS path: use the in-memory or file storage
+  adapter instead of SQLite (see [Storage Adapters](/storage)), and skip `sharp` so image
+  processing uses the bundled `jimp` fallback.
+</Callout>
+
+## Native dependencies per runtime
+
+Zaileys keeps heavy native modules **optional**. They are declared as optional peer dependencies and
+loaded lazily, so the core library installs and runs without any compiler.
+
+| Dependency | Used for | Required? | Fallback |
+| ---------- | -------- | --------- | -------- |
+| `better-sqlite3` | SQLite auth/message storage adapter | Optional peer | Use file / memory / Postgres / Redis adapters |
+| `pg` | Postgres storage adapter | Optional peer | Use another adapter |
+| `redis` | Redis storage adapter | Optional peer | Use another adapter |
+| `convex` | Convex storage adapter | Optional peer | Use another adapter |
+| `sharp` | Fast image/sticker processing | Not declared — opportunistic | Bundled `jimp` (pure JS) |
+| ffmpeg / ffprobe | Audio/video/sticker conversion | Bundled binaries | `ffmpeg` on `PATH` |
+
+### sharp (image acceleration)
+
+`sharp` is **not** a declared dependency. Zaileys probes for it at runtime using a hybrid loader
+(`require('sharp')` first, then dynamic `import('sharp')`), so it works in both ESM and CJS bundles.
+If `sharp` is absent or fails to load, image and sticker processing automatically fall back to the
+bundled pure-JS `jimp` path. Install it only when you want the faster native path:
 
 ```bash
 npm i sharp
 ```
+
+<Callout type="info">
+  On Bun and Node with a matching prebuilt, `sharp` installs without a compiler. On Termux it
+  compiles from source — if that is impractical, simply omit it and rely on the `jimp` fallback.
+</Callout>
+
+### better-sqlite3 and other storage adapters
+
+Storage adapters are wired through optional peer dependencies. Install only the driver for the
+backend you actually use:
+
+<Tabs items={['npm', 'pnpm', 'yarn', 'bun']}>
+  <Tabs.Tab>
+    ```bash
+    npm i better-sqlite3   # SQLite
+    npm i pg               # Postgres
+    npm i redis            # Redis
+    ```
+  </Tabs.Tab>
+  <Tabs.Tab>
+    ```bash
+    pnpm add better-sqlite3
+    pnpm add pg
+    pnpm add redis
+    ```
+  </Tabs.Tab>
+  <Tabs.Tab>
+    ```bash
+    yarn add better-sqlite3
+    yarn add pg
+    yarn add redis
+    ```
+  </Tabs.Tab>
+  <Tabs.Tab>
+    ```bash
+    bun add better-sqlite3
+    bun add pg
+    bun add redis
+    ```
+  </Tabs.Tab>
+</Tabs>
+
+<Callout type="info">
+  With pnpm, `better-sqlite3` is listed under `onlyBuiltDependencies` so its native build runs during
+  install. If you skip these drivers, the file and in-memory adapters keep Zaileys fully functional —
+  see [Storage Adapters](/storage) for the full list and configuration.
+</Callout>
+
+## Quick reference
+
+- **Node.js** — `>=20.0.0`; the primary, fully supported runtime.
+- **Bun** — `bun add zaileys`, runs `.ts` directly; ignore harmless `ws` upgrade warnings.
+- **Deno** — `import 'npm:zaileys'`, always run with `--node-modules-dir` plus the right permissions.
+- **Termux** — install `nodejs-lts python make clang ffmpeg`; prefer file/memory storage and the
+  `jimp` fallback if native builds fail.
+
+For platform-agnostic install steps see [Installation](/installation), for picking a session backend
+see [Storage Adapters](/storage), and for runtime-specific failures see
+[Troubleshooting](/troubleshooting).

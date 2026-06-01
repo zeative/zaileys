@@ -22,10 +22,12 @@ npm run build
 touch out/.nojekyll
 echo "  ✓ $(find out -name '*.html' | wc -l | tr -d ' ') halaman"
 
-echo "▸ Publish ke branch $BRANCH…"
+echo "▸ Publish ke branch ${BRANCH} ..."
+git -C "$ROOT_DIR" worktree prune
+git -C "$ROOT_DIR" branch -D "$BRANCH" >/dev/null 2>&1 || true
 git -C "$ROOT_DIR" worktree add --detach "$WORKTREE" >/dev/null
 cd "$WORKTREE"
-git checkout --orphan "$BRANCH" >/dev/null 2>&1
+git checkout --orphan "$BRANCH"
 git rm -rf . --quiet >/dev/null 2>&1 || true
 cp -R "$DOCS_DIR/out/." .
 touch .nojekyll

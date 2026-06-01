@@ -1,0 +1,437 @@
+import { Callout, Tabs, Steps } from 'nextra/components'
+
+# Configuration
+
+Every zaileys bot starts by constructing a `Client` with a `ClientOptions` object. This page is the
+exhaustive reference for **every** option the constructor accepts, the exact default it falls back
+to, and how each one changes the client's behavior. All defaults below are read straight from the
+`Client` constructor source, not guessed.
+
+```typescript
+import { Client } from 'zaileys'
+
+const client = new Client({ sessionId: 'default' })
+```
+
+<Callout type="info">
+  `ClientOptions` is fully optional — `new Client()` works and applies every default in the table
+  below. The most common reason to pass options is to pick a login method ([`authType`](#authtype--phonenumber)),
+  enable [commands](#commandprefix) via `commandPrefix`, or swap in a persistent
+  [storage adapter](/storage) via `auth` / `store`.
+</Callout>
+
+## All options at a glance
+
+| Option | Type | Default | Description |
+| ------ | ---- | ------- | ----------- |
+| `sessionId` | `string` | `'default'` | Identifies this session. Used as the default auth folder name and as the `sessionId` field on every emitted event. |
+| `authType` | `'qr' \| 'pairing'` | `'qr'` | Login method: scan a QR code (`'qr'`) or request an 8-digit pairing code (`'pairing'`, requires `phoneNumber`). |
+| `phoneNumber` | `string` | `undefined` | Phone number in international digits (e.g. `'628xxx'`). **Required** when `authType` is `'pairing'`; ignored for `'qr'`. |
+| `auth` | `AuthStoreBundle` | `FileAuthStore` at `./.zaileys/auth/<sessionId>` | Where Baileys credentials and signal keys are persisted. See [Storage Adapters](/storage). |
+| `store` | `MessageStore` | `MemoryMessageStore` | Where messages, chats, contacts, presence, and scheduled jobs are stored. See [Storage Adapters](/storage). |
+| `logger` | `Logger \| Partial<Logger>` | Pino logger, level from `ZAILEYS_DEBUG` (default `silent`) | Structured logger with `debug` / `info` / `warn` / `error` / `fatal`. A partial object is padded with no-ops. |
+| `commandPrefix` | `string \| string[]` | `undefined` (no prefixes → commands disabled) | Trigger prefix(es) that activate the [command framework](/commands), e.g. `'/'` or `['/', '!']`. |
+| `ignoreMe` | `boolean` | `true` | When `true`, inbound messages sent by your own account are dropped before reaching handlers. |
+| `citation` | `CitationConfig` | `undefined` | Configures the per-message `citation.authors()` / `citation.banned()` predicates available in message context. |
+| `reconnect` | `ReconnectOptions` | `{}` (strategy defaults below) | Tunes the auto-reconnect backoff strategy. |
+| `autoConnect` | `boolean` | `true` | When `true`, the constructor calls `connect()` on the next microtask. Set `false` to connect manually. |
+| `qrTerminal` | `boolean` | `true` | When `true`, prints the QR code to the terminal in addition to emitting the `qr` event. |
+| `statusLog` | `boolean` | `true` | When `true`, writes human-readable connection status lines to `stderr` and suppresses noisy libsignal logs. |
+| `cacheSignal` | `boolean` | `true` | When `true`, wraps the auth store with an in-memory signal-key cache for faster reads. |
+| `baileys` | `Partial<UserFacingSocketConfig>` | `{}` | Extra Baileys socket config merged into the internal config (after `markOnlineOnConnect: false`, before the managed `auth` / `logger`). |
+
+<Callout type="warning">
+  `auth`, `logger`, and `markOnlineOnConnect: false` are set internally and override anything you
+  pass through `baileys`. Use `auth` / `store` / `logger` top-level options for those concerns
+  rather than reaching into `baileys`.
+</Callout>
+
+## `sessionId`
+
+A label for this connection. It has two effects: it becomes the default auth folder
+(`./.zaileys/auth/<sessionId>`) when you do not pass a custom `auth`, and it is included as the
+`sessionId` field on **every** emitted event so you can tell sessions apart in a multi-account
+process.
+
+```typescript
+import { Client } from 'zaileys'
+
+const primary = new Client({ sessionId: 'account-a' })
+const secondary = new Client({ sessionId: 'account-b' })
+
+primary.on('connect', ({ sessionId, me }) => console.log(sessionId, 'ready as', me.id))
+secondary.on('connect', ({ sessionId, me }) => console.log(sessionId, 'ready as', me.id))
+```
+
+<Callout type="info">
+  Two clients sharing the same `sessionId` would also share the same default auth folder and clash.
+  Give each account a unique `sessionId`.
+</Callout>
+
+## `authType` & `phoneNumber`
+
+`authType` selects how you log in. With the default `'qr'`, a QR string is emitted (and printed to
+the terminal unless [`qrTerminal`](#qrterminal) is `false`). With `'pairing'`, the client requests
+an 8-digit code for the given `phoneNumber` and emits it via the `pairing-code` event.
+
+<Tabs items={['QR (default)', 'Pairing code']}>
+<Tabs.Tab>
+
+```typescript
+import { Client } from 'zaileys'
+
+const client = new Client({ authType: 'qr' })
+
+client.on('qr', ({ qrString, expiresAt }) => {
+  console.log('Scan this QR:', qrString, 'expires at', new Date(expiresAt))
+})
+```
+
+</Tabs.Tab>
+<Tabs.Tab>
+
+```typescript
+import { Client } from 'zaileys'
+
+const client = new Client({
+  authType: 'pairing',
+  phoneNumber: '628xxxxxxxxxx',
+})
+
+client.on('pairing-code', ({ code, expiresAt }) => {
+  console.log('Enter this code in WhatsApp:', code, 'expires at', new Date(expiresAt))
+})
+```
+
+</Tabs.Tab>
+</Tabs>
+
+<Callout type="error">
+  When `authType` is `'pairing'` and `phoneNumber` is missing, `connect()` rejects with
+  `phoneNumber is required when authType is "pairing"`. With [`autoConnect`](#autoconnect) on (the
+  default), that rejection surfaces through the `error` event.
+</Callout>
+
+## `commandPrefix`
+
+Setting `commandPrefix` activates the [command framework](/commands). Pass a single prefix or an
+array; empty strings are filtered out. When no prefix is configured, `client.command(...)` handlers
+never fire (the dispatcher only attaches once there is at least one prefix, at least one registered
+command, and a live socket).
+
+```typescript
+import { Client, type Middleware } from 'zaileys'
+
+const client = new Client({ commandPrefix: ['/', '!'] })
+
+const logging: Middleware = async (ctx, next) => {
+  console.log(`[command] ${ctx.command} from ${ctx.senderId}`)
+  await next()
+}
+
+client.use(logging)
+
+client.command('ping', async (ctx) => {
+  await ctx.reply('pong')
+})
+```
+
+See [Commands](/commands) for spec syntax, args/flags parsing, and middleware.
+
+## `ignoreMe`
+
+With the default `true`, any inbound message whose sender is your own logged-in account is dropped
+before reaching `text` / message handlers — handy so an echo bot does not respond to itself. Set it
+to `false` when you intentionally want to react to your own messages (for example an owner-triggered
+command from your own number).
+
+```typescript
+import { Client } from 'zaileys'
+
+// React to messages from your own account too (e.g. owner-only triggers).
+const client = new Client({ ignoreMe: false })
+
+client.on('text', async (msg) => {
+  if (msg.text === '.ping') await msg.reply('pong')
+})
+```
+
+## `auth`
+
+The credential/signal-key store. Defaults to a `FileAuthStore` rooted at
+`./.zaileys/auth/<sessionId>`. Pass any `AuthStoreBundle` to persist auth elsewhere (SQLite,
+Postgres, Redis, Convex, or your own implementation). The bundle has two halves:
+
+```typescript
+interface AuthStoreBundle {
+  readonly creds: AuthCredsStore   // readCreds / writeCreds / deleteCreds
+  readonly signal: AuthStore       // read / write / delete / clear / close
+}
+```
+
+```typescript
+import { Client, SqliteAuthStore } from 'zaileys'
+
+const client = new Client({
+  sessionId: 'main',
+  auth: new SqliteAuthStore({ database: './zaileys.db' }),
+})
+```
+
+<Callout type="info">
+  Unless you disable [`cacheSignal`](#cachesignal), the client wraps your `auth` in an in-memory
+  signal-key cache on first connect. See [Storage Adapters](/storage) for every bundled adapter and
+  its constructor options.
+</Callout>
+
+## `store`
+
+The message/chat/contact/presence store, also used to persist scheduled broadcast jobs. Defaults to
+`MemoryMessageStore` (lost on restart). Swap in a persistent `MessageStore` for durability — the
+store is bound to the socket on connect and powers quoted-message lookups and the
+[scheduler](/automation).
+
+```typescript
+import { Client, SqliteMessageStore } from 'zaileys'
+
+const client = new Client({
+  store: new SqliteMessageStore({ database: './zaileys.db' }),
+})
+```
+
+See [Storage Adapters](/storage) for the full `MessageStore` interface and adapter options.
+
+## `logger`
+
+A structured logger with `debug`, `info`, `warn`, `error`, and `fatal` methods. When omitted, zaileys
+builds a Pino logger whose level comes from the `ZAILEYS_DEBUG` environment variable:
+
+| `ZAILEYS_DEBUG` | Resulting level |
+| --------------- | --------------- |
+| unset | `silent` |
+| `1` | `info` |
+| `silent` / `fatal` / `error` / `warn` / `info` / `debug` / `trace` | that exact level |
+| anything else | `silent` |
+
+You may pass a **partial** logger — any missing method is replaced with a no-op, so providing just
+`error` and `warn` is valid.
+
+```typescript
+import { Client } from 'zaileys'
+
+const client = new Client({
+  logger: {
+    debug: () => {},
+    info: (...a) => console.log('[info]', ...a),
+    warn: (...a) => console.warn('[warn]', ...a),
+    error: (...a) => console.error('[error]', ...a),
+    fatal: (...a) => console.error('[fatal]', ...a),
+  },
+})
+```
+
+<Callout type="info">
+  The quickest way to see internal logs without writing a custom logger is `ZAILEYS_DEBUG=1` (or
+  `ZAILEYS_DEBUG=debug`) in your environment.
+</Callout>
+
+## `citation`
+
+Supplies the predicates behind the per-message `citation` object in [message context](/events). Both
+fields accept either a list of JIDs or an async predicate function.
+
+```typescript
+import { Client } from 'zaileys'
+
+const client = new Client({
+  citation: {
+    authors: ['628xxx@s.whatsapp.net'],         // or (jid) => jid.endsWith('@s.whatsapp.net')
+    banned: (jid) => jid.startsWith('62800'),
+  },
+})
+
+client.on('text', async (msg) => {
+  if (await msg.citation.banned()) return
+  if (await msg.citation.authors()) await msg.reply('Hello, author!')
+})
+```
+
+## `reconnect`
+
+Tunes the exponential-backoff reconnect strategy. The default `{}` uses the values below; override
+only the fields you care about.
+
+| Field | Type | Default | Description |
+| ----- | ---- | ------- | ----------- |
+| `enabled` | `boolean` | `true` | Whether to reconnect at all after a non-fatal disconnect. |
+| `maxAttempts` | `number` | `Infinity` | Maximum reconnect attempts before giving up. |
+| `initialDelayMs` | `number` | `1000` | Base delay for the first attempt; doubles each subsequent attempt. |
+| `maxDelayMs` | `number` | `60000` | Upper bound on the (jittered) delay between attempts. |
+| `jitterFactor` | `number` | `0.2` | Randomization applied to the delay (±20% by default) to avoid thundering herds. |
+
+```typescript
+import { Client } from 'zaileys'
+
+const client = new Client({
+  reconnect: {
+    maxAttempts: 10,
+    initialDelayMs: 2000,
+    maxDelayMs: 30000,
+    jitterFactor: 0.3,
+  },
+})
+```
+
+<Callout type="warning">
+  Fatal disconnects (such as logged-out) never trigger a reconnect regardless of these settings;
+  zaileys clears the auth folder so you can re-authenticate. See [Events](/events) for the
+  `disconnect` / `reconnecting` payloads.
+</Callout>
+
+## `autoConnect`
+
+With the default `true`, the constructor schedules `connect()` on the next microtask, so simply
+constructing a `Client` starts connecting. Set it to `false` to register listeners first (or do
+setup work) and connect explicitly.
+
+```typescript
+import { Client } from 'zaileys'
+
+const client = new Client({ autoConnect: false })
+
+client.on('qr', ({ qrString }) => console.log('Scan:', qrString))
+client.on('connect', ({ me }) => console.log('Ready as', me.id))
+
+await client.connect()
+```
+
+<Callout type="info">
+  Under auto-connect, an early connection failure is reported through the `error` event (only if you
+  have an `error` listener). With manual connect, the rejected `connect()` promise is yours to catch.
+</Callout>
+
+## `qrTerminal`
+
+Controls whether the QR code is rendered to the terminal. The `qr` event still fires either way, so
+disable this when you render the QR yourself (e.g. in a web UI) and do not want terminal output.
+
+```typescript
+import { Client } from 'zaileys'
+
+// Emit the QR event only; do not draw it in the terminal.
+const client = new Client({ qrTerminal: false })
+
+client.on('qr', ({ qrString }) => renderInBrowser(qrString))
+```
+
+## `statusLog`
+
+When `true` (default), zaileys writes concise connection status lines (connecting, qr, pairing-code,
+connected, reconnecting, disconnect) to `stderr`, and suppresses noisy libsignal log output. Set it
+to `false` for completely silent operation when you handle status via events instead.
+
+```typescript
+import { Client } from 'zaileys'
+
+const client = new Client({ statusLog: false }) // no stderr status lines
+```
+
+## `cacheSignal`
+
+When `true` (default), the client wraps your `auth` store in an in-memory cache for signal keys on
+the first `connect()`, reducing repeated reads from disk/DB. Disable it if your adapter already
+caches or you need every read to hit the backing store.
+
+```typescript
+import { Client } from 'zaileys'
+
+const client = new Client({ cacheSignal: false })
+```
+
+## `baileys`
+
+Escape hatch for advanced Baileys socket configuration. Your object is spread into the internal
+config **after** `markOnlineOnConnect: false` and **before** the managed `auth` and `logger`.
+
+```typescript
+import { Client } from 'zaileys'
+
+const client = new Client({
+  baileys: {
+    browser: ['zaileys', 'Chrome', '1.0.0'],
+    syncFullHistory: false,
+  },
+})
+```
+
+<Callout type="warning">
+  Do not set `auth`, `logger`, or `markOnlineOnConnect` here — the client overrides them. Use the
+  top-level `auth` / `store` / `logger` options instead.
+</Callout>
+
+## Fully-configured example
+
+A `Client` exercising the full surface of `ClientOptions`:
+
+```typescript
+import { Client, SqliteAuthStore, SqliteMessageStore } from 'zaileys'
+
+const client = new Client({
+  sessionId: 'production-bot',
+  authType: 'pairing',
+  phoneNumber: '628xxxxxxxxxx',
+  auth: new SqliteAuthStore({ database: './zaileys.db' }),
+  store: new SqliteMessageStore({ database: './zaileys.db' }),
+  commandPrefix: ['/', '!'],
+  ignoreMe: true,
+  citation: {
+    authors: ['628xxx@s.whatsapp.net'],
+    banned: (jid) => jid.startsWith('62800'),
+  },
+  reconnect: {
+    maxAttempts: 20,
+    initialDelayMs: 2000,
+    maxDelayMs: 30000,
+    jitterFactor: 0.25,
+  },
+  autoConnect: true,
+  qrTerminal: false,
+  statusLog: true,
+  cacheSignal: true,
+  logger: {
+    info: (...a) => console.log('[info]', ...a),
+    warn: (...a) => console.warn('[warn]', ...a),
+    error: (...a) => console.error('[error]', ...a),
+  },
+  baileys: {
+    browser: ['zaileys', 'Chrome', '1.0.0'],
+  },
+})
+
+client.on('pairing-code', ({ code }) => console.log('Pairing code:', code))
+client.on('connect', ({ me }) => console.log('Connected as', me.id))
+
+client.command('ping', async (ctx) => {
+  await ctx.reply('pong')
+})
+```
+
+## Which options unlock which features
+
+| Goal | Option(s) |
+| ---- | --------- |
+| Enable the [command router](/commands) | `commandPrefix` |
+| Persist auth/messages across restarts | `auth`, `store` → [Storage Adapters](/storage) |
+| Log in without scanning a QR | `authType: 'pairing'` + `phoneNumber` |
+| Render the QR in your own UI | `qrTerminal: false` + listen for the [`qr` event](/events) |
+| Run multiple accounts in one process | one `Client` per unique `sessionId` |
+| Quiet operation | `statusLog: false`, default `silent` logger |
+| Connect on your own schedule | `autoConnect: false` + `await client.connect()` |
+| Per-message author/ban checks | `citation` → [Events](/events) |
+
+## See also
+
+- [Client & Lifecycle](/client) — connecting, events, sending, domain namespaces
+- [Events](/events) — full event payloads and message context
+- [Commands](/commands) — the framework `commandPrefix` enables
+- [Storage Adapters](/storage) — every `auth` / `store` adapter and its options

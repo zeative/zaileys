@@ -1,8 +1,12 @@
+import { Callout, Tabs, Steps } from 'nextra/components'
+
 # Storage Adapters
 
-Zaileys separates **auth state** (`AuthStore` — credentials + signal keys) from **message
-history** (`MessageStore` — messages/chats/contacts/presence). They are independent, so you can
-mix backends — e.g. auth in SQLite, messages in Redis.
+Zaileys persists two completely independent pieces of state, and you can back each with a different
+adapter. Auth lives in an **`AuthStore`** (login credentials + Signal protocol keys) and chat data
+lives in a **`MessageStore`** (messages, chats, contacts, presence). They never share a backend
+unless you choose to, so you can keep your session in SQLite while streaming message history into
+Redis.
 
 ```typescript
 import { Client, SqliteAuthStore, RedisMessageStore } from 'zaileys'
@@ -13,52 +17,500 @@ const client = new Client({
 })
 ```
 
+If you omit both options, Zaileys uses safe defaults — see [Defaults](#defaults). For where `auth`
+and `store` sit among the other client options, see [Configuration](/configuration).
+
+## The two store types
+
+| Concern | Interface | What it holds | When it is written |
+| ------- | --------- | ------------- | ------------------ |
+| Session | `AuthStore` (a.k.a. `AuthStoreBundle`) | `creds.json`-style credentials + Signal keys (pre-keys, sessions, sender keys, app-state sync keys, …) | On every login and key rotation, by Baileys |
+| History | `MessageStore` | Messages, chats, contacts, presence (and optionally scheduled jobs) | Continuously, via socket event listeners |
+
+### AuthStore
+
+An `AuthStore` is a bundle of two sub-stores:
+
+```typescript
+interface AuthStoreBundle {
+  readonly creds: AuthCredsStore   // readCreds / writeCreds / deleteCreds
+  readonly signal: AuthStore       // read / write / delete / clear / close
+}
+```
+
+You pass an instance to `Client({ auth })`. Zaileys wires it into Baileys' authentication state for
+you — you never call `read`/`write` yourself. On a logged-out disconnect (WhatsApp 401/410) Zaileys
+calls `clear()` so a stale session is wiped before the next login.
+
+### MessageStore
+
+A `MessageStore` records the conversation as it streams in. After connecting, Zaileys calls
+`store.bind(socket)`, which subscribes the store to Baileys events (`messages.upsert`,
+`chats.upsert`, `contacts.upsert`, `presence.update`, and where supported `messages.update` /
+`chats.update`). From then on you can query it:
+
+```typescript
+import { Client, SqliteMessageStore } from 'zaileys'
+
+const store = new SqliteMessageStore({ database: './history.db' })
+const client = new Client({ store })
+
+client.on('connect', async () => {
+  // newest-first, paginated chat history for one JID
+  const recent = await store.listMessages('628123456789@s.whatsapp.net', { limit: 50 })
+  console.log(`loaded ${recent.length} messages`)
+
+  const chats = await store.listChats({ archived: false })
+  const contacts = await store.listContacts()
+  console.log(chats.length, 'chats,', contacts.length, 'contacts')
+})
+```
+
+Read methods every `MessageStore` exposes:
+
+| Method | Returns | Notes |
+| ------ | ------- | ----- |
+| `getMessage(key)` | `WAMessage \| undefined` | `key` is a Baileys `WAMessageKey` |
+| `listMessages(jid, options?)` | `WAMessage[]` | Newest-first; `options.limit` (default `100`) and `options.before` (timestamp) for paging |
+| `getChat(jid)` / `listChats({ archived? })` | `Chat` / `Chat[]` | `archived` filter optional |
+| `getContact(jid)` / `listContacts()` | `Contact` / `Contact[]` | |
+| `getPresence(jid)` | `PresenceData \| undefined` | |
+
+<Callout type="info">
+JIDs follow WhatsApp conventions: individual chats are `628xxx@s.whatsapp.net` and groups are
+`xxx@g.us`. `listMessages('…@g.us', …)` works the same for group history.
+</Callout>
+
+## Defaults
+
+If you do not pass `auth` / `store`, Zaileys picks:
+
+| Option | Default adapter | Effect |
+| ------ | --------------- | ------ |
+| `auth` | `FileAuthStore({ basePath: './.zaileys/auth/<sessionId>' })` | Session survives restarts, scoped per `sessionId` |
+| `store` | `MemoryMessageStore()` | History kept in RAM only — lost on restart |
+
+```typescript
+import { Client } from 'zaileys'
+
+// auth → ./.zaileys/auth/<sessionId>, store → in-memory
+const client = new Client({ sessionId: 'main' })
+```
+
+<Callout type="warning">
+The default message store is **in-memory**: chat history (and any scheduled jobs) vanish when the
+process exits. Pick a persistent `store` adapter if you need durable history or restart-safe
+[scheduled broadcasts](/automation).
+</Callout>
+
 ## Available adapters
 
 | Adapter | Auth store | Message store | Peer dependency |
 | ------- | ---------- | ------------- | --------------- |
-| `file` | `FileAuthStore` ⭐ | — | none |
-| `memory` | `MemoryAuthStore` | `MemoryMessageStore` | none |
-| `sqlite` | `SqliteAuthStore` | `SqliteMessageStore` | `better-sqlite3` |
-| `redis` | `RedisAuthStore` | `RedisMessageStore` | `redis` |
-| `postgres` | `PostgresAuthStore` | `PostgresMessageStore` | `pg` |
-| `convex` | `ConvexAuthStore` | `ConvexMessageStore` | `convex` |
+| File | `FileAuthStore` ⭐ | — | none |
+| Memory | `MemoryAuthStore` | `MemoryMessageStore` ⭐ | none |
+| SQLite | `SqliteAuthStore` | `SqliteMessageStore` | `better-sqlite3` |
+| Postgres | `PostgresAuthStore` | `PostgresMessageStore` | `pg` |
+| Redis | `RedisAuthStore` | `RedisMessageStore` | `redis` |
+| Convex | `ConvexAuthStore` | `ConvexMessageStore` | `convex` |
 
-⭐ default. Each non-`file` adapter requires its optional peer; a missing peer throws
-`STORE_NOT_AVAILABLE` (rather than crashing install).
+⭐ = default for that store type. There is **no** file-backed message store — pair `FileAuthStore`
+with one of the other message stores (or `MemoryMessageStore`) if you want messages persisted.
 
-## Construction
+<Callout type="info">
+Every non-built-in adapter loads its peer lazily. A missing peer throws a `ZaileysStoreError` with
+code `STORE_NOT_AVAILABLE` at first use (not at install/import time), so installs never break.
+Install peers like any other dependency — see [Installation](/installation).
+</Callout>
 
-Adapters accept a pre-built client **or** a connection string (XOR), plus an optional `namespace`:
+## File (default auth)
+
+Stores creds and Signal keys as JSON files under `basePath`, using atomic temp-file writes and
+`BufferJSON` so binary keys round-trip byte-for-byte. No peer dependency.
+
+| Option | Type | Default | Description |
+| ------ | ---- | ------- | ----------- |
+| `basePath` | `string` | `'./.zaileys/auth'` | Directory for `creds.json` and `signal/` key files |
 
 ```typescript
-// connection string — adapter owns the client lifecycle
-new RedisAuthStore({ url: 'redis://localhost:6379', namespace: 'wa' })
+import { Client, FileAuthStore } from 'zaileys'
 
-// pre-built client — you own the lifecycle
-new PostgresMessageStore({ pool: myPgPool })
+const client = new Client({
+  auth: new FileAuthStore({ basePath: './.sessions/bot-1' }),
+})
 ```
+
+<Callout type="warning">
+`FileAuthStore` is an auth store only. There is no `FileMessageStore`; if you do not set `store`,
+message history stays in memory.
+</Callout>
+
+## Memory
+
+Everything lives in process memory and is gone on exit. Ideal for tests, scratch scripts, or
+ephemeral workers. No peer dependency, no constructor options.
+
+```typescript
+import { Client, MemoryAuthStore, MemoryMessageStore } from 'zaileys'
+
+const client = new Client({
+  auth: new MemoryAuthStore(),
+  store: new MemoryMessageStore(),
+})
+```
+
+<Callout type="warning">
+`MemoryAuthStore` does not persist credentials — you re-scan the QR on every restart. Use it only
+when that is acceptable.
+</Callout>
+
+## SQLite
+
+Embedded single-file database via `better-sqlite3` (WAL mode, prepared statements). Both stores
+auto-create their tables on first use. Buffers are stored as `BLOB`s serialized with `BufferJSON`.
+
+**Peer dependency:** `better-sqlite3`
+
+<Tabs items={['npm', 'pnpm', 'yarn', 'bun']}>
+  <Tabs.Tab>
+```bash
+npm i better-sqlite3
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash
+pnpm add better-sqlite3
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash
+yarn add better-sqlite3
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash
+bun add better-sqlite3
+```
+</Tabs.Tab>
+</Tabs>
+
+`SqliteAuthStore` and `SqliteMessageStore` share the same options:
+
+| Option | Type | Default | Description |
+| ------ | ---- | ------- | ----------- |
+| `database` | `string \| Buffer` | — (required) | Path to the `.db` file (or `:memory:`) |
+| `readonly` | `boolean` | `false` | Open the database read-only |
+
+```typescript
+import { Client, SqliteAuthStore, SqliteMessageStore } from 'zaileys'
+
+const client = new Client({
+  auth: new SqliteAuthStore({ database: './auth.db' }),
+  store: new SqliteMessageStore({ database: './history.db' }),
+})
+```
+
+<Callout type="info">
+You can point both stores at the **same** `database` file — their tables (`auth_creds`,
+`auth_signal`, `messages`, `chats`, `contacts`, `presence`) do not collide.
+</Callout>
+
+## Postgres
+
+Backed by `pg`. Tables (`zaileys_auth_creds`, `zaileys_auth_signal`, `zaileys_messages`,
+`zaileys_chats`, `zaileys_contacts`, `zaileys_presence`) are created automatically with `jsonb`
+payloads and the right indexes.
+
+**Peer dependency:** `pg`
+
+<Tabs items={['npm', 'pnpm', 'yarn', 'bun']}>
+  <Tabs.Tab>
+```bash
+npm i pg
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash
+pnpm add pg
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash
+yarn add pg
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash
+bun add pg
+```
+</Tabs.Tab>
+</Tabs>
+
+Both `PostgresAuthStore` and `PostgresMessageStore` take:
+
+| Option | Type | Default | Description |
+| ------ | ---- | ------- | ----------- |
+| `connectionString` | `string` | — | Postgres URL; the adapter creates and owns the pool |
+| `pool` | `Pool` (from `pg`) | — | A pre-built pool you own and close yourself |
+| `max` | `number` | `pg` default | Max pool size (only when `connectionString` is used) |
+
+<Callout type="warning">
+`connectionString` and `pool` are mutually exclusive — pass exactly one. Passing both, or neither,
+throws a `ZaileysStoreError` (`STORE_CONNECTION_FAILED`).
+</Callout>
+
+```typescript
+// Connection string — the adapter owns the pool lifecycle
+import { Client, PostgresAuthStore, PostgresMessageStore } from 'zaileys'
+
+const conn = process.env.DATABASE_URL!
+const client = new Client({
+  auth: new PostgresAuthStore({ connectionString: conn, max: 5 }),
+  store: new PostgresMessageStore({ connectionString: conn }),
+})
+```
+
+```typescript
+// Pre-built pool — you own and close it
+import { Pool } from 'pg'
+import { Client, PostgresAuthStore } from 'zaileys'
+
+const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+const client = new Client({ auth: new PostgresAuthStore({ pool }) })
+// when the store owns the pool it closes it on shutdown; a pool you pass in is yours to end()
+```
+
+## Redis
+
+Backed by the `redis` client. Keys are namespaced (`<namespace>:auth:*`, `<namespace>:msg:*`, …) so
+multiple sessions can share one Redis instance. Messages use sorted sets for newest-first paging;
+presence entries get a short TTL.
+
+**Peer dependency:** `redis`
+
+<Tabs items={['npm', 'pnpm', 'yarn', 'bun']}>
+  <Tabs.Tab>
+```bash
+npm i redis
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash
+pnpm add redis
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash
+yarn add redis
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash
+bun add redis
+```
+</Tabs.Tab>
+</Tabs>
+
+Both `RedisAuthStore` and `RedisMessageStore` take:
+
+| Option | Type | Default | Description |
+| ------ | ---- | ------- | ----------- |
+| `url` | `string` | — | Redis URL; the adapter creates, connects and owns the client |
+| `client` | `RedisClientType` | — | A pre-built, **already-connected** client you own |
+| `namespace` | `string` | `'zaileys'` | Key prefix; isolates sessions sharing one server |
+
+<Callout type="warning">
+`url` and `client` are mutually exclusive — pass exactly one. If you pass a `client`, you must have
+already called `await client.connect()`; an unopened client throws `STORE_CONNECTION_FAILED`.
+</Callout>
+
+```typescript
+// URL — adapter manages the connection
+import { Client, RedisAuthStore, RedisMessageStore } from 'zaileys'
+
+const client = new Client({
+  auth: new RedisAuthStore({ url: 'redis://localhost:6379', namespace: 'wa-auth' }),
+  store: new RedisMessageStore({ url: 'redis://localhost:6379', namespace: 'wa-store' }),
+})
+```
+
+```typescript
+// Shared, pre-connected client
+import { createClient } from 'redis'
+import { Client, RedisAuthStore, RedisMessageStore } from 'zaileys'
+
+const redis = createClient({ url: 'redis://localhost:6379' })
+await redis.connect()
+
+const client = new Client({
+  auth: new RedisAuthStore({ client: redis, namespace: 'wa-auth' }),
+  store: new RedisMessageStore({ client: redis, namespace: 'wa-store' }),
+})
+```
+
+<Callout type="warning">
+`clear()` only removes keys within the store's `namespace`. When auth and store share one Redis
+instance, give them **distinct namespaces** so wiping one (e.g. on logout) does not delete the
+other.
+</Callout>
 
 ## Convex
 
-Convex is reached through **deployed functions**, so it has a one-time setup. Copy the schema +
-functions from [`examples/convex/`](https://github.com/zeative/zaileys/tree/main/examples/convex)
-into your Convex project and deploy, then:
+Convex is a hosted reactive backend reached through **deployed functions**, so unlike the other
+adapters it needs a one-time deploy step. Both stores talk to a single `zaileys_kv` table through
+the functions `zaileys:get|set|del|clear|list`.
+
+**Peer dependency:** `convex`
+
+<Steps>
+
+### Deploy the functions
+
+In your Convex project, merge the `zaileys_kv` table from
+[`examples/convex/schema.ts`](https://github.com/zeative/zaileys/blob/main/examples/convex/schema.ts)
+into your `convex/schema.ts`, copy
+[`examples/convex/zaileys.ts`](https://github.com/zeative/zaileys/blob/main/examples/convex/zaileys.ts)
+into your project as `convex/zaileys.ts`, then deploy:
+
+```bash
+npx convex dev   # or: npx convex deploy
+```
+
+### Install the peer
+
+<Tabs items={['npm', 'pnpm', 'yarn', 'bun']}>
+  <Tabs.Tab>
+```bash
+npm i convex
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash
+pnpm add convex
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash
+yarn add convex
+```
+</Tabs.Tab>
+  <Tabs.Tab>
+```bash
+bun add convex
+```
+</Tabs.Tab>
+</Tabs>
+
+### Wire it into the Client
 
 ```typescript
 import { Client, ConvexAuthStore, ConvexMessageStore } from 'zaileys'
 
+const url = process.env.CONVEX_URL // e.g. https://your-deployment.convex.cloud
+
 const client = new Client({
-  auth: new ConvexAuthStore({ url: process.env.CONVEX_URL, namespace: 'wa-auth' }),
-  store: new ConvexMessageStore({ url: process.env.CONVEX_URL, namespace: 'wa-store' }),
+  auth: new ConvexAuthStore({ url, namespace: 'wa-auth' }),
+  store: new ConvexMessageStore({ url, namespace: 'wa-store' }),
+})
+
+client.on('qr', ({ qrString }) => console.log('Scan QR:', qrString))
+client.on('connect', ({ me }) => console.log('Connected as', me.id, '— session in Convex'))
+```
+
+</Steps>
+
+Both `ConvexAuthStore` and `ConvexMessageStore` take:
+
+| Option | Type | Default | Description |
+| ------ | ---- | ------- | ----------- |
+| `url` | `string` | — | Convex deployment URL; the adapter builds a `ConvexHttpClient` |
+| `client` | `ConvexClientLike` | — | A pre-built Convex client (e.g. `ConvexHttpClient`) you own |
+| `namespace` | `string` | `'zaileys'` | Logical partition inside `zaileys_kv` |
+
+Pass a pre-built client instead of a `url` if you already have one:
+
+```typescript
+import { ConvexHttpClient } from 'convex/browser'
+import { ConvexAuthStore, ConvexMessageStore } from 'zaileys'
+
+const convex = new ConvexHttpClient(process.env.CONVEX_URL!)
+const auth = new ConvexAuthStore({ client: convex, namespace: 'wa-auth' })
+const store = new ConvexMessageStore({ client: convex, namespace: 'wa-store' })
+```
+
+<Callout type="warning">
+Use **distinct `namespace` values for auth vs store** when they share one deployment — `clear()`
+wipes a whole namespace, and auth `clear()` runs on a 401/410 logout. The full deploy walkthrough
+lives in
+[`examples/convex/README.md`](https://github.com/zeative/zaileys/blob/main/examples/convex/README.md)
+and the runnable script in
+[`examples/convex-store.ts`](https://github.com/zeative/zaileys/blob/main/examples/convex-store.ts).
+</Callout>
+
+## Scheduled-job persistence
+
+[Scheduled broadcasts](/automation) (`client.schedule(...)`) store a `ScheduledJobRecord` so pending
+sends can be re-armed after a restart. This relies on the **message store** implementing the
+optional `saveScheduledJob` / `listScheduledJobs` / `deleteScheduledJob` methods.
+
+| Message store | Persists scheduled jobs? |
+| ------------- | ------------------------ |
+| `ConvexMessageStore` | ✅ Yes |
+| `MemoryMessageStore` | ❌ In-memory only |
+| `SqliteMessageStore` | ❌ In-memory only |
+| `PostgresMessageStore` | ❌ In-memory only |
+| `RedisMessageStore` | ❌ In-memory only |
+
+<Callout type="warning">
+Only `ConvexMessageStore` implements the scheduled-job methods today. With every other message
+store, scheduled jobs are held in process memory and are **lost on restart** — the scheduler simply
+falls back to its in-memory map. If you need restart-safe schedules, use the Convex store.
+</Callout>
+
+## Mixing auth and store adapters
+
+Because the two stores are independent you can mix freely — there is no requirement that they share
+a backend.
+
+```typescript
+import { Client, FileAuthStore, RedisMessageStore } from 'zaileys'
+
+// Session on disk, history in Redis
+const client = new Client({
+  auth: new FileAuthStore({ basePath: './.zaileys/auth/main' }),
+  store: new RedisMessageStore({ url: 'redis://localhost:6379', namespace: 'wa' }),
 })
 ```
 
-> When auth and store share one deployment, give them **distinct `namespace`** values — `clear()`
-> wipes a whole namespace (auth `clear()` runs on a 401/410 logout, like the other adapters).
+```typescript
+import { Pool } from 'pg'
+import { createClient } from 'redis'
+import { Client, PostgresAuthStore, RedisMessageStore } from 'zaileys'
 
-## Notes
+const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+const redis = createClient({ url: 'redis://localhost:6379' })
+await redis.connect()
 
-- Buffers round-trip byte-for-byte (`BufferJSON` serialization).
-- Message stores order `listMessages()` newest-first and support `before` paging.
-- All adapters pass the same shared contract test suite.
+// Durable auth in Postgres, fast history in Redis
+const client = new Client({
+  auth: new PostgresAuthStore({ pool }),
+  store: new RedisMessageStore({ client: redis, namespace: 'wa-store' }),
+})
+```
+
+## Tips and gotchas
+
+- **Buffers round-trip safely.** Every adapter serializes with `BufferJSON`, so binary Signal keys
+  and media references survive storage byte-for-byte.
+- **Errors are typed.** Failures throw `ZaileysStoreError` with a `code` such as
+  `STORE_NOT_AVAILABLE` (missing peer), `STORE_CONNECTION_FAILED`, `STORE_READ_FAILED`,
+  `STORE_WRITE_FAILED`, `STORE_CORRUPTED`, or `STORE_CLOSED`. See [Error handling](/error-handling).
+- **Owned vs. provided clients.** When you pass a `url` / `connectionString`, the adapter creates and
+  closes the connection for you. When you pass a `client` / `pool`, the lifecycle is yours.
+- **`listMessages` paging.** It returns newest-first; pass `before` (a message timestamp) plus
+  `limit` to walk backwards through history.
+- **Per-session scoping.** The default `FileAuthStore` path includes `sessionId`, so multiple clients
+  in one process do not clash. With Redis/Convex use distinct `namespace` values to achieve the same.
+
+See also: [Configuration](/configuration) · [Broadcast & Schedule](/automation) ·
+[Installation](/installation).

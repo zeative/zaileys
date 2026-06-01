@@ -1,39 +1,369 @@
+import { Callout, Tabs, Steps } from 'nextra/components'
+
 # Broadcast & Schedule
+
+Zaileys ships a small automation toolkit on top of the regular message builder: send the same
+message to many recipients with built-in rate limiting (`client.broadcast`), queue a message for a
+future moment (`client.scheduleAt`), and drive typing/online indicators (`client.presence`). Every
+one of these reuses the same builder you already know from [Sending Messages](/sending-messages),
+so anything you can send normally you can broadcast or schedule.
 
 ## Broadcast
 
-Send the same message to many recipients with built-in rate limiting. The builder callback runs
-once per recipient.
+`client.broadcast()` sends one message to a list of recipients, pacing the sends through a token
+bucket so you never exceed WhatsApp's tolerances. The builder callback runs **once per recipient**,
+giving you a fresh builder bound to that recipient's JID.
+
+```typescript
+import { Client } from 'zaileys'
+
+const client = new Client()
+
+client.on('connect', async () => {
+  const result = await client.broadcast(
+    ['6281111111111@s.whatsapp.net', '6282222222222@s.whatsapp.net'],
+    (builder) => builder.text('Announcement: maintenance tonight at 22:00.'),
+    { rateLimitPerSec: 5 },
+  )
+
+  console.log(`Sent ${result.sent.length}, failed ${result.failed.length}`)
+})
+```
+
+<Callout type="warning">
+  `broadcast()` requires an active connection — it throws if the socket is not connected. Call it
+  from inside a `connect` event handler (or any time after the client has connected). See
+  [Events](/events) and [Configuration](/configuration#autoconnect).
+</Callout>
+
+### Signature
+
+```typescript
+broadcast(
+  jids: string[],
+  build: (b: MessageBuilder) => MessageBuilder,
+  options?: BroadcastOptions,
+): Promise<BroadcastResult>
+```
+
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `jids` | `string[]` | Recipient JIDs (`628xxx@s.whatsapp.net` for users, `xxx@g.us` for groups). An empty array resolves immediately with empty results. |
+| `build` | `(b) => MessageBuilder` | Builder callback run once per recipient. Must return a builder with content set (e.g. after `.text()`, `.image()`, …). |
+| `options` | `BroadcastOptions` | Optional rate-limit, retry, and progress settings (table below). |
+
+### Options
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `rateLimitPerSec` | `number` | `5` | Max sends per second across the whole broadcast (global token-bucket rate). |
+| `retry` | `RetryPolicy` | _none_ | When set, each recipient's send is retried on failure (see [Retry & error handling](#retry--error-handling)). |
+| `onProgress` | `(done, total, jid, ok) => void` | _none_ | Called after each recipient, success or failure. See callback signature below. |
+
+The `onProgress` callback signature is exactly:
+
+```typescript
+onProgress: (done: number, total: number, jid: string, ok: boolean) => void
+```
+
+- `done` — how many recipients have been processed so far (1-based, increments on success **and** failure).
+- `total` — total number of recipients (`jids.length`).
+- `jid` — the recipient that was just processed.
+- `ok` — `true` if the send succeeded, `false` if it failed.
 
 ```typescript
 const result = await client.broadcast(
-  ['6281111111111@s.whatsapp.net', '6282222222222@s.whatsapp.net'],
-  (b) => b.text('Announcement to everyone'),
-  { rateLimitPerSec: 5 },
+  recipients,
+  (b) => b.text('Promo: 20% off all items this weekend.'),
+  {
+    rateLimitPerSec: 5,
+    onProgress: (done, total, jid, ok) => {
+      console.log(`[${done}/${total}] ${jid} ${ok ? 'sent' : 'failed'}`)
+    },
+  },
 )
 ```
 
-The rate limiter uses a token bucket (global + per-recipient), so you stay under WhatsApp's
-limits without manual `sleep()` calls. Per-recipient failures are isolated — one bad JID does not
-abort the run, and the original error is preserved per recipient.
+### Result shape
+
+`broadcast()` resolves to a `BroadcastResult` once every recipient has been attempted. It never
+rejects on per-recipient failures — failed sends are collected, not thrown.
+
+```typescript
+type BroadcastResult = {
+  sent: string[]                              // JIDs that succeeded
+  failed: { jid: string; error: Error }[]     // JIDs that failed, with the original error
+}
+```
+
+```typescript
+const { sent, failed } = await client.broadcast(recipients, (b) => b.text('Hello!'))
+
+console.log(`${sent.length} delivered`)
+for (const f of failed) {
+  console.error(`Failed ${f.jid}: ${f.error.message}`)
+}
+```
+
+### Any builder content works
+
+The builder passed to `broadcast()` is the full [message builder](/sending-messages) — text is
+just the simplest case. You can send media, captions, mentions, buttons, or anything else the
+builder supports.
+
+```typescript
+await client.broadcast(
+  recipients,
+  (b) =>
+    b.image('https://example.com/banner.jpg', {
+      caption: 'New collection is live!',
+    }),
+  { rateLimitPerSec: 3 },
+)
+```
+
+<Callout type="info">
+  Because `build` runs per recipient, you can personalise each message. Capture the recipient from
+  the loop by reading it inside the callback if you build the JID list with a lookup table, or send
+  separate `broadcast()` calls for distinct content.
+</Callout>
+
+## Rate limiting (token bucket)
+
+Broadcasts are paced by an internal **token-bucket** rate limiter. Conceptually:
+
+- The bucket starts full with `rateLimitPerSec` tokens (this is also the burst capacity).
+- It refills continuously at `rateLimitPerSec` tokens per second.
+- Each recipient consumes one token before its send. If no token is available, the broadcast
+  `await`s just long enough for one to refill, then proceeds.
+
+This means an initial burst can go out immediately (up to the bucket capacity), after which sends
+settle into a steady `rateLimitPerSec` cadence — no manual `sleep()` calls required.
+
+```typescript
+// At most ~2 messages per second, smoothing out a 500-recipient blast.
+await client.broadcast(bigList, (b) => b.text('Newsletter #42'), {
+  rateLimitPerSec: 2,
+})
+```
+
+<Callout type="warning">
+  WhatsApp aggressively flags accounts that blast unsolicited messages. Keep `rateLimitPerSec`
+  conservative, only message users who expect to hear from you, and prefer small, relevant lists.
+</Callout>
+
+<details>
+<summary>Advanced: the underlying `RateLimiter` (exported)</summary>
+
+The rate limiter is exported from `zaileys` and supports a richer set of knobs than
+`broadcast()` surfaces. `broadcast()` only wires up `perSec`, but the limiter itself accepts:
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `perSec` | `number` | _required_ | Global refill rate (tokens/sec). Must be `> 0`. |
+| `perJidPerSec` | `number` | _none_ | Optional **per-recipient** rate cap (tokens/sec) layered on top of the global one. Must be `> 0`. |
+| `burst` | `number` | `perSec` | Global bucket capacity (max instantaneous burst). Must be `> 0`. |
+
+Invalid values throw a `ZaileysAutomationError` with code `RATE_LIMIT_INVALID`.
+
+```typescript
+import { RateLimiter } from 'zaileys'
+
+const limiter = new RateLimiter({ perSec: 10, perJidPerSec: 1, burst: 20 })
+await limiter.acquire('6281111111111@s.whatsapp.net') // waits if needed
+```
+
+</details>
+
+## Retry & error handling
+
+By default, broadcast does **not** retry — a failed recipient simply lands in `result.failed` with
+its original `Error`. The run never aborts because one JID is bad; every recipient is attempted
+independently.
+
+To retry transient failures, pass a `retry` policy. When set, each recipient's send is wrapped in a
+serial queue (concurrency `1`) that re-runs the send up to `maxRetries` times, sleeping
+`backoffMs(attempt)` milliseconds between attempts. A recipient only counts as failed after all
+retries are exhausted.
+
+```typescript
+type RetryPolicy = {
+  maxRetries: number
+  backoffMs: (attempt: number) => number   // attempt is 1-based
+}
+```
+
+```typescript
+await client.broadcast(
+  recipients,
+  (b) => b.text('Important notice'),
+  {
+    rateLimitPerSec: 5,
+    retry: {
+      maxRetries: 3,
+      backoffMs: (attempt) => attempt * 1000, // 1s, 2s, 3s
+    },
+  },
+)
+```
+
+<Callout type="info">
+  The rate limiter still applies: a token is acquired once per recipient before its first attempt,
+  so retries do not bypass your `rateLimitPerSec` budget. See [Error Handling](/error-handling) for
+  general error-handling patterns.
+</Callout>
 
 ## Schedule
 
-Queue a send for a future time. When the configured [message store](/storage) implements the
-scheduled-job methods, jobs **survive restarts**.
+`client.scheduleAt()` queues a message to be sent at a future `Date`. Critically, the builder
+callback is **evaluated once, at schedule time**, into a serializable snapshot
+(`{ recipient, content, options? }`) — it is never stored as a live closure. That snapshot is what
+gets persisted and replayed, which is exactly what makes restart-recovery possible.
 
 ```typescript
-const job = await client.scheduleAt(
-  new Date(Date.now() + 60_000),
-  (b) => b.text('This sends one minute from now'),
-)
+import { Client } from 'zaileys'
+
+const client = new Client()
+
+client.on('connect', async () => {
+  const job = await client.scheduleAt(
+    new Date(Date.now() + 60_000), // one minute from now
+    (b) => b.to('6281111111111@s.whatsapp.net').text('This sends in one minute.'),
+  )
+
+  console.log('Scheduled job id:', job.id)
+})
 ```
 
-The builder callback is evaluated **once at schedule time** into a serializable snapshot
-(`{ recipient, content }`) — it is never stored as a live closure, which is what makes
-restart-recovery possible.
+### Signature
 
+```typescript
+scheduleAt(
+  date: Date,
+  build: (b: MessageBuilder) => MessageBuilder,
+): Promise<ScheduleHandle>
+```
 
-> Restart-survival requires a store with `saveScheduledJob` / `listScheduledJobs` /
-> `deleteScheduledJob` (SQLite, Postgres, Redis, and Convex adapters implement these). With the
-> in-memory default, scheduled jobs are lost on restart.
+| Parameter | Type | Description |
+| --- | --- | --- |
+| `date` | `Date` | When to fire. Must be a valid `Date` — an invalid date throws `ZaileysAutomationError` (`SCHEDULE_INVALID`). A past date fires as soon as possible. |
+| `build` | `(b) => MessageBuilder` | Builder callback evaluated immediately to capture the message. Must select a recipient and set content; producing no content throws `SCHEDULE_INVALID`. |
+
+The returned `ScheduleHandle`:
+
+```typescript
+type ScheduleHandle = {
+  id: string        // unique job id (UUID)
+  cancel(): void    // cancel before it fires; removes it from the store too
+}
+```
+
+```typescript
+const job = await client.scheduleAt(date, (b) => b.to(jid).text('Reminder'))
+
+// Changed your mind before it fires:
+job.cancel()
+```
+
+<Callout type="warning">
+  Because the message is snapshotted at schedule time, the recipient must be resolvable from the
+  builder right away. Make sure your callback sets a recipient (e.g. via `b.to(jid)`) and content
+  before returning. A callback that throws or sets no content rejects with `SCHEDULE_INVALID`.
+</Callout>
+
+### Persistence & restart recovery
+
+Each scheduled job is timed in-process with a timer and, when supported, persisted to the
+[message store](/storage). On startup the client automatically calls the scheduler's
+`loadPending()` to re-arm any jobs that were saved but had not yet fired — so a job scheduled for
+3am survives a restart at midnight.
+
+Restart-survival depends on the store implementing the optional scheduled-job methods:
+
+| Method | Purpose |
+| --- | --- |
+| `saveScheduledJob(job)` | Persist a job when it is scheduled. |
+| `listScheduledJobs()` | Load not-yet-fired jobs on startup (used by `loadPending()`). |
+| `deleteScheduledJob(id)` | Remove a job after it fires or is cancelled. |
+
+<Callout type="warning">
+  These methods are **optional** on the store interface. Among the bundled adapters, only the
+  **Convex** adapter implements scheduled-job persistence today. With any store that does not
+  implement them — including the in-memory default, SQLite, Postgres, and Redis adapters — jobs are
+  kept only in memory and are **lost on restart**. See [Storage Adapters](/storage) for adapter
+  details.
+</Callout>
+
+When a job fires, the snapshot is dispatched through the live socket. If the send fails at fire
+time, the error is logged via the client logger (it does not crash the process), and the job is
+removed from the store.
+
+## Presence automation
+
+`client.presence` exposes typing, recording, and online/offline indicators. It is a lazily-created
+`PresenceModule` and requires an active connection (it throws `ZaileysAutomationError` with code
+`NOT_CONNECTED` otherwise).
+
+```typescript
+import { Client } from 'zaileys'
+
+const client = new Client()
+const jid = '6281111111111@s.whatsapp.net'
+
+client.on('connect', async () => {
+  await client.presence.online() // mark account as online
+
+  await client.presence.typing(jid)   // show "typing…" in that chat
+  await client.send(jid).text('Hi! Thanks for waiting.')
+})
+```
+
+### Methods
+
+| Method | Signature | Description |
+| --- | --- | --- |
+| `online()` | `() => Promise<void>` | Marks the account as available (`available`). |
+| `offline()` | `() => Promise<void>` | Marks the account as unavailable (`unavailable`). |
+| `typing(jid, ms?)` | `(jid: string, ms?: number) => Promise<void>` | Shows a "typing…" indicator in `jid`'s chat. If `ms` is given, it auto-clears (sends `paused`) after that many milliseconds. |
+| `recording(jid, ms?)` | `(jid: string, ms?: number) => Promise<void>` | Shows a "recording audio…" indicator in `jid`'s chat, with the same optional `ms` auto-clear. |
+
+```typescript
+// Simulate a natural typing delay before replying.
+await client.presence.typing(jid, 2000) // auto-clears after 2s
+setTimeout(() => client.send(jid).text('Done thinking!'), 2000)
+```
+
+<Callout type="info">
+  The auto-clear timer is `unref`'d, so a pending presence clear will not keep your process alive on
+  its own. If a presence update fails, it surfaces as `ZaileysAutomationError` with code
+  `PRESENCE_FAILED`.
+</Callout>
+
+## Errors
+
+Automation-specific failures throw `ZaileysAutomationError`, which carries a `code` and an optional
+`cause`. You can import it from `zaileys` to handle these precisely.
+
+```typescript
+import { Client, ZaileysAutomationError } from 'zaileys'
+
+try {
+  await client.presence.online()
+} catch (err) {
+  if (err instanceof ZaileysAutomationError && err.code === 'NOT_CONNECTED') {
+    console.error('Connect the client before driving presence.')
+  }
+}
+```
+
+| Code | Raised when |
+| --- | --- |
+| `NOT_CONNECTED` | A presence call is made without an active socket. |
+| `RATE_LIMIT_INVALID` | A `RateLimiter` is constructed with `perSec`/`perJidPerSec`/`burst` ≤ 0. |
+| `SCHEDULE_INVALID` | `scheduleAt` gets an invalid `Date`, or the builder throws / produces no content. |
+| `PRESENCE_FAILED` | A presence update fails at the socket level. |
+
+<Callout type="default">
+  See also [Sending Messages](/sending-messages) for the builder API used by both broadcast and
+  schedule, and [Storage Adapters](/storage) for persisting scheduled jobs across restarts.
+</Callout>

@@ -1,7 +1,7 @@
 import type { WAMessage, WAMessageKey } from 'baileys'
 import { describe, expect, it, vi } from 'vitest'
 import { MessageBuilder, type BuilderSocketLike } from '../../src/builder/builder.js'
-import { buildButtonsContent, RELAY_CONTENT_KEY } from '../../src/builder/content/buttons.js'
+import { buildButtonsContent, RELAY_CONTENT_KEY, RELAY_MEDIA_KEY } from '../../src/builder/content/buttons.js'
 import { ZaileysBuilderError } from '../../src/builder/errors.js'
 import { decodeButtonClick } from '../../src/events/decoders/interactive.js'
 import type { ButtonDef } from '../../src/builder/types.js'
@@ -207,6 +207,18 @@ describe('buildButtonsContent — header', () => {
 
   it('omits the header when no title/subtitle given', () => {
     expect((interactiveOf(buildButtonsContent([{ id: 'b1', text: 'Go' }])) as { header?: unknown }).header).toBeUndefined()
+  })
+
+  it('flags a media header and stores an image media descriptor', () => {
+    const content = buildButtonsContent([{ id: 'b1', text: 'Go' }], { image: Buffer.from([1, 2, 3]), title: 'Pic' }) as unknown as Record<string, unknown>
+    expect(interactiveOf(content).header?.hasMediaAttachment).toBe(true)
+    expect((content[RELAY_MEDIA_KEY] as { kind: string }).kind).toBe('image')
+  })
+
+  it('stores a video media descriptor and builds a media header without a title', () => {
+    const content = buildButtonsContent([{ id: 'b1', text: 'Go' }], { video: Buffer.from([4, 5]) }) as unknown as Record<string, unknown>
+    expect(interactiveOf(content).header?.hasMediaAttachment).toBe(true)
+    expect((content[RELAY_MEDIA_KEY] as { kind: string }).kind).toBe('video')
   })
 })
 

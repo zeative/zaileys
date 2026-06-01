@@ -11,8 +11,18 @@ const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms
 
 client.on('qr', ({ qrString }) => console.log('Scan QR:', qrString))
 
+const fetchBuf = async (url: string): Promise<Buffer | undefined> => {
+  try {
+    const res = await fetch(url)
+    return res.ok ? Buffer.from(await res.arrayBuffer()) : undefined
+  } catch {
+    return undefined
+  }
+}
+
 client.on('connect', async ({ me }) => {
   console.log('Connected as', me.id, '\n=== sending button variants ->', TO, '===\n')
+  const headerImage = await fetchBuf('https://placehold.co/512x512/png')
 
   const send = async (label: string, fn: () => unknown): Promise<void> => {
     try {
@@ -82,6 +92,17 @@ client.on('connect', async ({ me }) => {
       { title: 'Mixed buttons', text: 'reply + url + copy in one message' },
     ),
   )
+
+  if (headerImage) {
+    await send('IMAGE header + reply buttons', () =>
+      client.send(TO).buttons([{ id: 'ok', text: 'OK' }, { id: 'no', text: 'No' }], {
+        image: headerImage,
+        title: '🖼️ Image header',
+        text: 'interactive message with an image header',
+        footer: 'zaileys',
+      }),
+    )
+  }
 
   console.log('\n[done] check your phone. Tap any button to test the click round-trip.\n')
 })

@@ -1,5 +1,6 @@
 import {
   generateWAMessageFromContent,
+  prepareWAMessageMedia,
   type AnyMessageContent,
   type MiscMessageGenerationOptions,
   type proto,
@@ -8,7 +9,8 @@ import {
 } from 'baileys'
 import { sendAlbum } from './album.js'
 import { buildAudioContent } from './content/audio.js'
-import { buildButtonsContent, RELAY_CONTENT_KEY } from './content/buttons.js'
+import { buildButtonsContent, RELAY_CONTENT_KEY, RELAY_MEDIA_KEY, type HeaderMedia } from './content/buttons.js'
+import { loadMedia } from './media-loader.js'
 import { buildContactContent } from './content/contact.js'
 import { buildDocumentContent } from './content/document.js'
 import { buildImageContent } from './content/image.js'
@@ -55,6 +57,7 @@ export interface BuilderSocketLike {
     options: { messageId: string; additionalNodes?: unknown[] },
   ): Promise<string>
   user?: { id?: string | null } | null
+  waUploadToServer?: unknown
 }
 
 /**
@@ -151,7 +154,7 @@ export class MessageBuilder<State extends BuilderState> {
   buttons(
     this: MessageBuilder<'init'>,
     buttons: Array<ButtonDef | InteractiveButton>,
-    opts?: { text?: string; footer?: string; title?: string; subtitle?: string },
+    opts?: { text?: string; footer?: string; title?: string; subtitle?: string; image?: MediaSource; video?: MediaSource },
   ): MessageBuilder<'content-set'> {
     this.internal.content = buildButtonsContent(buttons, opts)
     return this as unknown as MessageBuilder<'content-set'>
@@ -278,7 +281,10 @@ export class MessageBuilder<State extends BuilderState> {
       }
       const relayInner = (this.internal.content as Record<string, unknown>)[RELAY_CONTENT_KEY]
       if (relayInner !== undefined) {
-        return this.sendRelay(relayInner as proto.IMessage)
+        const headerMedia = (this.internal.content as Record<string, unknown>)[RELAY_MEDIA_KEY] as
+          | HeaderMedia
+          | undefined
+        return this.sendRelay(relayInner as proto.IMessage, headerMedia)
       }
       const content = this.internal.content as AnyMessageContent & {
         mentions?: string[]
@@ -311,10 +317,27 @@ export class MessageBuilder<State extends BuilderState> {
     return send().then(onResolved, onRejected)
   }
 
-  private async sendRelay(inner: proto.IMessage): Promise<WAMessageKey> {
+  private async sendRelay(inner: proto.IMessage, headerMedia?: HeaderMedia): Promise<WAMessageKey> {
     const relay = this.socket.relayMessage
     if (typeof relay !== 'function') {
       throw new ZaileysBuilderError('SEND_FAILED', 'socket does not support relayMessage (interactive content)')
+    }
+    if (headerMedia !== undefined && this.socket.waUploadToServer !== undefined) {
+      try {
+        const { buffer } = await loadMedia(headerMedia.src)
+        const prepared = (await prepareWAMessageMedia(
+          { [headerMedia.kind]: buffer } as never,
+          { upload: this.socket.waUploadToServer } as never,
+        )) as { imageMessage?: proto.Message.IImageMessage; videoMessage?: proto.Message.IVideoMessage }
+        const header = inner.interactiveMessage?.header
+        if (header) {
+          header.hasMediaAttachment = true
+          if (headerMedia.kind === 'image' && prepared.imageMessage) header.imageMessage = prepared.imageMessage
+          if (headerMedia.kind === 'video' && prepared.videoMessage) header.videoMessage = prepared.videoMessage
+        }
+      } catch (err) {
+        throw new ZaileysBuilderError('SEND_FAILED', 'header media upload failed', { cause: err })
+      }
     }
     const userJid = this.socket.user?.id ?? ''
     const genOptions = { userJid } as Parameters<typeof generateWAMessageFromContent>[2]

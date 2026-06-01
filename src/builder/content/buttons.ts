@@ -1,6 +1,6 @@
 import { proto, type AnyMessageContent } from 'baileys'
 import { ZaileysBuilderError } from '../errors.js'
-import type { ButtonDef, InteractiveButton } from '../types.js'
+import type { ButtonDef, InteractiveButton, MediaSource } from '../types.js'
 
 const MAX_BUTTONS = 10
 
@@ -12,15 +12,23 @@ const MAX_BUTTONS = 10
  */
 export const RELAY_CONTENT_KEY = '__zaileysRelayMessage'
 
-/** Content shape carrying a pre-built proto message for the relay send path. */
-export type RelayContent = { [RELAY_CONTENT_KEY]: proto.IMessage }
+/** Marker key carrying header media to upload + inject into the interactive header at send time. */
+export const RELAY_MEDIA_KEY = '__zaileysHeaderMedia'
 
-/** Optional decoration for {@link buildButtonsContent}: body text, footer, and a text header. */
+/** Header media descriptor resolved (uploaded) by the relay send path. */
+export type HeaderMedia = { kind: 'image' | 'video'; src: MediaSource }
+
+/** Content shape carrying a pre-built proto message (+ optional header media) for the relay send path. */
+export type RelayContent = { [RELAY_CONTENT_KEY]: proto.IMessage; [RELAY_MEDIA_KEY]?: HeaderMedia }
+
+/** Optional decoration for {@link buildButtonsContent}: body text, footer, and a text/media header. */
 export type ButtonsContentOptions = {
   text?: string
   footer?: string
   title?: string
   subtitle?: string
+  image?: MediaSource
+  video?: MediaSource
 }
 
 type NativeButton = { name: string; buttonParamsJson: string }
@@ -107,14 +115,23 @@ export const buildButtonsContent = (
   if (opts?.footer && opts.footer.length > 0) {
     interactiveMessage.footer = { text: opts.footer }
   }
-  if ((opts?.title && opts.title.length > 0) || (opts?.subtitle && opts.subtitle.length > 0)) {
+  const headerMedia: HeaderMedia | undefined = opts?.image
+    ? { kind: 'image', src: opts.image }
+    : opts?.video
+      ? { kind: 'video', src: opts.video }
+      : undefined
+  const hasTextHeader = (opts?.title && opts.title.length > 0) || (opts?.subtitle && opts.subtitle.length > 0)
+  if (hasTextHeader || headerMedia) {
     interactiveMessage.header = {
       title: opts?.title ?? '',
       subtitle: opts?.subtitle ?? '',
-      hasMediaAttachment: false,
+      hasMediaAttachment: headerMedia !== undefined,
     }
   }
 
-  const relay: RelayContent = { [RELAY_CONTENT_KEY]: { interactiveMessage } }
+  const relay: RelayContent =
+    headerMedia !== undefined
+      ? { [RELAY_CONTENT_KEY]: { interactiveMessage }, [RELAY_MEDIA_KEY]: headerMedia }
+      : { [RELAY_CONTENT_KEY]: { interactiveMessage } }
   return relay as unknown as AnyMessageContent
 }

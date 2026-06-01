@@ -48,8 +48,21 @@ client.on('connect', async ({ me }) => {
     ['Table', '🆕 New', 'v4'],
   ]
 
-  try {
-    const key = await client.send(TO).aiRich(
+  const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
+  const IMG = 'https://placehold.co/512x512/png'
+
+  const send = async (label: string, fn: () => unknown): Promise<void> => {
+    try {
+      const key = (await (fn() as Promise<{ id?: string }>)) ?? {}
+      console.log('OK   ', label, '|', key.id ?? 'sent')
+    } catch (e) {
+      console.log('FAIL ', label, '->', e instanceof Error ? e.message : String(e))
+    }
+    await sleep(1800)
+  }
+
+  await send('rich (text + code + table)', () =>
+    client.send(TO).aiRich(
       [
         { type: 'text', text: intro },
         { type: 'code', language: 'javascript', content: code },
@@ -62,11 +75,38 @@ client.on('connect', async ({ me }) => {
           ['https://avatars.githubusercontent.com/u/9919?s=64', 'https://github.com/zeative/zaileys', 'Zaileys on GitHub'],
         ],
       },
-    )
-    console.log('OK aiRich sent:', key.id)
-  } catch (e) {
-    console.log('FAIL aiRich:', e instanceof Error ? e.message : String(e))
-  }
+    ),
+  )
 
-  console.log('\n[done] check your phone — rich card: title + hyperlink/citation + JS code block + feature table.\n')
+  await send('media + suggest (image + video + tip + chips)', () =>
+    client.send(TO).aiRich(
+      [
+        { type: 'text', text: '*Lihat perincian* — image & video card di dalam satu rich response.' },
+        { type: 'image', url: IMG },
+        { type: 'video', url: 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4', duration: 10 },
+        { type: 'tip', text: 'Gunakan testrich <mode> untuk tes fitur spesifik' },
+        { type: 'suggest', prompts: ['testrich buttons', 'testrich carousel', 'testrich product', 'testrich post'] },
+      ],
+      { title: '🐙 Shny Bot', footer: '#Shn' },
+    ),
+  )
+
+  await send('product carousel (2 cards)', () =>
+    client.send(TO).aiRich(
+      [
+        { type: 'text', text: 'Test Product' },
+        {
+          type: 'product',
+          products: [
+            { title: 'Pizza Mozzarella', price: '$7', salePrice: '$6', brand: 'FoodBot', image: IMG, url: 'https://github.com/zeative/zaileys' },
+            { title: 'Ramen Kaldu', price: '$6', salePrice: '$5', brand: 'FoodBot', image: IMG, url: 'https://github.com/zeative/zaileys' },
+          ],
+        },
+        { type: 'suggest', prompts: ['Lihat semua produk', 'Pesan sekarang'] },
+      ],
+      { title: '🛍️ Product Carousel' },
+    ),
+  )
+
+  console.log('\n[done] check your phone — rich text/code/table, media+suggest card, and a product carousel.\n')
 })

@@ -17,6 +17,59 @@ export type AIRichPart =
   | { type: 'text'; text: string }
   | { type: 'code'; language?: string; content: string }
   | { type: 'table'; rows: string[][] }
+  | { type: 'image'; url: string | string[] }
+  | { type: 'video'; url: string | string[]; duration?: number }
+  | { type: 'product'; products: AIRichProduct | AIRichProduct[] }
+  | { type: 'reels'; reels: AIRichReel | AIRichReel[] }
+  | { type: 'post'; posts: AIRichPost | AIRichPost[] }
+  | { type: 'tip'; text: string }
+  | { type: 'suggest'; prompts: string | string[] }
+
+/** A product card inside an AIRich `product` carousel. `price` shows bold, `salePrice` shows struck-through. */
+export type AIRichProduct = {
+  title: string
+  price?: string
+  salePrice?: string
+  brand?: string
+  url?: string
+  image?: string
+  icon?: string
+}
+
+/** An Instagram-style reel card inside an AIRich `reels` row. */
+export type AIRichReel = {
+  username?: string
+  title?: string
+  profileUrl?: string
+  thumbnail?: string
+  url?: string
+  likes?: number
+  shares?: number
+  views?: number
+  source?: string
+  verified?: boolean
+}
+
+/** A social post card inside an AIRich `post` row. */
+export type AIRichPost = {
+  title?: string
+  subtitle?: string
+  username?: string
+  profileUrl?: string
+  verified?: boolean
+  thumbnail?: string
+  caption?: string
+  likes?: number
+  comments?: number
+  shares?: number
+  url?: string
+  deeplink?: string
+  source?: string
+  footer?: string
+  icon?: string
+  orientation?: string
+  postType?: string
+}
 
 /** Decoration for an AIRich message: header disclaimer, footer note, and citation sources. */
 export type AIRichOptions = {
@@ -185,16 +238,24 @@ const tokenizeCode = (code: string, lang: string): CodeToken[] => {
   return tokens
 }
 
-const newLayout = (data: Record<string, unknown>): Record<string, unknown> => ({
-  view_model: { primitive: data, __typename: 'GenAISingleLayoutViewModel' },
+type Primitive = Record<string, unknown>
+
+const newLayout = (name: string, data: Primitive | Primitive[]): Record<string, unknown> => ({
+  view_model: {
+    [Array.isArray(data) ? 'primitives' : 'primitive']: data,
+    __typename: `GenAI${name}LayoutViewModel`,
+  },
 })
+
+const SOURCE_URL = 'https://github.com/zeative/zaileys'
 
 /**
  * Build an EXPERIMENTAL AIRich message (Meta AI rich-response format). Composes
- * text (with `[label](url)` hyperlinks and `[](url)` citations), code blocks, and
- * tables into a `botForwardedMessage` relayed as an AI response.
+ * text (with `[label](url)` hyperlinks and `[](url)` citations), code blocks,
+ * tables, images, videos, product carousels, reels, posts, tips, and suggestion
+ * pills into a `botForwardedMessage` relayed as an AI response.
  *
- * @throws ZaileysBuilderError `INVALID_OPTIONS` on empty parts or malformed table.
+ * @throws ZaileysBuilderError `INVALID_OPTIONS` on empty parts, malformed table, or an empty media/product/suggest list.
  */
 export const buildAIRichContent = (parts: AIRichPart[], opts?: AIRichOptions): AnyMessageContent => {
   if (!Array.isArray(parts) || parts.length === 0) {
@@ -209,7 +270,7 @@ export const buildAIRichContent = (parts: AIRichPart[], opts?: AIRichOptions): A
       const entities = toInlineEntities(extracted)
       submessages.push({ messageType: 2, messageText: extracted.text })
       sections.push(
-        newLayout({
+        newLayout('Single', {
           text: extracted.text,
           ...(entities.length > 0 ? { inline_entities: entities } : {}),
           __typename: 'GenAIMarkdownTextUXPrimitive',
@@ -223,24 +284,155 @@ export const buildAIRichContent = (parts: AIRichPart[], opts?: AIRichOptions): A
         codeMetadata: { codeLanguage: language, codeBlocks: codeTokens },
       })
       sections.push(
-        newLayout({
+        newLayout('Single', {
           language,
           code_blocks: codeTokens.map((t) => ({ content: t.codeContent, type: TYPE_MAP[t.highlightType] })),
           __typename: 'GenAICodeUXPrimitive',
         }),
       )
-    } else {
+    } else if (part.type === 'table') {
       const rows = toTableRows(part.rows)
       submessages.push({
         messageType: 4,
         tableMetadata: { title: '', rows: rows.map((r) => ({ items: r.cells, ...(r.is_header ? { isHeading: true } : {}) })) },
       })
-      sections.push(newLayout({ rows, __typename: 'GenATableUXPrimitive' }))
+      sections.push(newLayout('Single', { rows, __typename: 'GenATableUXPrimitive' }))
+    } else if (part.type === 'image') {
+      const urls = Array.isArray(part.url) ? part.url : [part.url]
+      if (urls.length === 0) throw new ZaileysBuilderError('INVALID_OPTIONS', 'image requires at least one url')
+      submessages.push({
+        messageType: 1,
+        gridImageMetadata: {
+          gridImageUrl: { imagePreviewUrl: urls[0] },
+          imageUrls: urls.map((url) => ({ imagePreviewUrl: url, imageHighResUrl: url, sourceUrl: SOURCE_URL })),
+        },
+      })
+      for (const url of urls) {
+        sections.push(
+          newLayout('Single', {
+            media: { url, mime_type: 'image/png' },
+            imagine_type: 'IMAGE',
+            status: { status: 'READY' },
+            __typename: 'GenAIImaginePrimitive',
+          }),
+        )
+      }
+    } else if (part.type === 'video') {
+      const urls = Array.isArray(part.url) ? part.url : [part.url]
+      if (urls.length === 0) throw new ZaileysBuilderError('INVALID_OPTIONS', 'video requires at least one url')
+      submessages.push({ messageType: 2, messageText: '[ CANNOT_LOAD_VIDEO - zaileys ]' })
+      for (const url of urls) {
+        sections.push(
+          newLayout('Single', {
+            media: { url, mime_type: 'video/mp4', duration: part.duration ?? 0 },
+            imagine_type: 'ANIMATE',
+            status: { status: 'READY' },
+            __typename: 'GenAIImaginePrimitive',
+          }),
+        )
+      }
+    } else if (part.type === 'product') {
+      const isList = Array.isArray(part.products)
+      const items = isList ? (part.products as AIRichProduct[]) : [part.products as AIRichProduct]
+      if (items.length === 0) throw new ZaileysBuilderError('INVALID_OPTIONS', 'product requires at least one item')
+      submessages.push({ messageType: 2, messageText: '[ CANNOT_LOAD_PRODUCT - zaileys ]' })
+      const primitives = items.map((p) => ({
+        title: p.title,
+        brand: p.brand ?? '',
+        price: p.price ?? '',
+        sale_price: p.salePrice ?? '',
+        product_url: p.url ?? '',
+        image: { url: p.image ?? '' },
+        additional_images: [{ url: p.icon ?? '' }],
+        __typename: 'GenAIProductItemCardPrimitive',
+      }))
+      sections.push(isList ? newLayout('HScroll', primitives) : newLayout('Single', primitives[0]!))
+    } else if (part.type === 'reels') {
+      const items = Array.isArray(part.reels) ? part.reels : [part.reels]
+      if (items.length === 0) throw new ZaileysBuilderError('INVALID_OPTIONS', 'reels requires at least one item')
+      submessages.push({
+        messageType: 9,
+        contentItemsMetadata: {
+          contentType: 1,
+          itemsMetadata: items.map((r) => ({
+            reelItem: {
+              title: r.username ?? '',
+              profileIconUrl: r.profileUrl ?? '',
+              thumbnailUrl: r.thumbnail ?? '',
+              videoUrl: r.url ?? '',
+            },
+          })),
+        },
+      })
+      sections.push(
+        newLayout(
+          'HScroll',
+          items.map((r) => ({
+            reels_url: r.url ?? '',
+            thumbnail_url: r.thumbnail ?? '',
+            creator: r.username ?? r.title ?? '',
+            avatar_url: r.profileUrl ?? '',
+            reels_title: r.title ?? '',
+            likes_count: r.likes ?? 0,
+            shares_count: r.shares ?? 0,
+            view_count: r.views ?? 0,
+            reel_source: r.source ?? 'IG',
+            is_verified: !!r.verified,
+            __typename: 'GenAIReelPrimitive',
+          })),
+        ),
+      )
+    } else if (part.type === 'post') {
+      const items = Array.isArray(part.posts) ? part.posts : [part.posts]
+      if (items.length === 0) throw new ZaileysBuilderError('INVALID_OPTIONS', 'post requires at least one item')
+      submessages.push({ messageType: 2, messageText: '[ CANNOT_LOAD_POST - zaileys ]' })
+      sections.push(
+        newLayout(
+          'HScroll',
+          items.map((p) => ({
+            title: p.title ?? '',
+            subtitle: p.subtitle ?? '',
+            username: p.username ?? '',
+            profile_picture_url: p.profileUrl ?? '',
+            is_verified: !!p.verified,
+            thumbnail_url: p.thumbnail ?? '',
+            post_caption: p.caption ?? '',
+            likes_count: p.likes ?? 0,
+            comments_count: p.comments ?? 0,
+            shares_count: p.shares ?? 0,
+            post_url: p.url ?? '',
+            post_deeplink: p.deeplink ?? '',
+            source_app: p.source ?? 'INSTAGRAM',
+            footer_label: p.footer ?? '',
+            footer_icon: p.icon ?? '',
+            is_carousel: items.length > 1,
+            orientation: p.orientation ?? 'LANDSCAPE',
+            post_type: p.postType ?? 'VIDEO',
+            __typename: 'GenAIPostPrimitive',
+          })),
+        ),
+      )
+    } else if (part.type === 'tip') {
+      submessages.push({ messageType: 2, messageText: part.text })
+      sections.push(newLayout('Single', { text: part.text, __typename: 'GenAIMetadataTextPrimitive' }))
+    } else {
+      const prompts = Array.isArray(part.prompts) ? part.prompts : [part.prompts]
+      if (prompts.length === 0) throw new ZaileysBuilderError('INVALID_OPTIONS', 'suggest requires at least one prompt')
+      sections.push(
+        newLayout(
+          'ActionRow',
+          prompts.map((text) => ({
+            prompt_text: text,
+            prompt_type: 'SUGGESTED_PROMPT',
+            __typename: 'GenAIFollowUpSuggestionPillPrimitive',
+          })),
+        ),
+      )
     }
   }
 
   if (opts?.footer && opts.footer.length > 0) {
-    sections.push(newLayout({ text: opts.footer, __typename: 'GenAIMetadataTextPrimitive' }))
+    sections.push(newLayout('Single', { text: opts.footer, __typename: 'GenAIMetadataTextPrimitive' }))
   }
 
   const richResponseSources = (opts?.sources ?? []).map(([profileUrl, url, text]) => ({

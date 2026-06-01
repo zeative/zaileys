@@ -7,7 +7,7 @@ import { ZaileysBuilderError } from '../../src/builder/errors.js'
 
 const RECIPIENT = '1@s.whatsapp.net'
 
-type Section = { view_model: { primitive: Record<string, unknown>; __typename: string } }
+type Section = { view_model: { primitive?: Record<string, unknown>; primitives?: Array<Record<string, unknown>>; __typename: string } }
 type Inner = {
   messageContextInfo: { botMetadata: { messageDisclaimerText: string } }
   botForwardedMessage: { message: { richResponseMessage: { messageType: number; submessages: unknown[]; unifiedResponse: { data: string } } } }
@@ -19,7 +19,8 @@ const decodeSections = (content: unknown): { response_id: string; sections: Sect
   return JSON.parse(Buffer.from(data, 'base64').toString('utf8'))
 }
 const primitivesOf = (content: unknown): Array<Record<string, unknown>> =>
-  decodeSections(content).sections.map((s) => s.view_model.primitive)
+  decodeSections(content).sections.map((s) => s.view_model.primitive!)
+const layoutsOf = (content: unknown): Section['view_model'][] => decodeSections(content).sections.map((s) => s.view_model)
 
 describe('buildAIRichContent', () => {
   it('wraps the payload in botForwardedMessage > richResponseMessage with base64 unified data', () => {
@@ -79,12 +80,56 @@ describe('buildAIRichContent', () => {
     expect(prims[prims.length - 1]).toMatchObject({ text: '#tag', __typename: 'GenAIMetadataTextPrimitive' })
   })
 
+  it('encodes an image as a GenAIImaginePrimitive (IMAGE) carrying the url', () => {
+    const prims = primitivesOf(buildAIRichContent([{ type: 'image', url: 'https://x.test/a.png' }]))
+    expect(prims[0]).toMatchObject({ imagine_type: 'IMAGE', media: { url: 'https://x.test/a.png' }, __typename: 'GenAIImaginePrimitive' })
+  })
+
+  it('encodes a video as a GenAIImaginePrimitive (ANIMATE) with duration', () => {
+    const prims = primitivesOf(buildAIRichContent([{ type: 'video', url: 'https://x.test/v.mp4', duration: 12 }]))
+    expect(prims[0]).toMatchObject({ imagine_type: 'ANIMATE', media: { url: 'https://x.test/v.mp4', mime_type: 'video/mp4', duration: 12 } })
+  })
+
+  it('encodes a single product as a Single-layout GenAIProductItemCardPrimitive', () => {
+    const layouts = layoutsOf(buildAIRichContent([{ type: 'product', products: { title: 'Pizza', price: '$7', salePrice: '$6', image: 'https://x.test/p.png' } }]))
+    expect(layouts[0]!.__typename).toBe('GenAISingleLayoutViewModel')
+    expect(layouts[0]!.primitive).toMatchObject({ title: 'Pizza', price: '$7', sale_price: '$6', image: { url: 'https://x.test/p.png' }, __typename: 'GenAIProductItemCardPrimitive' })
+  })
+
+  it('encodes a product list as an HScroll carousel of product cards', () => {
+    const layouts = layoutsOf(buildAIRichContent([{ type: 'product', products: [{ title: 'Pizza', price: '$6' }, { title: 'Ramen', price: '$5' }] }]))
+    expect(layouts[0]!.__typename).toBe('GenAIHScrollLayoutViewModel')
+    expect(layouts[0]!.primitives).toHaveLength(2)
+    expect(layouts[0]!.primitives![1]).toMatchObject({ title: 'Ramen', price: '$5' })
+  })
+
+  it('encodes suggestion pills as an ActionRow of follow-up prompts', () => {
+    const layouts = layoutsOf(buildAIRichContent([{ type: 'suggest', prompts: ['testrich buttons', 'testrich carousel'] }]))
+    expect(layouts[0]!.__typename).toBe('GenAIActionRowLayoutViewModel')
+    expect(layouts[0]!.primitives![0]).toMatchObject({ prompt_text: 'testrich buttons', prompt_type: 'SUGGESTED_PROMPT', __typename: 'GenAIFollowUpSuggestionPillPrimitive' })
+  })
+
+  it('encodes a tip as a GenAIMetadataTextPrimitive', () => {
+    const prims = primitivesOf(buildAIRichContent([{ type: 'tip', text: 'Gunakan testrich <mode>' }]))
+    expect(prims[0]).toMatchObject({ text: 'Gunakan testrich <mode>', __typename: 'GenAIMetadataTextPrimitive' })
+  })
+
+  it('encodes reels as an HScroll of GenAIReelPrimitive', () => {
+    const layouts = layoutsOf(buildAIRichContent([{ type: 'reels', reels: { username: 'zeative', url: 'https://x.test/r.mp4', verified: true } }]))
+    expect(layouts[0]!.__typename).toBe('GenAIHScrollLayoutViewModel')
+    expect(layouts[0]!.primitives![0]).toMatchObject({ creator: 'zeative', reels_url: 'https://x.test/r.mp4', is_verified: true, __typename: 'GenAIReelPrimitive' })
+  })
+
   it('rejects an empty parts list', () => {
     expect(() => buildAIRichContent([])).toThrow(ZaileysBuilderError)
   })
 
   it('rejects a malformed table', () => {
     expect(() => buildAIRichContent([{ type: 'table', rows: [] }])).toThrow(ZaileysBuilderError)
+  })
+
+  it('rejects an empty product list', () => {
+    expect(() => buildAIRichContent([{ type: 'product', products: [] }])).toThrow(ZaileysBuilderError)
   })
 })
 

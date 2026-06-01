@@ -1,9 +1,7 @@
 import { fileTypeFromBuffer } from 'file-type';
-import { generateId } from '../utils.js';
-import { BufferConverter, type MediaInput } from './core.js';
+import { BufferConverter, FFMPEG_CONSTANTS, MimeValidator, generateId, type MediaInput } from './core.js';
 import { ImageProcessor } from './image.js';
 import { VideoProcessor } from './video.js';
-import { FFMPEG_CONSTANTS, MimeValidator } from './core.js';
 
 export class DocumentProcessor {
   static async create(input: MediaInput) {

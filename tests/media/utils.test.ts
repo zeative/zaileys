@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { generateId } from '../../src/media/utils.js'
+import { generateId } from '../../src/media/ffmpeg/core.js'
 
 describe('media/utils', () => {
   it('U1: generateId returns a non-empty base36 string', () => {

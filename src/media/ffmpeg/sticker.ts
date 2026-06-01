@@ -1,11 +1,20 @@
 import { fileTypeFromBuffer } from 'file-type';
 import webp from 'node-webpmux';
-import type { StickerMetadataType } from '../types.js';
-import { generateId } from '../utils.js';
-import { BufferConverter, FFMPEG_CONSTANTS, MimeValidator, type MediaInput } from './core.js';
+import { BufferConverter, FFMPEG_CONSTANTS, MimeValidator, generateId, type MediaInput } from './core.js';
 import { ffmpegTransform } from './transform.js';
 import { ImageProcessor } from './image.js';
 import { VideoProcessor } from './video.js';
+
+/** Sticker shape applied during resize; `default` keeps the source aspect with transparent padding. */
+export type StickerShapeType = 'circle' | 'rounded' | 'oval' | 'default';
+
+/** Optional sticker metadata embedded in the WebP EXIF (pack name, author, quality, shape). */
+export interface StickerMetadataType {
+  packageName?: string;
+  authorName?: string;
+  quality?: number;
+  shape?: StickerShapeType;
+}
 
 type FileExtension = 'gif' | 'mp4' | 'tmp';
 

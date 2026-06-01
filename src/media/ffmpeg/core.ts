@@ -71,6 +71,9 @@ export const initializeFFmpeg = async (disable: boolean = false) => {
   } catch {}
 };
 
+/** Short, collision-resistant base36 id (timestamp + randomness). */
+export const generateId = (): string => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+
 export class FileManager {
   private static generateUniqueId(): string {
     return `${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;

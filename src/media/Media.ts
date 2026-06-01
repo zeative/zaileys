@@ -1,4 +1,3 @@
-import type { StickerMetadataType } from './types.js';
 import {
   AudioProcessor,
   type AudioType,
@@ -9,6 +8,7 @@ import {
   type MediaInput,
   MimeValidator,
   StickerProcessor,
+  type StickerMetadataType,
   VideoProcessor,
 } from './ffmpeg/index.js';
 import { fileTypeFromBuffer } from 'file-type';

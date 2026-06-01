@@ -1,16 +1,10 @@
 import { EventEmitter } from 'node:events'
 import type { Logger } from './types.js'
 
-/** Optional constructor input for {@link TypedEventEmitter}. */
 export interface TypedEventEmitterOptions {
   logger?: Logger | undefined
 }
 
-/**
- * Strongly typed wrapper around Node's `EventEmitter`. Handlers that throw are
- * caught and (when a logger is configured) reported via `logger.error` so a
- * single misbehaving listener never blocks subsequent ones in the chain.
- */
 export class TypedEventEmitter<M extends Record<string, unknown>> {
   private readonly inner: EventEmitter = new EventEmitter()
   protected readonly emitterLogger: Logger | undefined
@@ -20,7 +14,6 @@ export class TypedEventEmitter<M extends Record<string, unknown>> {
     this.inner.setMaxListeners(0)
   }
 
-  /** Register `handler` for `event`; returns an idempotent unsubscribe fn. */
   on<E extends keyof M>(event: E, handler: (payload: M[E]) => void): () => void {
     const wrapped = this.wrap(event, handler)
     this.tag(handler, event, wrapped)
@@ -34,7 +27,6 @@ export class TypedEventEmitter<M extends Record<string, unknown>> {
     }
   }
 
-  /** Remove a specific `handler` previously registered for `event`. */
   off<E extends keyof M>(event: E, handler: (payload: M[E]) => void): void {
     const wrapped = this.lookup(handler, event)
     if (wrapped) {
@@ -43,7 +35,6 @@ export class TypedEventEmitter<M extends Record<string, unknown>> {
     }
   }
 
-  /** Synchronously invoke all listeners of `event` with `payload`. */
   emit<E extends keyof M>(event: E, payload: M[E]): void {
     const listeners = this.inner.listeners(event as string).slice()
     for (const fn of listeners) {
@@ -55,13 +46,11 @@ export class TypedEventEmitter<M extends Record<string, unknown>> {
     }
   }
 
-  /** Drop every listener; pass an `event` to limit the scope. */
   removeAllListeners(event?: keyof M): void {
     if (event === undefined) this.inner.removeAllListeners()
     else this.inner.removeAllListeners(event as string)
   }
 
-  /** Number of listeners currently registered for `event`. */
   listenerCount(event: keyof M): number {
     return this.inner.listenerCount(event as string)
   }

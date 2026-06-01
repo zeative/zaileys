@@ -1,18 +1,6 @@
 import { ZaileysCommandError } from './errors.js'
 import type { CommandContext, Middleware } from './types.js'
 
-/**
- * Run a middleware chain koa-style around a final handler. Each middleware
- * receives `(ctx, next)`; calling `next()` advances to the next middleware and
- * ultimately to `final`. Not calling `next()` short-circuits the chain: `final`
- * and all downstream middleware are skipped while upstream after-logic still runs.
- *
- * A middleware that throws is wrapped as a `MIDDLEWARE_ERROR` (the original kept
- * as `cause`; an existing {@link ZaileysCommandError} passes through unwrapped)
- * and the rejection propagates. Errors thrown by `final` propagate as-is — the
- * dispatcher owns `HANDLER_ERROR` wrapping. Calling `next()` twice in a single
- * middleware throws a `MIDDLEWARE_ERROR`.
- */
 export async function runMiddleware(
   chain: Middleware[],
   ctx: CommandContext,

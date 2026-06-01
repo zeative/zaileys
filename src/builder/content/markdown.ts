@@ -130,20 +130,6 @@ const buildDirective = (name: string, body: string[]): AIRichPart | null => {
   return null
 }
 
-/**
- * Parse a markdown string into {@link AIRichPart}s for an AIRich message.
- *
- * Block-level segmenter (not full CommonMark): recognizes fenced code blocks,
- * GitHub-style tables, image lines (`![alt](url)`), and `:::name` container
- * directives, with everything else grouped into text parts. Inline hyperlinks
- * (`[label](url)`), citations (`[](url)`), and LaTeX (`[expr]<imageUrl>`) are
- * handled downstream by the text part's entity extractor.
- *
- * Directives: `:::suggest`, `:::tip`, `:::image`, `:::video`, `:::product`,
- * `:::reels`, `:::post` — each closed by a line containing only `:::`. List-style
- * directives (`product`/`reels`/`post`) take one `- key: value | key: value` item
- * per line; `suggest`/`image`/`video` take one value per line (pipe-splittable).
- */
 export const parseRichMarkdown = (md: string): AIRichPart[] => {
   const lines = md.replace(/\r\n/g, '\n').split('\n')
   const parts: AIRichPart[] = []

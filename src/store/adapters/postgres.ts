@@ -3,13 +3,9 @@ import type { Pool, PoolClient } from 'pg'
 import { ZaileysStoreError } from '../../types/store-error.js'
 import type { BaileysSocketLike, MessageStore, MessageStoreListOptions } from '../types.js'
 
-/** Constructor input for {@link PostgresMessageStore}. XOR between `pool` and `connectionString`. */
 export interface PostgresMessageStoreOptions {
-  /** Caller-owned pg `Pool`. Adapter will NOT end it on close. */
   pool?: Pool
-  /** Connection string for an adapter-owned pool. Adapter ends it on close. */
   connectionString?: string
-  /** Optional `max` pool size when adapter creates the pool. */
   max?: number
 }
 
@@ -47,10 +43,6 @@ const reviveJson = <T>(value: unknown): T => {
   return value as T
 }
 
-/**
- * Postgres-backed `MessageStore` over node-postgres.
- * Presence semantics: last-write-wins UPSERT, no TTL.
- */
 export class PostgresMessageStore implements MessageStore {
   private readonly externalPool: Pool | undefined
   private readonly connectionString: string | undefined
@@ -128,7 +120,6 @@ export class PostgresMessageStore implements MessageStore {
     }
   }
 
-  /** Upsert a single WAMessage. */
   async saveMessage(message: WAMessage): Promise<void> {
     const pool = await this.ensureReady()
     const remoteJid = message.key.remoteJid ?? ''
@@ -145,7 +136,6 @@ export class PostgresMessageStore implements MessageStore {
     }
   }
 
-  /** Fetch a message by Baileys key. */
   async getMessage(key: WAMessageKey): Promise<WAMessage | undefined> {
     const pool = await this.ensureReady()
     try {
@@ -162,7 +152,6 @@ export class PostgresMessageStore implements MessageStore {
     }
   }
 
-  /** List messages for a jid newest-first with optional `limit` + `before`. */
   async listMessages(jid: string, options?: MessageStoreListOptions): Promise<WAMessage[]> {
     const pool = await this.ensureReady()
     const limit = options?.limit ?? 100
@@ -178,7 +167,6 @@ export class PostgresMessageStore implements MessageStore {
     }
   }
 
-  /** Upsert a chat row. */
   async saveChat(chat: Chat): Promise<void> {
     const pool = await this.ensureReady()
     const id = (chat as { id?: string | null }).id
@@ -194,7 +182,6 @@ export class PostgresMessageStore implements MessageStore {
     }
   }
 
-  /** Fetch a chat by jid. */
   async getChat(jid: string): Promise<Chat | undefined> {
     const pool = await this.ensureReady()
     try {
@@ -210,7 +197,6 @@ export class PostgresMessageStore implements MessageStore {
     }
   }
 
-  /** List chats with optional archive filter. */
   async listChats(options?: { archived?: boolean }): Promise<Chat[]> {
     const pool = await this.ensureReady()
     const archived = typeof options?.archived === 'boolean' ? options.archived : null
@@ -225,7 +211,6 @@ export class PostgresMessageStore implements MessageStore {
     }
   }
 
-  /** Upsert a contact row. */
   async saveContact(contact: Contact): Promise<void> {
     const pool = await this.ensureReady()
     try {
@@ -238,7 +223,6 @@ export class PostgresMessageStore implements MessageStore {
     }
   }
 
-  /** Fetch a contact by jid. */
   async getContact(jid: string): Promise<Contact | undefined> {
     const pool = await this.ensureReady()
     try {
@@ -254,7 +238,6 @@ export class PostgresMessageStore implements MessageStore {
     }
   }
 
-  /** List every contact row. */
   async listContacts(): Promise<Contact[]> {
     const pool = await this.ensureReady()
     try {
@@ -265,7 +248,6 @@ export class PostgresMessageStore implements MessageStore {
     }
   }
 
-  /** Upsert presence; last-write-wins semantics with no TTL. */
   async savePresence(jid: string, presence: PresenceData): Promise<void> {
     const pool = await this.ensureReady()
     try {
@@ -278,7 +260,6 @@ export class PostgresMessageStore implements MessageStore {
     }
   }
 
-  /** Fetch latest presence without staleness check. */
   async getPresence(jid: string): Promise<PresenceData | undefined> {
     const pool = await this.ensureReady()
     try {
@@ -294,7 +275,6 @@ export class PostgresMessageStore implements MessageStore {
     }
   }
 
-  /** Subscribe to a Baileys-like socket and auto-persist events. */
   bind(socket: BaileysSocketLike): void {
     this.assertOpen()
     this.boundSocket = socket
@@ -354,7 +334,6 @@ export class PostgresMessageStore implements MessageStore {
     }
   }
 
-  /** Truncate all four tables. */
   async clear(): Promise<void> {
     const pool = await this.ensureReady()
     let client: PoolClient | undefined
@@ -382,7 +361,6 @@ export class PostgresMessageStore implements MessageStore {
     }
   }
 
-  /** Detach listeners and end the owned pool when applicable. */
   async close(): Promise<void> {
     if (this.closed) return
     this.closed = true

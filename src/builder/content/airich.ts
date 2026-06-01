@@ -3,16 +3,6 @@ import type { AnyMessageContent } from 'baileys'
 import { ZaileysBuilderError } from '../errors.js'
 import { RELAY_CONTENT_KEY } from './buttons.js'
 
-/**
- * A single rich-response section.
- *
- * EXPERIMENTAL: AIRich uses WhatsApp's reverse-engineered Meta AI rich-response
- * format (`botForwardedMessage` -> `richResponseMessage` with a base64 unified
- * response). It is NOT a documented WhatsApp protocol and may break with any
- * WhatsApp update. Renders as an AI-bot response on supporting clients.
- *
- * Format reference (credit): https://gist.github.com/ValdazGT/3a1a10bb7017209ba6fa35d42d4d559d
- */
 export type AIRichPart =
   | { type: 'text'; text: string }
   | { type: 'code'; language?: string; content: string }
@@ -25,7 +15,6 @@ export type AIRichPart =
   | { type: 'tip'; text: string }
   | { type: 'suggest'; prompts: string | string[] }
 
-/** A product card inside an AIRich `product` carousel. `price` shows bold, `salePrice` shows struck-through. */
 export type AIRichProduct = {
   title: string
   price?: string
@@ -36,7 +25,6 @@ export type AIRichProduct = {
   icon?: string
 }
 
-/** An Instagram-style reel card inside an AIRich `reels` row. */
 export type AIRichReel = {
   username?: string
   title?: string
@@ -50,7 +38,6 @@ export type AIRichReel = {
   verified?: boolean
 }
 
-/** A social post card inside an AIRich `post` row. */
 export type AIRichPost = {
   title?: string
   subtitle?: string
@@ -71,7 +58,6 @@ export type AIRichPost = {
   postType?: string
 }
 
-/** Decoration for an AIRich message: header disclaimer, footer note, and citation sources. */
 export type AIRichOptions = {
   title?: string
   footer?: string
@@ -198,7 +184,6 @@ const KEYWORDS_BY_LANG: Record<string, Set<string>> = {
 
 type CodeToken = { codeContent: string; highlightType: number }
 
-/** Tokenize source into highlight spans (keyword/method/string/number/comment/default). */
 const tokenizeCode = (code: string, lang: string): CodeToken[] => {
   const keywords = KEYWORDS_BY_LANG[lang.toLowerCase()] ?? new Set<string>()
   const tokens: CodeToken[] = []
@@ -274,15 +259,6 @@ const newLayout = (name: string, data: Primitive | Primitive[]): Record<string, 
 
 const SOURCE_URL = 'https://github.com/zeative/zaileys'
 
-/**
- * Build an EXPERIMENTAL AIRich message (Meta AI rich-response format). Composes
- * text (with `[label](url)` hyperlinks, `[](url)` citations, and `[expr]<imageUrl>`
- * LaTeX where `expr` may be `txt|width|height|fontHeight|padding`), code blocks,
- * tables, images, videos, product carousels, reels, posts, tips, and suggestion
- * pills into a `botForwardedMessage` relayed as an AI response.
- *
- * @throws ZaileysBuilderError `INVALID_OPTIONS` on empty parts, malformed table, or an empty media/product/suggest list.
- */
 export const buildAIRichContent = (parts: AIRichPart[], opts?: AIRichOptions): AnyMessageContent => {
   if (!Array.isArray(parts) || parts.length === 0) {
     throw new ZaileysBuilderError('INVALID_OPTIONS', 'text({ rich: true }) requires non-empty markdown content')

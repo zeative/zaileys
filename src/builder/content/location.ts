@@ -2,7 +2,6 @@ import type { AnyMessageContent } from 'baileys'
 import { ZaileysBuilderError } from '../errors.js'
 import type { LocationOptions } from '../types.js'
 
-/** Location content shape passed to `sendMessage`. */
 export type LocationContent = {
   location: {
     degreesLatitude: number
@@ -12,14 +11,6 @@ export type LocationContent = {
   }
 }
 
-/**
- * Build Baileys location content from coordinates.
- *
- * @param lat - latitude, validated to `-90..90`.
- * @param lon - longitude, validated to `-180..180`.
- * @param opts - optional `name` and `address` labels.
- * @throws ZaileysBuilderError `INVALID_OPTIONS` when coordinates fall outside range.
- */
 export const buildLocationContent = (
   lat: number,
   lon: number,

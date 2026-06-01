@@ -10,13 +10,9 @@ import type {
   AuthStoreValue,
 } from '../types.js'
 
-/** Optional constructor input for {@link RedisAuthStore}. */
 export interface RedisAuthStoreOptions {
-  /** Pre-connected node-redis v4 client (caller owns lifecycle). */
   client?: RedisClientType
-  /** Connection URL; adapter creates and owns the client. */
   url?: string
-  /** Namespace prefix isolating keys. Defaults to `'zaileys'`. */
   namespace?: string
 }
 
@@ -41,11 +37,6 @@ const isPeerMissingError = (err: unknown): boolean => {
   return code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND'
 }
 
-/**
- * Redis-backed `AuthStoreBundle` using node-redis v4.
- * Accepts EITHER a pre-connected `client` OR a `url` (XOR); throws on both.
- * Adapter owns the client lifecycle only when constructed with `url`.
- */
 export class RedisAuthStore implements AuthStoreBundle {
   private readonly namespace: string
   private readonly externalClient: RedisClientType | undefined
@@ -72,7 +63,6 @@ export class RedisAuthStore implements AuthStoreBundle {
     this.url = options.url
   }
 
-  /** Signal-key store view backed by per-id Redis strings and a SET index per type. */
   readonly signal: AuthStore = {
     read: async <K extends AuthStoreKey>(
       type: K,
@@ -147,7 +137,6 @@ export class RedisAuthStore implements AuthStoreBundle {
     },
   }
 
-  /** Credential store view persisting a single Redis string under `<ns>:auth:creds`. */
   readonly creds: AuthCredsStore = {
     readCreds: async (): Promise<AuthenticationCreds | undefined> => {
       this.assertOpen()

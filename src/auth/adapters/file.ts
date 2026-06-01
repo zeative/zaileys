@@ -12,9 +12,7 @@ import type {
   AuthStoreValue,
 } from '../types.js'
 
-/** Optional constructor input for {@link FileAuthStore}. */
 export interface FileAuthStoreOptions {
-  /** Root directory for persistence. Defaults to `./.zaileys/auth`. */
   basePath?: string
 }
 
@@ -26,10 +24,6 @@ const encodeFilename = (id: string): string =>
 const isENOENT = (err: unknown): boolean =>
   typeof err === 'object' && err !== null && (err as { code?: string }).code === 'ENOENT'
 
-/**
- * Disk-backed `AuthStoreBundle` using atomic write-then-rename for crash safety.
- * Default zero-config layout under `./.zaileys/auth/`.
- */
 export class FileAuthStore implements AuthStoreBundle {
   private readonly basePath: string
   private closed = false
@@ -38,7 +32,6 @@ export class FileAuthStore implements AuthStoreBundle {
     this.basePath = options?.basePath ?? DEFAULT_BASE_PATH
   }
 
-  /** Signal-key store view persisting one JSON file per id under `signal/<type>/`. */
   readonly signal: AuthStore = {
     read: async <K extends AuthStoreKey>(
       type: K,
@@ -114,7 +107,6 @@ export class FileAuthStore implements AuthStoreBundle {
     },
   }
 
-  /** Credential store view persisting `creds.json` at the base directory. */
   readonly creds: AuthCredsStore = {
     readCreds: async (): Promise<AuthenticationCreds | undefined> => {
       this.assertOpen()

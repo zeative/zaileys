@@ -10,12 +10,6 @@ import type {
 } from 'baileys'
 import type { LinkedGroup } from './types.js'
 
-/**
- * Structural subset of the baileys socket consumed by the four domain modules
- * (group/privacy/newsletter/community). Declared independently of the Phase 3
- * `BaileysSocket` type so domain modules stay decoupled and Wave 2 plans share
- * a single, stable contract.
- */
 export interface DomainSocketLike {
   groupCreate(subject: string, participants: string[]): Promise<GroupMetadata>
   groupParticipantsUpdate(

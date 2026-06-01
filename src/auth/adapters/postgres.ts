@@ -10,13 +10,9 @@ import type {
   AuthStoreValue,
 } from '../types.js'
 
-/** Constructor input for {@link PostgresAuthStore}. XOR between `pool` and `connectionString`. */
 export interface PostgresAuthStoreOptions {
-  /** Caller-owned pg `Pool`. Adapter will NOT end it on close. */
   pool?: Pool
-  /** Connection string for an adapter-owned pool. Adapter ends it on close. */
   connectionString?: string
-  /** Optional `max` pool size when adapter creates the pool. */
   max?: number
 }
 
@@ -44,10 +40,6 @@ const CREATE_CREDS_SQL =
 const CREATE_SIGNAL_SQL =
   'CREATE TABLE IF NOT EXISTS zaileys_auth_signal (type text NOT NULL, id text NOT NULL, data bytea NOT NULL, PRIMARY KEY(type, id))'
 
-/**
- * Postgres-backed `AuthStoreBundle` over node-postgres.
- * Schema auto-migrates idempotently on first method call.
- */
 export class PostgresAuthStore implements AuthStoreBundle {
   private readonly externalPool: Pool | undefined
   private readonly connectionString: string | undefined
@@ -116,7 +108,6 @@ export class PostgresAuthStore implements AuthStoreBundle {
     }
   }
 
-  /** Signal-key store view over `zaileys_auth_signal`. */
   readonly signal: AuthStore = {
     read: async <K extends AuthStoreKey>(
       type: K,
@@ -245,7 +236,6 @@ export class PostgresAuthStore implements AuthStoreBundle {
     },
   }
 
-  /** Credential store view over `zaileys_auth_creds`. */
   readonly creds: AuthCredsStore = {
     readCreds: async (): Promise<AuthenticationCreds | undefined> => {
       const pool = await this.ensureReady()

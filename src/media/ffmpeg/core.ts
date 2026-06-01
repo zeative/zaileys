@@ -71,14 +71,8 @@ export const initializeFFmpeg = async (disable: boolean = false) => {
   } catch {}
 };
 
-/** Short, collision-resistant base36 id (timestamp + randomness). */
 export const generateId = (): string => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
 
-/**
- * Detect a buffer's media type. Lazily imports the ESM-only `file-type` package
- * via dynamic `import()` so the emitted CJS bundle never top-level-`require()`s it
- * (which fails under Bun/Deno and Node < 22).
- */
 export const detectFileType = async (buffer: Buffer): Promise<{ ext: string; mime: string } | undefined> => {
   const { fileTypeFromBuffer } = await import('file-type');
   return fileTypeFromBuffer(buffer);

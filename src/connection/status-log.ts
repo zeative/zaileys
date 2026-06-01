@@ -1,6 +1,5 @@
 import type { DisconnectReasonDomain } from './disconnect-reason.js'
 
-/** Discriminated lifecycle event rendered as a human-readable English status line. */
 export type StatusEvent =
   | { kind: 'connecting'; sessionId: string }
   | { kind: 'qr' }
@@ -21,10 +20,6 @@ const INVALID_CREDS_HINT =
   'The saved session looks invalid or corrupted (connection keeps closing before it authenticates). ' +
   'Delete the auth folder (default: ./.zaileys) and run again to scan a fresh QR / request a new pairing code.'
 
-/**
- * Render a connection lifecycle event into a concise English status line, or
- * `null` when the event needs no line. Pure — no I/O.
- */
 export function formatConnectionStatus(event: StatusEvent): string | null {
   switch (event.kind) {
     case 'connecting':
@@ -51,12 +46,6 @@ export function formatConnectionStatus(event: StatusEvent): string | null {
 
 let noiseFilterInstalled = false
 
-/**
- * Silence libsignal's hardcoded `console.info('Closing session:', session)` debug
- * dump (session_record.js) which otherwise floods terminals with raw SessionEntry
- * objects. Idempotent and narrow — only that exact first argument is dropped; every
- * other `console.info` call passes through untouched.
- */
 export function suppressLibsignalNoise(): void {
   if (noiseFilterInstalled) return
   noiseFilterInstalled = true

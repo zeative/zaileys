@@ -7,10 +7,6 @@ type Listener = (...args: unknown[]) => void
 const encodeKey = (key: WAMessageKey): string =>
   `${key.remoteJid ?? ''}|${key.id ?? ''}|${key.fromMe ? 1 : 0}`
 
-/**
- * In-process `MessageStore` backed by JS `Map` instances.
- * Suitable as the zero-config default for the Phase 3 Client.
- */
 export class MemoryMessageStore implements MessageStore {
   private readonly messages: Map<string, WAMessage> = new Map()
   private readonly messagesByJid: Map<string, Set<string>> = new Map()
@@ -21,7 +17,6 @@ export class MemoryMessageStore implements MessageStore {
   private readonly listeners: Map<string, Listener> = new Map()
   private closed = false
 
-  /** Persist or update a single message keyed by its `WAMessageKey`. */
   async saveMessage(message: WAMessage): Promise<void> {
     this.assertOpen()
     const k = encodeKey(message.key)
@@ -35,14 +30,12 @@ export class MemoryMessageStore implements MessageStore {
     bucket.add(k)
   }
 
-  /** Look up a message by Baileys key. */
   async getMessage(key: WAMessageKey): Promise<WAMessage | undefined> {
     this.assertOpen()
     const found = this.messages.get(encodeKey(key))
     return found ? structuredClone(found) : undefined
   }
 
-  /** List messages for a jid, newest-first, honouring `limit` + `before`. */
   async listMessages(jid: string, options?: MessageStoreListOptions): Promise<WAMessage[]> {
     this.assertOpen()
     const bucket = this.messagesByJid.get(jid)
@@ -64,7 +57,6 @@ export class MemoryMessageStore implements MessageStore {
     return filtered.map((m) => structuredClone(m))
   }
 
-  /** Persist or update a chat record. */
   async saveChat(chat: Chat): Promise<void> {
     this.assertOpen()
     const id = (chat as { id?: string | null }).id
@@ -72,14 +64,12 @@ export class MemoryMessageStore implements MessageStore {
     this.chats.set(id, structuredClone(chat))
   }
 
-  /** Fetch a chat by jid. */
   async getChat(jid: string): Promise<Chat | undefined> {
     this.assertOpen()
     const found = this.chats.get(jid)
     return found ? structuredClone(found) : undefined
   }
 
-  /** List chats, optionally filtered by archived flag. */
   async listChats(options?: { archived?: boolean }): Promise<Chat[]> {
     this.assertOpen()
     const out: Chat[] = []
@@ -90,42 +80,33 @@ export class MemoryMessageStore implements MessageStore {
     return out
   }
 
-  /** Persist or update a contact. */
   async saveContact(contact: Contact): Promise<void> {
     this.assertOpen()
     this.contacts.set(contact.id, structuredClone(contact))
   }
 
-  /** Fetch a contact by jid. */
   async getContact(jid: string): Promise<Contact | undefined> {
     this.assertOpen()
     const found = this.contacts.get(jid)
     return found ? structuredClone(found) : undefined
   }
 
-  /** List every saved contact. */
   async listContacts(): Promise<Contact[]> {
     this.assertOpen()
     return Array.from(this.contacts.values(), (c) => structuredClone(c))
   }
 
-  /** Record latest presence for a jid. */
   async savePresence(jid: string, presence: PresenceData): Promise<void> {
     this.assertOpen()
     this.presence.set(jid, structuredClone(presence))
   }
 
-  /** Fetch latest presence for a jid. */
   async getPresence(jid: string): Promise<PresenceData | undefined> {
     this.assertOpen()
     const found = this.presence.get(jid)
     return found ? structuredClone(found) : undefined
   }
 
-  /**
-   * Subscribe to a Baileys-like socket and auto-persist incoming events.
-   * Listeners cover messages, chats, contacts, and presence streams.
-   */
   bind(socket: BaileysSocketLike): void {
     this.assertOpen()
     this.boundSocket = socket
@@ -186,7 +167,6 @@ export class MemoryMessageStore implements MessageStore {
     }
   }
 
-  /** Wipe every map. Bound socket listeners remain attached. */
   async clear(): Promise<void> {
     this.assertOpen()
     this.messages.clear()
@@ -196,7 +176,6 @@ export class MemoryMessageStore implements MessageStore {
     this.presence.clear()
   }
 
-  /** Detach listeners from the bound socket and freeze further operations. */
   async close(): Promise<void> {
     if (this.closed) return
     this.closed = true

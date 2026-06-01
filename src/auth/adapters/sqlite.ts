@@ -28,11 +28,8 @@ type RawDriverCtor = new (
   options?: { readonly?: boolean },
 ) => DatabaseInstance
 
-/** Optional constructor input for {@link SqliteAuthStore}. */
 export interface SqliteAuthStoreOptions {
-  /** Path on disk, or `':memory:'` for an ephemeral connection. */
   database: string | Buffer
-  /** Open the database read-only. */
   readonly?: boolean
 }
 
@@ -76,10 +73,6 @@ const chunked = <T,>(items: readonly T[], size: number): T[][] => {
   return out
 }
 
-/**
- * SQLite-backed `AuthStoreBundle` using `better-sqlite3` with WAL pragmas.
- * Schema migrates idempotently on first use; supports `:memory:` mode.
- */
 export class SqliteAuthStore implements AuthStoreBundle {
   private readonly options: SqliteAuthStoreOptions
   private db: DatabaseInstance | null = null
@@ -91,7 +84,6 @@ export class SqliteAuthStore implements AuthStoreBundle {
     this.options = options
   }
 
-  /** Credential persistence view backed by the `auth_creds` table. */
   readonly creds: AuthCredsStore = {
     readCreds: async (): Promise<AuthenticationCreds | undefined> => {
       const prep = await this.ensureReady()
@@ -110,7 +102,6 @@ export class SqliteAuthStore implements AuthStoreBundle {
     },
   }
 
-  /** Signal-key store view backed by the `auth_signal` table. */
   readonly signal: AuthStore = {
     read: async <K extends AuthStoreKey>(
       type: K,

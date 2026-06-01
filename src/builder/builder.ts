@@ -44,10 +44,6 @@ import type {
   VideoOptions,
 } from './types.js'
 
-/**
- * Minimal structural surface of a Baileys socket required by the builder.
- * Phase 3 `Client` is assignable to this type.
- */
 export interface BuilderSocketLike {
   sendMessage(
     jid: string,
@@ -63,14 +59,8 @@ export interface BuilderSocketLike {
   waUploadToServer?: unknown
 }
 
-/** Options for {@link MessageBuilder.text}; `rich` opts the body into markdown→AIRich rendering. */
 export type TextOptions = { rich?: boolean } & AIRichOptions
 
-/**
- * Binary-node hint that makes WhatsApp render `interactiveMessage` content
- * (native_flow buttons/lists). Without it the server delivers the message but the
- * client shows no interactive UI. Passed to `relayMessage` as `additionalNodes`.
- */
 const INTERACTIVE_NATIVE_FLOW_NODES = [
   {
     tag: 'biz',
@@ -85,13 +75,6 @@ const INTERACTIVE_NATIVE_FLOW_NODES = [
   },
 ]
 
-/**
- * Chainable, type-safe outbound message builder.
- *
- * The `State` type parameter enforces a single-content invariant at compile
- * time: content methods transition `'init' -> 'content-set'`, and the terminal
- * `then()` is only callable once `State` is `'content-set'`.
- */
 export class MessageBuilder<State extends BuilderState> {
   declare protected readonly __state?: State
   protected readonly socket: BuilderSocketLike
@@ -102,11 +85,6 @@ export class MessageBuilder<State extends BuilderState> {
     this.internal = internal
   }
 
-  /**
-   * Entry point used by `Client.send` to start a builder targeting `recipient`.
-   * When `resolveRecipient` is supplied the recipient is treated as a raw
-   * username/phone and resolved lazily inside `then()` before dispatch.
-   */
   static create(
     socket: BuilderSocketLike,
     recipient: string,
@@ -115,24 +93,12 @@ export class MessageBuilder<State extends BuilderState> {
     return new MessageBuilder<'init'>(socket, createInternalState(recipient, resolveRecipient))
   }
 
-  /**
-   * Re-target the builder at `recipient` before content is set. Primarily used
-   * by `Scheduler.scheduleAt`, whose `build` callback receives a recipient-less
-   * builder and selects the destination jid inline. A fully-qualified jid is
-   * used as-is; any lazy username resolver carried from `create` is cleared.
-   */
   to(this: MessageBuilder<'init'>, recipient: string): MessageBuilder<'init'> {
     this.internal.recipient = recipient
     delete this.internal.resolveRecipient
     return this
   }
 
-  /**
-   * Set the message body. Plain text by default; pass `{ rich: true }` to parse
-   * `content` as markdown and send it as an EXPERIMENTAL AIRich rich-response
-   * (fenced code, tables, images, `:::` directives, inline hyperlinks/citations/
-   * LaTeX). `title`/`footer`/`sources` decorate the rich card.
-   */
   text(this: MessageBuilder<'init'>, content: string, opts?: TextOptions): MessageBuilder<'content-set'> {
     if (opts?.rich === true) {
       this.internal.content = buildAIRichContent(parseRichMarkdown(content), opts)
@@ -225,14 +191,6 @@ export class MessageBuilder<State extends BuilderState> {
     return this as unknown as MessageBuilder<'content-set'>
   }
 
-  /**
-   * Quote a previous message; rejects a missing reference. Accepts a full
-   * {@link WAMessage} or a bare {@link WAMessageKey} — a bare key is wrapped into
-   * the `{ key }` shape Baileys requires (it reads `quoted.key.fromMe`), so passing
-   * only a key never crashes. NOTE: a real quoted preview needs the full
-   * {@link WAMessage} (with `message` content); a key alone carries no quoted body,
-   * which the server may reject — prefer passing the original message. Chainable on any state.
-   */
   reply(quoted: WAMessage | WAMessageKey): MessageBuilder<State> {
     if (quoted === undefined || quoted === null) {
       throw new ZaileysBuilderError('INVALID_OPTIONS', 'reply() requires a quoted message or key')
@@ -244,7 +202,6 @@ export class MessageBuilder<State extends BuilderState> {
     return this as unknown as MessageBuilder<State>
   }
 
-  /** Tag the given jids; rejects an empty list or malformed jid, merges across calls. Chainable on any state. */
   mentions(jids: string[]): MessageBuilder<State> {
     if (jids.length === 0) {
       throw new ZaileysBuilderError('INVALID_OPTIONS', 'mentions() requires at least one jid')
@@ -259,13 +216,11 @@ export class MessageBuilder<State extends BuilderState> {
     return this as unknown as MessageBuilder<State>
   }
 
-  /** Tag every participant of the target chat; idempotent. Chainable on any state. */
   mentionAll(): MessageBuilder<State> {
     this.internal.mentionAll = true
     return this as unknown as MessageBuilder<State>
   }
 
-  /** Mark the message as disappearing after `seconds`; rejects non-positive or non-integer values. */
   disappearing(seconds: number): MessageBuilder<State> {
     if (!Number.isInteger(seconds) || seconds <= 0) {
       throw new ZaileysBuilderError('INVALID_OPTIONS', 'disappearing() requires a positive integer duration')
@@ -274,10 +229,6 @@ export class MessageBuilder<State extends BuilderState> {
     return this as unknown as MessageBuilder<State>
   }
 
-  /**
-   * Terminal action — only callable once content is set. Sends the accumulated
-   * content through the socket and resolves with the sent {@link WAMessageKey}.
-   */
   then<T = WAMessageKey>(
     this: MessageBuilder<'content-set'>,
     onResolved: (key: WAMessageKey) => T,

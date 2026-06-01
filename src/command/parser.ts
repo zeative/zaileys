@@ -90,24 +90,6 @@ const emptyResult = (raw: string): ParsedArgs => ({
   raw,
 })
 
-/**
- * Pure argument parser for inbound command text. Returns a structured
- * {@link ParsedArgs}; never performs I/O and never throws on malformed JSON.
- *
- * Matching: text must start with one of `prefixes` (first match wins). On no
- * match `{ matched: false }` is returned with empty defaults.
- *
- * Tokens: whitespace-delimited, with single/double quotes producing a single
- * token (quotes stripped) and `\"`/`\'` escapes yielding literal quotes.
- *
- * Flags: `--key value` consumes the next non-flag token as a string value;
- * `--key=value` is equivalent; a `--key` followed by another flag or the end
- * of input is a boolean `true`.
- *
- * JSON: a token beginning with `{` or `[` is parsed via `JSON.parse`; on success
- * the parsed value populates `json` (first JSON arg wins) and the raw token is
- * still pushed onto `args`. Malformed JSON is left as a plain positional string.
- */
 export function parseCommand(text: string, prefixes: string[]): ParsedArgs {
   const prefix = matchPrefix(text, prefixes)
   if (prefix === null) return emptyResult(text)

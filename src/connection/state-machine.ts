@@ -1,9 +1,7 @@
 import type { ConnectionState } from '../client/types.js'
 
-/** Listener notified after a successful state transition. */
 export type StateTransitionListener = (prev: ConnectionState, next: ConnectionState) => void
 
-/** Hand-rolled typed FSM driving Client connection lifecycle. */
 export interface ConnectionStateMachine {
   readonly state: ConnectionState
   canTransition(next: ConnectionState): boolean
@@ -22,11 +20,6 @@ const TRANSITIONS: Readonly<Record<ConnectionState, ReadonlyArray<ConnectionStat
   disconnected: ['idle', 'connecting', 'reconnecting'],
 }
 
-/**
- * Construct a fresh state machine starting at `initial` (default `'idle'`).
- * Synchronous and free of timers; invalid transitions throw with a message
- * containing both the source and target state.
- */
 export function createConnectionStateMachine(initial: ConnectionState = 'idle'): ConnectionStateMachine {
   let current: ConnectionState = initial
   const listeners = new Set<StateTransitionListener>()

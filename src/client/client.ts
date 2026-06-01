@@ -104,10 +104,6 @@ interface ConnectionUpdate {
   isNewLogin?: boolean
 }
 
-/**
- * High-level WhatsApp client composing auth, store, reconnect, QR/pairing, and
- * the underlying Baileys socket behind a single typed surface.
- */
 export class Client extends TypedEventEmitter<ClientEventMap> {
   readonly sessionId: string
   auth: AuthStoreBundle
@@ -151,11 +147,6 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private _presence?: PresenceModule
   private _scheduler?: Scheduler
 
-  /**
-   * Build a Client with sensible defaults. When `autoConnect` is enabled (the
-   * default) the connection opens on the next microtask, after synchronous
-   * `on(...)` registrations in the construction frame have run.
-   */
   constructor(options: ClientOptions = {}) {
     super({ logger: adoptLogger(options.logger) })
     this.sessionId = options.sessionId ?? DEFAULT_SESSION_ID
@@ -213,56 +204,44 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     return { id: '' }
   }
 
-  /** Current FSM state. */
   get state(): ConnectionState {
     return this.machine.state
   }
 
-  /** Underlying Baileys socket once connected; `undefined` before connect / after disconnect. */
   get socket(): BaileysSocket | undefined {
     return this._socket
   }
 
-  /** Group management namespace (`client.group.*`); methods throw `NOT_CONNECTED` until connected. */
   get group(): GroupModule {
     return (this._group ??= new GroupModule(
       () => this._socket as unknown as DomainSocketLike | undefined,
     ))
   }
 
-  /** Privacy settings namespace (`client.privacy.*`); methods throw `NOT_CONNECTED` until connected. */
   get privacy(): PrivacyModule {
     return (this._privacy ??= new PrivacyModule(
       () => this._socket as unknown as DomainSocketLike | undefined,
     ))
   }
 
-  /** Newsletter namespace (`client.newsletter.*`); methods throw `NOT_CONNECTED` until connected. */
   get newsletter(): NewsletterModule {
     return (this._newsletter ??= new NewsletterModule(
       () => this._socket as unknown as DomainSocketLike | undefined,
     ))
   }
 
-  /** Community namespace (`client.community.*`); methods throw `NOT_CONNECTED` until connected. */
   get community(): CommunityModule {
     return (this._community ??= new CommunityModule(
       () => this._socket as unknown as DomainSocketLike | undefined,
     ))
   }
 
-  /** Presence namespace (`client.presence.*`); methods throw `NOT_CONNECTED` until connected. */
   get presence(): PresenceModule {
     return (this._presence ??= new PresenceModule(
       () => this._socket as unknown as AutomationSocketLike | undefined,
     ))
   }
 
-  /**
-   * Send `build`'s message to every jid, paced by a rate limiter and isolated so
-   * one recipient's failure never halts the run. Requires an active socket.
-   * Returns the per-recipient success/failure split.
-   */
   async broadcast(
     jids: string[],
     build: (b: MessageBuilder<'init'>) => MessageBuilder<'content-set'>,
@@ -272,13 +251,6 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     return runBroadcast(jids, build, { sendTo: (jid) => this.send(jid) }, options)
   }
 
-  /**
-   * Schedule `build`'s message for `date`. The builder is evaluated eagerly into
-   * a serializable snapshot, persisted via the store's optional schedule methods
-   * (in-memory fallback otherwise), and re-dispatched on fire. Persisted jobs
-   * survive restart and are reloaded on the next `connect`. Returns
-   * `{ id, cancel() }`.
-   */
   async scheduleAt(
     date: Date,
     build: (b: MessageBuilder<'init'>) => MessageBuilder<'content-set'>,
@@ -299,10 +271,6 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     await socket.sendMessage(snapshot.recipient, snapshot.content, snapshot.options)
   }
 
-  /**
-   * Open a connection: build auth, instantiate the socket, wire events, and
-   * resolve once `connection: 'open'` arrives or reject on a fatal disconnect.
-   */
   connect(): Promise<void> {
     if (this.authType === 'pairing' && !this.phoneNumber) {
       return Promise.reject(new Error('phoneNumber is required when authType is "pairing"'))
@@ -361,10 +329,6 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     return promise
   }
 
-  /**
-   * Tear down the active socket without wiping persisted credentials. Safe to
-   * call multiple times; a no-op when idle or already disconnected.
-   */
   async disconnect(): Promise<void> {
     if (this.machine.state === 'idle' || this.machine.state === 'disconnected') return
     this.machine.transition('disconnecting')
@@ -406,10 +370,6 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.rejectPendingConnect(new Error('disconnected before connect resolved'))
   }
 
-  /**
-   * Log out from WhatsApp on the server, wipe persisted auth, then disconnect.
-   * Emits `disconnect` with reason `'logged-out'`.
-   */
   async logout(): Promise<void> {
     this.pendingDisconnectReason = 'logged-out'
     if (this._socket) {
@@ -444,19 +404,12 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     await this.disconnect()
   }
 
-  /**
-   * Register a command. `spec` accepts a bare name, pipe-separated aliases
-   * (`'help|h'`), and whitespace sub-commands (`'group create'`). Returns `this`
-   * for chaining. Handlers only fire when `commandPrefix` is configured; without
-   * a prefix the registration is stored but the dispatcher never attaches.
-   */
   command(spec: string, handler: CommandHandler): this {
     ;(this.commandRegistry ??= new CommandRegistry()).register(spec, handler)
     this.attachCommandsIfReady()
     return this
   }
 
-  /** Add a middleware to the command chain (runs before every handler). Returns `this`. */
   use(middleware: Middleware): this {
     this.commandMiddleware.push(middleware)
     return this
@@ -512,10 +465,6 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.commandDispatcher = undefined
   }
 
-  /**
-   * Start an outbound message builder targeting `to`. A bare username/phone is
-   * resolved to a JID lazily on `await`; a fully-qualified JID is used as-is.
-   */
   send(to: string): MessageBuilder<'init'> {
     const socket = this.requireSocket()
     if (isJid(to)) {
@@ -526,22 +475,18 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     )
   }
 
-  /** Build an edit for an existing message identified by `key`. */
   edit(key: WAMessageKey): EditBuilder {
     return new EditBuilder(this.requireSocket() as unknown as BuilderSocketLike, key)
   }
 
-  /** Delete a message; defaults to deleting for everyone. */
   async delete(key: WAMessageKey, opts?: DeleteOptions): Promise<void> {
     await deleteMessage(this.requireSocket() as unknown as BuilderSocketLike, key, opts)
   }
 
-  /** React to a message; an empty `emoji` removes the reaction. */
   async react(key: WAMessageKey, emoji: string): Promise<WAMessageKey> {
     return reactToMessage(this.requireSocket() as unknown as BuilderSocketLike, key, emoji)
   }
 
-  /** Forward a stored message to `to`, resolving a username recipient as needed. */
   async forward(key: WAMessageKey, to: string): Promise<WAMessageKey> {
     const socket = this.requireSocket()
     const recipient = await this.resolveRecipient(to)

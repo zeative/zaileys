@@ -1,22 +1,13 @@
 import { ZaileysBuilderError } from './errors.js'
 
-/** Structural surface of `socket.onWhatsApp` used for username resolution. */
 export interface UsernameResolveSocketLike {
   onWhatsApp(...phoneNumber: string[]): Promise<Array<{ jid: string; exists: boolean }> | undefined>
 }
 
 const JID_SUFFIX = /@(s\.whatsapp\.net|g\.us|lid|newsletter|broadcast|c\.us)$/
 
-/** True when `value` is already a fully-qualified WhatsApp JID. */
 export const isJid = (value: string): boolean => JID_SUFFIX.test(value)
 
-/**
- * Resolve a username/phone string to a JID, caching the result per `cache`.
- * Returns immediately for inputs that are already JIDs. Concurrent calls for
- * the same key share a single in-flight `onWhatsApp` query.
- *
- * @throws ZaileysBuilderError `USERNAME_NOT_FOUND` when no contact exists.
- */
 export const resolveUsername = async (
   socket: UsernameResolveSocketLike,
   username: string,

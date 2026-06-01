@@ -39,11 +39,6 @@ async function getSharp(): Promise<SharpLike | null> {
   return _sharp;
 }
 
-/**
- * Build a `size x size` single-channel alpha mask (0 or 255 per pixel) for a
- * sticker shape. Shared by the Sharp and Jimp sticker paths so the geometry has
- * one source of truth. An unknown shape yields an all-transparent mask.
- */
 function buildShapeMask(size: number, shape: string): Uint8Array {
   const mask = new Uint8Array(size * size);
   const cx = size / 2;

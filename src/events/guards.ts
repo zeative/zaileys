@@ -15,11 +15,6 @@ export interface UpsertPayload {
   requestId?: string
 }
 
-/**
- * Depth-in-defense filter for CVE-2026-48063: drops upserts that carry a
- * `requestId` (placeholderResendMessage spoof vector) or whose stub parameters
- * smuggle a `requestId:` marker. Returns a shallow-copied payload.
- */
 export const dropSpoofedSelfOnly = (upsert: UpsertPayload): UpsertPayload => {
   const carriesRequestId = upsert.requestId != null
   const filtered = upsert.messages.filter((msg) => {

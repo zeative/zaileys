@@ -3,7 +3,6 @@ import type { Logger } from '../../client/types.js'
 import type { ButtonClickPayload, ListSelectPayload, SenderInfo } from '../types.js'
 import { extractSender, safeNumber } from './_shared.js'
 
-/** Decode context for interactive (button/list) decoders. */
 export interface InteractiveContext {
   selfJid: string
   logger?: Logger
@@ -48,11 +47,6 @@ const pickString = (source: Record<string, unknown>, keys: readonly string[]): s
   return undefined
 }
 
-/**
- * Decode a button-click reply from `buttonsResponseMessage`,
- * `templateButtonReplyMessage`, or an `interactiveResponseMessage` native flow.
- * Returns `null` when no shape matches; never throws.
- */
 export const decodeButtonClick = (
   msg: WAMessage,
   ctx: InteractiveContext,
@@ -99,11 +93,6 @@ const build = (
   return payload
 }
 
-/**
- * Decode a list-select reply from `listResponseMessage.singleSelectReply` or an
- * `interactiveResponseMessage` native list flow. Returns `null` when no shape
- * matches; never throws.
- */
 export const decodeListSelect = (
   msg: WAMessage,
   ctx: InteractiveContext,

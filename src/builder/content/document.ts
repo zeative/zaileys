@@ -3,7 +3,6 @@ import { ZaileysBuilderError } from '../errors.js'
 import { loadMedia } from '../media-loader.js'
 import type { DocumentOptions, MediaSource } from '../types.js'
 
-/** Document content shape passed to `sendMessage`; the loaded buffer is uploaded by Baileys. */
 export type DocumentContent = {
   document: Buffer
   fileName: string
@@ -11,14 +10,6 @@ export type DocumentContent = {
   caption?: string
 }
 
-/**
- * Load a {@link MediaSource} and build Baileys document content.
- *
- * @param src - file path, URL, or raw `Buffer`; loaded via {@link loadMedia}.
- * @param opts - `fileName` is required; `mimetype` falls back to the detected mime.
- * @throws ZaileysBuilderError `MEDIA_LOAD_FAILED` when the source cannot be read,
- *   `INVALID_OPTIONS` when `fileName` is blank.
- */
 export const buildDocumentContent = async (
   src: MediaSource,
   opts: DocumentOptions,

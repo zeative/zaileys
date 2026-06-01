@@ -4,10 +4,8 @@ import { ffmpegTransform } from './transform.js';
 import { ImageProcessor } from './image.js';
 import { VideoProcessor } from './video.js';
 
-/** Sticker shape applied during resize; `default` keeps the source aspect with transparent padding. */
 export type StickerShapeType = 'circle' | 'rounded' | 'oval' | 'default';
 
-/** Optional sticker metadata embedded in the WebP EXIF (pack name, author, quality, shape). */
 export interface StickerMetadataType {
   packageName?: string;
   authorName?: string;

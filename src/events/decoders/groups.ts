@@ -6,7 +6,6 @@ import type {
   MemberTagPayload,
 } from '../types.js'
 
-/** Partial group-metadata shape emitted by baileys `groups.update`. */
 export interface GroupMetadataUpdate {
   id?: string
   subject?: string
@@ -16,7 +15,6 @@ export interface GroupMetadataUpdate {
   ephemeralDuration?: number
 }
 
-/** Single participant entry from a baileys `group-participants.update` batch. */
 export interface RawGroupParticipant {
   id: string
   lid?: string
@@ -26,7 +24,6 @@ export interface RawGroupParticipant {
   admin?: 'admin' | 'superadmin' | null
 }
 
-/** Baileys `group-participants.update` payload (object-array participants). */
 export interface GroupParticipantsUpdate {
   id?: string
   author?: string
@@ -36,7 +33,6 @@ export interface GroupParticipantsUpdate {
   action: string
 }
 
-/** Baileys `group.member-tag.update` payload (rc13+). */
 export interface MemberTagUpdate {
   groupId?: string
   participant?: string
@@ -75,13 +71,11 @@ const mapParticipants = (
       return info
     })
 
-/** Decode a baileys `groups.update` item into a {@link GroupUpdatePayload}, or `null`. */
 export const decodeGroupUpdate = (item: GroupMetadataUpdate): GroupUpdatePayload | null => {
   if (!isNonEmpty(item?.id)) return null
   return { groupId: item.id, update: pickDefined(item), timestamp: Date.now() }
 }
 
-/** Decode a `group.member-tag.update` payload into a {@link MemberTagPayload}, or `null`. */
 export const decodeMemberTag = (item: MemberTagUpdate): MemberTagPayload | null => {
   if (!isNonEmpty(item?.groupId) || !isNonEmpty(item?.participant)) return null
   const payload: MemberTagPayload = {
@@ -97,7 +91,6 @@ export const decodeMemberTag = (item: MemberTagUpdate): MemberTagPayload | null 
 const JOIN_ACTIONS = new Set(['add', 'invite', 'invite-link'])
 const LEAVE_ACTIONS = new Set(['remove', 'leave'])
 
-/** Decode an add/invite `group-participants.update` into a {@link GroupJoinPayload}, or `null`. */
 export const decodeGroupJoin = (item: GroupParticipantsUpdate): GroupJoinPayload | null => {
   if (!isNonEmpty(item?.id)) return null
   if (!JOIN_ACTIONS.has(item.action)) return null
@@ -114,7 +107,6 @@ export const decodeGroupJoin = (item: GroupParticipantsUpdate): GroupJoinPayload
   return payload
 }
 
-/** Decode a remove/leave `group-participants.update` into a {@link GroupLeavePayload}, or `null`. */
 export const decodeGroupLeave = (item: GroupParticipantsUpdate): GroupLeavePayload | null => {
   if (!isNonEmpty(item?.id)) return null
   if (!LEAVE_ACTIONS.has(item.action)) return null

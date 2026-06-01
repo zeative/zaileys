@@ -18,24 +18,6 @@ const buildChildContent = async (item: AlbumItem): Promise<AnyMessageContent> =>
   throw new ZaileysBuilderError('INVALID_OPTIONS', `album() item type must be 'image' or 'video', got ${String((item as { type: unknown }).type)}`)
 }
 
-/**
- * Orchestrate an rc11+ album send.
- *
- * Sends a parent placeholder carrying `{ album: { expectedImageCount,
- * expectedVideoCount } }` first, captures its key, then forwards that key as
- * `albumParentKey` to each child media send. Baileys translates `albumParentKey`
- * into `messageContextInfo.messageAssociation` on the wire. Children are sent
- * sequentially (rc13-safe ordering) so the WA UI fills the placeholder in order.
- *
- * @param socket - structural Baileys socket.
- * @param recipient - target jid.
- * @param items - 2..30 album entries.
- * @param context - resolved quote/mention context applied to the parent send.
- * @returns the PARENT {@link WAMessageKey}; child keys are surfaced only in debug logs.
- * @throws ZaileysBuilderError `INVALID_OPTIONS` on item count out of range,
- *   `SEND_FAILED` when the parent or any child send rejects (cause carries the
- *   parent key and the failing child index).
- */
 export const sendAlbum = async (
   socket: BuilderSocketLike,
   recipient: string,

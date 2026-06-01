@@ -3,9 +3,7 @@ import type { MessageStore } from '../store/types.js'
 import type { BuilderSocketLike } from './builder.js'
 import { ZaileysBuilderError } from './errors.js'
 
-/** Options for {@link deleteMessage}. */
 export type DeleteOptions = {
-  /** Delete for all chat members (default) vs. delete only the local copy. */
   forEveryone?: boolean
 }
 
@@ -24,10 +22,6 @@ const requireKey = (result: WAMessage | undefined): WAMessageKey => {
   return result.key
 }
 
-/**
- * Revoke a message via Baileys' `{ delete }` content. `forEveryone: false`
- * targets only the sender's own copy via the `me` revoke variant.
- */
 export const deleteMessage = async (
   socket: BuilderSocketLike,
   key: WAMessageKey,
@@ -39,10 +33,6 @@ export const deleteMessage = async (
   await socket.sendMessage(remoteJid, { delete: target })
 }
 
-/**
- * React to a message with `emoji`; an empty string removes the reaction.
- * Resolves with the reaction message's {@link WAMessageKey}.
- */
 export const reactToMessage = async (
   socket: BuilderSocketLike,
   key: WAMessageKey,
@@ -53,11 +43,6 @@ export const reactToMessage = async (
   return requireKey(result)
 }
 
-/**
- * Forward a stored message to `to`. The source is looked up via
- * `store.getMessage` (no network re-fetch); a missing source throws
- * `MESSAGE_NOT_FOUND`.
- */
 export const forwardMessage = async (
   socket: BuilderSocketLike,
   store: Pick<MessageStore, 'getMessage'>,

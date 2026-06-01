@@ -53,12 +53,10 @@ import {
   type ReactionItem,
 } from './decoders/mutations.js'
 
-/** Idempotent unsubscribe handle returned by {@link attachInboundPipeline}. */
 export interface InboundPipelineHandle {
   detach: () => void
 }
 
-/** Ambient context every inbound decoder needs to resolve identity and log failures. */
 export interface InboundPipelineContext {
   selfJid: string
   logger?: Logger
@@ -74,13 +72,11 @@ export interface InboundPipelineContext {
   ignoreMe?: boolean
 }
 
-/** Minimal `socket.ev` surface the pipeline subscribes against (additive, multi-listener). */
 export interface BaileysEventSurface {
   on: (event: string, handler: (...args: unknown[]) => void) => void
   off: (event: string, handler: (...args: unknown[]) => void) => void
 }
 
-/** Narrow socket shape required by the pipeline; the full Baileys socket is assignable. */
 export interface PipelineSocketLike {
   ev: BaileysEventSurface
 }
@@ -96,12 +92,6 @@ const connectionReachout = (update: unknown): RawReachoutTimelock | null => {
   return lock as RawReachoutTimelock
 }
 
-/**
- * Subscribe a {@link TypedEventEmitter} to the relevant Baileys inbound event
- * keys, decoding each raw payload into typed client events. Listeners are
- * additive (Phase 3 `connection.update` handlers keep firing). The returned
- * {@link InboundPipelineHandle.detach} removes every listener and is idempotent.
- */
 export function attachInboundPipeline(
   client: ClientEmitter,
   socket: PipelineSocketLike,

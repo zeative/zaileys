@@ -1,9 +1,5 @@
 import type { RetryPolicy, TaskQueueOptions } from './types.js'
 
-/**
- * Injectable backoff sleeper for {@link TaskQueue}. Defaults to `setTimeout`;
- * tests override it for fake-timer determinism.
- */
 export type TaskQueueClock = {
   sleep?: (ms: number) => Promise<void>
 }
@@ -17,15 +13,6 @@ const defaultRetry: RetryPolicy = { maxRetries: 0, backoffMs: () => 0 }
 const defaultSleep = (ms: number): Promise<void> =>
   ms <= 0 ? Promise.resolve() : new Promise((resolve) => setTimeout(resolve, ms))
 
-/**
- * Bounded-concurrency task queue with a configurable retry policy.
- *
- * Tasks added via {@link add} run subject to the `concurrency` limit. A failing
- * task is retried up to `retry.maxRetries` times, sleeping `retry.backoffMs(n)`
- * before attempt `n` (1-based). When retries are exhausted the queue rejects
- * with the original error so callers (e.g. broadcast) can record the exact cause
- * per recipient.
- */
 export class TaskQueue {
   private readonly concurrency: number
   private readonly retry: RetryPolicy

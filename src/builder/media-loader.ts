@@ -62,7 +62,6 @@ const readPath = async (path: string): Promise<Buffer> => {
 
 const isHttp = (value: string): boolean => value.startsWith('http://') || value.startsWith('https://')
 
-/** Load a {@link MediaSource} into a `Buffer` with detected mime and byte size, wrapping all failures as `MEDIA_LOAD_FAILED`. */
 export const loadMedia = async (src: MediaSource, options?: LoadMediaOptions): Promise<LoadedMedia> => {
   await initializeFFmpeg()
   const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS

@@ -8,16 +8,11 @@ import type {
   AuthStoreValue,
 } from '../types.js'
 
-/**
- * In-process `AuthStoreBundle` backed by JS `Map` instances.
- * Ideal for tests and ephemeral scripts; data is lost on process exit.
- */
 export class MemoryAuthStore implements AuthStoreBundle {
   private credsBlob: AuthenticationCreds | undefined
   private readonly signalMap: Map<AuthStoreKey, Map<string, unknown>> = new Map()
   private closed = false
 
-  /** Signal-key store view backed by the shared in-process map. */
   readonly signal: AuthStore = {
     read: async <K extends AuthStoreKey>(
       type: K,
@@ -71,7 +66,6 @@ export class MemoryAuthStore implements AuthStoreBundle {
     },
   }
 
-  /** Credential store view sharing closure state with {@link MemoryAuthStore.signal}. */
   readonly creds: AuthCredsStore = {
     readCreds: async (): Promise<AuthenticationCreds | undefined> => {
       this.assertOpen()

@@ -4,13 +4,9 @@ import type { RedisClientType } from 'redis'
 import { ZaileysStoreError } from '../../types/store-error.js'
 import type { BaileysSocketLike, MessageStore, MessageStoreListOptions } from '../types.js'
 
-/** Optional constructor input for {@link RedisMessageStore}. */
 export interface RedisMessageStoreOptions {
-  /** Pre-connected node-redis v4 client (caller owns lifecycle). */
   client?: RedisClientType
-  /** Connection URL; adapter creates and owns the client. */
   url?: string
-  /** Namespace prefix isolating keys. Defaults to `'zaileys'`. */
   namespace?: string
 }
 
@@ -29,10 +25,6 @@ const isPeerMissingError = (err: unknown): boolean => {
   return code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND'
 }
 
-/**
- * Redis-backed `MessageStore` using node-redis v4 with namespaced keys.
- * Messages stored as ZSET index + HASH payload per jid; chats/contacts in single hashes.
- */
 export class RedisMessageStore implements MessageStore {
   private readonly namespace: string
   private readonly externalClient: RedisClientType | undefined
@@ -61,7 +53,6 @@ export class RedisMessageStore implements MessageStore {
     this.url = options.url
   }
 
-  /** Persist a single WAMessage; ZADD to per-jid index + HSET payload. */
   async saveMessage(message: WAMessage): Promise<void> {
     this.assertOpen()
     const client = await this.ensureReady()
@@ -75,7 +66,6 @@ export class RedisMessageStore implements MessageStore {
     await this.runWrite(() => multi.exec())
   }
 
-  /** Look up a message by Baileys key. */
   async getMessage(key: WAMessageKey): Promise<WAMessage | undefined> {
     this.assertOpen()
     const client = await this.ensureReady()
@@ -85,7 +75,6 @@ export class RedisMessageStore implements MessageStore {
     return JSON.parse(raw, BufferJSON.reviver) as WAMessage
   }
 
-  /** List messages for a jid, newest-first, honouring `limit` + `before`. */
   async listMessages(jid: string, options?: MessageStoreListOptions): Promise<WAMessage[]> {
     this.assertOpen()
     const client = await this.ensureReady()
@@ -108,7 +97,6 @@ export class RedisMessageStore implements MessageStore {
     return out
   }
 
-  /** Persist or update a chat record; tracks archived flag in a side SET. */
   async saveChat(chat: Chat): Promise<void> {
     this.assertOpen()
     const id = (chat as { id?: string | null }).id
@@ -124,7 +112,6 @@ export class RedisMessageStore implements MessageStore {
     await this.runWrite(() => multi.exec())
   }
 
-  /** Fetch a chat by jid. */
   async getChat(jid: string): Promise<Chat | undefined> {
     this.assertOpen()
     const client = await this.ensureReady()
@@ -133,7 +120,6 @@ export class RedisMessageStore implements MessageStore {
     return JSON.parse(raw, BufferJSON.reviver) as Chat
   }
 
-  /** List chats, optionally filtered by archived flag. */
   async listChats(options?: { archived?: boolean }): Promise<Chat[]> {
     this.assertOpen()
     const client = await this.ensureReady()
@@ -163,7 +149,6 @@ export class RedisMessageStore implements MessageStore {
     return out
   }
 
-  /** Persist or update a contact. */
   async saveContact(contact: Contact): Promise<void> {
     this.assertOpen()
     const client = await this.ensureReady()
@@ -172,7 +157,6 @@ export class RedisMessageStore implements MessageStore {
     )
   }
 
-  /** Fetch a contact by jid. */
   async getContact(jid: string): Promise<Contact | undefined> {
     this.assertOpen()
     const client = await this.ensureReady()
@@ -181,7 +165,6 @@ export class RedisMessageStore implements MessageStore {
     return JSON.parse(raw, BufferJSON.reviver) as Contact
   }
 
-  /** List every saved contact. */
   async listContacts(): Promise<Contact[]> {
     this.assertOpen()
     const client = await this.ensureReady()
@@ -195,7 +178,6 @@ export class RedisMessageStore implements MessageStore {
     return out
   }
 
-  /** Record latest presence for a jid with 5-minute TTL. */
   async savePresence(jid: string, presence: PresenceData): Promise<void> {
     this.assertOpen()
     const client = await this.ensureReady()
@@ -206,7 +188,6 @@ export class RedisMessageStore implements MessageStore {
     )
   }
 
-  /** Fetch latest presence for a jid. */
   async getPresence(jid: string): Promise<PresenceData | undefined> {
     this.assertOpen()
     const client = await this.ensureReady()
@@ -215,10 +196,6 @@ export class RedisMessageStore implements MessageStore {
     return JSON.parse(raw, BufferJSON.reviver) as PresenceData
   }
 
-  /**
-   * Subscribe to a Baileys-like socket and auto-persist incoming events.
-   * Idempotent: repeat calls detach previous listeners before re-binding.
-   */
   bind(socket: BaileysSocketLike): void {
     this.assertOpen()
     if (this.boundSocket && this.boundSocket.ev.off) {
@@ -261,7 +238,6 @@ export class RedisMessageStore implements MessageStore {
     }
   }
 
-  /** SCAN+DEL every key under the namespace in batches of 1000. */
   async clear(): Promise<void> {
     this.assertOpen()
     const client = await this.ensureReady()
@@ -278,7 +254,6 @@ export class RedisMessageStore implements MessageStore {
     } while (cursor !== 0)
   }
 
-  /** Detach listeners and release any owned redis client. */
   async close(): Promise<void> {
     if (this.closed) return
     this.closed = true

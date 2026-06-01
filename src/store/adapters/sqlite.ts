@@ -22,11 +22,8 @@ type RawDriverCtor = new (
   options?: { readonly?: boolean },
 ) => DatabaseInstance
 
-/** Optional constructor input for {@link SqliteMessageStore}. */
 export interface SqliteMessageStoreOptions {
-  /** Path on disk, or `':memory:'` for an ephemeral connection. */
   database: string | Buffer
-  /** Open the database read-only. */
   readonly?: boolean
 }
 
@@ -87,10 +84,6 @@ const parseBlob = <T,>(blob: Buffer | Uint8Array): T => {
   }
 }
 
-/**
- * SQLite-backed `MessageStore` using `better-sqlite3` with WAL pragmas.
- * Schema migrates idempotently on first use; supports `:memory:` mode.
- */
 export class SqliteMessageStore implements MessageStore {
   private readonly options: SqliteMessageStoreOptions
   private db: DatabaseInstance | null = null
@@ -104,7 +97,6 @@ export class SqliteMessageStore implements MessageStore {
     this.options = options
   }
 
-  /** Persist or update a single message keyed by its `WAMessageKey`. */
   async saveMessage(message: WAMessage): Promise<void> {
     const prep = await this.ensureReady()
     const jid = message.key.remoteJid ?? ''
@@ -114,7 +106,6 @@ export class SqliteMessageStore implements MessageStore {
     prep.upsertMessage.run(jid, id, fromMe, timestamp, encodeBlob(message))
   }
 
-  /** Look up a message by Baileys key. */
   async getMessage(key: WAMessageKey): Promise<WAMessage | undefined> {
     const prep = await this.ensureReady()
     const row = prep.getMessage.get(
@@ -125,7 +116,6 @@ export class SqliteMessageStore implements MessageStore {
     return row ? parseBlob<WAMessage>(row.data) : undefined
   }
 
-  /** List messages for a jid, newest-first, honouring `limit` + `before`. */
   async listMessages(jid: string, options?: MessageStoreListOptions): Promise<WAMessage[]> {
     const prep = await this.ensureReady()
     const limit = options?.limit ?? 100
@@ -139,7 +129,6 @@ export class SqliteMessageStore implements MessageStore {
     return rows.map((r) => parseBlob<WAMessage>(r.data))
   }
 
-  /** Persist or update a chat record. */
   async saveChat(chat: Chat): Promise<void> {
     const prep = await this.ensureReady()
     const id = (chat as { id?: string | null }).id
@@ -148,14 +137,12 @@ export class SqliteMessageStore implements MessageStore {
     prep.upsertChat.run(id, archived, encodeBlob(chat))
   }
 
-  /** Fetch a chat by jid. */
   async getChat(jid: string): Promise<Chat | undefined> {
     const prep = await this.ensureReady()
     const row = prep.getChat.get(jid) as { data: Buffer | Uint8Array } | undefined
     return row ? parseBlob<Chat>(row.data) : undefined
   }
 
-  /** List chats, optionally filtered by archived flag. */
   async listChats(options?: { archived?: boolean }): Promise<Chat[]> {
     const prep = await this.ensureReady()
     const rows =
@@ -165,43 +152,34 @@ export class SqliteMessageStore implements MessageStore {
     return rows.map((r) => parseBlob<Chat>(r.data))
   }
 
-  /** Persist or update a contact. */
   async saveContact(contact: Contact): Promise<void> {
     const prep = await this.ensureReady()
     prep.upsertContact.run(contact.id, encodeBlob(contact))
   }
 
-  /** Fetch a contact by jid. */
   async getContact(jid: string): Promise<Contact | undefined> {
     const prep = await this.ensureReady()
     const row = prep.getContact.get(jid) as { data: Buffer | Uint8Array } | undefined
     return row ? parseBlob<Contact>(row.data) : undefined
   }
 
-  /** List every saved contact. */
   async listContacts(): Promise<Contact[]> {
     const prep = await this.ensureReady()
     const rows = prep.listContacts.all() as Array<{ data: Buffer | Uint8Array }>
     return rows.map((r) => parseBlob<Contact>(r.data))
   }
 
-  /** Record latest presence for a jid. */
   async savePresence(jid: string, presence: PresenceData): Promise<void> {
     const prep = await this.ensureReady()
     prep.upsertPresence.run(jid, encodeBlob(presence))
   }
 
-  /** Fetch latest presence for a jid. */
   async getPresence(jid: string): Promise<PresenceData | undefined> {
     const prep = await this.ensureReady()
     const row = prep.getPresence.get(jid) as { data: Buffer | Uint8Array } | undefined
     return row ? parseBlob<PresenceData>(row.data) : undefined
   }
 
-  /**
-   * Subscribe to a Baileys-like socket and auto-persist incoming events.
-   * Listeners cover messages, chats, contacts, and presence streams.
-   */
   bind(socket: BaileysSocketLike): void {
     if (this.closed) {
       throw new ZaileysStoreError('STORE_CLOSED', 'SqliteMessageStore is closed')
@@ -238,7 +216,6 @@ export class SqliteMessageStore implements MessageStore {
     for (const [event, handler] of this.listeners) socket.ev.on(event, handler)
   }
 
-  /** Wipe all tables in a single transaction. */
   async clear(): Promise<void> {
     const prep = await this.ensureReady()
     const db = this.db!
@@ -251,7 +228,6 @@ export class SqliteMessageStore implements MessageStore {
     tx()
   }
 
-  /** Detach listeners and close the underlying connection; idempotent. */
   async close(): Promise<void> {
     if (this.closed) return
     this.closed = true

@@ -1,6 +1,5 @@
 import { DisconnectReason as BaileysDisconnectReason } from 'baileys'
 
-/** Domain-level disconnect reason normalized from Baileys integer enum. */
 export type DisconnectReasonDomain =
   | 'logged-out'
   | 'connection-replaced'
@@ -13,12 +12,6 @@ export type DisconnectReasonDomain =
   | 'unavailable-service'
   | 'unknown'
 
-/**
- * Translate a Baileys numeric disconnect code into a domain reason.
- * Returns `'unknown'` for `undefined` or unrecognised codes. Collapses
- * Baileys' 408 collision (`connectionLost` and `timedOut`) to
- * `'connection-lost'` uniformly.
- */
 export function mapDisconnectReason(code: number | undefined): DisconnectReasonDomain {
   switch (code) {
     case BaileysDisconnectReason.loggedOut:
@@ -44,12 +37,10 @@ export function mapDisconnectReason(code: number | undefined): DisconnectReasonD
   }
 }
 
-/** Reasons where reconnect MUST NOT be attempted. */
 export function isFatalDisconnect(reason: DisconnectReasonDomain): boolean {
   return reason === 'logged-out' || reason === 'connection-replaced' || reason === 'forbidden'
 }
 
-/** Reasons that require wiping persisted auth state. */
 export function shouldClearAuth(reason: DisconnectReasonDomain): boolean {
   return (
     reason === 'logged-out' ||
@@ -59,7 +50,6 @@ export function shouldClearAuth(reason: DisconnectReasonDomain): boolean {
   )
 }
 
-/** Inverse of {@link isFatalDisconnect}; convenience for reconnect strategy. */
 export function shouldReconnect(reason: DisconnectReasonDomain): boolean {
   return !isFatalDisconnect(reason)
 }

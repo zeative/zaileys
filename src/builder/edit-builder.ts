@@ -6,11 +6,6 @@ import { buildVideoContent } from './content/video.js'
 import { ZaileysBuilderError } from './errors.js'
 import type { ImageOptions, MediaSource, VideoOptions } from './types.js'
 
-/**
- * Chainable editor for an existing message. Exposes only the content kinds
- * WhatsApp permits on an edit (`text`, `image`, `video`); awaiting the builder
- * dispatches the replacement with the `edit` field set to the target key.
- */
 export class EditBuilder {
   private readonly socket: BuilderSocketLike
   private readonly key: WAMessageKey
@@ -22,25 +17,21 @@ export class EditBuilder {
     this.key = key
   }
 
-  /** Replace with new text. */
   text(content: string): this {
     this.content = buildTextContent(content) as unknown as AnyMessageContent
     return this
   }
 
-  /** Replace with a new image. */
   image(src: MediaSource, opts?: ImageOptions): this {
     this.pendingContent = buildImageContent(src, opts)
     return this
   }
 
-  /** Replace with a new video. */
   video(src: MediaSource, opts?: VideoOptions): this {
     this.pendingContent = buildVideoContent(src, opts)
     return this
   }
 
-  /** Terminal action — dispatch the edit and resolve with the resulting {@link WAMessageKey}. */
   then<T = WAMessageKey>(
     onResolved: (key: WAMessageKey) => T,
     onRejected?: (err: unknown) => T | PromiseLike<T>,

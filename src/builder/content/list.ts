@@ -5,29 +5,10 @@ import { RELAY_CONTENT_KEY, type RelayContent } from './buttons.js'
 
 const MAX_ROWS = 10
 
-/** A single nativeFlow `single_select` row; `id` is the round-trip field surfaced as `ListSelectPayload.rowId`. */
 export type ListContentRow = { header: string; title: string; description: string; id: string }
 
-/** A nativeFlow `single_select` section. */
 export type ListContentSection = { title: string; highlight_label: string; rows: ListContentRow[] }
 
-/**
- * Build a nativeFlow `single_select` list message from declarative {@link ListOptions},
- * returned as relay-marker content.
- *
- * rc13 decision: the legacy `listMessage` shape no longer renders on personal
- * WhatsApp accounts. A `single_select` button inside an `interactiveMessage`
- * renders through the same `biz > interactive (native_flow)` node the builder
- * attaches for buttons, so lists now render everywhere buttons do.
- *
- * Each `ListSection.rows[].id` is emitted as the row `id` and returns unchanged as
- * `ListSelectPayload.rowId` when a user picks a row (decoded from
- * `interactiveResponseMessage.nativeFlowResponseMessage`).
- *
- * @param opts - sections (≥1, ≤10 total rows) plus `buttonText` and optional decoration.
- * @throws ZaileysBuilderError `INVALID_OPTIONS` on blank button text, no sections,
- *   empty/over-limit rows, or blank row id/title.
- */
 export const buildListContent = (opts: ListOptions): AnyMessageContent => {
   if (typeof opts?.buttonText !== 'string' || opts.buttonText.trim().length === 0) {
     throw new ZaileysBuilderError('INVALID_OPTIONS', 'list() requires a non-empty buttonText')

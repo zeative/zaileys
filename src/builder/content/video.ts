@@ -3,7 +3,6 @@ import { ZaileysBuilderError } from '../errors.js'
 import { loadMedia } from '../media-loader.js'
 import type { MediaSource, VideoOptions } from '../types.js'
 
-/** Video content shape passed to `sendMessage`; the loaded buffer is uploaded by Baileys. */
 export type VideoContent = {
   video: Buffer
   caption?: string
@@ -11,14 +10,6 @@ export type VideoContent = {
   viewOnce?: boolean
 }
 
-/**
- * Load a {@link MediaSource} and build Baileys video content, rejecting non-video bytes.
- *
- * @param src - file path, URL, or raw `Buffer`; loaded via {@link loadMedia}.
- * @param opts - optional `caption`, `gifPlayback`, and `viewOnce` flags.
- * @throws ZaileysBuilderError `MEDIA_LOAD_FAILED` when the source cannot be read,
- *   `INVALID_OPTIONS` when the detected mime is not `video/*`.
- */
 export const buildVideoContent = async (
   src: MediaSource,
   opts?: VideoOptions,

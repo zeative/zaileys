@@ -2,7 +2,6 @@ import { Readable } from 'node:stream'
 import type { WAMessage } from 'baileys'
 import type { MediaDownloadResult, MediaKind } from '../types.js'
 
-/** Minimal logging surface accepted by the download factory. */
 export interface DownloadLogger {
   warn(obj: unknown, msg?: string): void
 }
@@ -24,7 +23,6 @@ const extractMime = (msg: WAMessage, kind: MediaKind): string | null => {
   return typeof mime === 'string' && mime.length > 0 ? mime : null
 }
 
-/** Build a lazy media downloader that resolves bytes plus mime/size on first call. */
 export const createDownloadFn = (
   msg: WAMessage,
   kind: MediaKind,
@@ -43,7 +41,6 @@ export const createDownloadFn = (
   }
 }
 
-/** Build a lazy media stream downloader that resolves a readable stream on first call. */
 export const createStreamFn = (
   msg: WAMessage,
   kind: MediaKind,

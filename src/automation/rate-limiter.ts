@@ -1,10 +1,6 @@
 import { ZaileysAutomationError } from './errors.js'
 import type { RateLimiterOptions } from './types.js'
 
-/**
- * Injectable timing primitives for {@link RateLimiter}. Defaults wrap
- * `Date.now` and `setTimeout`; tests override them for fake-timer determinism.
- */
 export type RateLimiterClock = {
   now?: () => number
   sleep?: (ms: number) => Promise<void>
@@ -20,15 +16,6 @@ type Bucket = {
 const defaultSleep = (ms: number): Promise<void> =>
   ms <= 0 ? Promise.resolve() : new Promise((resolve) => setTimeout(resolve, ms))
 
-/**
- * Token-bucket rate limiter with a global ceiling and optional per-jid ceiling.
- *
- * Refill is continuous: each {@link acquire} recomputes available tokens from
- * the elapsed time since the bucket was last touched (no `setInterval`), which
- * keeps it friendly to injected clocks and fake timers. A call resolves once it
- * has consumed a token from the global bucket and, when configured, the bucket
- * for its jid.
- */
 export class RateLimiter {
   private readonly now: () => number
   private readonly sleep: (ms: number) => Promise<void>

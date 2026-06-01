@@ -3,15 +3,6 @@ import { RateLimiter, type RateLimiterClock } from './rate-limiter.js'
 import { TaskQueue } from './queue.js'
 import type { BroadcastOptions, BroadcastResult } from './types.js'
 
-/**
- * Dependencies for {@link runBroadcast}. Decoupled from `Client` so the core is
- * testable with a mock `sendTo` and an injected limiter/clock.
- *
- * - `sendTo` mirrors `client.send`: a jid in, a fresh `MessageBuilder<'init'>` out.
- * - `limiter` is optional; when omitted one is built from `options.rateLimitPerSec`.
- * - `now`/`sleep` are injectable timing primitives forwarded to the limiter and
- *   retry backoff for fake-timer determinism in tests.
- */
 export type BroadcastDeps = {
   sendTo: (jid: string) => MessageBuilder<'init'>
   limiter?: RateLimiter
@@ -22,18 +13,6 @@ export type BroadcastDeps = {
 const toError = (value: unknown): Error =>
   value instanceof Error ? value : new Error(typeof value === 'string' ? value : String(value))
 
-/**
- * Send one message per jid, paced by a {@link RateLimiter} and isolated so a
- * single recipient failure never halts the run.
- *
- * For each jid: a rate-limit token is acquired, then `build(deps.sendTo(jid))`
- * is dispatched. When `options.retry` is supplied the per-recipient send is
- * wrapped in a {@link TaskQueue} retry loop; otherwise it runs once. Successes
- * land in `result.sent`, failures (after retries) in `result.failed` with the
- * causing error. `onProgress(done, total, jid, ok)` fires after each recipient
- * resolves. The invariant `sent.length + failed.length === jids.length` always
- * holds. An empty `jids` array resolves immediately with empty arrays.
- */
 export async function runBroadcast(
   jids: string[],
   build: (b: MessageBuilder<'init'>) => MessageBuilder<'content-set'>,

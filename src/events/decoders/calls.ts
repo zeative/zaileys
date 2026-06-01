@@ -12,7 +12,6 @@ const toMillis = (date: WACallEvent['date']): number => {
   return Number.isFinite(ms) ? ms : 0
 }
 
-/** Decode a baileys `call` item into an incoming-call payload, or `null` when not an offer/ringing event. */
 export const decodeCallIncoming = (item: WACallEvent): IncomingCall | null => {
   if (typeof item.id !== 'string' || item.id.length === 0) return null
   if (!INCOMING_STATUSES.has(item.status)) return null
@@ -27,7 +26,6 @@ export const decodeCallIncoming = (item: WACallEvent): IncomingCall | null => {
   }
 }
 
-/** Decode a baileys `call` item into an ended-call payload, or `null` unless terminal (timeout/reject/accept/terminate). */
 export const decodeCallEnded = (item: WACallEvent): EndedCall | null => {
   if (typeof item.id !== 'string' || item.id.length === 0) return null
   if (!ENDED_STATUSES.has(item.status)) return null

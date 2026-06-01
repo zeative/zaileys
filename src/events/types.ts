@@ -1,7 +1,6 @@
 import type { WAMessageKey } from 'baileys'
 import type { MentionAllContext, MentionContext, MessageContext } from './context.js'
 
-/** Resolved sender identity normalized across PN and LID addressing modes. */
 export interface SenderInfo {
   jid: string
   lid?: string
@@ -11,7 +10,6 @@ export interface SenderInfo {
   isMe?: boolean
 }
 
-/** Group participant identity carrying LID-aware aliases and admin flag. */
 export interface GroupParticipantInfo {
   jid: string
   participantAlt?: string
@@ -20,24 +18,20 @@ export interface GroupParticipantInfo {
   isAdmin?: boolean
 }
 
-/** Lightweight reference to a quoted (replied-to) message. */
 export interface QuotedRef {
   key: WAMessageKey
   content?: string
   sender?: SenderInfo
 }
 
-/** Discriminator over downloadable media content types. */
 export type MediaKind = 'image' | 'video' | 'audio' | 'document' | 'sticker'
 
-/** Result of a lazy media download: raw bytes plus resolved metadata. */
 export interface MediaDownloadResult {
   buffer: Buffer
   mime: string
   size: number
 }
 
-/** Media descriptor attached to image, video, audio, document, and sticker events. */
 export interface MediaDescriptor {
   mimetype: string
   size?: number
@@ -46,7 +40,6 @@ export interface MediaDescriptor {
   ptt?: boolean
 }
 
-/** Reaction add/remove event; a `null` emoji denotes an unreact. */
 export interface ReactionPayload {
   key: WAMessageKey
   emoji: string | null
@@ -54,7 +47,6 @@ export interface ReactionPayload {
   timestamp: number
 }
 
-/** Message-edit event carrying the replacement text and edit time. */
 export interface EditPayload {
   key: WAMessageKey
   newContent: string
@@ -62,7 +54,6 @@ export interface EditPayload {
   sender: SenderInfo
 }
 
-/** Message-deletion (revoke) event scoped to everyone or self. */
 export interface DeletePayload {
   key: WAMessageKey
   deletedFor: 'everyone' | 'me'
@@ -70,7 +61,6 @@ export interface DeletePayload {
   timestamp: number
 }
 
-/** Poll vote update listing the options the voter currently selected. */
 export interface PollVotePayload {
   pollKey: WAMessageKey
   selectedOptions: string[]
@@ -78,7 +68,6 @@ export interface PollVotePayload {
   timestamp: number
 }
 
-/** Template/interactive button click reply event. */
 export interface ButtonClickPayload {
   key: WAMessageKey
   buttonId: string
@@ -87,7 +76,6 @@ export interface ButtonClickPayload {
   timestamp: number
 }
 
-/** List message row selection reply event. */
 export interface ListSelectPayload {
   key: WAMessageKey
   rowId: string
@@ -96,7 +84,6 @@ export interface ListSelectPayload {
   timestamp: number
 }
 
-/** Group metadata change event carrying only the mutated fields. */
 export interface GroupUpdatePayload {
   groupId: string
   update: Partial<{
@@ -109,7 +96,6 @@ export interface GroupUpdatePayload {
   timestamp: number
 }
 
-/** Participants added to a group via add, invite, or invite-link. */
 export interface GroupJoinPayload {
   groupId: string
   participants: GroupParticipantInfo[]
@@ -118,7 +104,6 @@ export interface GroupJoinPayload {
   timestamp: number
 }
 
-/** Participants removed from a group via removal or voluntary leave. */
 export interface GroupLeavePayload {
   groupId: string
   participants: GroupParticipantInfo[]
@@ -127,7 +112,6 @@ export interface GroupLeavePayload {
   timestamp: number
 }
 
-/** Member-label tag applied to a group participant (rc13 member-tag.update). */
 export interface MemberTagPayload {
   groupId: string
   participant: string
@@ -136,12 +120,10 @@ export interface MemberTagPayload {
   timestamp: number
 }
 
-/** Call event discriminated by `kind` into incoming and ended variants. */
 export type CallPayload =
   | (CallBase & { kind: 'incoming' })
   | (CallBase & { kind: 'ended' })
 
-/** Shared fields for every {@link CallPayload} variant. */
 export interface CallBase {
   callId: string
   from: string
@@ -151,26 +133,22 @@ export interface CallBase {
   status?: string
 }
 
-/** History-sync status re-emit; carries no message bodies (handled by the store). */
 export interface HistorySyncPayload {
   syncType: string
   status: 'complete' | 'paused'
   explicit: boolean
 }
 
-/** Account-limitation event discriminated by `reason` (reachout timelock vs chat quota). */
 export type LimitedPayload =
   | { reason: 'reachout-timelock'; retryAt: number }
   | { reason: 'chat-limit-reached'; usedQuota?: number; totalQuota?: number }
 
-/** Presence update for a chat or a specific group participant. */
 export interface PresencePayload {
   jid: string
   participant?: string
   status: 'available' | 'unavailable' | 'composing' | 'recording' | 'paused'
 }
 
-/** Consolidated newsletter event discriminated by `action`. */
 export type NewsletterPayload = {
   newsletterId: string
   timestamp: number
@@ -181,10 +159,6 @@ export type NewsletterPayload = {
   | { action: 'settings'; update?: Record<string, unknown> }
 )
 
-/**
- * Typed contract for every decoded inbound event (EVT-01..24). Composed with
- * `ConnectionEventMap` into `ClientEventMap` at the client boundary.
- */
 export type InboundEventMap = {
   text: MessageContext
   image: MessageContext
@@ -212,5 +186,4 @@ export type InboundEventMap = {
   newsletter: NewsletterPayload
 }
 
-/** Discriminator union over every inbound event key. */
 export type InboundEventName = keyof InboundEventMap

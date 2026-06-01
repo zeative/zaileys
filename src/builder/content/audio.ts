@@ -4,7 +4,6 @@ import { ZaileysBuilderError } from '../errors.js'
 import { loadMedia } from '../media-loader.js'
 import type { AudioOptions, MediaSource } from '../types.js'
 
-/** Audio content shape passed to `sendMessage`; the buffer is Opus-transcoded for WhatsApp. */
 export type AudioContent = {
   audio: Buffer
   ptt?: boolean
@@ -12,14 +11,6 @@ export type AudioContent = {
   waveform?: Uint8Array
 }
 
-/**
- * Load a {@link MediaSource} and build Baileys audio content, transcoding to Opus
- * via the Phase 1 {@link Media} processor so the result plays as a WhatsApp voice note.
- *
- * @param src - file path, URL, or raw `Buffer`; loaded via {@link loadMedia}.
- * @param opts - `ptt` (default `true`) marks a voice note; `seconds` sets the duration hint.
- * @throws ZaileysBuilderError `MEDIA_LOAD_FAILED` when the source cannot be read or transcoded.
- */
 export const buildAudioContent = async (
   src: MediaSource,
   opts?: AudioOptions,

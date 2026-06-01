@@ -2,19 +2,16 @@ import { proto, type WAMessageKey } from 'baileys'
 import type { DeletePayload, EditPayload, PollVotePayload, ReactionPayload } from '../types.js'
 import { extractJid, extractSender, safeNumber, type LongLike } from './_shared.js'
 
-/** Ambient context every mutation decoder needs to resolve identity and scope. */
 export interface MutationContext {
   selfJid: string
   pushName?: string
 }
 
-/** Single entry of a baileys `messages.reaction` event batch. */
 export interface ReactionItem {
   key: WAMessageKey
   reaction: proto.IReaction
 }
 
-/** A baileys `messages.update` entry: a partial message body keyed to its target. */
 export interface MessageUpdate {
   key: WAMessageKey
   update: {
@@ -49,11 +46,6 @@ const toHex = (bytes: Uint8Array[] | null | undefined): string[] => {
   return bytes.map((b) => Buffer.from(b).toString('hex'))
 }
 
-/**
- * Decode a single `messages.reaction` item into a {@link ReactionPayload}.
- * An empty reaction text denotes an unreact and is normalized to a `null` emoji.
- * Returns `null` when the targeted message key is missing.
- */
 export const decodeReaction = (item: ReactionItem, ctx: MutationContext): ReactionPayload | null => {
   const reaction = item?.reaction
   const target = reaction?.key
@@ -70,11 +62,6 @@ export const decodeReaction = (item: ReactionItem, ctx: MutationContext): Reacti
   }
 }
 
-/**
- * Decode a `messages.update` carrying a `MESSAGE_EDIT` protocol message into an
- * {@link EditPayload}. Returns `null` when the update is not an edit or the
- * original message key is absent.
- */
 export const decodeEdit = (update: MessageUpdate, ctx: MutationContext): EditPayload | null => {
   const protocol = update?.update?.message?.protocolMessage
   if (!protocol) return null
@@ -91,12 +78,6 @@ export const decodeEdit = (update: MessageUpdate, ctx: MutationContext): EditPay
   }
 }
 
-/**
- * Decode a `messages.update` carrying a `REVOKE` protocol message into a
- * {@link DeletePayload}. The deletion scope is `'me'` only when the revoke lands
- * in the user's self-chat; every other revoke is treated as `'everyone'`.
- * Returns `null` when the update is not a revoke or the revoked key is absent.
- */
 export const decodeDelete = (update: MessageUpdate, ctx: MutationContext): DeletePayload | null => {
   const protocol = update?.update?.message?.protocolMessage
   if (!protocol) return null
@@ -117,13 +98,6 @@ export const decodeDelete = (update: MessageUpdate, ctx: MutationContext): Delet
   }
 }
 
-/**
- * Decode a poll vote from either a top-level `pollUpdates` entry or an inner
- * `pollUpdateMessage` on a `messages.update`. Selected options are returned as
- * raw hex-encoded SHA-256 hashes; resolving them to human-readable option text
- * requires the original poll metadata and is deferred to the message store.
- * Returns `null` when no poll update is present or the poll key is absent.
- */
 export const decodePollVote = (update: MessageUpdate, ctx: MutationContext): PollVotePayload | null => {
   const fromUpdates = update?.update?.pollUpdates?.[0]
   const inner = update?.update?.message?.pollUpdateMessage

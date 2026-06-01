@@ -7,13 +7,6 @@ import type {
   AuthStoreValue,
 } from './types.js'
 
-/**
- * Optional inputs for {@link makeCacheableAuthStore}.
- *
- * `cacheSize` and `cacheTtlSeconds` are reserved for a future iteration —
- * Phase 3 will surface them via the Client `cacheSignal` option. Today the
- * wrapper relies on Baileys' internal NodeCache defaults.
- */
 export interface CacheableAuthStoreOptions {
   logger?: {
     trace?: (msg: unknown) => void
@@ -26,14 +19,6 @@ export interface CacheableAuthStoreOptions {
   cacheTtlSeconds?: number
 }
 
-/**
- * Wrap an {@link AuthStoreBundle} so signal reads hit an LRU cache (Baileys'
- * `makeCacheableSignalKeyStore`). The creds half passes through untouched —
- * caching there has no payoff. Delete invalidates the cache via `set(nulls)`.
- *
- * NOTE: `cacheSize` / `cacheTtlSeconds` options are not yet honoured; Phase 3
- * Client config will own that surface (see plan-007 hand-off in SUMMARY).
- */
 export function makeCacheableAuthStore(
   bundle: AuthStoreBundle,
   options?: CacheableAuthStoreOptions,

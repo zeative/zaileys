@@ -18,7 +18,6 @@ import {
   isGroupJid,
 } from './_shared.js'
 
-/** Decode context passed to every message decoder. */
 export interface DecodeContext {
   selfJid: string
   logger?: DownloadLogger
@@ -241,7 +240,6 @@ const buildContext = (
   )
 }
 
-/** Decode a plain or extended text message into a {@link MessageContext}. */
 export const decodeText = (msg: WAMessage, ctx: DecodeContext): MessageContext | null => {
   const content = textContent(msg)
   if (content === null) return null
@@ -271,23 +269,18 @@ const decodeMedia = <K extends MediaKind>(
   return buildContext(msg, ctx, chatType, caption, media)
 }
 
-/** Decode an image message into a {@link MessageContext} with lazy media accessor. */
 export const decodeImage = (msg: WAMessage, ctx: DecodeContext): MessageContext | null =>
   decodeMedia('image', msg, ctx)
 
-/** Decode a video message into a {@link MessageContext} with lazy media accessor. */
 export const decodeVideo = (msg: WAMessage, ctx: DecodeContext): MessageContext | null =>
   decodeMedia('video', msg, ctx)
 
-/** Decode an audio message, surfacing lazy media with push-to-talk context via media node. */
 export const decodeAudio = (msg: WAMessage, ctx: DecodeContext): MessageContext | null =>
   decodeMedia('audio', msg, ctx)
 
-/** Decode a document message with lazy media accessor. */
 export const decodeDocument = (msg: WAMessage, ctx: DecodeContext): MessageContext | null =>
   decodeMedia('document', msg, ctx)
 
-/** Decode a sticker message into a {@link MessageContext} with lazy media accessor. */
 export const decodeSticker = (msg: WAMessage, ctx: DecodeContext): MessageContext | null =>
   decodeMedia('sticker', msg, ctx)
 
@@ -299,7 +292,6 @@ const normalizedEquals = (a: string, b: string): boolean => {
   }
 }
 
-/** Decode a mention event when the connected account appears in `mentionedJid`. */
 export const decodeMention = (msg: WAMessage, ctx: DecodeContext): MentionContext | null => {
   const key = msg.key
   if (key == null) return null
@@ -326,7 +318,6 @@ export const decodeMention = (msg: WAMessage, ctx: DecodeContext): MentionContex
   return { ...base, mentionedJids, selfJid: ctx.selfJid }
 }
 
-/** Decode a group-wide (`@everyone`) mention event scoped to group chats. */
 export const decodeMentionAll = (msg: WAMessage, ctx: DecodeContext): MentionAllContext | null => {
   const key = msg.key
   if (key == null) return null

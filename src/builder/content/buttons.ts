@@ -4,24 +4,14 @@ import type { BottomSheetOptions, ButtonDef, InteractiveButton, LimitedTimeOffer
 
 const MAX_BUTTONS = 10
 
-/**
- * Marker key on builder content whose value is a raw `proto.IMessage` to be sent
- * via `relayMessage` (used for interactive messages Baileys' `sendMessage` content
- * union does not cover). The builder detects this key and relays instead of calling
- * `sendMessage`.
- */
 export const RELAY_CONTENT_KEY = '__zaileysRelayMessage'
 
-/** Marker key carrying header media to upload + inject into the interactive header at send time. */
 export const RELAY_MEDIA_KEY = '__zaileysHeaderMedia'
 
-/** Header media descriptor resolved (uploaded) by the relay send path. */
 export type HeaderMedia = { kind: 'image' | 'video'; src: MediaSource }
 
-/** Content shape carrying a pre-built proto message (+ optional header media) for the relay send path. */
 export type RelayContent = { [RELAY_CONTENT_KEY]: proto.IMessage; [RELAY_MEDIA_KEY]?: HeaderMedia }
 
-/** Optional decoration for {@link buildButtonsContent}: body text, footer, a text/media header, and nativeFlow params. */
 export type ButtonsContentOptions = {
   text?: string
   footer?: string
@@ -100,7 +90,6 @@ const toNativeButton = (button: ButtonDef | InteractiveButton, seen: Set<string>
   throw new ZaileysBuilderError('INVALID_OPTIONS', `unknown button type: ${String(type)}`)
 }
 
-/** Serialize {@link BottomSheetOptions}/{@link LimitedTimeOfferOptions} into the nativeFlow `messageParamsJson` string. */
 export const buildMessageParamsJson = (opts?: ButtonsContentOptions): string => {
   const params: Record<string, unknown> = {}
   if (opts?.bottomSheet) {
@@ -124,12 +113,6 @@ export const buildMessageParamsJson = (opts?: ButtonsContentOptions): string => 
   return Object.keys(params).length > 0 ? JSON.stringify(params) : ''
 }
 
-/**
- * Map declarative buttons to nativeFlow buttons, validating each. Reusable by
- * {@link buildButtonsContent} and the carousel card builder.
- *
- * @throws ZaileysBuilderError `INVALID_OPTIONS` on empty list, too many buttons, or invalid fields.
- */
 export const buildNativeButtons = (buttons: Array<ButtonDef | InteractiveButton>): NativeButton[] => {
   if (!Array.isArray(buttons) || buttons.length === 0) {
     throw new ZaileysBuilderError('INVALID_OPTIONS', 'buttons() requires at least one button')
@@ -141,21 +124,6 @@ export const buildNativeButtons = (buttons: Array<ButtonDef | InteractiveButton>
   return buttons.map((button) => toNativeButton(button, seen))
 }
 
-/**
- * Build a modern `interactiveMessage` (nativeFlow) from declarative buttons,
- * returned as relay-marker content. Supports `reply` (quick_reply), `url`
- * (cta_url), `copy` (cta_copy), and `call` (cta_call) buttons, plus an optional
- * text header (`title`/`subtitle`). A bare `{ id, text }` is treated as a reply
- * button; its `id` round-trips on tap via `interactiveResponseMessage` ->
- * `ButtonClickPayload.buttonId`.
- *
- * NOTE: WhatsApp only RENDERS interactive content when the relay carries the
- * `biz > interactive (native_flow)` node (the builder adds it automatically).
- *
- * @param buttons - 1..10 button definitions.
- * @param opts - optional body `text`, `footer`, and header `title`/`subtitle`.
- * @throws ZaileysBuilderError `INVALID_OPTIONS` on empty list, too many buttons, or invalid button fields.
- */
 export const buildButtonsContent = (
   buttons: Array<ButtonDef | InteractiveButton>,
   opts?: ButtonsContentOptions,

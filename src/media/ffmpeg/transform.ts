@@ -1,13 +1,5 @@
 import { FFmpegProcessor, FileManager, type FileExtension } from './core.js';
 
-/**
- * Run a single ffmpeg transform: write `buffer` to a temp `inExt` file, encode it
- * to a temp `outExt` file with `options`, and return the output bytes. Temp files
- * are always cleaned up; failures are rethrown as `"<label> failed: <reason>"`.
- *
- * `options` may be an array, or a callback receiving the written input path (for
- * options that depend on probing the source, e.g. duration).
- */
 export const ffmpegTransform = async (
   buffer: Buffer,
   inExt: FileExtension,

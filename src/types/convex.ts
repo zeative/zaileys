@@ -1,25 +1,16 @@
 import { ZaileysStoreError } from './store-error.js'
 
-/**
- * Structural surface of a Convex client (`ConvexHttpClient` from `convex/browser`
- * is assignable). Function references are passed as `"file:export"` name strings.
- */
 export interface ConvexClientLike {
   query(name: string, args: Record<string, unknown>): Promise<unknown>
   mutation(name: string, args: Record<string, unknown>): Promise<unknown>
 }
 
-/** Constructor input shared by the Convex auth and message-store adapters. */
 export interface ConvexKvOptions {
-  /** Pre-built Convex client (caller owns lifecycle). */
   client?: ConvexClientLike
-  /** Convex deployment URL; the adapter builds a `ConvexHttpClient`. */
   url?: string
-  /** Namespace isolating keys within the shared `zaileys_kv` table. Defaults to `'zaileys'`. */
   namespace?: string
 }
 
-/** One key/value row in the `zaileys_kv` table; `sortKey` orders list results (newest-first). */
 export type ConvexKvRow = { key: string; value: string; sortKey?: number }
 
 const DEFAULT_NAMESPACE = 'zaileys'
@@ -37,11 +28,6 @@ const isPeerMissingError = (err: unknown): boolean => {
   return code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND'
 }
 
-/**
- * Thin namespaced key/value client over the user-deployed Convex `zaileys_kv`
- * functions (`get`/`set`/`del`/`clear`/`list`). Backs both the Convex auth and
- * message-store adapters. Accepts EITHER a pre-built `client` OR a `url` (XOR).
- */
 export class ConvexKv {
   readonly namespace: string
   private readonly externalClient: ConvexClientLike | undefined
@@ -61,7 +47,6 @@ export class ConvexKv {
     this.url = options.url
   }
 
-  /** Fetch values for `keys`; missing keys are absent from the returned map. */
   async get(keys: readonly string[]): Promise<Map<string, string>> {
     this.assertOpen()
     if (keys.length === 0) return new Map()
@@ -72,7 +57,6 @@ export class ConvexKv {
     return out
   }
 
-  /** Upsert rows by `(namespace, key)`. */
   async set(items: readonly ConvexKvRow[]): Promise<void> {
     this.assertOpen()
     if (items.length === 0) return
@@ -80,7 +64,6 @@ export class ConvexKv {
     await this.runWrite(() => client.mutation(FN.set, { namespace: this.namespace, items: [...items] }))
   }
 
-  /** Delete rows by key. */
   async del(keys: readonly string[]): Promise<void> {
     this.assertOpen()
     if (keys.length === 0) return
@@ -88,7 +71,6 @@ export class ConvexKv {
     await this.runWrite(() => client.mutation(FN.del, { namespace: this.namespace, keys: [...keys] }))
   }
 
-  /** Delete every row in the namespace, or only those whose key starts with `prefix`. */
   async clear(prefix?: string): Promise<void> {
     this.assertOpen()
     const client = await this.ensureClient()
@@ -97,7 +79,6 @@ export class ConvexKv {
     )
   }
 
-  /** List rows whose key starts with `prefix`, newest-first by `sortKey`. */
   async list(prefix: string, options?: { before?: number; limit?: number }): Promise<ConvexKvRow[]> {
     this.assertOpen()
     const client = await this.ensureClient()
@@ -108,7 +89,6 @@ export class ConvexKv {
     return (rows as ConvexKvRow[] | null) ?? []
   }
 
-  /** Freeze the client; subsequent operations throw `STORE_CLOSED`. Idempotent. */
   close(): void {
     this.closed = true
     this.client = undefined

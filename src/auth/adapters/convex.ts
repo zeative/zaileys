@@ -3,21 +3,12 @@ import type { AuthenticationCreds, SignalDataSet } from 'baileys'
 import { ConvexKv, type ConvexKvOptions, type ConvexKvRow } from '../../types/convex.js'
 import type { AuthCredsStore, AuthStore, AuthStoreBundle, AuthStoreKey, AuthStoreValue } from '../types.js'
 
-/** Constructor input for {@link ConvexAuthStore}. */
 export type ConvexAuthStoreOptions = ConvexKvOptions
 
 const CREDS_KEY = 'creds'
 const SIGNAL_PREFIX = 'signal:'
 const signalKey = (type: string, id: string): string => `${SIGNAL_PREFIX}${type}:${id}`
 
-/**
- * Convex-backed `AuthStoreBundle`. Persists the credentials blob and signal keys
- * as `BufferJSON`-serialized rows in the user-deployed `zaileys_kv` table, reached
- * through a {@link ConvexKv} client (`url` XOR `client`).
- *
- * Requires the `zaileys_kv` schema + functions to be deployed in the Convex project
- * (see the template under `docs/convex/`). `convex` is an optional peer dependency.
- */
 export class ConvexAuthStore implements AuthStoreBundle {
   readonly creds: AuthCredsStore
   readonly signal: AuthStore

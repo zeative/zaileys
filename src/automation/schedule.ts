@@ -5,36 +5,17 @@ import type { MessageStore, ScheduledJobRecord } from '../store/types.js'
 import type { Logger } from '../client/types.js'
 import { ZaileysAutomationError } from './errors.js'
 
-/**
- * Serializable snapshot of a scheduled send. Produced by evaluating the builder
- * callback once at schedule time; `content` and `options` are exactly what the
- * builder would have dispatched, with `recipient` resolved to a concrete jid.
- */
 export type ScheduledContentSnapshot = {
   recipient: string
   content: AnyMessageContent
   options?: MiscMessageGenerationOptions
 }
 
-/**
- * Injectable timer primitives so tests can drive the scheduler with fake
- * timers. Defaults to the global `setTimeout`/`clearTimeout`.
- */
 export type SchedulerTimer = {
   set: (cb: () => void, ms: number) => unknown
   clear: (handle: unknown) => void
 }
 
-/**
- * Construction dependencies for {@link Scheduler}.
- *
- * - `store` persists records via the optional `saveScheduledJob`/
- *   `listScheduledJobs`/`deleteScheduledJob` methods; when absent the scheduler
- *   falls back to an internal `Map` (no restart-survival, non-breaking).
- * - `sendSnapshot` dispatches a fired snapshot (wired to `client.send` by the
- *   Client).
- * - `now`/`timer` are injectable for deterministic tests.
- */
 export type SchedulerDeps = {
   store: MessageStore
   sendSnapshot: (snapshot: ScheduledContentSnapshot) => Promise<void>
@@ -43,7 +24,6 @@ export type SchedulerDeps = {
   logger?: Logger
 }
 
-/** A scheduled send returned by {@link Scheduler.scheduleAt}. */
 export type ScheduleHandle = {
   id: string
   cancel(): void
@@ -60,19 +40,6 @@ const isSnapshot = (value: unknown): value is ScheduledContentSnapshot =>
   typeof (value as { recipient?: unknown }).recipient === 'string' &&
   typeof (value as { content?: unknown }).content === 'object'
 
-/**
- * Persisting scheduled-message dispatcher. `scheduleAt(date, build)` keeps the
- * locked builder-callback signature but evaluates the builder eagerly into a
- * serializable {@link ScheduledContentSnapshot}: the callback runs once, its
- * dispatch is captured (recipient + content + options), and that snapshot — not
- * the closure — is persisted. On fire the snapshot is re-dispatched through
- * `sendSnapshot`. This survives restart whenever the store implements the
- * optional schedule methods; otherwise an in-memory `Map` keeps timers alive
- * for the process lifetime.
- *
- * Trade-off: side effects inside the builder callback (media uploads, dynamic
- * lookups) run at schedule time, not fire time.
- */
 export class Scheduler {
   private readonly store: MessageStore
   private readonly sendSnapshot: (snapshot: ScheduledContentSnapshot) => Promise<void>
@@ -90,11 +57,6 @@ export class Scheduler {
     this.logger = deps.logger
   }
 
-  /**
-   * Schedule `build`'s message for `date`. The builder is evaluated eagerly into
-   * a serializable snapshot, persisted, and re-dispatched on fire. A past `date`
-   * fires on the next tick. Returns `{ id, cancel() }`.
-   */
   async scheduleAt(
     date: Date,
     build: (b: MessageBuilder<'init'>) => MessageBuilder<'content-set'>,
@@ -111,10 +73,6 @@ export class Scheduler {
     return { id, cancel: () => void this.cancel(id) }
   }
 
-  /**
-   * Reload persisted jobs from the store and re-arm their timers. Overdue jobs
-   * fire on the next tick. A no-op when the store lacks `listScheduledJobs`.
-   */
   async loadPending(): Promise<void> {
     const list = this.store.listScheduledJobs
     if (!list) return
@@ -132,7 +90,6 @@ export class Scheduler {
     }
   }
 
-  /** Clear every pending timer without firing. Records stay persisted. */
   dispose(): void {
     for (const handle of this.timers.values()) this.timer.clear(handle)
     this.timers.clear()

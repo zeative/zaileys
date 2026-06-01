@@ -92,16 +92,7 @@ to fix errors. Install it straight from this repo:
 npx skills add zeative/zaileys        # add -g for a global install
 ```
 
-The suite has an orchestrator that auto-routes plus three focused skills:
-
-| Command (plugin) | Does |
-| ---------------- | ---- |
-| `/zaileys-official:assist` | Orchestrator — auto-detects intent (build / debug / review / explain) |
-| `/zaileys-official:scaffold` | Generate a complete runnable bot from a short spec |
-| `/zaileys-official:debug` | Diagnose a zaileys error/symptom → cause → fix |
-| `/zaileys-official:review` | Audit code vs best practices + ban-safety |
-
-Each skill also fetches the [live docs](https://zeative.github.io/zaileys/llms-full.txt) for the latest API. See [the skill guide](https://zeative.github.io/zaileys/skill/).
+The suite has an orchestrator that auto-routes plus focused scaffold, debug, and review skills. See the full guide → **[zeative.github.io/zaileys/skill](https://zeative.github.io/zaileys/skill/)**.
 
 ## Why Zaileys
 

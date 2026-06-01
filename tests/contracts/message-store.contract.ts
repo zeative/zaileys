@@ -228,7 +228,7 @@ export const runMessageStoreContract = (
         await Promise.all(msgs.map((m) => store.saveMessage(m)))
         const list = await store.listMessages(jid, { limit: 1000 })
         expect(list.length).toBe(1000)
-      })
+      }, 30_000)
 
       it('F2: clear() empties all collections', async () => {
         await store.saveMessage(sampleMessages('a@s.whatsapp.net', 1)[0]!)

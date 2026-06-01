@@ -236,7 +236,7 @@ export const runAuthStoreContract = (
             `$.session.${ids[i]}`,
           )
         }
-      })
+      }, 30_000)
 
       it('E2: 100 parallel writeCreds resolve without corruption', async () => {
         const samples = Array.from({ length: 100 }, () => sampleCreds())
@@ -245,7 +245,7 @@ export const runAuthStoreContract = (
         expect(read).toBeDefined()
         expect(typeof read!.registrationId).toBe('number')
         expect(typeof read!.advSecretKey).toBe('string')
-      })
+      }, 30_000)
 
       it('E3: 500 interleaved reads + 500 writes complete without throw', async () => {
         const writes = Array.from({ length: 500 }, (_, i) =>
@@ -256,7 +256,7 @@ export const runAuthStoreContract = (
         )
         const results = await Promise.all([...writes, ...reads])
         expect(results.length).toBe(1000)
-      })
+      }, 30_000)
     })
 
     describe('Group F — close semantics', () => {

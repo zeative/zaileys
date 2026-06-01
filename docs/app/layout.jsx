@@ -5,18 +5,113 @@ import 'nextra-theme-docs/style.css'
 
 const GA_ID = 'G-B76YYS1K85'
 const basePath = process.env.DOCS_BASE_PATH ?? '/zaileys'
+const SITE_URL = process.env.DOCS_SITE_URL ?? 'https://zeative.github.io/zaileys'
 const logoSrc = `${basePath}/zaileys-clean.png`
+const ogImage = 'https://repository-images.githubusercontent.com/982777390/83fdf9a5-8357-4a53-ade6-883355d77051'
+const logoUrl = `${SITE_URL}/zaileys-clean.png`
+
+const DESCRIPTION =
+  'Zaileys is a type-safe, batteries-included WhatsApp bot framework for Node.js and TypeScript built on Baileys — send messages, interactive buttons, AIRich markdown, run commands, broadcast, and persist sessions with pluggable storage.'
 
 export const metadata = {
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: 'Zaileys — Simplified WhatsApp API',
+    default: 'Zaileys — Simplified WhatsApp API for Node.js & TypeScript',
     template: '%s — Zaileys',
   },
-  description: 'Type-safe, batteries-included WhatsApp bot framework for Node.js / TypeScript built on Baileys.',
-  icons: { icon: logoSrc, apple: logoSrc },
+  description: DESCRIPTION,
+  applicationName: 'Zaileys',
+  generator: 'Nextra',
+  authors: [{ name: 'zaadevofc', url: 'https://github.com/zeative' }],
+  creator: 'zaadevofc',
+  publisher: 'Zeative Labs',
+  category: 'technology',
+  keywords: [
+    'zaileys',
+    'whatsapp',
+    'whatsapp api',
+    'whatsapp bot',
+    'baileys',
+    'whatsapp typescript',
+    'whatsapp nodejs',
+    'whatsapp library',
+    'whatsapp automation',
+    'whatsapp framework',
+    'multi-device whatsapp',
+  ],
+  icons: { icon: logoSrc, apple: logoSrc, shortcut: logoSrc },
+  manifest: `${basePath}/manifest.webmanifest`,
+  alternates: { canonical: SITE_URL },
+  openGraph: {
+    type: 'website',
+    locale: 'en_US',
+    url: SITE_URL,
+    siteName: 'Zaileys',
+    title: 'Zaileys — Simplified WhatsApp API for Node.js & TypeScript',
+    description: DESCRIPTION,
+    images: [{ url: ogImage, width: 1280, height: 640, alt: 'Zaileys — Simplified WhatsApp API' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Zaileys — Simplified WhatsApp API for Node.js & TypeScript',
+    description: DESCRIPTION,
+    images: [ogImage],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+      'max-video-preview': -1,
+    },
+  },
   verification: {
     google: 'k0WKK9pKRwONXog26MOpUJG9e3FNniwBf0SaR9OD4pw',
   },
+}
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'Organization',
+      '@id': `${SITE_URL}/#org`,
+      name: 'Zaileys',
+      url: SITE_URL,
+      logo: logoUrl,
+      sameAs: [
+        'https://github.com/zeative/zaileys',
+        'https://discord.gg/KBHhTTVUc5',
+        'https://www.npmjs.com/package/zaileys',
+      ],
+    },
+    {
+      '@type': 'WebSite',
+      '@id': `${SITE_URL}/#website`,
+      url: SITE_URL,
+      name: 'Zaileys',
+      description: DESCRIPTION,
+      publisher: { '@id': `${SITE_URL}/#org` },
+      inLanguage: 'en',
+    },
+    {
+      '@type': 'SoftwareApplication',
+      '@id': `${SITE_URL}/#software`,
+      name: 'Zaileys',
+      description: DESCRIPTION,
+      applicationCategory: 'DeveloperApplication',
+      operatingSystem: 'Node.js, Bun, Deno',
+      programmingLanguage: 'TypeScript',
+      url: SITE_URL,
+      downloadUrl: 'https://www.npmjs.com/package/zaileys',
+      license: 'https://github.com/zeative/zaileys/blob/main/LICENSE',
+      offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+      publisher: { '@id': `${SITE_URL}/#org` },
+    },
+  ],
 }
 
 const navbar = (
@@ -57,6 +152,7 @@ export default async function RootLayout({ children }) {
         />
       </Head>
       <body>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
         <Layout
           navbar={navbar}
           footer={footer}

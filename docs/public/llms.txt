@@ -1,0 +1,44 @@
+# Zaileys
+
+> Zaileys is a type-safe, batteries-included WhatsApp bot framework for Node.js and TypeScript, built on top of Baileys. It exposes a fluent message builder, interactive messages (buttons, lists, carousels), AIRich markdown responses, a command framework, broadcast and scheduling automation, media processing, and pluggable storage adapters — with automatic reconnect and a clean event model.
+
+Key facts an LLM should know:
+
+- Package name on npm: `zaileys` (`npm install zaileys`). Imported as `import { Client } from 'zaileys'`.
+- Runtime support: Node.js 20+, Bun, Deno, and Termux (Android). Ships dual ESM/CJS builds.
+- The entry point is the `Client` class. By default it auto-connects on construction (`autoConnect: true`); set `autoConnect: false` and call `await client.connect()` to control timing.
+- Login methods: QR code (`authType: 'qr'`, default) or pairing code (`authType: 'pairing'` + `phoneNumber`).
+- Sending uses a fluent builder: `await client.send(jid).text('hi')` returns a `WAMessageKey`. Builders exist for text, image, video, audio, document, sticker, location, contact, poll, album, buttons, list, carousel, template.
+- AIRich: pass plain markdown to `client.send(jid).text(markdown, { rich: true, title, footer, sources })` to render rich WhatsApp messages (bold, links, tables, LaTeX, code, images, and `:::suggest` / `:::tip` / `:::video` / `:::reels` / `:::post` / `:::product` directives). There is no separate `aiRich()` method.
+- Mutations: `client.edit(key)`, `client.react(key, emoji)` (empty string removes), `client.delete(key, { forEveryone })`, `client.forward(key, jid)`.
+- Commands: set `commandPrefix` in options, then `client.command('name', handler)` (aliases via `name|alias`), with `client.use(middleware)`.
+- Automation: `client.broadcast(recipients, builderFn, { rateLimitPerSec, onProgress })` and `client.scheduleAt(...)`.
+- Storage adapters (auth + message stores): File (default), Memory, SQLite, Postgres, Redis, Convex. Optional peer deps: `better-sqlite3`, `pg`, `redis`, `convex`. Media processing uses bundled ffmpeg and optionally `sharp` (falls back to `jimp`).
+- Errors are typed classes with `.code`: `ZaileysBuilderError`, `ZaileysCommandError`, `ZaileysDomainError`, `ZaileysAutomationError`, `ZaileysStoreError`.
+- License: MIT. Source: https://github.com/zeative/zaileys
+
+## Docs
+
+- [Introduction](https://zeative.github.io/zaileys/): What Zaileys is and a hello-world bot
+- [Installation](https://zeative.github.io/zaileys/installation): Install with npm/pnpm/yarn/bun, runtimes, peer deps
+- [Getting Started](https://zeative.github.io/zaileys/getting-started): Build your first bot, QR vs pairing login
+- [Configuration](https://zeative.github.io/zaileys/configuration): Full ClientOptions reference and defaults
+- [Client & Lifecycle](https://zeative.github.io/zaileys/client): Connect, mutations, and domain namespaces
+- [Events](https://zeative.github.io/zaileys/events): Event catalog and the message context object
+- [Sending Messages](https://zeative.github.io/zaileys/sending-messages): Every message type with the send builder
+- [Media Processing](https://zeative.github.io/zaileys/media): Convert/resize/transcode media with the Media class
+- [Interactive Messages](https://zeative.github.io/zaileys/interactive): Buttons, lists, carousels, templates, CTAs
+- [Rich Responses (AIRich)](https://zeative.github.io/zaileys/rich-responses): Markdown-to-rich WhatsApp messages
+- [Commands](https://zeative.github.io/zaileys/commands): Command router, aliases, args, middleware
+- [Broadcast & Schedule](https://zeative.github.io/zaileys/automation): Rate-limited broadcast and scheduling
+- [Storage Adapters](https://zeative.github.io/zaileys/storage): File, Memory, SQLite, Postgres, Redis, Convex
+- [Error Handling](https://zeative.github.io/zaileys/error-handling): Error classes, codes, and disconnect reasons
+- [Runtime Support](https://zeative.github.io/zaileys/runtimes): Node.js, Bun, Deno, Termux specifics
+- [Troubleshooting & FAQ](https://zeative.github.io/zaileys/troubleshooting): Common issues and fixes
+- [API Reference](https://zeative.github.io/zaileys/api-reference): Every public export grouped by area
+
+## Optional
+
+- [Full docs as one file](https://zeative.github.io/zaileys/llms-full.txt): All documentation concatenated for ingestion
+- [GitHub repository](https://github.com/zeative/zaileys): Source code, issues, examples
+- [npm package](https://www.npmjs.com/package/zaileys): Releases and install

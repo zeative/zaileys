@@ -4,7 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "gen:llms": "node scripts/gen-llms-full.mjs",
+    "predev": "node scripts/gen-llms-full.mjs",
     "dev": "next dev",
+    "prebuild": "node scripts/gen-llms-full.mjs",
     "build": "next build",
     "start": "next start"
   },

@@ -2,6 +2,7 @@ import { jidDecode, jidNormalizedUser, type WAMessage, type WAMessageKey } from 
 import { Readable } from 'stream'
 import { isGroupJid } from './decoders/_shared.js'
 import type { SenderInfo } from './types.js'
+import type { TextOptions } from '../builder/builder.js'
 
 /** Discriminator over the decoded inbound message content type. */
 export type ChatType = 'text' | 'image' | 'video' | 'audio' | 'document' | 'sticker' | 'unknown'
@@ -95,6 +96,14 @@ export interface MessageContext {
   replied(): Promise<MessageContext | null>
   message(): WAMessage
   citation: CitationPredicates
+  /**
+   * Reply to this message, quoting it. Plain text by default; pass `{ rich: true }`
+   * to send the markdown body as an EXPERIMENTAL AIRich rich-response. Resolves with
+   * the sent message key. Requires a connected client.
+   */
+  reply(content: string, opts?: TextOptions): Promise<WAMessageKey>
+  /** React to this message with `emoji` (empty string removes the reaction). Requires a connected client. */
+  react(emoji: string): Promise<WAMessageKey>
 }
 
 /**
@@ -137,6 +146,8 @@ export interface BuildContextInput {
   resolveRoomName: () => Promise<string | null>
   resolveReceiverName: () => Promise<string | null>
   resolveReplied: () => Promise<MessageContext | null>
+  reply: (content: string, opts?: TextOptions) => Promise<WAMessageKey>
+  react: (emoji: string) => Promise<WAMessageKey>
   media?: ContextMedia
 }
 
@@ -283,6 +294,8 @@ export const buildMessageContext = (input: BuildContextInput): MessageContext =>
     roomName: input.resolveRoomName,
     receiverName: input.resolveReceiverName,
     replied: input.resolveReplied,
+    reply: input.reply,
+    react: input.react,
     message: () => input.message,
     citation: makeCitation(input.citationConfig, input.sender.pn ?? input.sender.jid),
   }

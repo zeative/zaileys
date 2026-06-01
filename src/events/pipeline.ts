@@ -1,5 +1,6 @@
-import type { WACallEvent, WAMessage } from 'baileys'
+import type { WACallEvent, WAMessage, WAMessageKey } from 'baileys'
 import type { CitationConfig } from './context.js'
+import type { TextOptions } from '../builder/builder.js'
 import type { ClientEventMap, Logger } from '../client/types.js'
 import type { TypedEventEmitter } from '../client/event-emitter.js'
 import { dropSpoofedSelfOnly, type UpsertPayload } from './guards.js'
@@ -68,6 +69,8 @@ export interface InboundPipelineContext {
   groupMetadata?: (groupId: string) => Promise<{ subject?: string } | null>
   receiverName?: () => Promise<string | null>
   resolveQuoted?: (id: string, remoteJid: string) => Promise<WAMessage | null>
+  sendReply?: (target: string, content: string, opts: TextOptions | undefined, quoted: WAMessage) => Promise<WAMessageKey>
+  react?: (key: WAMessageKey, emoji: string) => Promise<WAMessageKey>
   ignoreMe?: boolean
 }
 
@@ -127,6 +130,8 @@ export function attachInboundPipeline(
     ...(resolveRoomName != null ? { resolveRoomName } : {}),
     ...(ctx.receiverName != null ? { resolveReceiverName: ctx.receiverName } : {}),
     ...(ctx.resolveQuoted != null ? { resolveQuoted: ctx.resolveQuoted } : {}),
+    ...(ctx.sendReply != null ? { reply: ctx.sendReply } : {}),
+    ...(ctx.react != null ? { react: ctx.react } : {}),
   }
   const interactiveCtx: InteractiveContext = ctx.logger
     ? { selfJid: ctx.selfJid, logger: ctx.logger }

@@ -16,6 +16,7 @@ import {
   ZaileysBuilderError,
   type BuilderSocketLike,
   type DeleteOptions,
+  type TextOptions,
   type UsernameResolveSocketLike,
 } from '../builder/index.js'
 import {
@@ -490,9 +491,9 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       args: resolved.args,
       flags: resolved.flags,
       json: resolved.json,
-      reply: async (content: string): Promise<WAMessageKey> => {
+      reply: async (content: string, opts?: TextOptions): Promise<WAMessageKey> => {
         const target = msg.message().key.remoteJid ?? msg.roomId ?? msg.senderId
-        const key = await this.send(target).text(content).reply(msg.message())
+        const key = await this.send(target).text(content, opts).reply(msg.message())
         lastSentKey = key
         return key
       },
@@ -659,6 +660,9 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         groupMetadata: (groupId) => this.group.metadata(groupId).catch(() => null),
         receiverName: () => Promise.resolve(this.resolveMe().name ?? null),
         resolveQuoted: (id, remoteJid) => this.lookupQuoted(id, remoteJid),
+        sendReply: async (target, content, opts, quoted) =>
+          await this.send(target).text(content, opts).reply(quoted),
+        react: (key, emoji) => this.react(key, emoji),
         ignoreMe: this.ignoreMe,
       })
     }

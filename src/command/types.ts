@@ -1,5 +1,6 @@
 import type { WAMessageKey } from 'baileys'
 import type { MessageContext } from '../events/context.js'
+import type { TextOptions } from '../builder/builder.js'
 
 /** Configured command prefix: a single token or a set of accepted tokens. */
 export type CommandPrefix = string | string[]
@@ -28,7 +29,7 @@ export interface CommandContext extends MessageContext {
   args: string[]
   flags: Record<string, string | boolean>
   json: unknown
-  reply(content: string): Promise<WAMessageKey>
+  reply(content: string, opts?: TextOptions): Promise<WAMessageKey>
   react(emoji: string): Promise<WAMessageKey>
   edit(content: string): Promise<void>
 }

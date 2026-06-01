@@ -1,4 +1,5 @@
-import { jidNormalizedUser, type WAContextInfo, type WAMessage } from 'baileys'
+import { jidNormalizedUser, type WAContextInfo, type WAMessage, type WAMessageKey } from 'baileys'
+import type { TextOptions } from '../../builder/builder.js'
 import {
   buildMessageContext,
   type ChatType,
@@ -28,6 +29,8 @@ export interface DecodeContext {
   resolveRoomName?: (roomId: string) => Promise<string | null>
   resolveReceiverName?: () => Promise<string | null>
   resolveQuoted?: (id: string, remoteJid: string) => Promise<WAMessage | null>
+  reply?: (target: string, content: string, opts: TextOptions | undefined, quoted: WAMessage) => Promise<WAMessageKey>
+  react?: (key: WAMessageKey, emoji: string) => Promise<WAMessageKey>
 }
 
 interface MediaNode {
@@ -192,6 +195,20 @@ const buildContext = (
   const resolveReplied = (): Promise<MessageContext | null> =>
     decodeQuotedContext(contextInfo, ctx, jid)
 
+  const replyTarget = jid.length > 0 ? jid : (sender.pn ?? sender.jid)
+  const reply = (content: string, opts?: TextOptions): Promise<WAMessageKey> => {
+    if (ctx.reply == null) {
+      return Promise.reject(new Error('zaileys: ctx.reply() requires a connected client'))
+    }
+    return ctx.reply(replyTarget, content, opts, msg)
+  }
+  const react = (emoji: string): Promise<WAMessageKey> => {
+    if (ctx.react == null) {
+      return Promise.reject(new Error('zaileys: ctx.react() requires a connected client'))
+    }
+    return ctx.react(key, emoji)
+  }
+
   const { mentionedJids } = extractMentions(contextInfo)
 
   const baseInput = {
@@ -213,6 +230,8 @@ const buildContext = (
     resolveRoomName,
     resolveReceiverName,
     resolveReplied,
+    reply,
+    react,
   }
   const withMedia = media !== undefined ? { ...baseInput, media } : baseInput
   return buildMessageContext(

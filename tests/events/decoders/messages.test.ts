@@ -63,6 +63,27 @@ describe('decodeText', () => {
     expect(decodeText(base({ message: null }), ctx)).toBeNull()
   })
 
+  it('routes ctx.reply through the injected reply callback (target, content, opts, quoted)', async () => {
+    const reply = vi.fn(async () => ({ id: 'SENT' }))
+    const msg = base({ message: { conversation: 'hi' } })
+    const out = decodeText(msg, { selfJid: SELF, reply } as never)
+    await out!.reply('balasan', { rich: true })
+    expect(reply).toHaveBeenCalledWith('628222@s.whatsapp.net', 'balasan', { rich: true }, msg)
+  })
+
+  it('routes ctx.react through the injected react callback (key, emoji)', async () => {
+    const react = vi.fn(async () => ({ id: 'R' }))
+    const msg = base({ message: { conversation: 'hi' } })
+    const out = decodeText(msg, { selfJid: SELF, react } as never)
+    await out!.react('👍')
+    expect(react).toHaveBeenCalledWith(msg.key, '👍')
+  })
+
+  it('rejects ctx.reply when no client is bound', async () => {
+    const out = decodeText(base({ message: { conversation: 'hi' } }), ctx)
+    await expect(out!.reply('x')).rejects.toThrow(/connected client/)
+  })
+
   it('decodes a 1:1 DM addressed over LID where participant is an empty string', () => {
     const out = decodeText(
       base({

@@ -12,7 +12,18 @@ client.on('connect', ({ me }) => {
 
 client.on('text', async (message) => {
   if (message.isFromMe) return
-  await client.send(message.senderId).text(`Echo: ${message.text}`)
+
+  await message.react('👀')
+
+  if (message.text.trim().toLowerCase() === 'rich') {
+    await message.reply(
+      ['*Contoh rich reply* ✨', '', '```ts', 'const x = 1', '```', '', ':::suggest', 'Lagi | Tutup', ':::'].join('\n'),
+      { rich: true, title: '🤖 zaileys' },
+    )
+    return
+  }
+
+  await message.reply(`Echo: ${message.text}`)
 })
 
 client.on('disconnect', ({ reason, willReconnect }) => {

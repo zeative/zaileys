@@ -1,6 +1,6 @@
 export * from './types.js'
 export * from './errors.js'
-export { MessageBuilder, type BuilderSocketLike } from './builder.js'
+export { MessageBuilder, type BuilderSocketLike, type TextOptions } from './builder.js'
 export { EditBuilder } from './edit-builder.js'
 export {
   deleteMessage,

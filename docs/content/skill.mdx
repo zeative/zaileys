@@ -26,10 +26,10 @@ Native Claude Code plugin — supports auto-update when the repo changes.
 
 ```bash
 /plugin marketplace add zeative/zaileys
-/plugin install zaileys@zeative
+/plugin install zaileys-official@zeative
 ```
 
-Update later with `/plugin marketplace update zeative/zaileys`.
+Update later with `/plugin marketplace update zeative/zaileys`. Commands are namespaced as `/zaileys-official:<skill>`.
 
 </Tabs.Tab>
 <Tabs.Tab>
@@ -45,8 +45,23 @@ npx skills add zeative/zaileys -g     # global (~/.claude/skills/)
 </Tabs.Tab>
 </Tabs>
 
-Both methods install the **same** skill (`skills/zaileys/SKILL.md` + references) — pick whichever
-fits your tool.
+Both methods install the **same** skill suite — pick whichever fits your tool.
+
+## The suite
+
+One orchestrator that auto-routes, plus three focused skills:
+
+| Skill | Plugin command | npx command | Does |
+| ----- | -------------- | ----------- | ---- |
+| **assist** | `/zaileys-official:assist` | `/assist` | Orchestrator — auto-detects intent (build / debug / review / explain) so you don't pick a command |
+| **scaffold** | `/zaileys-official:scaffold` | `/scaffold` | Generate a complete, runnable bot from a short spec (auth, storage, features) |
+| **debug** | `/zaileys-official:debug` | `/debug` | Paste an error/symptom → error class + `.code` or runtime cause → concrete fix |
+| **review** | `/zaileys-official:review` | `/review` | Audit code against best practices, anti-patterns, and ban-safety |
+
+<Callout type="info">
+You usually don't need to pick a command — `assist` has a broad trigger and auto-activates on any
+zaileys task, then routes internally. Use the focused commands when you want a specific job.
+</Callout>
 
 ## What you get
 
@@ -59,14 +74,18 @@ After installing, your AI assistant can:
 
 ## What's inside
 
+Each focused skill is a self-contained `SKILL.md`. The **assist** orchestrator additionally
+carries the deep references the whole suite draws on:
+
 | File | Purpose |
 | ---- | ------- |
-| `SKILL.md` | Mental model, golden rules, API cheat-sheet, and a debug workflow |
-| `references/api.md` | Full API surface: `ClientOptions`, send builder, events, mutations, domain, storage, media |
-| `references/recipes.md` | Best-practice, copy-paste patterns for every common bot |
-| `references/errors.md` | Every error class + code → meaning → fix |
-| `references/troubleshooting.md` | Runtime symptoms (QR loops, sessions, disconnects, peer deps) → fix |
-| `references/pitfalls.md` | Common mistakes → the correct way |
+| `assist/SKILL.md` | Orchestrator: mental model, golden rules, intent routing, API cheat-sheet |
+| `assist/references/api.md` | Full API surface: `ClientOptions`, send builder, events, mutations, domain, storage, media |
+| `assist/references/recipes.md` | Best-practice, copy-paste patterns for every common bot |
+| `assist/references/errors.md` | Every error class + code → meaning → fix |
+| `assist/references/troubleshooting.md` | Runtime symptoms (QR loops, sessions, disconnects, peer deps) → fix |
+| `assist/references/pitfalls.md` | Common mistakes → the correct way |
+| `scaffold/SKILL.md` · `debug/SKILL.md` · `review/SKILL.md` | Focused task skills (project generation, error diagnosis, code review) |
 
 <Callout type="default">
 Prefer to feed an LLM directly? The whole documentation is also available as a single file at

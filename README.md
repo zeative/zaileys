@@ -79,21 +79,29 @@ const client = new Client({ authType: 'pairing', phoneNumber: '6281234567890' })
 
 ## Build with AI
 
-Zaileys ships an **official Agent Skill** so your AI assistant writes, reviews, and debugs
-zaileys code with best practices — it knows the exact API, common pitfalls, and how to fix
-errors. Install it straight from this repo:
+Zaileys ships an **official Agent Skill suite** so your AI assistant writes, reviews, and
+debugs zaileys code with best practices — it knows the exact API, common pitfalls, and how
+to fix errors. Install it straight from this repo:
 
 ```bash
 # Claude Code (native plugin — supports auto-update)
 /plugin marketplace add zeative/zaileys
-/plugin install zaileys@zeative
+/plugin install zaileys-official@zeative
 
 # npx skills (multi-agent: Claude Code, Codex, Cursor, OpenCode)
 npx skills add zeative/zaileys        # add -g for a global install
 ```
 
-Both install the same skill (`skills/zaileys/`) with deep references for the API, recipes,
-errors, troubleshooting, and anti-patterns. See [the skill guide](https://zeative.github.io/zaileys/skill/).
+The suite has an orchestrator that auto-routes plus three focused skills:
+
+| Command (plugin) | Does |
+| ---------------- | ---- |
+| `/zaileys-official:assist` | Orchestrator — auto-detects intent (build / debug / review / explain) |
+| `/zaileys-official:scaffold` | Generate a complete runnable bot from a short spec |
+| `/zaileys-official:debug` | Diagnose a zaileys error/symptom → cause → fix |
+| `/zaileys-official:review` | Audit code vs best practices + ban-safety |
+
+Each skill also fetches the [live docs](https://zeative.github.io/zaileys/llms-full.txt) for the latest API. See [the skill guide](https://zeative.github.io/zaileys/skill/).
 
 ## Why Zaileys
 

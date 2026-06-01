@@ -8,14 +8,14 @@
   "description": "Official marketplace for zaileys — the type-safe WhatsApp bot framework for Node.js & TypeScript.",
   "plugins": [
     {
-      "name": "zaileys",
+      "name": "zaileys-official",
       "source": {
         "source": "git-subdir",
         "url": "https://github.com/zeative/zaileys.git",
-        "path": "plugins/zaileys",
+        "path": "plugins/zaileys-official",
         "ref": "main"
       },
-      "description": "Build WhatsApp bots with zaileys: typed events, a fluent send builder, interactive messages, AIRich markdown, commands, broadcast/schedule, and pluggable storage.",
+      "description": "Official zaileys skill suite — an orchestrator (assist) plus focused scaffold, debug, and review skills for building WhatsApp bots with best practices.",
       "version": "4.0.0",
       "author": { "name": "zeative" },
       "homepage": "https://zeative.github.io/zaileys/",

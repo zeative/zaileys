@@ -1,21 +1,36 @@
 ---
-name: zaileys-official
+name: assist
 description: >-
-  Build, review, and debug WhatsApp bots with the zaileys framework (type-safe
-  Node.js/TypeScript wrapper over Baileys). Use whenever writing or editing zaileys
-  code, choosing the right API, applying best practices, or diagnosing zaileys
-  errors, connection/session issues, ban-risk, storage, or runtime failures.
+  The zaileys orchestrator — handles ANY zaileys task (type-safe Node.js/TypeScript
+  WhatsApp framework on Baileys). Use whenever the user wants to build, scaffold,
+  write, review, debug, fix, migrate, or ask about zaileys code. Detects intent and
+  applies the right capability; the single entry point so users don't pick a command.
 ---
 
-# zaileys — WhatsApp bot framework expert
+# zaileys — orchestrator (assist)
 
-This skill makes you an expert at **building, reviewing, and debugging** WhatsApp bots
-with [zaileys](https://github.com/zeative/zaileys) (npm: `zaileys`, docs:
-<https://zeative.github.io/zaileys/>). Apply the golden rules below, reach for the right
-API, and diagnose failures by symptom → cause → fix.
+You are the **zaileys expert orchestrator**. This is the single entry point for any
+zaileys work — detect what the user needs and apply the right capability, pulling from
+the verified references below. zaileys ([github](https://github.com/zeative/zaileys),
+npm `zaileys`, docs <https://zeative.github.io/zaileys/>) is a typed wrapper over Baileys.
 
-> Import is always `import { Client } from 'zaileys'`. zaileys is a typed wrapper around
-> Baileys; it ships dual ESM/CJS and runs on Node 20+, Bun, Deno, and Termux.
+> Import is always `import { Client } from 'zaileys'`. Dual ESM/CJS; runs on Node 20+, Bun, Deno, Termux.
+
+## Routing — detect intent, then act
+
+Figure out what the user wants and handle it directly (this skill carries all the
+knowledge). Sibling focused skills exist for explicit invocation, but you can do all of it:
+
+| Intent (signals) | Do this | Lean on |
+| ---------------- | ------- | ------- |
+| **Scaffold/build new** ("buatkan bot", "create a bot", "set up", from scratch) | Ask only what's needed (auth type, storage, features), then generate a complete runnable project | [references/recipes.md](references/recipes.md), [references/api.md](references/api.md) |
+| **Debug/fix** (error text, stack trace, `.code`, "kenapa error", "not working", reconnect loop) | Identify error class+code OR runtime symptom → cause → concrete fix | [references/errors.md](references/errors.md), [references/troubleshooting.md](references/troubleshooting.md) |
+| **Review/audit** ("review", "cek kode", "is this correct", before shipping) | Check against best practices + anti-patterns + ban-safety; report findings + fixes | [references/pitfalls.md](references/pitfalls.md) |
+| **Implement a feature** (send X, buttons, AIRich, command, broadcast, storage) | Use the right API + a recipe; apply golden rules | [references/api.md](references/api.md), [references/recipes.md](references/recipes.md) |
+| **Explain/choose** ("how does X work", "which adapter", "qr vs pairing") | Answer from the references; show a minimal example | all references |
+
+Default when ambiguous: ask one clarifying question, then proceed. Prefer doing the work
+over describing it.
 
 ## Deep references (load on demand)
 
@@ -101,3 +116,12 @@ await client.broadcast(recipients, (b) => b.text('hi'), { rateLimitPerSec: 5, on
 - Apply the golden rules above.
 - Prefer the typed event/context API over raw Baileys access.
 - Keep examples runnable: real JIDs from env, awaited keys, single content method, rate-limited bulk.
+
+
+## Live docs (fetch for the latest)
+
+These are authoritative and kept in sync with the code — **fetch them** when you need more detail, the newest API, or to verify before answering (do not guess when unsure):
+
+- **Docs site:** <https://zeative.github.io/zaileys/>
+- **Full docs as one file (best for LLMs):** <https://zeative.github.io/zaileys/llms-full.txt>
+- **Per-topic pages:** `/getting-started` · `/installation` · `/configuration` · `/client` · `/events` · `/sending-messages` · `/media` · `/interactive` · `/rich-responses` · `/commands` · `/automation` · `/storage` · `/error-handling` · `/runtimes` · `/troubleshooting` · `/api-reference` (e.g. <https://zeative.github.io/zaileys/sending-messages>)

@@ -1,0 +1,37 @@
+# Runtime Support
+
+Zaileys ships dual **ESM** and **CommonJS** entry points with type declarations for both module
+systems (`.d.ts` + `.d.cts`), and is verified to load on every major runtime.
+
+| Runtime | ESM (`import`) | CJS (`require`) |
+| ------- | -------------- | --------------- |
+| Node.js `>=20` | ✅ | ✅ |
+| Bun | ✅ | ✅ |
+| Deno (`--node-modules-dir`) | ✅ | ✅ |
+| Termux (Android) | ✅ | ✅ |
+
+Package managers **npm**, **pnpm**, **yarn**, and **bun** are all supported.
+
+```typescript
+import { Client } from 'zaileys'        // ESM / TypeScript
+const { Client } = require('zaileys')   // CommonJS
+```
+
+## Notes per runtime
+
+- **Node.js** — requires v20+ (`engines.node >= 20`).
+- **Bun** — runs both bundles directly (`bun add zaileys`).
+- **Deno** — use `deno run --node-modules-dir` so npm dependencies resolve. All Node builtins in
+  the published bundle use the `node:` protocol, which Deno requires.
+- **Termux / Android** — works as a normal Node install. The bundled ffmpeg/ffprobe binaries fall
+  back to a `ffmpeg` on `PATH` when no Android prebuilt exists (`pkg install ffmpeg`).
+
+## Optional native acceleration
+
+`sharp` speeds up image/sticker processing when installed. It is **not** a declared dependency —
+Zaileys loads it opportunistically in both ESM and CJS and falls back to the bundled pure-JS
+`jimp` path when it is absent. Install it for the fast path:
+
+```bash
+npm i sharp
+```

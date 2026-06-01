@@ -1,0 +1,65 @@
+# Client & Lifecycle
+
+The `Client` is the entry point. Constructing it **connects automatically** and emits lifecycle
+events; there is no separate `connect()` call.
+
+```typescript
+import { Client } from 'zaileys'
+
+const client = new Client({ sessionId: 'default' })
+```
+
+## Connection events
+
+```typescript
+client.on('qr', ({ qrString }) => {})        // QR string to render
+client.on('connect', ({ me }) => {})         // authenticated; `me` is your JID
+client.on('disconnect', ({ reason }) => {})  // dropped (auto-reconnect runs with backoff)
+```
+
+Zaileys reconnects automatically with exponential backoff, and detects an invalid/corrupted
+session so you know when to delete the auth folder and re-scan.
+
+## Sending & mutating
+
+`client.send(jid)` opens a [builder](/sending-messages). Awaiting any send resolves to the new
+`WAMessageKey`, which the mutation helpers consume:
+
+```typescript
+const key = await client.send(jid).text('Original')
+await client.edit(key).text('Edited')
+await client.react(key, '👍')      // empty string removes the reaction
+await client.delete(key, { forEveryone: true })
+await client.forward(key, otherJid)
+```
+
+## Domain namespaces
+
+Higher-level operations are grouped under namespaces (each throws `NOT_CONNECTED` until the client
+is connected):
+
+| Namespace | Purpose |
+| --------- | ------- |
+| `client.group.*` | metadata, participants, invite, subject/description |
+| `client.presence.*` | `typing()` / `recording()` / `online()` / `offline()` |
+| `client.privacy.*` | privacy settings |
+| `client.newsletter.*` | channel/newsletter operations |
+| `client.community.*` | community operations |
+
+```typescript
+await client.presence.typing(jid)        // show the "typing…" indicator
+const meta = await client.group.metadata(groupJid)
+```
+
+## Options
+
+| Option | Type | Default | Notes |
+| ------ | ---- | ------- | ----- |
+| `sessionId` | `string` | `'default'` | auth folder / namespace |
+| `authType` | `'qr' \| 'pairing'` | `'qr'` | login method |
+| `phoneNumber` | `string` | — | required for `pairing` |
+| `commandPrefix` | `string \| string[]` | — | enables the [command framework](/commands) |
+| `ignoreMe` | `boolean` | `true` | drop messages from the bot's own account |
+| `auth` | `AuthStoreBundle` | `FileAuthStore` | see [Storage](/storage) |
+| `store` | `MessageStore` | in-memory | see [Storage](/storage) |
+| `logger` | Pino-compatible | silent-ish | structural logger |

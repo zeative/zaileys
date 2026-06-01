@@ -1,0 +1,43 @@
+# Zaileys
+
+**Zaileys** is a type-safe wrapper around [Baileys](https://github.com/WhiskeySockets/Baileys)
+that makes building WhatsApp bots feel effortless. Create a `Client`, listen for typed events,
+and send anything from plain text to interactive buttons and Meta-AI-style rich responses with a
+single chainable builder — authentication, reconnection, and storage are handled for you.
+
+```typescript
+import { Client } from 'zaileys'
+
+const client = new Client()
+
+client.on('qr', ({ qrString }) => console.log('Scan this QR:', qrString))
+client.on('connect', ({ me }) => console.log('Connected as', me.id))
+
+client.on('text', async (msg) => {
+  await msg.reply(`You said: ${msg.text}`)
+})
+```
+
+That is the whole bot. Scan the QR via **WhatsApp → Linked Devices** and every text gets a reply.
+
+## Why Zaileys
+
+- **Typed events** — `on('text' | 'image' | 'reaction' | 'button-click' | 'group-update' | …)`, each with a fully-typed payload. No raw decoding, no `any`.
+- **One chainable builder** — `client.send(jid).text(…).reply(quoted).mentions([…])` resolves to the sent message key when awaited.
+- **Rich & interactive** — native buttons, lists, carousels, and rich responses written as plain markdown.
+- **Auto lifecycle** — QR or pairing-code login, auto-reconnect with backoff, clean logout.
+- **Pluggable storage** — independent `AuthStore` and `MessageStore` with `file`, `memory`, `sqlite`, `redis`, `postgres`, and `convex` adapters.
+- **Batteries included** — command framework, rate-limited broadcast, scheduled sends, lazy media processing.
+- **Runs everywhere** — dual ESM/CJS with `.d.ts` + `.d.cts`; verified on Node, Bun, Deno, and Termux.
+- **Modern foundation** — Baileys `7.0.0-rc13` (CVE-2026-48063 patched), built with the native TypeScript 7 compiler.
+
+## Next steps
+
+- [Getting Started](/getting-started) — install, authenticate, and run your first bot.
+- [Events](/events) — every event and its payload.
+- [Sending Messages](/sending-messages) — the chainable builder.
+- [Interactive Messages](/interactive) and [Rich Responses](/rich-responses).
+- [Storage Adapters](/storage) — persist your session and history.
+
+> Looking for runnable code? Every feature has a matching script in the
+> [`examples/`](https://github.com/zeative/zaileys/tree/main/examples) folder.

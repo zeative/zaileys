@@ -1,0 +1,39 @@
+# Broadcast & Schedule
+
+## Broadcast
+
+Send the same message to many recipients with built-in rate limiting. The builder callback runs
+once per recipient.
+
+```typescript
+const result = await client.broadcast(
+  ['6281111111111@s.whatsapp.net', '6282222222222@s.whatsapp.net'],
+  (b) => b.text('Announcement to everyone'),
+  { rateLimitPerSec: 5 },
+)
+```
+
+The rate limiter uses a token bucket (global + per-recipient), so you stay under WhatsApp's
+limits without manual `sleep()` calls. Per-recipient failures are isolated — one bad JID does not
+abort the run, and the original error is preserved per recipient.
+
+## Schedule
+
+Queue a send for a future time. When the configured [message store](/storage) implements the
+scheduled-job methods, jobs **survive restarts**.
+
+```typescript
+const job = await client.scheduleAt(
+  new Date(Date.now() + 60_000),
+  (b) => b.text('This sends one minute from now'),
+)
+```
+
+The builder callback is evaluated **once at schedule time** into a serializable snapshot
+(`{ recipient, content }`) — it is never stored as a live closure, which is what makes
+restart-recovery possible.
+
+
+> Restart-survival requires a store with `saveScheduledJob` / `listScheduledJobs` /
+> `deleteScheduledJob` (SQLite, Postgres, Redis, and Convex adapters implement these). With the
+> in-memory default, scheduled jobs are lost on restart.

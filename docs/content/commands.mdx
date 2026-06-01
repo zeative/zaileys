@@ -1,0 +1,61 @@
+# Commands
+
+Set a `commandPrefix` to activate the command framework. Handlers receive a typed context that
+extends the [message context](/events) with parsed command fields and reply helpers.
+
+```typescript
+const client = new Client({ commandPrefix: ['/', '!'] })
+
+client.command('ping', async (ctx) => {
+  await ctx.reply('pong 🏓')
+})
+
+client.command('echo', async (ctx) => {
+  await ctx.reply(ctx.args.join(' '))
+})
+```
+
+## Aliases
+
+Separate multiple names with `|`:
+
+```typescript
+client.command('help|h|?', async (ctx) => {
+  await ctx.reply('Commands: /ping, /echo, /help')
+})
+```
+
+## Command context
+
+In addition to every [message-context](/events) field, a command context adds:
+
+| Field | Description |
+| ----- | ----------- |
+| `command` | matched command name (normalized) |
+| `args` | positional arguments (`string[]`) |
+| `flags` | parsed `--flag` / `--key value` map |
+| `json` | parsed JSON argument, when present |
+| `raw` | the raw text after the prefix |
+| `reply(content, opts?)` | reply (supports `{ rich: true }`) |
+| `react(emoji)` | react to the triggering message |
+| `edit(content)` | edit the bot's last reply in this turn |
+
+```typescript
+client.command('weather', async (ctx) => {
+  const city = ctx.args[0]
+  if (!city) return ctx.reply('Usage: /weather <city>')
+  await ctx.reply(`Weather in ${city}: sunny, 28°`)
+})
+```
+
+## Middleware
+
+`client.use()` registers middleware that runs before handlers — useful for logging, auth, or
+rate limiting:
+
+```typescript
+client.use(async (ctx, next) => {
+  console.log('command:', ctx.command, 'from', ctx.senderId)
+  await next()
+})
+```

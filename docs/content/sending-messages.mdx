@@ -1,0 +1,65 @@
+# Sending Messages
+
+`client.send(jid)` returns a chainable builder. Add exactly one content method, optionally chain
+modifiers, then `await` to send. The result is the new `WAMessageKey`.
+
+```typescript
+await client.send(jid).text('Hello there')
+```
+
+## Content methods
+
+```typescript
+await client.send(jid).text('plain text')
+await client.send(jid).image('https://example.com/p.jpg', { caption: 'Nice' })
+await client.send(jid).video('./clip.mp4', { gifPlayback: false })
+await client.send(jid).audio('./voice.ogg', { ptt: true })       // voice note
+await client.send(jid).document('./report.pdf', { fileName: 'report.pdf' })
+await client.send(jid).sticker('./img.png', { animated: false })
+await client.send(jid).poll('Pick one', ['Red', 'Green', 'Blue'])
+await client.send(jid).location(-6.2, 106.8, { name: 'Jakarta' })
+await client.send(jid).contact(vcardString)
+await client.send(jid).album([
+  { type: 'image', src: './a.jpg' },
+  { type: 'video', src: './b.mp4' },
+])
+```
+
+A `MediaSource` is a URL string, a local path, a `Buffer`, or a `URL`.
+
+## Modifiers
+
+Modifiers are orthogonal and chainable on top of any content:
+
+```typescript
+await client
+  .send(jid)
+  .text('Reply with a mention')
+  .reply(quotedKeyOrMessage)                       // quote a message
+  .mentions(['6281234567890@s.whatsapp.net'])      // tag specific JIDs
+  .mentionAll()                                    // tag every group member
+  .disappearing(86400)                             // ephemeral, seconds
+```
+
+## Replying from a handler
+
+Inside an event handler you usually do not need `client.send` — the context replies for you:
+
+```typescript
+client.on('text', async (msg) => {
+  await msg.reply('quoted reply')
+  await msg.react('👍')
+})
+```
+
+## Mutating sent messages
+
+```typescript
+const key = await client.send(jid).text('Original')
+await client.edit(key).text('Edited')
+await client.delete(key, { forEveryone: true })
+await client.forward(key, otherJid)
+```
+
+Next: [interactive messages](/interactive) (buttons, lists, carousels) and
+[rich responses](/rich-responses).

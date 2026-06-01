@@ -43,8 +43,7 @@
     "release:version": "changeset version && pnpm install",
     "release:publish": "pnpm run build && changeset publish",
     "prepare": "husky",
-    "size": "size-limit",
-    "docs": "typedoc"
+    "size": "size-limit"
   },
   "devDependencies": {
     "@changesets/cli": "^2.30.0",
@@ -67,7 +66,6 @@
     "size-limit": "^12.1.0",
     "tsup": "^8.5.1",
     "tsx": "^4.21.0",
-    "typedoc": "^0.28.19",
     "typescript": "^6.0.3",
     "vitest": "^4.1.7"
   },

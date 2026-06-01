@@ -1,0 +1,92 @@
+# Interactive Messages
+
+Buttons, lists, and carousels render natively — including on **personal** accounts — because
+Zaileys relays them through the WhatsApp `native_flow` node for you.
+
+## Buttons
+
+`buttons(buttons, opts?)` accepts a mix of button types. Taps come back on the
+[`button-click`](/events) event.
+
+```typescript
+await client.send(jid).buttons(
+  [
+    { id: 'yes', text: 'Yes' },                                        // reply
+    { type: 'url', text: 'Open docs', url: 'https://…', webview: true }, // open URL
+    { type: 'copy', text: 'Copy code', code: 'ZAILEYS-2026' },          // copy to clipboard
+    { type: 'call', text: 'Call us', phone: '628…' },                   // dial
+    { type: 'reminder', text: 'Remind me', id: 'r1' },                  // set reminder
+    { type: 'cancel-reminder', text: 'Cancel' },                        // cancel reminder
+    { type: 'location', text: 'Share location' },                       // request location
+    { type: 'address', text: 'Add address' },                           // request address
+  ],
+  { title: 'Choose', subtitle: 'optional', text: 'Body text', footer: 'footer' },
+)
+
+client.on('button-click', (ctx) => console.log(ctx.buttonId, ctx.buttonText))
+```
+
+### Header media & overflow
+
+```typescript
+await client.send(jid).buttons(buttonList, {
+  image: './header.png',                 // or video: './clip.mp4'
+  text: 'With a media header',
+  bottomSheet: { listTitle: 'All options', buttonTitle: 'View 8 options', buttonsLimit: 2 },
+  limitedTimeOffer: { text: 'Ends soon', copyCode: 'FLASH50', expiresAt: 1800000000 },
+})
+```
+
+Up to 10 buttons. `bottomSheet` collapses overflow buttons into a tap-to-open sheet;
+`limitedTimeOffer` renders a countdown banner.
+
+## Lists
+
+`list(opts)` builds a `single_select` list. The selected row id returns on the
+[`list-select`](/events) event.
+
+```typescript
+await client.send(jid).list({
+  title: '🍔 Menu',
+  description: 'Pick your order',
+  buttonText: 'View menu',
+  footerText: 'zaileys',
+  sections: [
+    { title: 'Food', rows: [
+      { id: 'pizza', title: 'Pizza', description: '$6' },
+      { id: 'ramen', title: 'Ramen', description: '$5' },
+    ]},
+  ],
+})
+
+client.on('list-select', (ctx) => console.log('selected:', ctx.rowId))
+```
+
+## Carousel
+
+Horizontal cards, each with media + its own buttons.
+
+```typescript
+await client.send(jid).carousel(
+  [
+    { title: 'Pizza', body: '$6', footer: 'FoodBot', image: './pizza.png',
+      buttons: [{ id: 'buy_pizza', text: 'Order' }] },
+    { title: 'Ramen', body: '$5', footer: 'FoodBot', image: './ramen.png',
+      buttons: [{ type: 'url', text: 'Detail', url: 'https://…' }] },
+  ],
+  { text: '🛍️ Menu' },
+)
+```
+
+## Template
+
+A simpler header / body / footer + reply buttons shortcut:
+
+```typescript
+await client.send(jid).template({
+  header: 'Zaileys',
+  body: 'Body text',
+  footer: 'footer',
+  buttons: [{ id: 't1', text: 'Action 1' }, { id: 't2', text: 'Action 2' }],
+})
+```

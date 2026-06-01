@@ -1,0 +1,83 @@
+# Rich Responses (AIRich)
+
+import { Callout } from 'nextra/components'
+
+Pass `{ rich: true }` to `text()` and write ordinary **markdown** — Zaileys renders it as a
+Meta-AI-style rich card: syntax-highlighted code, tables, images, inline links, and `:::`
+directives for products, suggestions, reels, and more.
+
+<Callout type="warning">
+  AIRich uses a reverse-engineered WhatsApp format. It is **experimental** and may change with
+  WhatsApp updates. Plain `.text()` (without `rich`) is unaffected.
+</Callout>
+
+## Basic usage
+
+```typescript
+await client.send(jid).text(
+  [
+    '*Daily brief* ☕',
+    '',
+    'Repo: [GitHub](https://github.com/zeative/zaileys)',
+    'A citation: [](https://github.com/zeative/zaileys)',
+    '',
+    '```ts',
+    'const client = new Client()',
+    '```',
+    '',
+    '| Feature | Status |',
+    '|---|---|',
+    '| Buttons | Ready |',
+    '| AIRich  | Experimental |',
+  ].join('\n'),
+  {
+    rich: true,
+    title: '📰 zaileys',
+    footer: 'powered by zaileys',
+    sources: [['https://favicon', 'https://src', 'Source name']],
+  },
+)
+```
+
+## Markdown that is auto-parsed
+
+| Markdown | Renders as |
+| -------- | ---------- |
+| ` ```lang … ``` ` | syntax-highlighted code block |
+| `\| a \| b \|` + `\|---\|` | table |
+| `![alt](url)` on its own line | image (consecutive lines → gallery) |
+| `[label](url)` | inline hyperlink |
+| `[](url)` | citation |
+| `[expr]<imageUrl>` | LaTeX (image must be a pre-rendered formula) |
+| paragraphs, `*bold*`, `_italic_` | text |
+
+## Directives
+
+Use `:::name … :::` blocks for non-markdown primitives:
+
+```text
+:::suggest
+See changelog | Upgrade guide
+:::
+
+:::product
+- title: Pizza | price: $7 | sale: $6 | image: https://… | url: https://…
+- title: Ramen | price: $6 | sale: $5
+:::
+
+:::video
+https://example.com/clip.mp4 | 10
+:::
+```
+
+Available directives: `suggest`, `tip`, `image`, `video`, `product`, `reels`, `post`.
+
+## Rich replies
+
+The same engine powers context replies:
+
+```typescript
+client.on('text', async (msg) => {
+  await msg.reply('**Hi** — here is some `code`', { rich: true, title: '🤖 bot' })
+})
+```

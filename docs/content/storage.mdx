@@ -1,0 +1,64 @@
+# Storage Adapters
+
+Zaileys separates **auth state** (`AuthStore` — credentials + signal keys) from **message
+history** (`MessageStore` — messages/chats/contacts/presence). They are independent, so you can
+mix backends — e.g. auth in SQLite, messages in Redis.
+
+```typescript
+import { Client, SqliteAuthStore, RedisMessageStore } from 'zaileys'
+
+const client = new Client({
+  auth: new SqliteAuthStore({ database: './auth.db' }),
+  store: new RedisMessageStore({ url: 'redis://localhost:6379' }),
+})
+```
+
+## Available adapters
+
+| Adapter | Auth store | Message store | Peer dependency |
+| ------- | ---------- | ------------- | --------------- |
+| `file` | `FileAuthStore` ⭐ | — | none |
+| `memory` | `MemoryAuthStore` | `MemoryMessageStore` | none |
+| `sqlite` | `SqliteAuthStore` | `SqliteMessageStore` | `better-sqlite3` |
+| `redis` | `RedisAuthStore` | `RedisMessageStore` | `redis` |
+| `postgres` | `PostgresAuthStore` | `PostgresMessageStore` | `pg` |
+| `convex` | `ConvexAuthStore` | `ConvexMessageStore` | `convex` |
+
+⭐ default. Each non-`file` adapter requires its optional peer; a missing peer throws
+`STORE_NOT_AVAILABLE` (rather than crashing install).
+
+## Construction
+
+Adapters accept a pre-built client **or** a connection string (XOR), plus an optional `namespace`:
+
+```typescript
+// connection string — adapter owns the client lifecycle
+new RedisAuthStore({ url: 'redis://localhost:6379', namespace: 'wa' })
+
+// pre-built client — you own the lifecycle
+new PostgresMessageStore({ pool: myPgPool })
+```
+
+## Convex
+
+Convex is reached through **deployed functions**, so it has a one-time setup. Copy the schema +
+functions from [`examples/convex/`](https://github.com/zeative/zaileys/tree/main/examples/convex)
+into your Convex project and deploy, then:
+
+```typescript
+import { Client, ConvexAuthStore, ConvexMessageStore } from 'zaileys'
+
+const client = new Client({
+  auth: new ConvexAuthStore({ url: process.env.CONVEX_URL, namespace: 'wa-auth' }),
+  store: new ConvexMessageStore({ url: process.env.CONVEX_URL, namespace: 'wa-store' }),
+})
+```
+
+> When auth and store share one deployment, give them **distinct `namespace`** values — `clear()`
+> wipes a whole namespace (auth `clear()` runs on a 401/410 logout, like the other adapters).
+
+## Notes
+
+- Buffers round-trip byte-for-byte (`BufferJSON` serialization).
+- Message stores order `listMessages()` newest-first and support `before` paging.
+- All adapters pass the same shared contract test suite.

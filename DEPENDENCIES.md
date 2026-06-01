@@ -67,7 +67,7 @@ only the backend they use; a missing peer throws `STORE_NOT_AVAILABLE` instead o
 | `better-sqlite3` | `^11.0.0` | `SqliteAuthStore` / `SqliteMessageStore` | `pnpm add better-sqlite3` |
 | `redis` | `^4.7.0` | `RedisAuthStore` / `RedisMessageStore` | `pnpm add redis` |
 | `pg` | `^8.11.0` | `PostgresAuthStore` / `PostgresMessageStore` | `pnpm add pg` |
-| `convex` | `^1.0.0` | `ConvexAuthStore` / `ConvexMessageStore` (requires deploying `docs/convex/`) | `pnpm add convex` |
+| `convex` | `^1.0.0` | `ConvexAuthStore` / `ConvexMessageStore` (requires deploying `examples/convex/`) | `pnpm add convex` |
 
 ## Optional accelerator (not declared)
 

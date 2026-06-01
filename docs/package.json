@@ -1,0 +1,23 @@
+{
+  "name": "zaileys-docs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "next": "^15.5.4",
+    "nextra": "4.2.17",
+    "nextra-theme-docs": "4.2.17",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "@types/react": "^19.2.0",
+    "typescript": "^5.7.0"
+  }
+}

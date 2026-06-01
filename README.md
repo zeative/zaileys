@@ -201,7 +201,7 @@ const client = new Client({
 | `postgres` | `PostgresAuthStore` | `PostgresMessageStore` | `pg`             |
 | `convex`   | `ConvexAuthStore`   | `ConvexMessageStore`   | `convex`         |
 
-> ⭐ default. Convex requires deploying the helper functions in [`docs/convex/`](./docs/convex) — see that folder's README.
+> ⭐ default. Convex requires deploying the helper functions in [`examples/convex/`](./examples/convex) — see that folder's README.
 
 ## Runtime support
 

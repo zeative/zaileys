@@ -1,0 +1,63 @@
+# Events
+
+Every inbound event has its own typed payload — no manual decoding.
+
+```typescript
+client.on('text', async (msg) => {
+  console.log(msg.senderId, msg.text)
+  await msg.reply('got it')
+})
+
+client.on('image', async (msg) => {
+  const buffer = await msg.media?.buffer()
+  console.log('image bytes:', buffer?.length)
+})
+
+client.on('button-click', (ctx) => console.log('tapped:', ctx.buttonId))
+client.on('reaction', (msg) => console.log(msg.emoji))
+```
+
+## Message context
+
+Message events (`text`, `image`, `video`, `audio`, `document`, `sticker`, `mention`,
+`mention-all`) deliver a rich, flat context. Highlights:
+
+| Field | Description |
+| ----- | ----------- |
+| `text` | message text / caption |
+| `senderId` / `senderName` | sender JID and push name |
+| `senderLid` | sender LID (or `null`) |
+| `roomId` | group JID, or `null` for DMs |
+| `isGroup` / `isFromMe` / `isForwarded` | flags |
+| `mentions` / `links` | extracted JIDs and URLs |
+| `media` | `{ buffer(), stream() }` (media messages only) |
+| `replied()` | resolves the quoted message context, or `null` |
+| `message()` | the raw `WAMessage` |
+
+Every context also carries **actions**:
+
+```typescript
+await msg.reply('text')                    // quotes the message
+await msg.reply(markdown, { rich: true })  // rich reply — see /rich-responses
+await msg.react('🔥')
+```
+
+## Event reference
+
+| Event | Payload | Fires when |
+| ----- | ------- | ---------- |
+| `text` / `image` / `video` / `audio` / `document` / `sticker` | `MessageContext` | a message of that type arrives |
+| `reaction` | reaction payload | someone reacts |
+| `edit` / `delete` | mutation payload | a message is edited / revoked |
+| `poll-vote` | vote payload | a poll vote is cast |
+| `button-click` | `{ buttonId, buttonText, sender }` | an interactive button is tapped |
+| `list-select` | `{ rowId, title, sender }` | a list row is selected |
+| `mention` / `mention-all` | mention context | the bot (or everyone) is mentioned |
+| `group-update` / `group-join` / `group-leave` / `member-tag` | group payloads | group changes |
+| `call-incoming` / `call-ended` | call payload | call state |
+| `history-sync` | history payload | initial history sync |
+| `presence` | presence payload | presence updates |
+| `newsletter` | newsletter payload | channel updates |
+| `limited` | limited payload | rate/reach limits hit |
+
+Connection events: `qr`, `connect`, `disconnect`.

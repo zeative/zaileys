@@ -1,0 +1,80 @@
+# Getting Started
+
+## Install
+
+```bash
+npm i zaileys      # or: pnpm add zaileys • yarn add zaileys • bun add zaileys
+```
+
+Requires **Node.js v20+**. The `file` auth store is the zero-config default and needs nothing else.
+
+Storage backends other than `file` are **optional peer dependencies** — install only what you use:
+
+```bash
+npm i better-sqlite3   # sqlite adapters
+npm i redis            # redis adapters
+npm i pg               # postgres adapters
+npm i convex           # convex adapters
+```
+
+`sharp` is an optional accelerator for media/sticker processing; without it Zaileys falls back to a
+pure-JS path automatically.
+
+## Your first bot
+
+There is no `await connect()` — the client connects on construction, so any handler registered
+synchronously is wired up before the first event fires.
+
+```typescript
+import { Client } from 'zaileys'
+
+const client = new Client()
+
+client.on('qr', ({ qrString }) => console.log('Scan this QR:', qrString))
+client.on('connect', ({ me }) => console.log('Connected as', me.id))
+
+client.on('text', async (msg) => {
+  await msg.reply(`Hello ${msg.senderName ?? ''}! You said: ${msg.text}`)
+})
+```
+
+Run it, then scan the printed QR with **WhatsApp → Linked Devices**.
+
+## Authentication
+
+### QR (default)
+
+```typescript
+const client = new Client() // authType defaults to 'qr'
+client.on('qr', ({ qrString }) => console.log(qrString))
+```
+
+### Pairing code
+
+```typescript
+const client = new Client({ authType: 'pairing', phoneNumber: '6281234567890' })
+```
+
+## Common options
+
+```typescript
+const client = new Client({
+  sessionId: 'default',          // auth folder / namespace
+  authType: 'qr',                // 'qr' | 'pairing'
+  phoneNumber: '628…',           // required for pairing
+  commandPrefix: ['/', '!'],     // enables the command framework
+  ignoreMe: true,                // drop messages sent by the bot account itself
+})
+```
+
+## Project layout
+
+Zaileys ships dual **ESM** and **CommonJS** entry points plus `.d.ts` / `.d.cts` types, so both
+`import` and `require` work out of the box:
+
+```typescript
+import { Client } from 'zaileys'        // ESM / TypeScript
+const { Client } = require('zaileys')   // CommonJS
+```
+
+See [Runtime Support](/runtimes) for Node, Bun, Deno, and Termux.

@@ -27,18 +27,19 @@
 
 <div align="center">
   <p>
-    <b>Zaileys</b> is a type-safe wrapper around <a href="https://github.com/WhiskeySockets/Baileys">Baileys</a> that makes building WhatsApp bots feel effortless. Construct a <code>Client</code>, listen for typed events, and send rich messages with a chainable builder — auth, reconnect, and storage are handled for you.
+    <b>Zaileys</b> is a type-safe wrapper around <a href="https://github.com/WhiskeySockets/Baileys">Baileys</a> that makes building WhatsApp bots feel effortless. Create a <code>Client</code>, listen for typed events, and send anything from plain text to interactive buttons and rich AI-style responses with a single chainable builder — authentication, reconnection, and storage are handled for you.
   </p>
 </div>
 
 <div align="center">
 
-[⚡ Quick Start](#-quick-start) &nbsp;&nbsp;•&nbsp;&nbsp;
-[🪶 Highlights](#-highlights) &nbsp;&nbsp;•&nbsp;&nbsp;
-[📦 Install](#-install) &nbsp;&nbsp;•&nbsp;&nbsp;
-[🎯 Feature Tours](#-feature-tours) &nbsp;&nbsp;•&nbsp;&nbsp;
-[🗂️ Storage Adapters](#️-storage-adapters) &nbsp;&nbsp;•&nbsp;&nbsp;
-[📚 Docs & Links](#-docs--links)
+[Quick start](#quick-start) &nbsp;•&nbsp;
+[Why Zaileys](#why-zaileys) &nbsp;•&nbsp;
+[Install](#install) &nbsp;•&nbsp;
+[What you can build](#what-you-can-build) &nbsp;•&nbsp;
+[Storage](#storage) &nbsp;•&nbsp;
+[Runtimes](#runtime-support) &nbsp;•&nbsp;
+[Docs](#documentation)
 
 </div>
 
@@ -46,11 +47,14 @@
 
 <br>
 
+> [!NOTE]
+> This README is a **high-level overview**. The complete API reference, guides, and recipes live in the dedicated documentation site (coming soon). Runnable code lives in [`examples/`](./examples).
+
 ---
 
-## ⚡ Quick Start
+## Quick start
 
-Install, create a `Client`, and you are online. There is no `await connect()` — the client auto-connects on construction, so any `on(...)` handler you register synchronously is wired up before the first event fires.
+There is no `await connect()` — the client connects on construction, so every handler you register synchronously is wired up before the first event arrives.
 
 ```typescript
 import { Client } from 'zaileys'
@@ -61,96 +65,111 @@ client.on('qr', ({ qrString }) => console.log('Scan this QR:', qrString))
 client.on('connect', ({ me }) => console.log('Connected as', me.id))
 
 client.on('text', async (msg) => {
-  await client.send(msg.jid).text('Halo!')
+  await msg.reply(`You said: ${msg.text}`)
 })
 ```
 
-That is the whole bot. Scan the printed QR with WhatsApp → Linked Devices, and every text message gets a reply.
+That is the whole bot. Scan the printed QR via **WhatsApp → Linked Devices**, and every text message gets a reply.
 
-Prefer a pairing code instead of a QR? Pass your number:
+Prefer a pairing code? Provide your number:
 
 ```typescript
 const client = new Client({ authType: 'pairing', phoneNumber: '6281234567890' })
-
-client.on('pairing-code', ({ code }) => console.log('Enter this code in WhatsApp:', code))
 ```
 
-## 🪶 Highlights
+## Why Zaileys
 
-- ✅ **Typed events** — `on('text' | 'image' | 'reaction' | 'group-update' | ...)` with fully-typed payloads and IntelliSense. No raw Baileys decoding.
-- ✅ **Chainable builder** — `client.send(jid).text(...).reply(quoted).mentions([...])` returns the sent message key when awaited.
-- ✅ **Auto auth lifecycle** — QR or pairing-code selected from config, auto-reconnect with backoff, clean logout.
-- ✅ **Pluggable storage** — separate `AuthStore` and `MessageStore` interfaces with `file` (default), `sqlite`, `redis`, and `postgres` adapters.
-- ✅ **Command framework** — opt-in `client.command('hello', ctx => ...)` with configurable prefix, middleware, and argument parsing.
-- ✅ **Automation utilities** — `client.broadcast(jids, builder, { rateLimitPerSec })` and `client.scheduleAt(date, builder)` with built-in rate limiting.
-- ✅ **Dual ESM/CJS** — ships both `import` and `require` entry points plus `.d.ts` types.
-- ✅ **TypeScript 7 native** — built and type-checked with the native (Go) TypeScript compiler.
-- ✅ **Baileys 7.0.0-rc13** — latest upstream, including the CVE-2026-48063 spoofing patch.
+- **Typed events** — `on('text' | 'image' | 'reaction' | 'button-click' | 'group-update' | …)` with fully-typed payloads and IntelliSense. No raw Baileys decoding, no `any`.
+- **One chainable builder** — `client.send(jid).text(…).reply(quoted).mentions([…])` resolves to the sent message key when awaited.
+- **Rich & interactive out of the box** — native buttons, lists, carousels, and Meta-AI-style rich responses written as plain markdown.
+- **Auto lifecycle** — QR or pairing-code login, auto-reconnect with backoff, clean logout, optional `ignoreMe`.
+- **Pluggable storage** — independent `AuthStore` and `MessageStore` interfaces with `file`, `memory`, `sqlite`, `redis`, `postgres`, and `convex` adapters.
+- **Batteries included** — command framework, broadcast with rate limiting, scheduled sends, and lazy media processing (image/video/audio/sticker).
+- **Runs everywhere** — dual ESM/CJS with `.d.ts` + `.d.cts` types; verified on Node, Bun, Deno, and Termux.
+- **Modern foundation** — Baileys `7.0.0-rc13` (includes the CVE-2026-48063 spoofing patch), built and type-checked with the native (Go) TypeScript 7 compiler.
 
-## 📦 Install
+## Install
 
 ```bash
-npm i zaileys
-# or
-pnpm add zaileys
-# or
-yarn add zaileys
+npm i zaileys      # or: pnpm add zaileys  •  yarn add zaileys  •  bun add zaileys
 ```
 
-Requires **Node.js v20+**. The `file` storage adapter is the zero-config default and needs no extra dependencies.
+Requires **Node.js v20+**. The `file` auth store is the zero-config default and needs nothing else.
 
-Storage adapters other than `file` rely on optional peer dependencies — install only the one you use:
+Other storage backends are **optional peer dependencies** — install only the one you use:
 
 ```bash
-npm i better-sqlite3   # for SqliteAuthStore / SqliteMessageStore
-npm i redis            # for RedisAuthStore / RedisMessageStore
-npm i pg               # for PostgresAuthStore / PostgresMessageStore
+npm i better-sqlite3   # sqlite adapters
+npm i redis            # redis adapters
+npm i pg               # postgres adapters
+npm i convex           # convex adapters
 ```
 
-## 🎯 Feature Tours
+`sharp` is an optional accelerator for media/sticker processing; without it Zaileys falls back to a pure-JS path automatically.
 
-### Typed events
+## What you can build
 
-Each event has its own typed payload — no manual decoding, no `any`.
-
-```typescript
-client.on('text', async (msg) => {
-  await client.send(msg.jid).text(`You said: ${msg.content}`)
-})
-
-client.on('image', async (msg) => {
-  const { buffer } = await msg.download()
-  console.log('Got an image of', buffer.length, 'bytes')
-})
-
-client.on('reaction', (msg) => console.log(msg.sender.pushName, 'reacted with', msg.emoji))
-client.on('group-update', (evt) => console.log('Group changed:', evt.groupId))
-```
-
-### Chainable builder
-
-`client.send(jid)` returns a builder. Chain content + modifiers, then `await` to send.
+### Send anything
 
 ```typescript
 await client.send(jid).text('Hello there')
-
-await client
-  .send(jid)
-  .text('Reply with a mention')
-  .reply(quotedKey)
-  .mentions(['6281234567890@s.whatsapp.net'])
-
 await client.send(jid).image('https://example.com/photo.jpg', { caption: 'Nice shot' })
-
 await client.send(jid).poll('Pick one', ['Red', 'Green', 'Blue'])
-
 await client.send(jid).album([
   { type: 'image', src: './a.jpg' },
   { type: 'image', src: './b.jpg' },
 ])
 ```
 
-Mutate existing messages — every send returns the new `WAMessageKey`:
+### Interactive messages
+
+Reply, URL, copy, call, reminder, location, and address buttons — plus lists and carousels — rendered natively on personal accounts.
+
+```typescript
+await client.send(jid).buttons(
+  [
+    { id: 'yes', text: 'Yes' },
+    { type: 'url', text: 'Open docs', url: 'https://github.com/zeative/zaileys' },
+    { type: 'copy', text: 'Copy code', code: 'ZAILEYS-2026' },
+  ],
+  { title: 'Pick one', text: 'Tap a button below' },
+)
+
+client.on('button-click', (ctx) => console.log('tapped:', ctx.buttonId))
+```
+
+### Rich responses, written as markdown
+
+Toggle `{ rich: true }` and write ordinary markdown — fenced code (syntax-highlighted), tables, images, and `:::` directives for products, suggestions, and more.
+
+```typescript
+await client.send(jid).text(
+  [
+    '*Daily brief* ☕',
+    '',
+    '```ts',
+    "const client = new Client()",
+    '```',
+    '',
+    ':::suggest',
+    'See changelog | Upgrade guide',
+    ':::',
+  ].join('\n'),
+  { rich: true, title: '📰 zaileys' },
+)
+```
+
+### Commands, broadcast & schedule
+
+```typescript
+const client = new Client({ commandPrefix: ['/', '!'] })
+client.command('ping', (ctx) => ctx.reply('pong 🏓'))
+
+await client.broadcast(jids, (b) => b.text('Announcement'), { rateLimitPerSec: 5 })
+await client.scheduleAt(new Date(Date.now() + 60_000), (b) => b.text('Sends in 1 minute'))
+```
+
+### Mutate messages
 
 ```typescript
 const key = await client.send(jid).text('Original')
@@ -160,44 +179,9 @@ await client.delete(key, { forEveryone: true })
 await client.forward(key, otherJid)
 ```
 
-### Command framework
+## Storage
 
-Set a `commandPrefix` to activate commands. Handlers receive a typed context with parsed `args` and reply helpers.
-
-```typescript
-const client = new Client({ commandPrefix: ['/', '!'] })
-
-client.use(async (ctx, next) => {
-  console.log('command:', ctx.command, 'args:', ctx.args)
-  await next()
-})
-
-client.command('ping', async (ctx) => {
-  await ctx.reply('pong 🏓')
-})
-
-client.command('echo', async (ctx) => {
-  await ctx.reply(ctx.args.join(' '))
-})
-```
-
-### Broadcast & schedule
-
-```typescript
-await client.broadcast(
-  ['6281111111111@s.whatsapp.net', '6282222222222@s.whatsapp.net'],
-  (b) => b.text('Announcement to everyone'),
-  { rateLimitPerSec: 5 },
-)
-
-const job = await client.scheduleAt(new Date(Date.now() + 60_000), (b) =>
-  b.text('This sends one minute from now'),
-)
-```
-
-## 🗂️ Storage Adapters
-
-Auth state and message history use two independent interfaces, so you can mix and match — for example auth in Redis and messages in Postgres.
+Auth state and message history use two independent interfaces, so you can mix and match — e.g. auth in SQLite, messages in Redis.
 
 ```typescript
 import { Client, SqliteAuthStore, RedisMessageStore } from 'zaileys'
@@ -208,33 +192,46 @@ const client = new Client({
 })
 ```
 
-| Adapter    | Auth store                | Message store          | Peer dependency  |
-| ---------- | ------------------------- | ---------------------- | ---------------- |
-| `file`     | `FileAuthStore` (default) | —                      | none             |
-| `memory`   | `MemoryAuthStore`         | `MemoryMessageStore`   | none             |
-| `sqlite`   | `SqliteAuthStore`         | `SqliteMessageStore`   | `better-sqlite3` |
-| `redis`    | `RedisAuthStore`          | `RedisMessageStore`    | `redis`          |
-| `postgres` | `PostgresAuthStore`       | `PostgresMessageStore` | `pg`             |
+| Adapter    | Auth store          | Message store          | Peer dependency  |
+| ---------- | ------------------- | ---------------------- | ---------------- |
+| `file`     | `FileAuthStore` ⭐  | —                      | none             |
+| `memory`   | `MemoryAuthStore`   | `MemoryMessageStore`   | none             |
+| `sqlite`   | `SqliteAuthStore`   | `SqliteMessageStore`   | `better-sqlite3` |
+| `redis`    | `RedisAuthStore`    | `RedisMessageStore`    | `redis`          |
+| `postgres` | `PostgresAuthStore` | `PostgresMessageStore` | `pg`             |
+| `convex`   | `ConvexAuthStore`   | `ConvexMessageStore`   | `convex`         |
 
-## 📚 Docs & Links
+> ⭐ default. Convex requires deploying the helper functions in [`docs/convex/`](./docs/convex) — see that folder's README.
 
-- 📖 [**MIGRATION.md**](./MIGRATION.md) — upgrading from v3.x to v4.0.0 (breaking changes, side-by-side snippets)
-- 🧪 [**examples/**](./examples) — runnable examples (auto-connect, builder, command bot, broadcast, storage adapters)
-- 🔧 [**API Reference**](./docs/api) — generated TypeDoc for the full public surface
+## Runtime support
+
+Zaileys ships dual ESM/CJS entry points with type declarations for both module systems, and is verified to load on:
+
+| Runtime | ESM | CJS |
+| ------- | --- | --- |
+| Node.js `>=20` | ✅ | ✅ |
+| Bun | ✅ | ✅ |
+| Deno (`--node-modules-dir`) | ✅ | ✅ |
+| Termux (Android) | ✅ | ✅ |
+
+Package managers: **npm**, **pnpm**, **yarn**, and **bun** are all supported.
+
+## Documentation
+
+- 📦 [**examples/**](./examples) — runnable bots: quickstart, interactive buttons, AIRich, storage adapters, broadcast
+- 🔀 [**MIGRATION.md**](./MIGRATION.md) — upgrading from v3.x to v4.0.0 (breaking changes, side-by-side snippets)
 - 🤝 [**CONTRIBUTING.md**](./CONTRIBUTING.md) — dev setup, tests, commit convention, release flow
 - 🔒 [**SECURITY.md**](./SECURITY.md) — vulnerability disclosure and supported versions
 - 📝 [**CHANGELOG.md**](./CHANGELOG.md) — release history
 
-## 🎯 Issues & Feedback
+## Issues & feedback
 
-If you hit a problem or have a feature request, open an [issue](https://github.com/zeative/zaileys/issues).
+Hit a problem or have a feature request? Open an [issue](https://github.com/zeative/zaileys/issues).
 
-- [Buy me a coffee ☕](https://saweria.co/zaadevofc)
-- [Ko-Fi](https://ko-fi.com/zaadevofc)
-- [Trakteer](https://trakteer.id/zaadevofc)
+- [Buy me a coffee ☕](https://saweria.co/zaadevofc) • [Ko-Fi](https://ko-fi.com/zaadevofc) • [Trakteer](https://trakteer.id/zaadevofc)
 - ⭐ Star the repo on GitHub
 
-## 📜 License
+## License
 
 Distributed under the **MIT License**. See [`LICENSE`](https://github.com/zeative/zaileys/blob/main/LICENSE) for details.
 

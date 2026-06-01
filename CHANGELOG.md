@@ -37,9 +37,20 @@ side-by-side upgrade guide.
   `client.forward(key, to)`.
 - **Auto-connect lifecycle** — `new Client()` connects automatically (no `await
   connect()`); auto-reconnect with backoff; QR or pairing-code selection from config.
+- **Interactive messages** — native `buttons()` (`reply` / `url` / `copy` / `call` /
+  `reminder` / `cancel-reminder` / `location` / `address`), `carousel()`, and `list()`
+  (rendered via the modern nativeFlow `single_select` so they show on personal accounts),
+  with optional `bottomSheet` / `limitedTimeOffer` params. Taps round-trip through the
+  `button-click` / `list-select` events.
+- **Rich (AIRich) responses** — `client.send(jid).text(markdown, { rich: true })` renders a
+  Meta-AI-style rich card from plain markdown: syntax-highlighted code, tables, images,
+  inline hyperlinks/citations/LaTeX, and `:::` directives (`product`, `suggest`, `reels`,
+  `post`, `tip`, `video`). EXPERIMENTAL — reverse-engineered format.
 - **Pluggable storage** — independent `AuthStore` and `MessageStore` interfaces with
-  `file` (default), `memory`, `sqlite`, `redis`, and `postgres` adapters. Auth and message
-  backends can differ.
+  `file` (default), `memory`, `sqlite`, `redis`, `postgres`, and `convex` adapters. Auth and
+  message backends can differ.
+- **Message-context actions everywhere** — every inbound context exposes `msg.reply(content,
+  { rich? })` (quotes the message) and `msg.react(emoji)`, not just command contexts.
 - **Command framework** — `client.command(name, handler)`, `client.use(middleware)`,
   configurable `commandPrefix`, argument parsing, and a typed context (`ctx.args`,
   `ctx.reply`, `ctx.react`, `ctx.edit`).
@@ -50,8 +61,9 @@ side-by-side upgrade guide.
 - New Baileys rc10–rc13 surface: album messages, `mentionAll`, member tags,
   `history-sync` status, 463 reach-out timelock (`on('limited')`), v2 newsletter
   endpoints, username-addressed messages, companion-registration QR format.
-- **Dual ESM/CJS** packaging fixed — both `import` and `require` entry points plus
-  `.d.ts` types.
+- **Dual ESM/CJS** packaging — both `import` and `require` entry points plus `.d.ts` and
+  `.d.cts` types. Verified to load on **Node `>=20`, Bun, Deno, and Termux**; all node
+  builtins use the `node:` protocol for strict-runtime compatibility.
 - Built and type-checked with **TypeScript 7 native** (`tsgo`).
 
 ## 3.3.0

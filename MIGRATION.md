@@ -23,7 +23,7 @@ which patches the critical message-spoofing vulnerability **CVE-2026-48063**. Se
 | Buttons           | `wa.button(jid, {...})`                            | `client.send(jid).buttons([...])` / `.list({...})`                  |
 | Reactions         | `wa.reaction(msg, '👍')`                          | `client.react(key, '👍')`                                          |
 | Edit / delete     | `wa.edit(msg, text)` / `wa.delete(msg)`           | `client.edit(key).text(...)` / `client.delete(key, {...})`          |
-| Storage           | implicit file-based LMDB store                    | explicit pluggable `AuthStore` + `MessageStore` (file/sqlite/redis/pg) |
+| Storage           | implicit file-based LMDB store                    | explicit pluggable `AuthStore` + `MessageStore` (file/sqlite/redis/pg/convex) |
 | Plugins           | `definePlugins(...)` + `plugins/` dir + HMR       | command framework: `client.command(name, handler)` + `client.use(mw)` |
 | Logs              | `showLogs`, `fancyLogs`                           | `logger` option (structural, pino-compatible)                       |
 | FFmpeg            | bundled, `disableFFmpeg`                          | native media handling; no bundled FFmpeg flag                       |
@@ -252,9 +252,10 @@ const client = new Client({
 ```
 
 Available adapters: `FileAuthStore` (default), `MemoryAuthStore`, `SqliteAuthStore`,
-`RedisAuthStore`, `PostgresAuthStore`; and `MemoryMessageStore`, `SqliteMessageStore`,
-`RedisMessageStore`, `PostgresMessageStore`. The `sqlite`/`redis`/`postgres` adapters
-require their optional peer dependency (`better-sqlite3` / `redis` / `pg`).
+`RedisAuthStore`, `PostgresAuthStore`, `ConvexAuthStore`; and `MemoryMessageStore`,
+`SqliteMessageStore`, `RedisMessageStore`, `PostgresMessageStore`, `ConvexMessageStore`.
+The `sqlite`/`redis`/`postgres`/`convex` adapters require their optional peer dependency
+(`better-sqlite3` / `redis` / `pg` / `convex`).
 
 ## 5. Plugins → command framework
 

@@ -185,7 +185,12 @@ export const buildAIRichContent = (parts: AIRichPart[], opts?: AIRichOptions): A
           unifiedResponse: {
             data: Buffer.from(JSON.stringify({ response_id: randomUUID(), sections })).toString('base64'),
           },
-          contextInfo: {},
+          contextInfo: {
+            forwardingScore: 1,
+            isForwarded: true,
+            forwardedAiBotMessageInfo: { botJid: '0@bot' },
+            forwardOrigin: 4,
+          },
         },
       },
     },

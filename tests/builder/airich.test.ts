@@ -28,6 +28,15 @@ describe('buildAIRichContent', () => {
     expect(typeof inner.botForwardedMessage.message.richResponseMessage.unifiedResponse.data).toBe('string')
   })
 
+  it('marks the richResponseMessage as a forwarded AI-bot message (required to render)', () => {
+    const ctx = (innerOf(buildAIRichContent([{ type: 'text', text: 'hi' }])).botForwardedMessage.message.richResponseMessage as {
+      contextInfo?: { isForwarded?: boolean; forwardedAiBotMessageInfo?: { botJid?: string }; forwardOrigin?: number }
+    }).contextInfo
+    expect(ctx?.isForwarded).toBe(true)
+    expect(ctx?.forwardedAiBotMessageInfo?.botJid).toBe('0@bot')
+    expect(ctx?.forwardOrigin).toBe(4)
+  })
+
   it('encodes a text section as a GenAIMarkdownTextUXPrimitive', () => {
     const prims = primitivesOf(buildAIRichContent([{ type: 'text', text: 'hi there' }]))
     expect(prims[0]).toMatchObject({ text: 'hi there', __typename: 'GenAIMarkdownTextUXPrimitive' })

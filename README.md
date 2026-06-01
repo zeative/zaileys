@@ -20,6 +20,7 @@
   <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/stars/zeative/zaileys" alt="GitHub Stars"></a>
   <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/forks/zeative/zaileys" alt="GitHub Forks"></a>
   <a href="https://deepwiki.com/zeative/zaileys"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"></a>
+  <a href="https://context7.com/zeative/zaileys"><img src="https://img.shields.io/badge/Context7-LLM%20Docs-4F46E5?logo=data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0id2hpdGUiPjxwYXRoIGQ9Ik00IDRoMTZ2MTZINHoiLz48L3N2Zz4=" alt="Context7"></a>
 </div>
 
 <br>

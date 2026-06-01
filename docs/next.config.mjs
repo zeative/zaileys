@@ -11,4 +11,7 @@ export default withNextra({
   output: 'export',
   images: { unoptimized: true },
   basePath,
+  // Static export + basePath: trailingSlash makes the index RSC prefetch payload
+  // resolve to `${basePath}/index.txt` instead of the 404-ing `${basePath}.txt`.
+  trailingSlash: true,
 })

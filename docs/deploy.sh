@@ -23,6 +23,11 @@ touch out/.nojekyll
 echo "  ✓ $(find out -name '*.html' | wc -l | tr -d ' ') halaman"
 
 echo "▸ Publish ke branch ${BRANCH} ..."
+# Self-heal: drop any stale worktree still holding the branch (e.g. from an
+# interrupted run) so the orphan checkout below can recreate it cleanly.
+git -C "$ROOT_DIR" worktree list --porcelain \
+  | awk -v b="refs/heads/${BRANCH}" '/^worktree /{p=$2} $0=="branch "b{print p}' \
+  | while read -r stale; do git -C "$ROOT_DIR" worktree remove "$stale" --force 2>/dev/null || true; done
 git -C "$ROOT_DIR" worktree prune
 git -C "$ROOT_DIR" branch -D "$BRANCH" >/dev/null 2>&1 || true
 git -C "$ROOT_DIR" worktree add --detach "$WORKTREE" >/dev/null

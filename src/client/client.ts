@@ -1,4 +1,5 @@
 import makeWASocket, {
+  fetchLatestBaileysVersion,
   initAuthCreds,
   type AuthenticationCreds,
   type UserFacingSocketConfig,
@@ -146,6 +147,8 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private commandDispatcher: DispatcherHandle | undefined
   private _presence?: PresenceModule
   private _scheduler?: Scheduler
+  private waVersion?: UserFacingSocketConfig['version']
+  private versionWarming?: Promise<void>
 
   constructor(options: ClientOptions = {}) {
     super({ logger: adoptLogger(options.logger) })
@@ -169,12 +172,33 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     if (options.autoConnect ?? true) {
       queueMicrotask(() => {
         if (this.machine.state !== 'idle') return
-        try {
-          this.connect().catch((err) => this.emitAutoConnectError(err))
-        } catch (err) {
-          this.emitAutoConnectError(err)
-        }
+        void this.warmVersion().finally(() => {
+          if (this.machine.state !== 'idle') return
+          try {
+            this.connect().catch((err) => this.emitAutoConnectError(err))
+          } catch (err) {
+            this.emitAutoConnectError(err)
+          }
+        })
       })
+    }
+  }
+
+  private warmVersion(): Promise<void> {
+    if (this.waVersion) return Promise.resolve()
+    if (this.versionWarming) return this.versionWarming
+    try {
+      if (typeof fetchLatestBaileysVersion !== 'function') return Promise.resolve()
+      this.versionWarming = fetchLatestBaileysVersion()
+        .then(({ version }) => {
+          this.waVersion = version
+        })
+        .catch((err) => {
+          this.logger.warn(err, 'fetchLatestBaileysVersion failed; using bundled version')
+        })
+      return this.versionWarming
+    } catch {
+      return Promise.resolve()
     }
   }
 
@@ -300,11 +324,13 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       this.auth = makeCacheableAuthStore(this.auth, { logger: this.logger as never })
       this.cachedSignalWrap = true
     }
+    void this.warmVersion()
     const creds = {} as AuthenticationCreds
     this.creds = creds
     const keys = signalKeyStoreFromAuthStore(this.auth.signal, this.logger)
     const config: UserFacingSocketConfig = {
       markOnlineOnConnect: false,
+      ...(this.waVersion ? { version: this.waVersion } : {}),
       ...this.baileysExtra,
       auth: { creds, keys },
       logger: this.logger as never,
@@ -543,7 +569,8 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   }
 
   private async handleQrUpdate(qr: string): Promise<void> {
-    if (this.authType === 'pairing' && this.phoneNumber && !this.pairingRequested) {
+    if (this.authType === 'pairing' && this.phoneNumber) {
+      if (this.pairingRequested) return
       this.pairingRequested = true
       if (this.machine.canTransition('pairing-pending')) {
         this.machine.transition('pairing-pending')

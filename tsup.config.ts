@@ -30,6 +30,7 @@ export default defineConfig({
     'lru-cache',
     'async-mutex',
     'valibot',
+    'sharp',
     '@zaileys/media-process',
   ],
 

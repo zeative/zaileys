@@ -17,16 +17,24 @@ type SharpLike = (input: Buffer, options?: Record<string, unknown>) => SharpInst
 let _sharp: SharpLike | null = null;
 let _sharpChecked = false;
 
-function getSharp(): SharpLike | null {
+async function getSharp(): Promise<SharpLike | null> {
   if (_sharpChecked) return _sharp;
   _sharpChecked = true;
+  const accept = (candidate: unknown): void => {
+    if (typeof candidate === 'function') _sharp = candidate as SharpLike;
+  };
   try {
-    const s = require('sharp');
-    if (typeof s === 'function') {
-      _sharp = s as SharpLike;
-    }
+    accept(require('sharp'));
   } catch {
     _sharp = null;
+  }
+  if (!_sharp) {
+    try {
+      const mod = (await import('sharp')) as { default?: unknown };
+      accept(mod.default ?? mod);
+    } catch {
+      _sharp = null;
+    }
   }
   return _sharp;
 }
@@ -191,10 +199,10 @@ class JimpImageProcessor {
 
 let _processor: SharpImageProcessor | JimpImageProcessor | null = null;
 
-function getProcessor(): SharpImageProcessor | JimpImageProcessor {
+async function getProcessor(): Promise<SharpImageProcessor | JimpImageProcessor> {
   if (_processor) return _processor;
 
-  const sharpModule = getSharp();
+  const sharpModule = await getSharp();
   if (sharpModule) {
     _processor = new SharpImageProcessor(sharpModule);
   } else {
@@ -207,18 +215,18 @@ function getProcessor(): SharpImageProcessor | JimpImageProcessor {
 
 export class ImageProcessor {
   static async thumbnail(buffer: Buffer): Promise<string> {
-    return getProcessor().thumbnail(buffer);
+    return (await getProcessor()).thumbnail(buffer);
   }
 
   static async resize(buffer: Buffer, width: number, height: number): Promise<Buffer> {
-    return getProcessor().resize(buffer, width, height);
+    return (await getProcessor()).resize(buffer, width, height);
   }
 
   static async toJpeg(input: MediaInput): Promise<Buffer> {
-    return getProcessor().toJpeg(input);
+    return (await getProcessor()).toJpeg(input);
   }
 
   static async resizeForSticker(buffer: Buffer, quality: number, shape: string = 'default'): Promise<Buffer> {
-    return getProcessor().resizeForSticker(buffer, quality, shape);
+    return (await getProcessor()).resizeForSticker(buffer, quality, shape);
   }
 }

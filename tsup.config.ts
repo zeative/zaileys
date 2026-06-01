@@ -16,7 +16,7 @@ export default defineConfig({
   sourcemap: false,
   treeshake: true,
   splitting: false,
-  minify: false,
+  minify: true,
   clean: true,
   shims: false,
   legacyOutput: false,

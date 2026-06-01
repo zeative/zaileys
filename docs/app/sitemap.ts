@@ -20,6 +20,7 @@ const PAGES = [
   'runtimes',
   'troubleshooting',
   'api-reference',
+  'skill',
 ]
 
 export const dynamic = 'force-static'

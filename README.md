@@ -77,6 +77,24 @@ Prefer a pairing code? Provide your number:
 const client = new Client({ authType: 'pairing', phoneNumber: '6281234567890' })
 ```
 
+## Build with AI
+
+Zaileys ships an **official Agent Skill** so your AI assistant writes, reviews, and debugs
+zaileys code with best practices — it knows the exact API, common pitfalls, and how to fix
+errors. Install it straight from this repo:
+
+```bash
+# Claude Code (native plugin — supports auto-update)
+/plugin marketplace add zeative/zaileys
+/plugin install zaileys@zeative
+
+# npx skills (multi-agent: Claude Code, Codex, Cursor, OpenCode)
+npx skills add zeative/zaileys        # add -g for a global install
+```
+
+Both install the same skill (`skills/zaileys/`) with deep references for the API, recipes,
+errors, troubleshooting, and anti-patterns. See [the skill guide](https://zeative.github.io/zaileys/skill/).
+
 ## Why Zaileys
 
 - **Typed events** — `on('text' | 'image' | 'reaction' | 'button-click' | 'group-update' | …)` with fully-typed payloads and IntelliSense. No raw Baileys decoding, no `any`.
@@ -219,6 +237,7 @@ Package managers: **npm**, **pnpm**, **yarn**, and **bun** are all supported.
 ## Documentation
 
 - 🌐 [**zeative.github.io/zaileys**](https://zeative.github.io/zaileys/) — full documentation site: guides, API reference, recipes
+- 🤖 [**AI Skill**](https://zeative.github.io/zaileys/skill/) — official Claude Code / `npx skills` skill
 - 📦 [**examples/**](./examples) — runnable bots: quickstart, interactive buttons, AIRich, storage adapters, broadcast
 - 🔀 [**MIGRATION.md**](./MIGRATION.md) — upgrading from v3.x to v4.0.0 (breaking changes, side-by-side snippets)
 - 🤝 [**CONTRIBUTING.md**](./CONTRIBUTING.md) — dev setup, tests, commit convention, release flow

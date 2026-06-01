@@ -36,6 +36,7 @@ Key facts an LLM should know:
 - [Runtime Support](https://zeative.github.io/zaileys/runtimes): Node.js, Bun, Deno, Termux specifics
 - [Troubleshooting & FAQ](https://zeative.github.io/zaileys/troubleshooting): Common issues and fixes
 - [API Reference](https://zeative.github.io/zaileys/api-reference): Every public export grouped by area
+- [AI Skill](https://zeative.github.io/zaileys/skill): Install the official Agent Skill (Claude Code plugin or npx skills)
 
 ## Optional
 

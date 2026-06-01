@@ -1,0 +1,80 @@
+---
+title: AI Skill
+description: Install the official Zaileys AI Skill so Claude Code, Cursor, Codex, or OpenCode build, review, and debug zaileys code with best practices and exact API knowledge.
+---
+
+import { Callout, Tabs, Steps } from 'nextra/components'
+
+# AI Skill
+
+Zaileys ships an **official Agent Skill** that turns your AI assistant into a zaileys expert.
+Instead of guessing the API, your assistant gets the verified surface, copy-paste recipes,
+error diagnostics, and a list of anti-patterns to avoid — so it implements best practices and
+fixes problems by symptom → cause → fix.
+
+<Callout type="info">
+The skill lives in the zaileys repo itself (`skills/zaileys/`), so installing is just pointing
+your tool at `zeative/zaileys`. No separate package.
+</Callout>
+
+## Install
+
+<Tabs items={['Claude Code (plugin)', 'npx skills (multi-agent)']}>
+<Tabs.Tab>
+
+Native Claude Code plugin — supports auto-update when the repo changes.
+
+```bash
+/plugin marketplace add zeative/zaileys
+/plugin install zaileys@zeative
+```
+
+Update later with `/plugin marketplace update zeative/zaileys`.
+
+</Tabs.Tab>
+<Tabs.Tab>
+
+[`npx skills`](https://github.com/vercel-labs/skills) works across Claude Code, Codex, Cursor,
+and OpenCode.
+
+```bash
+npx skills add zeative/zaileys        # into the current project (.claude/skills/)
+npx skills add zeative/zaileys -g     # global (~/.claude/skills/)
+```
+
+</Tabs.Tab>
+</Tabs>
+
+Both methods install the **same** skill (`skills/zaileys/SKILL.md` + references) — pick whichever
+fits your tool.
+
+## What you get
+
+After installing, your AI assistant can:
+
+- **Implement with best practices** — typed events, the fluent send builder, interactive messages, AIRich, commands, broadcast, and the right storage adapter for your runtime.
+- **Diagnose errors precisely** — identify the error class and `.code`, what it means, and how to fix it.
+- **Catch anti-patterns** — flag tight send loops, missing `await` on keys, raw-JID owner checks, wrong `expiresAt` units, and more during review.
+- **Stay accurate** — every reference is grounded in the zaileys source, so the assistant won't invent methods or options.
+
+## What's inside
+
+| File | Purpose |
+| ---- | ------- |
+| `SKILL.md` | Mental model, golden rules, API cheat-sheet, and a debug workflow |
+| `references/api.md` | Full API surface: `ClientOptions`, send builder, events, mutations, domain, storage, media |
+| `references/recipes.md` | Best-practice, copy-paste patterns for every common bot |
+| `references/errors.md` | Every error class + code → meaning → fix |
+| `references/troubleshooting.md` | Runtime symptoms (QR loops, sessions, disconnects, peer deps) → fix |
+| `references/pitfalls.md` | Common mistakes → the correct way |
+
+<Callout type="default">
+Prefer to feed an LLM directly? The whole documentation is also available as a single file at
+[`/llms-full.txt`](/llms-full.txt), with an index at [`/llms.txt`](/llms.txt).
+</Callout>
+
+## Keeping it updated
+
+The skill is versioned alongside the library. With the Claude Code plugin, run
+`/plugin marketplace update zeative/zaileys` to pull the latest; with `npx skills`, re-run the
+`add` command. New releases bump the plugin version so updates are detected.

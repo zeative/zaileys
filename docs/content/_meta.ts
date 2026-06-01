@@ -16,4 +16,5 @@ export default {
   runtimes: 'Runtime Support',
   troubleshooting: 'Troubleshooting & FAQ',
   'api-reference': 'API Reference',
+  skill: 'AI Skill',
 }

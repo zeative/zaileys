@@ -156,7 +156,19 @@ const navbar = (
     </a>
   </Navbar>
 )
-const footer = <Footer>MIT {new Date().getFullYear()} © Zaileys.</Footer>
+const footer = (
+  <Footer>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: '0.85rem' }}>
+        <a href={`${basePath}/llms.txt`}>llms.txt</a>
+        <a href={`${basePath}/llms-full.txt`}>llms-full.txt</a>
+        <a href="https://github.com/zeative/zaileys">GitHub</a>
+        <a href="https://www.npmjs.com/package/zaileys">npm</a>
+      </div>
+      <span>MIT {new Date().getFullYear()} © Zaileys.</span>
+    </div>
+  </Footer>
+)
 
 export default async function RootLayout({ children }) {
   return (

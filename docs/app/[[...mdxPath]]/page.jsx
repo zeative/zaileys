@@ -8,7 +8,7 @@ export const generateStaticParams = generateStaticParamsFor('mdxPath')
 
 const pageUrl = (mdxPath) => {
   const slug = (mdxPath ?? []).join('/')
-  return slug ? `${SITE_URL}/${slug}` : SITE_URL
+  return slug ? `${SITE_URL}/${slug}` : `${SITE_URL}/`
 }
 
 const titleText = (metadata) => {

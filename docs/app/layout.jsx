@@ -41,11 +41,11 @@ export const metadata = {
   ],
   icons: { icon: logoSrc, apple: logoSrc, shortcut: logoSrc },
   manifest: `${basePath}/manifest.webmanifest`,
-  alternates: { canonical: SITE_URL },
+  alternates: { canonical: `${SITE_URL}/` },
   openGraph: {
     type: 'website',
     locale: 'en_US',
-    url: SITE_URL,
+    url: `${SITE_URL}/`,
     siteName: 'Zaileys',
     title: 'Zaileys — Simplified WhatsApp API for Node.js & TypeScript',
     description: DESCRIPTION,

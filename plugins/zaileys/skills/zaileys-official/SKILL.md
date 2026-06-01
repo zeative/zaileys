@@ -1,5 +1,5 @@
 ---
-name: zaileys
+name: zaileys-official
 description: >-
   Build, review, and debug WhatsApp bots with the zaileys framework (type-safe
   Node.js/TypeScript wrapper over Baileys). Use whenever writing or editing zaileys

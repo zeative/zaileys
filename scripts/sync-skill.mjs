@@ -9,8 +9,8 @@ import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..')
-const src = join(root, 'skills', 'zaileys')
-const dest = join(root, 'plugins', 'zaileys', 'skills', 'zaileys')
+const src = join(root, 'skills', 'zaileys-official')
+const dest = join(root, 'plugins', 'zaileys', 'skills', 'zaileys-official')
 
 if (!existsSync(src)) {
   console.error('[sync-skill] canonical skills/zaileys not found')
@@ -19,4 +19,4 @@ if (!existsSync(src)) {
 
 rmSync(dest, { recursive: true, force: true })
 cpSync(src, dest, { recursive: true })
-console.log('[sync-skill] synced skills/zaileys -> plugins/zaileys/skills/zaileys')
+console.log('[sync-skill] synced skills/zaileys-official -> plugins/zaileys/skills/zaileys-official')

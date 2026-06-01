@@ -5,7 +5,6 @@ description: >-
   Node.js/TypeScript wrapper over Baileys). Use whenever writing or editing zaileys
   code, choosing the right API, applying best practices, or diagnosing zaileys
   errors, connection/session issues, ban-risk, storage, or runtime failures.
-license: MIT
 ---
 
 # zaileys — WhatsApp bot framework expert

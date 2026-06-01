@@ -1,5 +1,4 @@
 {
-  "$schema": "https://json.schemastore.org/claude-code-plugin.json",
   "name": "zaileys",
   "description": "Build WhatsApp bots with zaileys: typed events, a fluent send builder, interactive messages, AIRich markdown, commands, broadcast/schedule, and pluggable storage.",
   "version": "4.0.0",
@@ -10,6 +9,5 @@
   "homepage": "https://zeative.github.io/zaileys/",
   "repository": "https://github.com/zeative/zaileys",
   "license": "MIT",
-  "keywords": ["whatsapp", "bot", "baileys", "zaileys", "typescript", "nodejs", "whatsapp-bot"],
-  "skills": ["skills/"]
+  "keywords": ["whatsapp", "bot", "baileys", "zaileys", "typescript", "nodejs", "whatsapp-bot"]
 }

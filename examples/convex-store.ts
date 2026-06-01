@@ -1,7 +1,11 @@
+/**
+ * Persist session + chat history in Convex. Deploy examples/convex/{schema,zaileys}.ts
+ * to your Convex project first (see examples/convex/README.md).
+ *
+ * Run: CONVEX_URL=https://your.convex.cloud bun run examples/convex-store.ts
+ */
 import { Client, ConvexAuthStore, ConvexMessageStore } from '../src/index.js'
 
-// Persist session + chat history in Convex. Deploy docs/convex/{schema,zaileys}.ts
-// to your Convex project first, then: CONVEX_URL=https://xxx.convex.cloud bun run examples/convex-store.ts
 const CONVEX_URL = process.env['CONVEX_URL'] ?? ''
 if (!CONVEX_URL) {
   console.error('Set CONVEX_URL, e.g. CONVEX_URL=https://your.convex.cloud bun run examples/convex-store.ts')

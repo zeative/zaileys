@@ -1,6 +1,13 @@
+/**
+ * Broadcast one message to many recipients with rate limiting and progress.
+ *
+ * Run: bun run examples/broadcast.ts
+ */
 import { Client } from '../src/index.js'
 
 const client = new Client()
+
+client.on('qr', ({ qrString }) => console.log('Scan QR:', qrString))
 
 const recipients = [
   '6281111111111@s.whatsapp.net',

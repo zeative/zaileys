@@ -1,8 +1,17 @@
+/**
+ * Owner-triggered AIRich showcase: reply ".za oii" to render briefing, gallery,
+ * social, and store cards from plain markdown.
+ *
+ * Run: OWNER=6285xxxx bun run examples/airich-bot.ts
+ */
 import { Client } from '../src/index.js'
 
-const OWNER = (process.env['OWNER'] ?? process.env['AIRICH_TO'] ?? '').replace(/\D/g, '')
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+const digitsOf = (jid: string): string => (jid.split(/[:@]/)[0] ?? '').replace(/\D/g, '')
+
+const OWNER = digitsOf(process.env['OWNER'] ?? '')
 if (!OWNER) {
-  console.error('Set OWNER (nomor kamu), e.g. OWNER=6285xxxx bun run examples/airich-bot.ts')
+  console.error('Set OWNER (your number), e.g. OWNER=6285xxxx bun run examples/airich-bot.ts')
   process.exit(1)
 }
 
@@ -10,9 +19,6 @@ const TRIGGER = '.za oii'
 const POSTER = 'https://placehold.co/600x800/png'
 const SHOT = 'https://placehold.co/512x512/png'
 const CLIP = 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4'
-
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
-const digitsOf = (jid: string): string => (jid.split(/[:@]/)[0] ?? '').replace(/\D/g, '')
 
 const client = new Client({ ignoreMe: false })
 

@@ -1,8 +1,15 @@
+/**
+ * Expose an HTTP gateway (POST /send, GET /health) backed by a WhatsApp client.
+ *
+ * Run: PORT=4252 bun run examples/express-integration.ts
+ */
 import express, { type Request, type Response } from 'express'
 import { Client } from '../src/index.js'
 
 const client = new Client()
 let connected = false
+
+client.on('qr', ({ qrString }) => console.log('Scan QR:', qrString))
 
 client.on('connect', ({ me }) => {
   connected = true

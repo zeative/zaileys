@@ -1,35 +1,42 @@
+/**
+ * Send every interactive button variant (reply, CTA, template, list, carousel,
+ * reminder, location, bottomSheet, limitedTimeOffer) and log click round-trips.
+ *
+ * Run: TO=628xxxx@s.whatsapp.net bun run examples/buttons-bot.ts
+ */
 import { Client } from '../src/index.js'
 
-const TO = process.env['BUTTONS_TO'] ?? ''
+const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+
+const fetchBuf = async (url: string): Promise<Buffer | null> => {
+  try {
+    const res = await fetch(url)
+    return res.ok ? Buffer.from(await res.arrayBuffer()) : null
+  } catch {
+    return null
+  }
+}
+
+const TO = process.env['TO'] ?? ''
 if (!TO) {
-  console.error('Set BUTTONS_TO, e.g. BUTTONS_TO=628xxxx@s.whatsapp.net bun run examples/buttons-bot.ts')
+  console.error('Set TO, e.g. TO=628xxxx@s.whatsapp.net bun run examples/buttons-bot.ts')
   process.exit(1)
 }
 
 const client = new Client()
-const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
 
 client.on('qr', ({ qrString }) => console.log('Scan QR:', qrString))
 
-const fetchBuf = async (url: string): Promise<Buffer | undefined> => {
-  try {
-    const res = await fetch(url)
-    return res.ok ? Buffer.from(await res.arrayBuffer()) : undefined
-  } catch {
-    return undefined
-  }
-}
-
 client.on('connect', async ({ me }) => {
-  console.log('Connected as', me.id, '\n=== sending button variants ->', TO, '===\n')
+  console.log(`Connected as ${me.id} — sending button variants to ${TO}\n`)
   const headerImage = await fetchBuf('https://placehold.co/512x512/png')
 
   const send = async (label: string, fn: () => unknown): Promise<void> => {
     try {
       const key = (await (fn() as Promise<{ id?: string }>)) ?? {}
-      console.log('OK   ', label, '|', key.id ?? 'sent')
+      console.log(`✓ ${label} → ${key.id ?? 'sent'}`)
     } catch (e) {
-      console.log('FAIL ', label, '->', e instanceof Error ? e.message : String(e))
+      console.log(`✗ ${label} → ${e instanceof Error ? e.message : String(e)}`)
     }
     await sleep(1800)
   }
@@ -178,13 +185,13 @@ client.on('connect', async ({ me }) => {
     )
   }
 
-  console.log('\n[done] check your phone. Tap any button to test the click round-trip.\n')
+  console.log('\nDone — tap any button on your phone to test the click round-trip.\n')
 })
 
 client.on('button-click', (ctx) => {
-  console.log('>>> button-click FIRED | id:', ctx.buttonId, '| text:', ctx.buttonText, '| from:', ctx.sender.jid)
+  console.log(`button-click → id: ${ctx.buttonId} | text: ${ctx.buttonText} | from: ${ctx.sender.jid}`)
 })
 
 client.on('list-select', (ctx) => {
-  console.log('>>> list-select FIRED | rowId:', ctx.rowId, '| title:', ctx.title, '| from:', ctx.sender.jid)
+  console.log(`list-select → rowId: ${ctx.rowId} | title: ${ctx.title} | from: ${ctx.sender.jid}`)
 })

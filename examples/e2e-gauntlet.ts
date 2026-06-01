@@ -1,11 +1,17 @@
-import { Client } from '../src/index.js'
+/**
+ * End-to-end gauntlet: send every message type to one recipient and print a
+ * pass/fail report. Useful for smoke-testing a build against a real account.
+ *
+ * Run: TO=628xxxx@s.whatsapp.net GAP_MS=1500 bun run examples/e2e-gauntlet.ts
+ */
 import type { WAMessageKey } from 'baileys'
+import { Client } from '../src/index.js'
 
-const TARGET = process.env['GAUNTLET_TO'] ?? ''
-const GAP_MS = Number(process.env['GAUNTLET_GAP'] ?? 1500)
+const TO = process.env['TO'] ?? ''
+const GAP_MS = Number(process.env['GAP_MS'] ?? 1500)
 
-if (!TARGET) {
-  console.error('Set GAUNTLET_TO to a recipient jid, e.g. GAUNTLET_TO=628xxxx@s.whatsapp.net bun run examples/e2e-gauntlet.ts')
+if (!TO) {
+  console.error('Set TO, e.g. TO=628xxxx@s.whatsapp.net bun run examples/e2e-gauntlet.ts')
   process.exit(1)
 }
 
@@ -41,8 +47,10 @@ const results: Result[] = []
 
 const client = new Client({ ignoreMe: true })
 
+client.on('qr', ({ qrString }) => console.log('Scan QR:', qrString))
+
 client.on('connect', async ({ me }) => {
-  console.log('Connected as', me.id, '\n=== E2E gauntlet -> ', TARGET, '===\n')
+  console.log(`Connected as ${me.id} — running E2E gauntlet against ${TO}\n`)
 
   const video = await fetchBuf('https://www.w3schools.com/html/mov_bbb.mp4')
   const audio = await fetchBuf('https://www.w3schools.com/html/horse.mp3')
@@ -54,59 +62,59 @@ client.on('connect', async ({ me }) => {
   const run = async (feature: string, fn: () => unknown, skip = false): Promise<void> => {
     if (skip) {
       results.push({ feature, status: 'SKIP', detail: 'asset unavailable' })
-      console.log(`SKIP  ${feature} (asset unavailable)`)
+      console.log(`– ${feature} (asset unavailable)`)
       return
     }
     try {
       const key = (await (fn() as unknown as Promise<WAMessageKey | void>)) as WAMessageKey | undefined
       const id = key && typeof key === 'object' && 'id' in key ? String(key.id) : 'ok'
       results.push({ feature, status: 'OK', detail: id })
-      console.log(`OK    ${feature}  (${id})`)
+      console.log(`✓ ${feature} → ${id}`)
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      results.push({ feature, status: 'FAIL', detail: msg })
-      console.log(`FAIL  ${feature}  -> ${msg}`)
+      const detail = e instanceof Error ? e.message : String(e)
+      results.push({ feature, status: 'FAIL', detail })
+      console.log(`✗ ${feature} → ${detail}`)
     }
     await sleep(GAP_MS)
   }
 
   await run('text', async () => {
-    anchor = await client.send(TARGET).text('zaileys e2e: text ✅')
+    anchor = await client.send(TO).text('zaileys e2e: text ✅')
     return anchor
   })
-  await run('text + mentions', () => client.send(TARGET).text('zaileys e2e: mentions ✅').mentions([TARGET]))
+  await run('text + mentions', () => client.send(TO).text('zaileys e2e: mentions ✅').mentions([TO]))
   await run('reply (quote)', async () => {
     if (!anchor) throw new Error('no anchor')
     const full = await client.store.getMessage(anchor)
-    return client.send(TARGET).text('zaileys e2e: reply ✅').reply(full ?? anchor)
+    return client.send(TO).text('zaileys e2e: reply ✅').reply(full ?? anchor)
   })
   await run('react 👍', () => (anchor ? client.react(anchor, '👍') : Promise.reject(new Error('no anchor'))))
-  await run('image (real png)', () => client.send(TARGET).image(realImage, { caption: 'zaileys e2e: image ✅' }))
-  await run('sticker (real webp)', () => client.send(TARGET).sticker(realSticker))
-  await run('document (txt inline)', () => client.send(TARGET).document(DOC_BYTES, { fileName: 'zaileys-e2e.txt', mimetype: 'text/plain', caption: 'doc ✅' }))
-  await run('video (fetched mp4)', () => client.send(TARGET).video(video as Buffer, { caption: 'zaileys e2e: video ✅' }), video === null)
-  await run('gif (video gifPlayback)', () => client.send(TARGET).video(video as Buffer, { caption: 'gif ✅', gifPlayback: true }), video === null)
-  await run('audio (fetched mp3)', () => client.send(TARGET).audio(audio as Buffer), audio === null)
-  await run('voice note (ptt)', () => client.send(TARGET).audio(audio as Buffer, { ptt: true }), audio === null)
-  await run('album (2 images)', () => client.send(TARGET).album([
+  await run('image (real png)', () => client.send(TO).image(realImage, { caption: 'zaileys e2e: image ✅' }))
+  await run('sticker (real webp)', () => client.send(TO).sticker(realSticker))
+  await run('document (txt inline)', () => client.send(TO).document(DOC_BYTES, { fileName: 'zaileys-e2e.txt', mimetype: 'text/plain', caption: 'doc ✅' }))
+  await run('video (fetched mp4)', () => client.send(TO).video(video as Buffer, { caption: 'zaileys e2e: video ✅' }), video === null)
+  await run('gif (video gifPlayback)', () => client.send(TO).video(video as Buffer, { caption: 'gif ✅', gifPlayback: true }), video === null)
+  await run('audio (fetched mp3)', () => client.send(TO).audio(audio as Buffer), audio === null)
+  await run('voice note (ptt)', () => client.send(TO).audio(audio as Buffer, { ptt: true }), audio === null)
+  await run('album (2 images)', () => client.send(TO).album([
     { type: 'image', src: realImage, caption: 'album 1' },
     { type: 'image', src: realImage, caption: 'album 2' },
   ]))
-  await run('location', () => client.send(TARGET).location(-6.2, 106.816666, { name: 'Jakarta', address: 'Indonesia' }))
-  await run('contact (vcard)', () => client.send(TARGET).contact(VCARD))
-  await run('poll', () => client.send(TARGET).poll('zaileys e2e poll?', ['A', 'B', 'C'], { multipleChoice: false }))
-  await run('buttons', () => client.send(TARGET).buttons([{ id: 'b1', text: 'Yes' }, { id: 'b2', text: 'No' }], { text: 'zaileys e2e: buttons', footer: 'pick one' }))
-  await run('list', () => client.send(TARGET).list({
+  await run('location', () => client.send(TO).location(-6.2, 106.816666, { name: 'Jakarta', address: 'Indonesia' }))
+  await run('contact (vcard)', () => client.send(TO).contact(VCARD))
+  await run('poll', () => client.send(TO).poll('zaileys e2e poll?', ['A', 'B', 'C'], { multipleChoice: false }))
+  await run('buttons', () => client.send(TO).buttons([{ id: 'b1', text: 'Yes' }, { id: 'b2', text: 'No' }], { text: 'zaileys e2e: buttons', footer: 'pick one' }))
+  await run('list', () => client.send(TO).list({
     title: 'zaileys e2e list', description: 'choose', buttonText: 'Open', footerText: 'footer',
     sections: [{ title: 'Section', rows: [{ id: 'r1', title: 'Row 1', description: 'first' }, { id: 'r2', title: 'Row 2' }] }],
   }))
-  await run('forward', () => (anchor ? client.forward(anchor, TARGET) : Promise.reject(new Error('no anchor'))))
+  await run('forward', () => (anchor ? client.forward(anchor, TO) : Promise.reject(new Error('no anchor'))))
   await run('edit', async () => {
     if (!anchor) throw new Error('no anchor')
     await client.edit(anchor).text('zaileys e2e: text ✅ (edited)')
   })
   await run('delete (for everyone)', async () => {
-    const k = await client.send(TARGET).text('zaileys e2e: this will be deleted')
+    const k = await client.send(TO).text('zaileys e2e: this will be deleted')
     await sleep(800)
     await client.delete(k)
   })

@@ -1,6 +1,13 @@
+/**
+ * Slash-command router with middleware (/ping, /help, /weather).
+ *
+ * Run: bun run examples/command-bot.ts
+ */
 import { Client, type Middleware } from '../src/index.js'
 
 const client = new Client({ commandPrefix: ['/', '!'] })
+
+client.on('qr', ({ qrString }) => console.log('Scan QR:', qrString))
 
 const loggingMiddleware: Middleware = async (ctx, next) => {
   console.log(`[command] ${ctx.command} from ${ctx.senderId} args=${ctx.args.join(',')}`)

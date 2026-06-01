@@ -1,19 +1,27 @@
+/**
+ * Run two independent WhatsApp sessions in one process.
+ *
+ * Run: bun run examples/multi-account.ts
+ */
 import { Client } from '../src/index.js'
 
 const primary = new Client({ sessionId: 'account-a' })
 const secondary = new Client({ sessionId: 'account-b' })
 
-primary.on('connect', ({ me }) => console.log('[account-a] connected as', me.id))
-secondary.on('connect', ({ me }) => console.log('[account-b] connected as', me.id))
+primary.on('qr', ({ qrString }) => console.log('[account-a] Scan QR:', qrString))
+secondary.on('qr', ({ qrString }) => console.log('[account-b] Scan QR:', qrString))
 
-primary.on('text', async (message) => {
-  if (message.isFromMe) return
-  await primary.send(message.senderId).text('Reply from account A')
+primary.on('connect', ({ me }) => console.log('[account-a] Connected as', me.id))
+secondary.on('connect', ({ me }) => console.log('[account-b] Connected as', me.id))
+
+primary.on('text', async (msg) => {
+  if (msg.isFromMe) return
+  await primary.send(msg.senderId).text('Reply from account A')
 })
 
-secondary.on('text', async (message) => {
-  if (message.isFromMe) return
-  await secondary.send(message.senderId).text('Reply from account B')
+secondary.on('text', async (msg) => {
+  if (msg.isFromMe) return
+  await secondary.send(msg.senderId).text('Reply from account B')
 })
 
 process.on('SIGINT', async () => {

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "zeative",
+  "owner": {
+    "name": "zeative",
+    "email": "zaadevofc@gmail.com"
+  },
+  "description": "Official marketplace for zaileys — the type-safe WhatsApp bot framework for Node.js & TypeScript.",
+  "plugins": [
+    {
+      "name": "zaileys",
+      "source": ".",
+      "description": "Build WhatsApp bots with zaileys: typed events, a fluent send builder, interactive messages, AIRich markdown, commands, broadcast/schedule, and pluggable storage.",
+      "version": "4.0.0",
+      "author": { "name": "zeative" },
+      "homepage": "https://zeative.github.io/zaileys/",
+      "repository": "https://github.com/zeative/zaileys",
+      "license": "MIT",
+      "keywords": ["whatsapp", "bot", "baileys", "zaileys", "typescript", "nodejs", "whatsapp-api"]
+    }
+  ]
+}

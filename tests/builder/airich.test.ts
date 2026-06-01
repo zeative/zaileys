@@ -55,10 +55,13 @@ describe('buildAIRichContent', () => {
     expect(prim.inline_entities[0]!.metadata).toMatchObject({ reference_url: 'https://src.example', __typename: 'GenAISearchCitationItem' })
   })
 
-  it('encodes a code section as a GenAICodeUXPrimitive with code_blocks', () => {
+  it('encodes a code section as a GenAICodeUXPrimitive with syntax-highlighted tokens', () => {
     const prims = primitivesOf(buildAIRichContent([{ type: 'code', language: 'js', content: 'const x = 1' }]))
     expect(prims[0]).toMatchObject({ language: 'js', __typename: 'GenAICodeUXPrimitive' })
-    expect((prims[0] as { code_blocks: Array<{ content: string }> }).code_blocks[0]!.content).toBe('const x = 1')
+    const blocks = (prims[0] as { code_blocks: Array<{ content: string; type: string }> }).code_blocks
+    expect(blocks.map((b) => b.content).join('')).toBe('const x = 1')
+    expect(blocks[0]).toMatchObject({ content: 'const', type: 'KEYWORD' })
+    expect(blocks.some((b) => b.type === 'NUMBER' && b.content === '1')).toBe(true)
   })
 
   it('encodes a table section as a GenATableUXPrimitive with a header row', () => {

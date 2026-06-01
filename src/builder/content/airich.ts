@@ -105,6 +105,86 @@ const toTableRows = (table: string[][]): Array<{ is_header: boolean; cells: stri
   ]
 }
 
+const TYPE_MAP: Record<number, string> = { 0: 'DEFAULT', 1: 'KEYWORD', 2: 'METHOD', 3: 'STR', 4: 'NUMBER', 5: 'COMMENT' }
+
+const JS_KEYWORDS = new Set([
+  'break', 'case', 'catch', 'continue', 'debugger', 'delete', 'do', 'else', 'finally', 'for', 'function',
+  'if', 'in', 'instanceof', 'new', 'return', 'switch', 'this', 'throw', 'try', 'typeof', 'var', 'void',
+  'while', 'with', 'true', 'false', 'null', 'undefined', 'class', 'const', 'let', 'super', 'extends',
+  'export', 'import', 'from', 'as', 'default', 'yield', 'static', 'constructor', 'async', 'await', 'get', 'set',
+])
+
+const KEYWORDS_BY_LANG: Record<string, Set<string>> = {
+  javascript: JS_KEYWORDS, js: JS_KEYWORDS, typescript: JS_KEYWORDS, ts: JS_KEYWORDS,
+}
+
+type CodeToken = { codeContent: string; highlightType: number }
+
+/** Tokenize source into highlight spans (keyword/method/string/number/comment/default). */
+const tokenizeCode = (code: string, lang: string): CodeToken[] => {
+  const keywords = KEYWORDS_BY_LANG[lang.toLowerCase()] ?? new Set<string>()
+  const tokens: CodeToken[] = []
+  const push = (content: string, type: number): void => {
+    if (!content) return
+    const last = tokens[tokens.length - 1]
+    if (last && last.highlightType === type) last.codeContent += content
+    else tokens.push({ codeContent: content, highlightType: type })
+  }
+  let i = 0
+  while (i < code.length) {
+    const c = code[i]!
+    if (/\s/.test(c)) {
+      const s = i
+      while (i < code.length && /\s/.test(code[i]!)) i++
+      push(code.slice(s, i), 0)
+      continue
+    }
+    if (c === '/' && code[i + 1] === '/') {
+      const s = i
+      i += 2
+      while (i < code.length && code[i] !== '\n') i++
+      push(code.slice(s, i), 5)
+      continue
+    }
+    if (c === '"' || c === "'" || c === '`') {
+      const s = i
+      const q = c
+      i++
+      while (i < code.length) {
+        if (code[i] === '\\' && i + 1 < code.length) i += 2
+        else if (code[i] === q) { i++; break }
+        else i++
+      }
+      push(code.slice(s, i), 3)
+      continue
+    }
+    if (/[0-9]/.test(c)) {
+      const s = i
+      while (i < code.length && /[0-9.]/.test(code[i]!)) i++
+      push(code.slice(s, i), 4)
+      continue
+    }
+    if (/[a-zA-Z_$]/.test(c)) {
+      const s = i
+      while (i < code.length && /[a-zA-Z0-9_$]/.test(code[i]!)) i++
+      const word = code.slice(s, i)
+      let type = 0
+      if (keywords.has(word)) {
+        type = 1
+      } else {
+        let j = i
+        while (j < code.length && /\s/.test(code[j]!)) j++
+        if (code[j] === '(') type = 2
+      }
+      push(word, type)
+      continue
+    }
+    push(c, 0)
+    i++
+  }
+  return tokens
+}
+
 const newLayout = (data: Record<string, unknown>): Record<string, unknown> => ({
   view_model: { primitive: data, __typename: 'GenAISingleLayoutViewModel' },
 })
@@ -137,14 +217,15 @@ export const buildAIRichContent = (parts: AIRichPart[], opts?: AIRichOptions): A
       )
     } else if (part.type === 'code') {
       const language = part.language ?? 'plaintext'
+      const codeTokens = tokenizeCode(part.content, language)
       submessages.push({
         messageType: 5,
-        codeMetadata: { codeLanguage: language, codeBlocks: [{ codeContent: part.content, highlightType: 0 }] },
+        codeMetadata: { codeLanguage: language, codeBlocks: codeTokens },
       })
       sections.push(
         newLayout({
           language,
-          code_blocks: [{ content: part.content, type: 'DEFAULT' }],
+          code_blocks: codeTokens.map((t) => ({ content: t.codeContent, type: TYPE_MAP[t.highlightType] })),
           __typename: 'GenAICodeUXPrimitive',
         }),
       )

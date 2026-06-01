@@ -48,9 +48,32 @@ export interface BuilderSocketLike {
     content: AnyMessageContent,
     options?: MiscMessageGenerationOptions,
   ): Promise<WAMessage | undefined>
-  relayMessage?(jid: string, message: unknown, options: { messageId: string }): Promise<string>
+  relayMessage?(
+    jid: string,
+    message: unknown,
+    options: { messageId: string; additionalNodes?: unknown[] },
+  ): Promise<string>
   user?: { id?: string | null } | null
 }
+
+/**
+ * Binary-node hint that makes WhatsApp render `interactiveMessage` content
+ * (native_flow buttons/lists). Without it the server delivers the message but the
+ * client shows no interactive UI. Passed to `relayMessage` as `additionalNodes`.
+ */
+const INTERACTIVE_NATIVE_FLOW_NODES = [
+  {
+    tag: 'biz',
+    attrs: {},
+    content: [
+      {
+        tag: 'interactive',
+        attrs: { type: 'native_flow', v: '1' },
+        content: [{ tag: 'native_flow', attrs: { v: '9', name: 'mixed' } }],
+      },
+    ],
+  },
+]
 
 /**
  * Chainable, type-safe outbound message builder.
@@ -302,8 +325,12 @@ export class MessageBuilder<State extends BuilderState> {
     if (typeof waMsg.key?.id !== 'string') {
       throw new ZaileysBuilderError('SEND_FAILED', 'failed to generate relay message key')
     }
+    const isInteractive = 'interactiveMessage' in inner && inner.interactiveMessage != null
+    const relayOptions = isInteractive
+      ? { messageId: waMsg.key.id, additionalNodes: INTERACTIVE_NATIVE_FLOW_NODES }
+      : { messageId: waMsg.key.id }
     try {
-      await relay(this.internal.recipient, waMsg.message, { messageId: waMsg.key.id })
+      await relay(this.internal.recipient, waMsg.message, relayOptions)
     } catch (err) {
       throw new ZaileysBuilderError('SEND_FAILED', 'socket relayMessage rejected', { cause: err })
     }

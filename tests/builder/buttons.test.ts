@@ -170,6 +170,20 @@ describe('MessageBuilder.buttons() — relay dispatch', () => {
     expect(opts.messageId).toBe(key.id)
   })
 
+  it('passes the biz/interactive native_flow additionalNodes so WhatsApp renders the buttons', async () => {
+    const { socket, relayMessage } = makeSocket()
+    await MessageBuilder.create(socket, RECIPIENT).buttons([{ id: 'b1', text: 'Go' }])
+    const [, , opts] = relayMessage.mock.calls[0]! as [
+      string,
+      RelayMessage,
+      { messageId: string; additionalNodes?: Array<{ tag: string; content?: Array<{ tag: string; attrs?: Record<string, string> }> }> },
+    ]
+    const biz = opts.additionalNodes?.find((n) => n.tag === 'biz')
+    expect(biz).toBeDefined()
+    const interactive = biz!.content?.find((n) => n.tag === 'interactive')
+    expect(interactive?.attrs?.type).toBe('native_flow')
+  })
+
   it('relays an interactiveMessage carrying the developer button ids', async () => {
     const { socket, relayMessage } = makeSocket()
     await MessageBuilder.create(socket, RECIPIENT).buttons([

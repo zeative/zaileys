@@ -11,6 +11,7 @@ import { sendAlbum } from './album.js'
 import { buildAudioContent } from './content/audio.js'
 import { buildButtonsContent, RELAY_CONTENT_KEY, RELAY_MEDIA_KEY, type HeaderMedia } from './content/buttons.js'
 import { buildCarouselContent, RELAY_CARDS_MEDIA_KEY, type CardMedia, type CarouselCard } from './content/carousel.js'
+import { buildAIRichContent, type AIRichOptions, type AIRichPart } from './content/airich.js'
 import { loadMedia } from './media-loader.js'
 import { buildContactContent } from './content/contact.js'
 import { buildDocumentContent } from './content/document.js'
@@ -167,6 +168,20 @@ export class MessageBuilder<State extends BuilderState> {
     opts?: { text?: string },
   ): MessageBuilder<'content-set'> {
     this.internal.content = buildCarouselContent(cards, opts)
+    return this as unknown as MessageBuilder<'content-set'>
+  }
+
+  /**
+   * EXPERIMENTAL — send a Meta AI rich-response message (text with hyperlinks/
+   * citations, code blocks, tables). Uses a reverse-engineered, non-standard
+   * WhatsApp format that may break with WhatsApp updates.
+   */
+  aiRich(
+    this: MessageBuilder<'init'>,
+    parts: AIRichPart[],
+    opts?: AIRichOptions,
+  ): MessageBuilder<'content-set'> {
+    this.internal.content = buildAIRichContent(parts, opts)
     return this as unknown as MessageBuilder<'content-set'>
   }
 

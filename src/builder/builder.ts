@@ -10,6 +10,7 @@ import {
 import { sendAlbum } from './album.js'
 import { buildAudioContent } from './content/audio.js'
 import { buildButtonsContent, RELAY_CONTENT_KEY, RELAY_MEDIA_KEY, type HeaderMedia } from './content/buttons.js'
+import { buildCarouselContent, RELAY_CARDS_MEDIA_KEY, type CardMedia, type CarouselCard } from './content/carousel.js'
 import { loadMedia } from './media-loader.js'
 import { buildContactContent } from './content/contact.js'
 import { buildDocumentContent } from './content/document.js'
@@ -160,6 +161,15 @@ export class MessageBuilder<State extends BuilderState> {
     return this as unknown as MessageBuilder<'content-set'>
   }
 
+  carousel(
+    this: MessageBuilder<'init'>,
+    cards: CarouselCard[],
+    opts?: { text?: string },
+  ): MessageBuilder<'content-set'> {
+    this.internal.content = buildCarouselContent(cards, opts)
+    return this as unknown as MessageBuilder<'content-set'>
+  }
+
   list(this: MessageBuilder<'init'>, opts: ListOptions): MessageBuilder<'content-set'> {
     this.internal.content = buildListContent(opts)
     return this as unknown as MessageBuilder<'content-set'>
@@ -279,12 +289,12 @@ export class MessageBuilder<State extends BuilderState> {
       if (!this.internal.content) {
         throw new ZaileysBuilderError('EMPTY_CONTENT', 'no content set')
       }
-      const relayInner = (this.internal.content as Record<string, unknown>)[RELAY_CONTENT_KEY]
+      const relayContent = this.internal.content as Record<string, unknown>
+      const relayInner = relayContent[RELAY_CONTENT_KEY]
       if (relayInner !== undefined) {
-        const headerMedia = (this.internal.content as Record<string, unknown>)[RELAY_MEDIA_KEY] as
-          | HeaderMedia
-          | undefined
-        return this.sendRelay(relayInner as proto.IMessage, headerMedia)
+        const headerMedia = relayContent[RELAY_MEDIA_KEY] as HeaderMedia | undefined
+        const cardsMedia = relayContent[RELAY_CARDS_MEDIA_KEY] as CardMedia[] | undefined
+        return this.sendRelay(relayInner as proto.IMessage, headerMedia, cardsMedia)
       }
       const content = this.internal.content as AnyMessageContent & {
         mentions?: string[]
@@ -317,26 +327,42 @@ export class MessageBuilder<State extends BuilderState> {
     return send().then(onResolved, onRejected)
   }
 
-  private async sendRelay(inner: proto.IMessage, headerMedia?: HeaderMedia): Promise<WAMessageKey> {
+  private async uploadHeaderMedia(
+    header: proto.Message.InteractiveMessage.IHeader,
+    media: HeaderMedia,
+  ): Promise<void> {
+    const { buffer } = await loadMedia(media.src)
+    const prepared = (await prepareWAMessageMedia(
+      { [media.kind]: buffer } as never,
+      { upload: this.socket.waUploadToServer } as never,
+    )) as { imageMessage?: proto.Message.IImageMessage; videoMessage?: proto.Message.IVideoMessage }
+    header.hasMediaAttachment = true
+    if (media.kind === 'image' && prepared.imageMessage) header.imageMessage = prepared.imageMessage
+    if (media.kind === 'video' && prepared.videoMessage) header.videoMessage = prepared.videoMessage
+  }
+
+  private async sendRelay(
+    inner: proto.IMessage,
+    headerMedia?: HeaderMedia,
+    cardsMedia?: CardMedia[],
+  ): Promise<WAMessageKey> {
     const relay = this.socket.relayMessage
     if (typeof relay !== 'function') {
       throw new ZaileysBuilderError('SEND_FAILED', 'socket does not support relayMessage (interactive content)')
     }
-    if (headerMedia !== undefined && this.socket.waUploadToServer !== undefined) {
+    if (this.socket.waUploadToServer !== undefined) {
       try {
-        const { buffer } = await loadMedia(headerMedia.src)
-        const prepared = (await prepareWAMessageMedia(
-          { [headerMedia.kind]: buffer } as never,
-          { upload: this.socket.waUploadToServer } as never,
-        )) as { imageMessage?: proto.Message.IImageMessage; videoMessage?: proto.Message.IVideoMessage }
         const header = inner.interactiveMessage?.header
-        if (header) {
-          header.hasMediaAttachment = true
-          if (headerMedia.kind === 'image' && prepared.imageMessage) header.imageMessage = prepared.imageMessage
-          if (headerMedia.kind === 'video' && prepared.videoMessage) header.videoMessage = prepared.videoMessage
+        if (headerMedia !== undefined && header) await this.uploadHeaderMedia(header, headerMedia)
+        const cards = inner.interactiveMessage?.carouselMessage?.cards
+        if (cardsMedia !== undefined && cards) {
+          for (const media of cardsMedia) {
+            const cardHeader = cards[media.index]?.header
+            if (cardHeader) await this.uploadHeaderMedia(cardHeader, media)
+          }
         }
       } catch (err) {
-        throw new ZaileysBuilderError('SEND_FAILED', 'header media upload failed', { cause: err })
+        throw new ZaileysBuilderError('SEND_FAILED', 'interactive media upload failed', { cause: err })
       }
     }
     const userJid = this.socket.user?.id ?? ''

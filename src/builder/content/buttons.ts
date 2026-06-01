@@ -81,6 +81,23 @@ const toNativeButton = (button: ButtonDef | InteractiveButton, seen: Set<string>
 }
 
 /**
+ * Map declarative buttons to nativeFlow buttons, validating each. Reusable by
+ * {@link buildButtonsContent} and the carousel card builder.
+ *
+ * @throws ZaileysBuilderError `INVALID_OPTIONS` on empty list, too many buttons, or invalid fields.
+ */
+export const buildNativeButtons = (buttons: Array<ButtonDef | InteractiveButton>): NativeButton[] => {
+  if (!Array.isArray(buttons) || buttons.length === 0) {
+    throw new ZaileysBuilderError('INVALID_OPTIONS', 'buttons() requires at least one button')
+  }
+  if (buttons.length > MAX_BUTTONS) {
+    throw new ZaileysBuilderError('INVALID_OPTIONS', `buttons() accepts at most ${MAX_BUTTONS} buttons`)
+  }
+  const seen = new Set<string>()
+  return buttons.map((button) => toNativeButton(button, seen))
+}
+
+/**
  * Build a modern `interactiveMessage` (nativeFlow) from declarative buttons,
  * returned as relay-marker content. Supports `reply` (quick_reply), `url`
  * (cta_url), `copy` (cta_copy), and `call` (cta_call) buttons, plus an optional
@@ -99,14 +116,7 @@ export const buildButtonsContent = (
   buttons: Array<ButtonDef | InteractiveButton>,
   opts?: ButtonsContentOptions,
 ): AnyMessageContent => {
-  if (!Array.isArray(buttons) || buttons.length === 0) {
-    throw new ZaileysBuilderError('INVALID_OPTIONS', 'buttons() requires at least one button')
-  }
-  if (buttons.length > MAX_BUTTONS) {
-    throw new ZaileysBuilderError('INVALID_OPTIONS', `buttons() accepts at most ${MAX_BUTTONS} buttons`)
-  }
-  const seen = new Set<string>()
-  const nativeButtons = buttons.map((button) => toNativeButton(button, seen))
+  const nativeButtons = buildNativeButtons(buttons)
 
   const interactiveMessage: proto.Message.IInteractiveMessage = {
     body: { text: opts?.text && opts.text.length > 0 ? opts.text : ' ' },

@@ -102,6 +102,27 @@ client.on('connect', async ({ me }) => {
         footer: 'zaileys',
       }),
     )
+    await send('carousel (2 product cards)', () =>
+      client.send(TO).carousel(
+        [
+          {
+            title: 'Pizza Mozzarella',
+            body: '$6',
+            footer: 'FoodBot',
+            image: headerImage,
+            buttons: [{ id: 'buy_pizza', text: 'Order' }, { type: 'url', text: 'Detail', url: 'https://github.com/zeative/zaileys' }],
+          },
+          {
+            title: 'Ramen Kaldu',
+            body: '$5',
+            footer: 'FoodBot',
+            image: headerImage,
+            buttons: [{ id: 'buy_ramen', text: 'Order' }, { type: 'copy', text: 'Promo', code: 'RAMEN5' }],
+          },
+        ],
+        { text: '🛍️ Product Carousel' },
+      ),
+    )
   }
 
   console.log('\n[done] check your phone. Tap any button to test the click round-trip.\n')

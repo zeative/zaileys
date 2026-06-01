@@ -285,7 +285,7 @@ const SOURCE_URL = 'https://github.com/zeative/zaileys'
  */
 export const buildAIRichContent = (parts: AIRichPart[], opts?: AIRichOptions): AnyMessageContent => {
   if (!Array.isArray(parts) || parts.length === 0) {
-    throw new ZaileysBuilderError('INVALID_OPTIONS', 'aiRich() requires at least one part')
+    throw new ZaileysBuilderError('INVALID_OPTIONS', 'text({ rich: true }) requires non-empty markdown content')
   }
   const sections: Array<Record<string, unknown>> = []
   const submessages: Array<Record<string, unknown>> = []

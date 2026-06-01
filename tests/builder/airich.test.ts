@@ -144,12 +144,12 @@ describe('buildAIRichContent', () => {
   })
 })
 
-describe('MessageBuilder.aiRich()', () => {
-  it('relays the rich response without the biz/interactive node (bot AI format)', async () => {
+describe('MessageBuilder.text({ rich: true })', () => {
+  it('relays the markdown rich response without the biz/interactive node (bot AI format)', async () => {
     const relayMessage = vi.fn(async () => 'R1')
     const sendMessage = vi.fn(async () => ({ key: { id: 'X' } as WAMessageKey }) as WAMessage)
     const socket: BuilderSocketLike = { sendMessage, relayMessage, user: { id: '9@s.whatsapp.net' } }
-    await MessageBuilder.create(socket, RECIPIENT).aiRich([{ type: 'text', text: 'hi' }])
+    await MessageBuilder.create(socket, RECIPIENT).text('hi', { rich: true })
     expect(sendMessage).not.toHaveBeenCalled()
     expect(relayMessage).toHaveBeenCalledOnce()
     const [, message, opts] = relayMessage.mock.calls[0]! as [
@@ -159,5 +159,14 @@ describe('MessageBuilder.aiRich()', () => {
     ]
     expect(message.botForwardedMessage).toBeDefined()
     expect(opts.additionalNodes).toBeUndefined()
+  })
+
+  it('sends a plain text message when rich is omitted', async () => {
+    const relayMessage = vi.fn(async () => 'R1')
+    const sendMessage = vi.fn(async () => ({ key: { id: 'X' } as WAMessageKey }) as WAMessage)
+    const socket: BuilderSocketLike = { sendMessage, relayMessage, user: { id: '9@s.whatsapp.net' } }
+    await MessageBuilder.create(socket, RECIPIENT).text('hi')
+    expect(relayMessage).not.toHaveBeenCalled()
+    expect(sendMessage).toHaveBeenCalledOnce()
   })
 })

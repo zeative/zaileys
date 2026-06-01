@@ -31,7 +31,7 @@ const showcase = async (target: string): Promise<void> => {
     await sleep(1800)
   }
 
-  const brief = [
+  const briefingMd = [
     '*Tech Brief — Senin pagi* ☕',
     '',
     'Rangkuman harian dari [zaileys](https://github.com/zeative/zaileys).',
@@ -39,10 +39,7 @@ const showcase = async (target: string): Promise<void> => {
     '',
     'Rumus hari ini: [E = mc^2|160|44]<https://latex.codecogs.com/png.image?E%20%3D%20mc%5E2>',
     '',
-    'Tiga sorotan utama hari ini, plus cuplikan kode untuk bikin bot interaktif.',
-  ].join('\n')
-
-  const code = [
+    '```typescript',
     "import { Client } from 'zaileys'",
     '',
     'const client = new Client()',
@@ -53,87 +50,79 @@ const showcase = async (target: string): Promise<void> => {
     "    { text: 'Lanjut order?' },",
     '  )',
     '})',
+    '```',
     '',
-    "client.on('button-click', (ctx) => {",
-    "  console.log('clicked:', ctx.buttonId)",
-    '})',
+    '| Repo | Stars | Δ 24h |',
+    '|---|---|---|',
+    '| zaileys | 12.4k | +318 |',
+    '| baileys | 15.1k | +92 |',
+    '| venom | 6.2k | +11 |',
   ].join('\n')
 
-  const leaderboard = [
-    ['Repo', 'Stars', 'Δ 24h'],
-    ['zaileys', '12.4k', '+318'],
-    ['baileys', '15.1k', '+92'],
-    ['venom', '6.2k', '+11'],
-  ]
-
   await send('briefing', () =>
-    client.send(target).aiRich(
-      [
-        { type: 'text', text: brief },
-        { type: 'code', language: 'typescript', content: code },
-        { type: 'table', rows: leaderboard },
-      ],
-      {
-        title: '📰 zaileys Daily',
-        footer: '💡 Dibuat dengan zaileys — github.com/zeative/zaileys',
-        sources: [['https://avatars.githubusercontent.com/u/9919?s=64', 'https://github.com/zeative/zaileys', 'zaileys on GitHub']],
-      },
-    ),
+    client.send(target).text(briefingMd, {
+      rich: true,
+      title: '📰 zaileys Daily',
+      footer: '💡 Dibuat dengan zaileys — github.com/zeative/zaileys',
+      sources: [['https://avatars.githubusercontent.com/u/9919?s=64', 'https://github.com/zeative/zaileys', 'zaileys on GitHub']],
+    }),
   )
 
-  await send('galeri', () =>
-    client.send(target).aiRich(
-      [
-        { type: 'text', text: '*Galeri rilis v4* — geser untuk lihat tangkapan layar & klip.' },
-        { type: 'image', url: [POSTER, SHOT] },
-        { type: 'video', url: CLIP, duration: 10 },
-        { type: 'tip', text: 'Ketuk gambar untuk pratinjau penuh' },
-        { type: 'suggest', prompts: ['Lihat changelog', 'Cara upgrade', 'Bandingkan v3 vs v4'] },
-      ],
-      { title: '🖼️ zaileys v4', footer: '#zaileys' },
-    ),
-  )
+  const galeriMd = [
+    '*Galeri rilis v4* — geser untuk lihat tangkapan layar & klip.',
+    '',
+    `![shot](${POSTER})`,
+    `![shot](${SHOT})`,
+    '',
+    ':::video',
+    `${CLIP} | 10`,
+    ':::',
+    '',
+    ':::tip',
+    'Ketuk gambar untuk pratinjau penuh',
+    ':::',
+    '',
+    ':::suggest',
+    'Lihat changelog | Cara upgrade | Bandingkan v3 vs v4',
+    ':::',
+  ].join('\n')
 
-  await send('sosial', () =>
-    client.send(target).aiRich(
-      [
-        { type: 'text', text: 'Lagi ramai dibahas komunitas 👇' },
-        {
-          type: 'reels',
-          reels: [
-            { username: 'zeative', title: 'Demo nativeFlow buttons', url: CLIP, thumbnail: SHOT, views: 12400, likes: 980, verified: true },
-            { username: 'zeative', title: 'AIRich rich response', url: CLIP, thumbnail: POSTER, views: 8800, likes: 740, verified: true },
-          ],
-        },
-        {
-          type: 'post',
-          posts: [
-            { username: 'zeative', title: 'zaileys v4 is out', caption: 'Buttons, carousel, AIRich — semua built-in.', thumbnail: SHOT, likes: 1500, comments: 132, verified: true, source: 'GITHUB' },
-          ],
-        },
-        { type: 'suggest', prompts: ['Tonton lagi', 'Bagikan'] },
-      ],
-      { title: '🔥 Trending' },
-    ),
-  )
+  await send('galeri', () => client.send(target).text(galeriMd, { rich: true, title: '🖼️ zaileys v4', footer: '#zaileys' }))
 
-  await send('toko', () =>
-    client.send(target).aiRich(
-      [
-        { type: 'text', text: 'Merch komunitas zaileys 🛍️' },
-        {
-          type: 'product',
-          products: [
-            { title: 'Sticker Pack', price: 'Rp35.000', salePrice: 'Rp25.000', brand: 'zaileys', image: SHOT, url: 'https://github.com/zeative/zaileys' },
-            { title: 'Hoodie Dev', price: 'Rp320.000', salePrice: 'Rp275.000', brand: 'zaileys', image: POSTER, url: 'https://github.com/zeative/zaileys' },
-            { title: 'Mug Coder', price: 'Rp90.000', salePrice: 'Rp69.000', brand: 'zaileys', image: SHOT, url: 'https://github.com/zeative/zaileys' },
-          ],
-        },
-        { type: 'suggest', prompts: ['Lihat semua produk', 'Checkout'] },
-      ],
-      { title: '🛍️ zaileys Store' },
-    ),
-  )
+  const sosialMd = [
+    'Lagi ramai dibahas komunitas 👇',
+    '',
+    ':::reels',
+    `- user: zeative | title: Demo nativeFlow buttons | url: ${CLIP} | thumb: ${SHOT} | views: 12400 | likes: 980 | verified: true`,
+    `- user: zeative | title: AIRich rich response | url: ${CLIP} | thumb: ${POSTER} | views: 8800 | likes: 740 | verified: true`,
+    ':::',
+    '',
+    ':::post',
+    `- user: zeative | title: zaileys v4 is out | caption: Buttons, carousel, AIRich — semua built-in. | thumb: ${SHOT} | likes: 1500 | comments: 132 | verified: true | source: GITHUB`,
+    ':::',
+    '',
+    ':::suggest',
+    'Tonton lagi | Bagikan',
+    ':::',
+  ].join('\n')
+
+  await send('sosial', () => client.send(target).text(sosialMd, { rich: true, title: '🔥 Trending' }))
+
+  const tokoMd = [
+    'Merch komunitas zaileys 🛍️',
+    '',
+    ':::product',
+    `- title: Sticker Pack | price: Rp35.000 | sale: Rp25.000 | brand: zaileys | image: ${SHOT} | url: https://github.com/zeative/zaileys`,
+    `- title: Hoodie Dev | price: Rp320.000 | sale: Rp275.000 | brand: zaileys | image: ${POSTER} | url: https://github.com/zeative/zaileys`,
+    `- title: Mug Coder | price: Rp90.000 | sale: Rp69.000 | brand: zaileys | image: ${SHOT} | url: https://github.com/zeative/zaileys`,
+    ':::',
+    '',
+    ':::suggest',
+    'Lihat semua produk | Checkout',
+    ':::',
+  ].join('\n')
+
+  await send('toko', () => client.send(target).text(tokoMd, { rich: true, title: '🛍️ zaileys Store' }))
 
   console.log(`  └─ ${ok}/${n} terkirim`)
 }

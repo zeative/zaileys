@@ -43,7 +43,7 @@ app.get('/health', (_req: Request, res: Response) => {
   res.json({ connected })
 })
 
-const port = Number(process.env['PORT'] ?? 3000)
+const port = Number(process.env['PORT'] ?? 4252)
 app.listen(port, () => {
   console.log(`HTTP send gateway listening on :${port}`)
 })

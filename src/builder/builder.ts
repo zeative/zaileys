@@ -11,7 +11,8 @@ import { sendAlbum } from './album.js'
 import { buildAudioContent } from './content/audio.js'
 import { buildButtonsContent, RELAY_CONTENT_KEY, RELAY_MEDIA_KEY, type ButtonsContentOptions, type HeaderMedia } from './content/buttons.js'
 import { buildCarouselContent, RELAY_CARDS_MEDIA_KEY, type CardMedia, type CarouselCard } from './content/carousel.js'
-import { buildAIRichContent, type AIRichOptions, type AIRichPart } from './content/airich.js'
+import { buildAIRichContent, type AIRichOptions } from './content/airich.js'
+import { parseRichMarkdown } from './content/markdown.js'
 import { loadMedia } from './media-loader.js'
 import { buildContactContent } from './content/contact.js'
 import { buildDocumentContent } from './content/document.js'
@@ -61,6 +62,9 @@ export interface BuilderSocketLike {
   user?: { id?: string | null } | null
   waUploadToServer?: unknown
 }
+
+/** Options for {@link MessageBuilder.text}; `rich` opts the body into markdown→AIRich rendering. */
+export type TextOptions = { rich?: boolean } & AIRichOptions
 
 /**
  * Binary-node hint that makes WhatsApp render `interactiveMessage` content
@@ -123,8 +127,18 @@ export class MessageBuilder<State extends BuilderState> {
     return this
   }
 
-  text(this: MessageBuilder<'init'>, content: string): MessageBuilder<'content-set'> {
-    this.internal.content = buildTextContent(content)
+  /**
+   * Set the message body. Plain text by default; pass `{ rich: true }` to parse
+   * `content` as markdown and send it as an EXPERIMENTAL AIRich rich-response
+   * (fenced code, tables, images, `:::` directives, inline hyperlinks/citations/
+   * LaTeX). `title`/`footer`/`sources` decorate the rich card.
+   */
+  text(this: MessageBuilder<'init'>, content: string, opts?: TextOptions): MessageBuilder<'content-set'> {
+    if (opts?.rich === true) {
+      this.internal.content = buildAIRichContent(parseRichMarkdown(content), opts)
+    } else {
+      this.internal.content = buildTextContent(content)
+    }
     return this as unknown as MessageBuilder<'content-set'>
   }
 
@@ -168,20 +182,6 @@ export class MessageBuilder<State extends BuilderState> {
     opts?: { text?: string },
   ): MessageBuilder<'content-set'> {
     this.internal.content = buildCarouselContent(cards, opts)
-    return this as unknown as MessageBuilder<'content-set'>
-  }
-
-  /**
-   * EXPERIMENTAL — send a Meta AI rich-response message (text with hyperlinks/
-   * citations, code blocks, tables). Uses a reverse-engineered, non-standard
-   * WhatsApp format that may break with WhatsApp updates.
-   */
-  aiRich(
-    this: MessageBuilder<'init'>,
-    parts: AIRichPart[],
-    opts?: AIRichOptions,
-  ): MessageBuilder<'content-set'> {
-    this.internal.content = buildAIRichContent(parts, opts)
     return this as unknown as MessageBuilder<'content-set'>
   }
 

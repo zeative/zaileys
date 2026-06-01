@@ -92,11 +92,15 @@
   },
   "peerDependencies": {
     "better-sqlite3": "^11.0.0",
+    "convex": "^1.0.0",
     "pg": "^8.11.0",
     "redis": "^4.7.0"
   },
   "peerDependenciesMeta": {
     "better-sqlite3": {
+      "optional": true
+    },
+    "convex": {
       "optional": true
     },
     "redis": {

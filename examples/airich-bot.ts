@@ -84,10 +84,10 @@ client.on('connect', async ({ me }) => {
         { type: 'text', text: '*Lihat perincian* — image & video card di dalam satu rich response.' },
         { type: 'image', url: IMG },
         { type: 'video', url: 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4', duration: 10 },
-        { type: 'tip', text: 'Gunakan testrich <mode> untuk tes fitur spesifik' },
-        { type: 'suggest', prompts: ['testrich buttons', 'testrich carousel', 'testrich product', 'testrich post'] },
+        { type: 'tip', text: 'Gunakan zaileys <mode> untuk tes fitur spesifik' },
+        { type: 'suggest', prompts: ['zaileys buttons', 'zaileys carousel', 'zaileys product', 'zaileys post'] },
       ],
-      { title: '🐙 Shny Bot', footer: '#Shn' },
+      { title: '🐙 zaileys Bot', footer: '#zaileys' },
     ),
   )
 
@@ -98,8 +98,8 @@ client.on('connect', async ({ me }) => {
         {
           type: 'product',
           products: [
-            { title: 'Pizza Mozzarella', price: '$7', salePrice: '$6', brand: 'FoodBot', image: IMG, url: 'https://github.com/zeative/zaileys' },
-            { title: 'Ramen Kaldu', price: '$6', salePrice: '$5', brand: 'FoodBot', image: IMG, url: 'https://github.com/zeative/zaileys' },
+            { title: 'Pizza Mozzarella', price: '$7', salePrice: '$6', brand: 'zaileys', image: IMG, url: 'https://github.com/zeative/zaileys' },
+            { title: 'Ramen Kaldu', price: '$6', salePrice: '$5', brand: 'zaileys', image: IMG, url: 'https://github.com/zeative/zaileys' },
           ],
         },
         { type: 'suggest', prompts: ['Lihat semua produk', 'Pesan sekarang'] },

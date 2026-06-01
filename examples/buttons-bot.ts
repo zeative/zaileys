@@ -108,14 +108,14 @@ client.on('connect', async ({ me }) => {
           {
             title: 'Pizza Mozzarella',
             body: '$6',
-            footer: 'FoodBot',
+            footer: 'zaileys',
             image: headerImage,
             buttons: [{ id: 'buy_pizza', text: 'Order' }, { type: 'url', text: 'Detail', url: 'https://github.com/zeative/zaileys' }],
           },
           {
             title: 'Ramen Kaldu',
             body: '$5',
-            footer: 'FoodBot',
+            footer: 'zaileys',
             image: headerImage,
             buttons: [{ id: 'buy_ramen', text: 'Order' }, { type: 'copy', text: 'Promo', code: 'RAMEN5' }],
           },

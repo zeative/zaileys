@@ -6,33 +6,55 @@ if (!TO) {
   process.exit(1)
 }
 
+const IMG = 'https://placehold.co/512x512/png'
+const VIDEO = 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4'
+
+const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
+
 const client = new Client()
 
 client.on('qr', ({ qrString }) => console.log('Scan QR:', qrString))
 
 client.on('connect', async ({ me }) => {
-  console.log('Connected as', me.id, '\n=== sending AIRich full demo ->', TO, '===\n')
+  console.log('\n┌─ zaileys · AIRich demo')
+  console.log('├─ from :', me.id)
+  console.log('└─ to   :', TO, '\n')
+
+  let step = 0
+  let ok = 0
+  const send = async (label: string, fn: () => unknown): Promise<void> => {
+    step++
+    try {
+      const key = (await (fn() as Promise<{ id?: string }>)) ?? {}
+      ok++
+      console.log(`  ${String(step).padStart(2, '0')}. ✓ ${label.padEnd(28)} ${key.id ?? 'sent'}`)
+    } catch (e) {
+      console.log(`  ${String(step).padStart(2, '0')}. ✗ ${label.padEnd(28)} ${e instanceof Error ? e.message : String(e)}`)
+    }
+    await sleep(1800)
+  }
 
   const intro = [
-    '*AIRich v4.5 Full Demo*',
+    '*AIRich — rich response dalam satu pesan*',
     '',
-    'Ini hyperlink: [GitHub](https://github.com/zeative/zaileys)',
-    'Ini citation: [](https://github.com/zeative/zaileys)',
+    'Repo: [GitHub](https://github.com/zeative/zaileys)',
+    'Docs: [](https://github.com/zeative/zaileys)',
     '',
-    'Rich response: teks + link + sitasi, code block, dan tabel — semua dalam satu pesan.',
+    'Teks + hyperlink + sitasi, code block ber-syntax, dan tabel — semua menyatu.',
   ].join('\n')
 
   const code = [
     "import { Client } from 'zaileys'",
     '',
-    "const bot = 'ZaileysBOT'",
-    "console.log('Hello dari ' + bot)",
+    'const client = new Client()',
     '',
-    'class Bot {',
-    '  static async reply(text) {',
-    '    return await sock.sendMessage(jid, { text })',
-    '  }',
-    '}',
+    "client.on('connect', ({ me }) => {",
+    "  console.log('Connected as', me.id)",
+    '})',
+    '',
+    "client.on('text', async (msg) => {",
+    '  await client.send(msg.senderId).text(`Halo ${msg.senderName}!`)',
+    '})',
   ].join('\n')
 
   const featureTable = [
@@ -48,42 +70,27 @@ client.on('connect', async ({ me }) => {
     ['Table', '🆕 New', 'v4'],
   ]
 
-  const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
-  const IMG = 'https://placehold.co/512x512/png'
-
-  const send = async (label: string, fn: () => unknown): Promise<void> => {
-    try {
-      const key = (await (fn() as Promise<{ id?: string }>)) ?? {}
-      console.log('OK   ', label, '|', key.id ?? 'sent')
-    } catch (e) {
-      console.log('FAIL ', label, '->', e instanceof Error ? e.message : String(e))
-    }
-    await sleep(1800)
-  }
-
-  await send('rich (text + code + table)', () =>
+  await send('text + code + table', () =>
     client.send(TO).aiRich(
       [
         { type: 'text', text: intro },
-        { type: 'code', language: 'javascript', content: code },
+        { type: 'code', language: 'typescript', content: code },
         { type: 'table', rows: featureTable },
       ],
       {
-        title: '🤖 ZaileysBOT',
+        title: '🐙 zaileys Bot',
         footer: '💡 Powered by zaileys — github.com/zeative/zaileys',
-        sources: [
-          ['https://avatars.githubusercontent.com/u/9919?s=64', 'https://github.com/zeative/zaileys', 'Zaileys on GitHub'],
-        ],
+        sources: [['https://avatars.githubusercontent.com/u/9919?s=64', 'https://github.com/zeative/zaileys', 'zaileys on GitHub']],
       },
     ),
   )
 
-  await send('media + suggest (image + video + tip + chips)', () =>
+  await send('image + video + suggest', () =>
     client.send(TO).aiRich(
       [
-        { type: 'text', text: '*Lihat perincian* — image & video card di dalam satu rich response.' },
+        { type: 'text', text: '*Lihat perincian* — kartu image & video dalam satu rich response.' },
         { type: 'image', url: IMG },
-        { type: 'video', url: 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4', duration: 10 },
+        { type: 'video', url: VIDEO, duration: 10 },
         { type: 'tip', text: 'Gunakan zaileys <mode> untuk tes fitur spesifik' },
         { type: 'suggest', prompts: ['zaileys buttons', 'zaileys carousel', 'zaileys product', 'zaileys post'] },
       ],
@@ -91,10 +98,10 @@ client.on('connect', async ({ me }) => {
     ),
   )
 
-  await send('product carousel (2 cards)', () =>
+  await send('product carousel', () =>
     client.send(TO).aiRich(
       [
-        { type: 'text', text: 'Test Product' },
+        { type: 'text', text: 'Menu hari ini 👇' },
         {
           type: 'product',
           products: [
@@ -108,5 +115,5 @@ client.on('connect', async ({ me }) => {
     ),
   )
 
-  console.log('\n[done] check your phone — rich text/code/table, media+suggest card, and a product carousel.\n')
+  console.log(`\n└─ done · ${ok}/${step} terkirim — cek WhatsApp kamu.\n`)
 })

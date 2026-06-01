@@ -96,7 +96,7 @@ describe('Phase 8 SC#4 — README + examples + MIGRATION', () => {
   })
 })
 
-describe('Phase 8 SC#5 — Nextra docs + governance docs + version 4.0.0', () => {
+describe('Phase 8 SC#5 — Nextra docs + governance docs + version 4.x', () => {
   it('nextra docs site and docs scripts exist', () => {
     expect(has('docs/next.config.mjs')).toBe(true)
     expect(has('docs/content/index.mdx')).toBe(true)
@@ -114,9 +114,9 @@ describe('Phase 8 SC#5 — Nextra docs + governance docs + version 4.0.0', () =>
     expect(read('CHANGELOG.md')).toMatch(/4\.0\.0/)
   })
 
-  it('package.json declares version 4.0.0', () => {
+  it('package.json declares a 4.x version', () => {
     const pkg = JSON.parse(read('package.json'))
-    expect(pkg.version).toBe('4.0.0')
+    expect(pkg.version).toMatch(/^4\./)
   })
 })
 

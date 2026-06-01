@@ -13,6 +13,7 @@ type NativeButton = { name: string; buttonParamsJson: string }
 type Interactive = {
   body: { text: string }
   footer?: { text: string }
+  header?: { title?: string; subtitle?: string; hasMediaAttachment?: boolean }
   nativeFlowMessage: { buttons: NativeButton[]; messageParamsJson?: string }
   contextInfo?: { stanzaId?: string; quotedMessage?: unknown }
 }
@@ -120,17 +121,14 @@ describe('buildButtonsContent — validation', () => {
     expectError(() => buildButtonsContent([]), 'INVALID_OPTIONS')
   })
 
-  it('rejects more than three buttons', () => {
-    expectError(
-      () =>
-        buildButtonsContent([
-          { id: 'a', text: 'A' },
-          { id: 'b', text: 'B' },
-          { id: 'c', text: 'C' },
-          { id: 'd', text: 'D' },
-        ]),
-      'INVALID_OPTIONS',
-    )
+  it('accepts more than three buttons (mixed nativeFlow allows up to ten)', () => {
+    const defs: ButtonDef[] = Array.from({ length: 5 }, (_, i) => ({ id: `b${i}`, text: `B${i}` }))
+    expect(buttonsOf(buildButtonsContent(defs))).toHaveLength(5)
+  })
+
+  it('rejects more than ten buttons', () => {
+    const defs: ButtonDef[] = Array.from({ length: 11 }, (_, i) => ({ id: `b${i}`, text: `B${i}` }))
+    expectError(() => buildButtonsContent(defs), 'INVALID_OPTIONS')
   })
 
   it('rejects a blank button id', () => {
@@ -150,6 +148,65 @@ describe('buildButtonsContent — validation', () => {
         ]),
       'INVALID_OPTIONS',
     )
+  })
+})
+
+describe('buildButtonsContent — CTA button types', () => {
+  const anyParams = (b: NativeButton): Record<string, unknown> => JSON.parse(b.buttonParamsJson)
+
+  it('maps a url button to cta_url with url + merchant_url + webview_interaction', () => {
+    const b = buttonsOf(buildButtonsContent([{ type: 'url', text: 'Open', url: 'https://x.io', webview: true }]))[0]!
+    expect(b.name).toBe('cta_url')
+    expect(anyParams(b)).toMatchObject({ display_text: 'Open', url: 'https://x.io', merchant_url: 'https://x.io', webview_interaction: true })
+  })
+
+  it('maps a copy button to cta_copy with copy_code', () => {
+    const b = buttonsOf(buildButtonsContent([{ type: 'copy', text: 'Copy code', code: 'ZAI-42' }]))[0]!
+    expect(b.name).toBe('cta_copy')
+    expect(anyParams(b)).toMatchObject({ display_text: 'Copy code', copy_code: 'ZAI-42' })
+  })
+
+  it('maps a call button to cta_call with phone_number', () => {
+    const b = buttonsOf(buildButtonsContent([{ type: 'call', text: 'Call us', phone: '628111' }]))[0]!
+    expect(b.name).toBe('cta_call')
+    expect(anyParams(b)).toMatchObject({ display_text: 'Call us', id: '628111', phone_number: '628111' })
+  })
+
+  it('mixes reply + url + copy + call in one message', () => {
+    const buttons = buttonsOf(buildButtonsContent([
+      { id: 'r', text: 'Reply' },
+      { type: 'url', text: 'Site', url: 'https://x.io' },
+      { type: 'copy', text: 'Copy', code: 'C1' },
+      { type: 'call', text: 'Call', phone: '628' },
+    ]))
+    expect(buttons.map((b) => b.name)).toEqual(['quick_reply', 'cta_url', 'cta_copy', 'cta_call'])
+  })
+
+  it('rejects a url button without a url', () => {
+    expectError(() => buildButtonsContent([{ type: 'url', text: 'Open', url: '' }]), 'INVALID_OPTIONS')
+  })
+
+  it('rejects a copy button without a code', () => {
+    expectError(() => buildButtonsContent([{ type: 'copy', text: 'Copy', code: '' }]), 'INVALID_OPTIONS')
+  })
+
+  it('rejects a call button without a phone', () => {
+    expectError(() => buildButtonsContent([{ type: 'call', text: 'Call', phone: '' }]), 'INVALID_OPTIONS')
+  })
+})
+
+describe('buildButtonsContent — header', () => {
+  it('sets a text header from title and subtitle', () => {
+    const header = interactiveOf(buildButtonsContent([{ id: 'b1', text: 'Go' }], { title: 'Tip', subtitle: 'Sub' })).header as
+      | { title?: string; subtitle?: string; hasMediaAttachment?: boolean }
+      | undefined
+    expect(header?.title).toBe('Tip')
+    expect(header?.subtitle).toBe('Sub')
+    expect(header?.hasMediaAttachment).toBe(false)
+  })
+
+  it('omits the header when no title/subtitle given', () => {
+    expect((interactiveOf(buildButtonsContent([{ id: 'b1', text: 'Go' }])) as { header?: unknown }).header).toBeUndefined()
   })
 })
 

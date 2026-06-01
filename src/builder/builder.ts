@@ -29,6 +29,7 @@ import type {
   ButtonDef,
   DocumentOptions,
   ImageOptions,
+  InteractiveButton,
   ListOptions,
   LocationOptions,
   MediaSource,
@@ -149,8 +150,8 @@ export class MessageBuilder<State extends BuilderState> {
 
   buttons(
     this: MessageBuilder<'init'>,
-    buttons: ButtonDef[],
-    opts?: { text?: string; footer?: string },
+    buttons: Array<ButtonDef | InteractiveButton>,
+    opts?: { text?: string; footer?: string; title?: string; subtitle?: string },
   ): MessageBuilder<'content-set'> {
     this.internal.content = buildButtonsContent(buttons, opts)
     return this as unknown as MessageBuilder<'content-set'>

@@ -54,6 +54,34 @@ client.on('connect', async ({ me }) => {
       ],
     }),
   )
+  await send('header (title + subtitle) + reply buttons', () =>
+    client.send(TO).buttons([{ id: 'go', text: 'Go' }, { id: 'skip', text: 'Skip' }], {
+      title: '💡 Tip & Suggest',
+      subtitle: 'header subtitle line',
+      text: 'body text under the header',
+      footer: 'footer',
+    }),
+  )
+  await send('CTA: url + copy + call', () =>
+    client.send(TO).buttons(
+      [
+        { type: 'url', text: 'Open GitHub', url: 'https://github.com/zeative/zaileys', webview: true },
+        { type: 'copy', text: 'Copy code', code: 'ZAILEYS-2026' },
+        { type: 'call', text: 'Call us', phone: '6287833764462' },
+      ],
+      { text: 'zaileys CTA buttons: link / copy / call', footer: 'tap any' },
+    ),
+  )
+  await send('mixed: reply + url + copy', () =>
+    client.send(TO).buttons(
+      [
+        { id: 'yes', text: 'Yes' },
+        { type: 'url', text: 'Docs', url: 'https://github.com/zeative/zaileys' },
+        { type: 'copy', text: 'Copy ID', code: 'ABC123' },
+      ],
+      { title: 'Mixed buttons', text: 'reply + url + copy in one message' },
+    ),
+  )
 
   console.log('\n[done] check your phone. Tap any button to test the click round-trip.\n')
 })

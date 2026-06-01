@@ -44,7 +44,19 @@ export type AlbumItem = {
   caption?: string
 }
 
-/** An interactive button definition. */
+/** A quick-reply button: tapping sends `id` back as a `button-click` event. */
+export type ReplyButton = { type?: 'reply'; id: string; text: string }
+/** A button that opens `url` (optionally in WhatsApp's in-app webview). */
+export type UrlButton = { type: 'url'; text: string; url: string; webview?: boolean }
+/** A button that copies `code` to the clipboard. */
+export type CopyButton = { type: 'copy'; text: string; code: string }
+/** A button that dials `phone`. */
+export type CallButton = { type: 'call'; text: string; phone: string }
+
+/** Any interactive (nativeFlow) button accepted by {@link MessageBuilder.buttons}. */
+export type InteractiveButton = ReplyButton | UrlButton | CopyButton | CallButton
+
+/** A quick-reply button definition (legacy alias of {@link ReplyButton}). */
 export type ButtonDef = {
   id: string
   text: string

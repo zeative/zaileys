@@ -1,8 +1,8 @@
 import { proto, type AnyMessageContent } from 'baileys'
 import { ZaileysBuilderError } from '../errors.js'
-import type { ButtonDef } from '../types.js'
+import type { ButtonDef, InteractiveButton } from '../types.js'
 
-const MAX_BUTTONS = 3
+const MAX_BUTTONS = 10
 
 /**
  * Marker key on builder content whose value is a raw `proto.IMessage` to be sent
@@ -15,29 +15,80 @@ export const RELAY_CONTENT_KEY = '__zaileysRelayMessage'
 /** Content shape carrying a pre-built proto message for the relay send path. */
 export type RelayContent = { [RELAY_CONTENT_KEY]: proto.IMessage }
 
-/** Optional decoration for {@link buildButtonsContent}. */
+/** Optional decoration for {@link buildButtonsContent}: body text, footer, and a text header. */
 export type ButtonsContentOptions = {
   text?: string
   footer?: string
+  title?: string
+  subtitle?: string
+}
+
+type NativeButton = { name: string; buttonParamsJson: string }
+
+const nonEmpty = (value: unknown): value is string => typeof value === 'string' && value.length > 0
+
+const toNativeButton = (button: ButtonDef | InteractiveButton, seen: Set<string>): NativeButton => {
+  const text = (button as { text?: unknown }).text
+  if (!nonEmpty(text) || text.trim().length === 0) {
+    throw new ZaileysBuilderError('INVALID_OPTIONS', 'button text must be a non-empty string')
+  }
+  const type = (button as InteractiveButton).type ?? 'reply'
+  if (type === 'reply') {
+    const id = (button as ButtonDef).id
+    if (!nonEmpty(id)) {
+      throw new ZaileysBuilderError('INVALID_OPTIONS', 'reply button requires a non-empty id')
+    }
+    if (seen.has(id)) {
+      throw new ZaileysBuilderError('INVALID_OPTIONS', `duplicate button id: ${id}`)
+    }
+    seen.add(id)
+    return { name: 'quick_reply', buttonParamsJson: JSON.stringify({ display_text: text, id }) }
+  }
+  if (type === 'url') {
+    const url = (button as { url?: unknown }).url
+    if (!nonEmpty(url)) {
+      throw new ZaileysBuilderError('INVALID_OPTIONS', 'url button requires a non-empty url')
+    }
+    const webview = (button as { webview?: unknown }).webview === true
+    return {
+      name: 'cta_url',
+      buttonParamsJson: JSON.stringify({ display_text: text, url, merchant_url: url, webview_interaction: webview }),
+    }
+  }
+  if (type === 'copy') {
+    const code = (button as { code?: unknown }).code
+    if (!nonEmpty(code)) {
+      throw new ZaileysBuilderError('INVALID_OPTIONS', 'copy button requires a non-empty code')
+    }
+    return { name: 'cta_copy', buttonParamsJson: JSON.stringify({ display_text: text, id: code, copy_code: code }) }
+  }
+  if (type === 'call') {
+    const phone = (button as { phone?: unknown }).phone
+    if (!nonEmpty(phone)) {
+      throw new ZaileysBuilderError('INVALID_OPTIONS', 'call button requires a non-empty phone')
+    }
+    return { name: 'cta_call', buttonParamsJson: JSON.stringify({ display_text: text, id: phone, phone_number: phone }) }
+  }
+  throw new ZaileysBuilderError('INVALID_OPTIONS', `unknown button type: ${String(type)}`)
 }
 
 /**
- * Build a modern `interactiveMessage` (nativeFlow `quick_reply`) from declarative
- * {@link ButtonDef}s, returned as relay-marker content. Each `ButtonDef.id` is
- * encoded into `buttonParamsJson` and returns unchanged on tap via
- * `interactiveResponseMessage.nativeFlowResponseMessage` -> `ButtonClickPayload.buttonId`.
+ * Build a modern `interactiveMessage` (nativeFlow) from declarative buttons,
+ * returned as relay-marker content. Supports `reply` (quick_reply), `url`
+ * (cta_url), `copy` (cta_copy), and `call` (cta_call) buttons, plus an optional
+ * text header (`title`/`subtitle`). A bare `{ id, text }` is treated as a reply
+ * button; its `id` round-trips on tap via `interactiveResponseMessage` ->
+ * `ButtonClickPayload.buttonId`.
  *
- * NOTE: WhatsApp only RENDERS interactive buttons for eligible accounts
- * (WhatsApp Business / Cloud API). On personal/regular accounts the message is
- * delivered but the buttons are not displayed — a WhatsApp platform restriction,
- * not a library limitation.
+ * NOTE: WhatsApp only RENDERS interactive content when the relay carries the
+ * `biz > interactive (native_flow)` node (the builder adds it automatically).
  *
- * @param buttons - 1..3 button definitions; ids and labels must be non-empty.
- * @param opts - optional body `text` and `footer`.
- * @throws ZaileysBuilderError `INVALID_OPTIONS` on empty list, >3 buttons, or blank id/text.
+ * @param buttons - 1..10 button definitions.
+ * @param opts - optional body `text`, `footer`, and header `title`/`subtitle`.
+ * @throws ZaileysBuilderError `INVALID_OPTIONS` on empty list, too many buttons, or invalid button fields.
  */
 export const buildButtonsContent = (
-  buttons: ButtonDef[],
+  buttons: Array<ButtonDef | InteractiveButton>,
   opts?: ButtonsContentOptions,
 ): AnyMessageContent => {
   if (!Array.isArray(buttons) || buttons.length === 0) {
@@ -47,22 +98,7 @@ export const buildButtonsContent = (
     throw new ZaileysBuilderError('INVALID_OPTIONS', `buttons() accepts at most ${MAX_BUTTONS} buttons`)
   }
   const seen = new Set<string>()
-  const nativeButtons = buttons.map((button) => {
-    if (typeof button.id !== 'string' || button.id.length === 0) {
-      throw new ZaileysBuilderError('INVALID_OPTIONS', 'button id must be a non-empty string')
-    }
-    if (typeof button.text !== 'string' || button.text.trim().length === 0) {
-      throw new ZaileysBuilderError('INVALID_OPTIONS', 'button text must be a non-empty string')
-    }
-    if (seen.has(button.id)) {
-      throw new ZaileysBuilderError('INVALID_OPTIONS', `duplicate button id: ${button.id}`)
-    }
-    seen.add(button.id)
-    return {
-      name: 'quick_reply',
-      buttonParamsJson: JSON.stringify({ display_text: button.text, id: button.id }),
-    }
-  })
+  const nativeButtons = buttons.map((button) => toNativeButton(button, seen))
 
   const interactiveMessage: proto.Message.IInteractiveMessage = {
     body: { text: opts?.text && opts.text.length > 0 ? opts.text : ' ' },
@@ -70,6 +106,13 @@ export const buildButtonsContent = (
   }
   if (opts?.footer && opts.footer.length > 0) {
     interactiveMessage.footer = { text: opts.footer }
+  }
+  if ((opts?.title && opts.title.length > 0) || (opts?.subtitle && opts.subtitle.length > 0)) {
+    interactiveMessage.header = {
+      title: opts?.title ?? '',
+      subtitle: opts?.subtitle ?? '',
+      hasMediaAttachment: false,
+    }
   }
 
   const relay: RelayContent = { [RELAY_CONTENT_KEY]: { interactiveMessage } }

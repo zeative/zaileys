@@ -14,11 +14,34 @@ WhatsApp library over baileys; import is always `import { Client } from 'zaileys
 ESM (`"type": "module"`). Output a **layered `src/` project** (never a single flat `bot.ts`),
 `package.json`, `tsconfig.json`, `.env.example`, `.gitignore`, and run steps.
 
-## DETERMINISM CONTRACT (read first — this is the point of this skill)
+## EXISTING-CODEBASE PRECEDENCE (check this FIRST, before any structure decision)
 
-The generated tree MUST be a pure function of the spec: **same (use case + features + auth + storage)
-→ byte-for-byte same file layout, names, and module boundaries, every session, every developer.**
-Do not improvise structure per session. Decide the file set ONLY from the tables below.
+**Existing project conventions always win over this skill's canonical layout.** Before generating
+anything, inspect the target directory:
+
+1. **Greenfield** (empty dir, or no `src/` / `package.json`): apply the canonical PROJECT STRUCTURE
+   CONTRACT below verbatim.
+2. **Brownfield** (a project already exists — `package.json`, `src/`, established folders, or even
+   empty-but-intentional dirs the developer pre-created like `src/prompts/`, `src/tools/`): **conform
+   to what is there.** Map each role onto the existing folders and **match their conventions** — folder
+   names, file naming (kebab vs camel), barrel (`index.ts`) vs flat, import style, default vs named
+   exports. Do NOT rename, move, or re-layer their files; do NOT impose this skill's folder names.
+3. **Partial / incomplete**: keep everything that exists as-is; only ADD the missing pieces, placed and
+   named in the existing project's style. Use the canonical mapping below only to decide *what role a
+   new file plays*, then express that role using their conventions.
+
+How to detect intended structure: an empty folder a developer created (`src/prompts/`, `src/tools/`,
+`src/pkg/`) is a deliberate signal — put that role's files there, do not invent a parallel location.
+When the existing convention for a given role is genuinely ambiguous (e.g. an empty folder whose purpose
+you cannot infer from its name), ASK rather than guess.
+
+## DETERMINISM CONTRACT
+
+Within each regime above, output is reproducible — a pure function of **(spec + the project's existing
+conventions)**. Greenfield: **same (use case + features + auth + storage) → byte-for-byte same tree,
+every session, every developer.** Brownfield: same spec + same existing layout → same placement, every
+session. Never improvise structure per session; decide from the existing project first, then the tables
+below.
 
 Fixed conventions (never vary):
 
@@ -35,6 +58,9 @@ Fixed conventions (never vary):
 
 ## WORKFLOW
 
+0. **Scan the target directory first.** Determine greenfield vs brownfield per EXISTING-CODEBASE
+   PRECEDENCE above. List existing folders/files (including intentionally pre-created empty dirs). This
+   decides whether you follow the canonical layout or conform to what is already there.
 1. **Ask ONLY the gaps** (one short round; assume defaults if "just make it work"):
    - **Use case** — what the bot is for. Drives which feature modules exist. Common: `echo`,
      `ai-agent`, `slash-commands`, `interactive-buttons`, `broadcast`. Use cases vary widely and are
@@ -76,7 +102,7 @@ Root files (always): `package.json`, `tsconfig.json`, `.env.example`, `.gitignor
 | `slash-commands` | `src/commands/index.ts` → `registerCommands(client)`; one `src/commands/<name>.ts` per command | `index.ts` calls `registerCommands`; set `commandPrefix` in `client.ts` |
 | `interactive-buttons` | `src/handlers/buttons.ts` → `registerButtonHandlers(client)`; menu lives in a `src/commands/menu.ts` | `handlers/index.ts` |
 | `broadcast` | `src/features/broadcast.ts` → `runBroadcast(client, …)` | invoked from a command in `src/commands/broadcast.ts` |
-| `ai-agent` | `src/services/<provider>.ts` (client factory); `src/features/ai-agent.ts` (`askAgent`); `src/features/memory.ts` (working memory); `src/features/tools.ts` (defs + runner, if tool calling) | `message.ts` calls `askAgent` |
+| `ai-agent` | `src/services/<provider>.ts` (client factory); `src/features/prompt.ts` (`SYSTEM_PROMPT` constant); `src/features/ai-agent.ts` (`askAgent`); `src/features/memory.ts` (working memory); `src/features/tools.ts` (defs + runner, if tool calling) | `message.ts` calls `askAgent` |
 
 Rules: storage construction always lives **inside `client.ts`** (not a new folder). Pure, side-effect-free
 helpers go in `src/lib/`. If a use case needs a new external integration (HTTP API, DB, queue), it is a
@@ -94,6 +120,9 @@ that is what makes output reproducible.
 - **One content method per builder**, then optional modifiers, then `await`:
   `await client.send(jid).text('hi')`. Awaiting yields a `WAMessageKey` (`key.id`).
 - **Env only via `config/env.ts`** — never read `process.env` elsewhere; never hardcode tokens/URLs/numbers.
+- **Env is for secrets / connection / deploy toggles only** (API keys, DB URLs, model name, tunable limits).
+  Static application content — system prompts, persona, fixed copy/messages — is a **code constant**
+  (e.g. `src/features/prompt.ts`), NEVER an env var or an `env(key, '…long default…')` fallback.
 - **Correct JIDs** — user `628xxx@s.whatsapp.net`, group `xxx@g.us`. Use `lib/jid.ts` to strip to digits before comparing.
 - **Pairing requires `phoneNumber`** (E.164 digits, no `+`) or `connect()` rejects.
 - **Broadcast must be rate-limited** (`rateLimitPerSec`, default 5) and called inside a handler.
@@ -258,6 +287,12 @@ export const openai = new OpenAI({
 export const AI_MODEL = process.env['OPENAI_MODEL'] ?? 'gpt-4o-mini'
 ```
 
+`src/features/prompt.ts` (persona — a code constant, NOT env; edit here to change the bot's behavior):
+
+```typescript
+export const SYSTEM_PROMPT = `You are a concise, friendly WhatsApp assistant. Use a tool when you need real-time data.`
+```
+
 `src/features/memory.ts` (working memory — last N turns per chat; full archive lives in the message store):
 
 ```typescript
@@ -314,9 +349,9 @@ export const runTool = async (name: string, args: Record<string, unknown>): Prom
 import type { ChatCompletionMessageParam } from 'openai/resources/chat/completions'
 import { AI_MODEL, openai } from '../services/openai.js'
 import { history } from './memory.js'
+import { SYSTEM_PROMPT } from './prompt.js'
 import { runTool, tools } from './tools.js'
 
-const SYSTEM_PROMPT = process.env['BOT_SYSTEM_PROMPT'] ?? 'You are a concise, friendly WhatsApp assistant.'
 const MAX_TOOL_ROUNDS = 5
 
 export const askAgent = async (convoId: string, userText: string): Promise<string> => {
@@ -547,8 +582,8 @@ SESSION_ID=bot
 # OPENAI_API_KEY=sk-xxxx
 # OPENAI_MODEL=gpt-4o-mini
 # OPENAI_BASE_URL=http://localhost:11434/v1
-# BOT_SYSTEM_PROMPT=You are a concise, friendly WhatsApp assistant.
 # MAX_HISTORY=16
+# (persona/system prompt lives in code: src/features/prompt.ts — not env)
 
 # Broadcast guard
 # OWNER=6281234567890
@@ -580,6 +615,9 @@ so later runs skip auth. To force a fresh login, delete the session.
 
 ## VERIFY BEFORE HANDOFF
 
+- **Brownfield**: every generated file lands in the existing project's folders and matches its naming/
+  import/export conventions; no pre-existing file was renamed, moved, or re-layered; pre-created empty
+  dirs were used for their role. (The skeleton checks below apply to greenfield only.)
 - The full skeleton exists (`src/index.ts`, `src/client.ts`, `src/config/env.ts`,
   `src/handlers/index.ts`, `src/handlers/connection.ts`, `src/lib/jid.ts`) — even for trivial bots.
 - Only `src/index.ts` has top-level execution; every other module exports functions, no import-time side effects.

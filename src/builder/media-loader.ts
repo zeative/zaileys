@@ -1,7 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
-import { fileTypeFromBuffer } from 'file-type'
-import { initializeFFmpeg } from '../media/ffmpeg/core.js'
+import { detectFileType, initializeFFmpeg } from '../media/ffmpeg/core.js'
 import { ZaileysBuilderError } from './errors.js'
 import type { MediaSource } from './types.js'
 
@@ -20,7 +19,7 @@ export type LoadMediaOptions = {
 
 export const detectMimeFromBuffer = async (buffer: Buffer): Promise<string> => {
   if (buffer.byteLength === 0) return FALLBACK_MIME
-  const detected = await fileTypeFromBuffer(buffer)
+  const detected = await detectFileType(buffer)
   return detected?.mime ?? FALLBACK_MIME
 }
 

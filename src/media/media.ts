@@ -3,6 +3,7 @@ import {
   type AudioType,
   BufferConverter,
   DocumentProcessor,
+  detectFileType,
   FFMPEG_CONSTANTS,
   ImageProcessor,
   type MediaInput,
@@ -11,7 +12,6 @@ import {
   type StickerMetadataType,
   VideoProcessor,
 } from './ffmpeg/index.js';
-import { fileTypeFromBuffer } from 'file-type';
 
 export class Media {
   private input: MediaInput;
@@ -66,7 +66,7 @@ export class Media {
     return {
       get: async () => {
         const buffer = await BufferConverter.toBuffer(this.input);
-        const fileType = await fileTypeFromBuffer(buffer);
+        const fileType = await detectFileType(buffer);
 
         if (!fileType || !MimeValidator.isMedia(fileType.mime)) {
           throw new Error('Invalid media type: expected image or video');

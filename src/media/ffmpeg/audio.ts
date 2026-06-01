@@ -1,5 +1,4 @@
-import { fileTypeFromBuffer } from 'file-type';
-import { BufferConverter, FFMPEG_CONSTANTS, MimeValidator, type MediaInput } from './core.js';
+import { BufferConverter, FFMPEG_CONSTANTS, MimeValidator, detectFileType, type MediaInput } from './core.js';
 import { ffmpegTransform } from './transform.js';
 
 export type AudioType = 'opus' | 'mp3';
@@ -18,7 +17,7 @@ export class AudioProcessor {
 
   static async convert(input: MediaInput, type: AudioType = 'opus'): Promise<Buffer> {
     const buffer = await BufferConverter.toBuffer(input);
-    MimeValidator.validate(await fileTypeFromBuffer(buffer), FFMPEG_CONSTANTS.MIME.AUDIO);
+    MimeValidator.validate(await detectFileType(buffer), FFMPEG_CONSTANTS.MIME.AUDIO);
     const inputExt = await BufferConverter.getExtension(buffer);
     const options =
       type === 'opus'

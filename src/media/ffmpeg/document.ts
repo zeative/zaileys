@@ -1,5 +1,4 @@
-import { fileTypeFromBuffer } from 'file-type';
-import { BufferConverter, FFMPEG_CONSTANTS, MimeValidator, generateId, type MediaInput } from './core.js';
+import { BufferConverter, FFMPEG_CONSTANTS, MimeValidator, detectFileType, generateId, type MediaInput } from './core.js';
 import { ImageProcessor } from './image.js';
 import { VideoProcessor } from './video.js';
 
@@ -7,7 +6,7 @@ export class DocumentProcessor {
   static async create(input: MediaInput) {
     try {
       const buffer = await BufferConverter.toBuffer(input);
-      const fileType = await fileTypeFromBuffer(buffer);
+      const fileType = await detectFileType(buffer);
 
       if (!fileType) throw new Error('Unable to detect file type');
 

@@ -1,5 +1,4 @@
-import { fileTypeFromBuffer } from 'file-type';
-import { BufferConverter, FFMPEG_CONSTANTS, FFmpegProcessor, MimeValidator, type MediaInput } from './core.js';
+import { BufferConverter, FFMPEG_CONSTANTS, FFmpegProcessor, MimeValidator, detectFileType, type MediaInput } from './core.js';
 import { ffmpegTransform } from './transform.js';
 
 const MP4_OPTIONS = [
@@ -17,14 +16,14 @@ const MP4_OPTIONS = [
 export class VideoProcessor {
   static async toMp4(input: MediaInput): Promise<Buffer> {
     const buffer = await BufferConverter.toBuffer(input);
-    MimeValidator.validate(await fileTypeFromBuffer(buffer), FFMPEG_CONSTANTS.MIME.VIDEO);
+    MimeValidator.validate(await detectFileType(buffer), FFMPEG_CONSTANTS.MIME.VIDEO);
     const inputExt = await BufferConverter.getExtension(buffer);
     return ffmpegTransform(buffer, inputExt, 'mp4', 'Video re-encoding', MP4_OPTIONS);
   }
 
   static async thumbnail(input: MediaInput): Promise<string> {
     const buffer = await BufferConverter.toBuffer(input);
-    MimeValidator.validate(await fileTypeFromBuffer(buffer), FFMPEG_CONSTANTS.MIME.VIDEO);
+    MimeValidator.validate(await detectFileType(buffer), FFMPEG_CONSTANTS.MIME.VIDEO);
     const inputExt = await BufferConverter.getExtension(buffer);
     const size = FFMPEG_CONSTANTS.THUMBNAIL.SIZE;
     const thumb = await ffmpegTransform(buffer, inputExt, 'jpg', 'Thumbnail generation', async (tempIn) => {

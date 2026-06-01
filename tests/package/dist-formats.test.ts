@@ -52,4 +52,20 @@ describe('package: dual ESM/CJS + types build', () => {
       expect(dts).toContain('class Client')
     }
   })
+
+  it('PKG6: node builtins use the node: protocol (Deno/strict-runtime compat)', () => {
+    const builtins = ['events', 'stream', 'crypto', 'os', 'path', 'child_process', 'fs', 'fs/promises', 'url', 'module', 'util']
+    for (const f of ['index.mjs', 'index.cjs']) {
+      const code = readFileSync(dist(f), 'utf8')
+      for (const b of builtins) {
+        const bare = new RegExp(`(from\\s*|import\\(\\s*|require\\(\\s*|import\\s+)(['"])${b.replace('/', '\\/')}\\2`)
+        expect(bare.test(code), `dist/${f} imports bare "${b}" — must be "node:${b}"`).toBe(false)
+      }
+    }
+  })
+
+  it('PKG7: the CJS bundle never top-level-requires the ESM-only file-type (Bun/Deno/Node<22)', () => {
+    const cjs = readFileSync(dist('index.cjs'), 'utf8')
+    expect(/require\((['"])file-type\1\)/.test(cjs)).toBe(false)
+  })
 })

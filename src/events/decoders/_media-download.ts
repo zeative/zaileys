@@ -1,4 +1,4 @@
-import { Readable } from 'stream'
+import { Readable } from 'node:stream'
 import type { WAMessage } from 'baileys'
 import type { MediaDownloadResult, MediaKind } from '../types.js'
 

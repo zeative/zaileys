@@ -1,6 +1,5 @@
-import { fileTypeFromBuffer } from 'file-type';
 import webp from 'node-webpmux';
-import { BufferConverter, FFMPEG_CONSTANTS, MimeValidator, generateId, type MediaInput } from './core.js';
+import { BufferConverter, FFMPEG_CONSTANTS, MimeValidator, detectFileType, generateId, type MediaInput } from './core.js';
 import { ffmpegTransform } from './transform.js';
 import { ImageProcessor } from './image.js';
 import { VideoProcessor } from './video.js';
@@ -22,7 +21,7 @@ export class StickerProcessor {
   static async create(input: MediaInput, metadata?: StickerMetadataType): Promise<Buffer> {
     try {
       const buffer = await BufferConverter.toBuffer(input);
-      const fileType = await fileTypeFromBuffer(buffer);
+      const fileType = await detectFileType(buffer);
 
       if (!fileType) throw new Error('Unable to detect file type');
 

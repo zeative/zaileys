@@ -1,5 +1,5 @@
 import { jidDecode, jidNormalizedUser, type WAMessage, type WAMessageKey } from 'baileys'
-import { Readable } from 'stream'
+import { Readable } from 'node:stream'
 import { isGroupJid } from './decoders/_shared.js'
 import type { SenderInfo } from './types.js'
 import type { TextOptions } from '../builder/builder.js'

@@ -1,25 +1,22 @@
 import { Client } from '../src/index.js'
 
-const TO = process.env['AIRICH_TO'] ?? ''
-if (!TO) {
-  console.error('Set AIRICH_TO, e.g. AIRICH_TO=628xxxx@s.whatsapp.net bun run examples/airich-bot.ts')
+const OWNER = (process.env['OWNER'] ?? process.env['AIRICH_TO'] ?? '').replace(/\D/g, '')
+if (!OWNER) {
+  console.error('Set OWNER (nomor kamu), e.g. OWNER=6285xxxx bun run examples/airich-bot.ts')
   process.exit(1)
 }
 
+const TRIGGER = '.za oii'
 const POSTER = 'https://placehold.co/600x800/png'
 const SHOT = 'https://placehold.co/512x512/png'
 const CLIP = 'https://test-videos.co.uk/vids/bigbuckbunny/mp4/h264/360/Big_Buck_Bunny_360_10s_1MB.mp4'
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms))
+const digitsOf = (jid: string): string => (jid.split(/[:@]/)[0] ?? '').replace(/\D/g, '')
 
-const client = new Client()
+const client = new Client({ ignoreMe: false })
 
-client.on('qr', ({ qrString }) => console.log('Scan QR:', qrString))
-
-client.on('connect', async ({ me }) => {
-  const bar = '═'.repeat(34)
-  console.log(`\n${bar}\n  zaileys · AIRich showcase\n  ${me.id} → ${TO}\n${bar}\n`)
-
+const showcase = async (target: string): Promise<void> => {
   let n = 0
   let ok = 0
   const send = async (label: string, fn: () => unknown): Promise<void> => {
@@ -68,7 +65,7 @@ client.on('connect', async ({ me }) => {
   ]
 
   await send('briefing', () =>
-    client.send(TO).aiRich(
+    client.send(target).aiRich(
       [
         { type: 'text', text: brief },
         { type: 'code', language: 'typescript', content: code },
@@ -83,7 +80,7 @@ client.on('connect', async ({ me }) => {
   )
 
   await send('galeri', () =>
-    client.send(TO).aiRich(
+    client.send(target).aiRich(
       [
         { type: 'text', text: '*Galeri rilis v4* — geser untuk lihat tangkapan layar & klip.' },
         { type: 'image', url: [POSTER, SHOT] },
@@ -96,7 +93,7 @@ client.on('connect', async ({ me }) => {
   )
 
   await send('sosial', () =>
-    client.send(TO).aiRich(
+    client.send(target).aiRich(
       [
         { type: 'text', text: 'Lagi ramai dibahas komunitas 👇' },
         {
@@ -119,7 +116,7 @@ client.on('connect', async ({ me }) => {
   )
 
   await send('toko', () =>
-    client.send(TO).aiRich(
+    client.send(target).aiRich(
       [
         { type: 'text', text: 'Merch komunitas zaileys 🛍️' },
         {
@@ -136,5 +133,22 @@ client.on('connect', async ({ me }) => {
     ),
   )
 
-  console.log(`\n${bar}\n  selesai · ${ok}/${n} terkirim — cek WhatsApp kamu\n${bar}\n`)
+  console.log(`  └─ ${ok}/${n} terkirim`)
+}
+
+client.on('qr', ({ qrString }) => console.log('Scan QR:', qrString))
+
+client.on('connect', ({ me }) => {
+  const bar = '═'.repeat(40)
+  console.log(`\n${bar}\n  zaileys · AIRich trigger bot\n  online as ${me.id}\n  kirim "${TRIGGER}" (private/grup) dari ${OWNER}\n${bar}\n`)
+})
+
+client.on('text', async (msg) => {
+  if (digitsOf(msg.senderId) !== OWNER) return
+  if (msg.text.trim().toLowerCase() !== TRIGGER) return
+
+  const target = msg.roomId ?? msg.senderId
+  console.log(`\n[trigger] "${TRIGGER}" dari ${msg.senderId} → ${target}`)
+  await showcase(target)
+  console.log('[trigger] selesai\n')
 })

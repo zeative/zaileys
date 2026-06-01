@@ -9,7 +9,12 @@
   "plugins": [
     {
       "name": "zaileys",
-      "source": "./plugins/zaileys",
+      "source": {
+        "source": "git-subdir",
+        "url": "https://github.com/zeative/zaileys.git",
+        "path": "plugins/zaileys",
+        "ref": "main"
+      },
       "description": "Build WhatsApp bots with zaileys: typed events, a fluent send builder, interactive messages, AIRich markdown, commands, broadcast/schedule, and pluggable storage.",
       "version": "4.0.0",
       "author": { "name": "zeative" },

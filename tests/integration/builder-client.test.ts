@@ -122,7 +122,7 @@ describe('integration: Client.send', () => {
       Record<string, unknown>,
     ]
     expect(content.mentions).toEqual(['x@s.whatsapp.net'])
-    expect(options.quoted).toEqual(quoted)
+    expect(options.quoted).toEqual({ key: quoted })
   })
 
   it('returns the sent message key', async () => {

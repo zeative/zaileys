@@ -39,7 +39,7 @@ vi.mock('../../src/media/ffmpeg/index.js', async () => {
   }
 })
 
-import { Media } from '../../src/media/Media.js'
+import { Media } from '../../src/media/media.js'
 
 beforeEach(() => {
   fileTypeMock.mockReset()

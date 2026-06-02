@@ -73,20 +73,27 @@ describe('formatConnectionStatus', () => {
 })
 
 describe('suppressLibsignalNoise', () => {
-  it('drops libsignal "Closing session:" dumps but passes other console.info through', () => {
-    const original = console.info
-    const seen: unknown[][] = []
-    console.info = (...args: unknown[]): void => {
-      seen.push(args)
-    }
+  it('drops benign libsignal noise across info/warn/error, passes everything else through', () => {
+    const orig = { info: console.info, warn: console.warn, error: console.error }
+    const seen = { info: [] as unknown[][], warn: [] as unknown[][], error: [] as unknown[][] }
+    console.info = (...args: unknown[]): void => void seen.info.push(args)
+    console.warn = (...args: unknown[]): void => void seen.warn.push(args)
+    console.error = (...args: unknown[]): void => void seen.error.push(args)
     try {
       suppressLibsignalNoise()
       console.info('Closing session:', { huge: 'SessionEntry' })
       console.info('regular log', 42)
-      expect(seen).toHaveLength(1)
-      expect(seen[0]?.[0]).toBe('regular log')
+      console.warn('Closing open session in favor of incoming prekey bundle')
+      console.error('Failed to decrypt message with any known session...')
+      console.error('Session error:Error: Bad MAC', 'stack')
+      console.error('a real error', { x: 1 })
+      expect(seen.info.map((a) => a[0])).toEqual(['regular log'])
+      expect(seen.warn).toHaveLength(0)
+      expect(seen.error.map((a) => a[0])).toEqual(['a real error'])
     } finally {
-      console.info = original
+      console.info = orig.info
+      console.warn = orig.warn
+      console.error = orig.error
     }
   })
 })

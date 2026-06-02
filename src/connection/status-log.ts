@@ -46,12 +46,33 @@ export function formatConnectionStatus(event: StatusEvent): string | null {
 
 let noiseFilterInstalled = false
 
+const LIBSIGNAL_NOISE: readonly string[] = [
+  'Closing session:',
+  'Closing open session',
+  'Closing stale open session',
+  'Opening session:',
+  'Removing old closed session',
+  'Migrating session to:',
+  'Session already closed',
+  'Decrypted message with closed session',
+  'Failed to decrypt message with any known session',
+  'Session error:',
+]
+
+const isLibsignalNoise = (args: unknown[]): boolean =>
+  typeof args[0] === 'string' && LIBSIGNAL_NOISE.some((p) => (args[0] as string).startsWith(p))
+
 export function suppressLibsignalNoise(): void {
   if (noiseFilterInstalled) return
   noiseFilterInstalled = true
-  const original = console.info.bind(console)
-  console.info = (...args: unknown[]): void => {
-    if (typeof args[0] === 'string' && args[0].startsWith('Closing session:')) return
-    original(...args)
+  const patch = (method: 'info' | 'warn' | 'error'): void => {
+    const original = console[method].bind(console)
+    console[method] = (...args: unknown[]): void => {
+      if (isLibsignalNoise(args)) return
+      original(...args)
+    }
   }
+  patch('info')
+  patch('warn')
+  patch('error')
 }

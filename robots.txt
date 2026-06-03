@@ -1,0 +1,41 @@
+User-Agent: *
+Allow: /
+
+User-Agent: GPTBot
+Allow: /
+
+User-Agent: OAI-SearchBot
+Allow: /
+
+User-Agent: ChatGPT-User
+Allow: /
+
+User-Agent: ClaudeBot
+Allow: /
+
+User-Agent: Claude-Web
+Allow: /
+
+User-Agent: anthropic-ai
+Allow: /
+
+User-Agent: PerplexityBot
+Allow: /
+
+User-Agent: Google-Extended
+Allow: /
+
+User-Agent: CCBot
+Allow: /
+
+User-Agent: Applebot-Extended
+Allow: /
+
+User-Agent: cohere-ai
+Allow: /
+
+User-Agent: Bytespider
+Allow: /
+
+Host: https://zeative.github.io/zaileys
+Sitemap: https://zeative.github.io/zaileys/sitemap.xml

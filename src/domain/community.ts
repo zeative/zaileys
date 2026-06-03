@@ -1,9 +1,13 @@
+import type { OperationGuard } from '../automation/operation-guard.js'
 import { ZaileysDomainError } from './errors.js'
 import type { DomainSocketLike } from './socket-like.js'
 import type { GroupMetadata, LinkedGroup } from './types.js'
 
 export class CommunityModule {
-  constructor(private readonly getSocket: () => DomainSocketLike | undefined) {}
+  constructor(
+    private readonly getSocket: () => DomainSocketLike | undefined,
+    private readonly guard?: OperationGuard,
+  ) {}
 
   protected requireSocket(): DomainSocketLike {
     const socket = this.getSocket()
@@ -13,12 +17,18 @@ export class CommunityModule {
     return socket
   }
 
+  private run<T>(category: Parameters<OperationGuard['run']>[0], op: () => Promise<T>): Promise<T> {
+    return this.guard ? this.guard.run(category, op) : op()
+  }
+
   async create(subject: string, body: string): Promise<GroupMetadata> {
-    return this.requireSocket().communityCreate(subject, body)
+    return this.run('community.create', () => this.requireSocket().communityCreate(subject, body))
   }
 
   async createGroup(subject: string, participants: string[], communityId: string): Promise<GroupMetadata> {
-    return this.requireSocket().communityCreateGroup(subject, participants, communityId)
+    return this.run('community.create', () =>
+      this.requireSocket().communityCreateGroup(subject, participants, communityId),
+    )
   }
 
   async linkGroup(communityId: string, groupId: string): Promise<void> {
@@ -55,6 +65,6 @@ export class CommunityModule {
   }
 
   async acceptInvite(code: string): Promise<string | undefined> {
-    return this.requireSocket().communityAcceptInvite(code)
+    return this.run('community.join', () => this.requireSocket().communityAcceptInvite(code))
   }
 }

@@ -11,7 +11,12 @@ import { MemoryAuthStore } from '../../src/auth/adapters/memory.js'
 import { createMockSocket, type MockSocket } from '../_helpers/mock-socket.js'
 
 const makeClient = (): Client =>
-  new Client({ auth: new MemoryAuthStore(), qrTerminal: false, autoConnect: false })
+  new Client({
+    auth: new MemoryAuthStore(),
+    qrTerminal: false,
+    autoConnect: false,
+    operationGuard: { enabled: false },
+  })
 
 const injectSocket = (client: Client, socket: MockSocket | undefined): void => {
   ;(client as unknown as { _socket: unknown })._socket = socket

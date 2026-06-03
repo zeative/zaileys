@@ -6,8 +6,31 @@ export interface AutomationSocketLike {
   sendPresenceUpdate(type: WAPresence, toJid?: string): Promise<void>
 }
 
+/** Drops presence updates that repeat the same (type, chat) inside `minIntervalMs`. */
+export interface PresenceThrottleOptions {
+  enabled?: boolean
+  minIntervalMs?: number
+}
+
+export type PresenceClock = { now?: () => number }
+
+const DEFAULT_MIN_INTERVAL_MS = 1000
+
 export class PresenceModule {
-  constructor(private readonly getSocket: () => AutomationSocketLike | undefined) {}
+  private readonly throttleEnabled: boolean
+  private readonly minIntervalMs: number
+  private readonly now: () => number
+  private readonly lastSent = new Map<string, number>()
+
+  constructor(
+    private readonly getSocket: () => AutomationSocketLike | undefined,
+    throttle?: PresenceThrottleOptions,
+    clock?: PresenceClock,
+  ) {
+    this.throttleEnabled = throttle?.enabled ?? true
+    this.minIntervalMs = throttle?.minIntervalMs ?? DEFAULT_MIN_INTERVAL_MS
+    this.now = clock?.now ?? Date.now
+  }
 
   protected requireSocket(): AutomationSocketLike {
     const socket = this.getSocket()
@@ -17,8 +40,19 @@ export class PresenceModule {
     return socket
   }
 
+  private throttled(type: WAPresence, jid?: string): boolean {
+    if (!this.throttleEnabled || this.minIntervalMs <= 0) return false
+    const key = `${type}:${jid ?? 'global'}`
+    const prev = this.lastSent.get(key)
+    const ts = this.now()
+    if (prev !== undefined && ts - prev < this.minIntervalMs) return true
+    this.lastSent.set(key, ts)
+    return false
+  }
+
   private async update(type: WAPresence, jid?: string): Promise<void> {
     const socket = this.requireSocket()
+    if (this.throttled(type, jid)) return
     try {
       await (jid === undefined ? socket.sendPresenceUpdate(type) : socket.sendPresenceUpdate(type, jid))
     } catch (err) {

@@ -104,3 +104,46 @@ describe('PresenceModule', () => {
     await vi.advanceTimersByTimeAsync(500)
   })
 })
+
+describe('PresenceModule — throttle', () => {
+  let t: number
+  const clock = { now: () => t }
+
+  it('drops a repeated composing for the same chat inside the window', async () => {
+    t = 0
+    const socket = createMockSocket()
+    const presence = new PresenceModule(() => socket as never, { minIntervalMs: 1000 }, clock)
+    await presence.typing(JID)
+    await presence.typing(JID)
+    expect(socket.sendPresenceUpdate).toHaveBeenCalledTimes(1)
+  })
+
+  it('allows the update again once the window elapses', async () => {
+    t = 0
+    const socket = createMockSocket()
+    const presence = new PresenceModule(() => socket as never, { minIntervalMs: 1000 }, clock)
+    await presence.typing(JID)
+    t = 1000
+    await presence.typing(JID)
+    expect(socket.sendPresenceUpdate).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not cross-throttle different chats', async () => {
+    t = 0
+    const socket = createMockSocket()
+    const presence = new PresenceModule(() => socket as never, { minIntervalMs: 1000 }, clock)
+    await presence.typing(JID)
+    await presence.typing('b@s.whatsapp.net')
+    expect(socket.sendPresenceUpdate).toHaveBeenCalledTimes(2)
+  })
+
+  it('disabled throttle never drops', async () => {
+    t = 0
+    const socket = createMockSocket()
+    const presence = new PresenceModule(() => socket as never, { enabled: false }, clock)
+    await presence.typing(JID)
+    await presence.typing(JID)
+    await presence.typing(JID)
+    expect(socket.sendPresenceUpdate).toHaveBeenCalledTimes(3)
+  })
+})

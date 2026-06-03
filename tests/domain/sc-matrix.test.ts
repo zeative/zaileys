@@ -5,7 +5,12 @@ import { decodeMemberTag } from '../../src/events/decoders/groups.js'
 import { createMockSocket, type MockSocket } from '../_helpers/mock-socket.js'
 
 const connected = (): { client: Client; sock: MockSocket } => {
-  const client = new Client({ auth: new MemoryAuthStore(), qrTerminal: false, autoConnect: false })
+  const client = new Client({
+    auth: new MemoryAuthStore(),
+    qrTerminal: false,
+    autoConnect: false,
+    operationGuard: { enabled: false },
+  })
   const sock = createMockSocket()
   ;(client as unknown as { _socket: unknown })._socket = sock
   return { client, sock }

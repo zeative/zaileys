@@ -22,6 +22,7 @@ export type SchedulerDeps = {
   now?: () => number
   timer?: SchedulerTimer
   logger?: Logger
+  acquire?: () => Promise<void>
 }
 
 export type ScheduleHandle = {
@@ -46,6 +47,7 @@ export class Scheduler {
   private readonly now: () => number
   private readonly timer: SchedulerTimer
   private readonly logger: Logger | undefined
+  private readonly acquire: (() => Promise<void>) | undefined
   private readonly memory: Map<string, ScheduledJobRecord> = new Map()
   private readonly timers: Map<string, unknown> = new Map()
 
@@ -55,6 +57,7 @@ export class Scheduler {
     this.now = deps.now ?? (() => Date.now())
     this.timer = deps.timer ?? DEFAULT_TIMER
     this.logger = deps.logger
+    this.acquire = deps.acquire
   }
 
   async scheduleAt(
@@ -118,6 +121,7 @@ export class Scheduler {
     this.memory.delete(record.id)
     if (isSnapshot(record.payload)) {
       try {
+        if (this.acquire) await this.acquire()
         await this.sendSnapshot(record.payload)
       } catch (err) {
         this.logger?.warn(err, 'scheduled send failed')

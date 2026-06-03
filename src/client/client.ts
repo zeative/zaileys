@@ -38,12 +38,16 @@ import {
   type ResolvedCommand,
 } from '../command/index.js'
 import {
+  createOperationGuard,
   PresenceModule,
+  RateLimiter,
   runBroadcast,
   Scheduler,
   type AutomationSocketLike,
   type BroadcastOptions,
   type BroadcastResult,
+  type OperationGuard,
+  type PresenceThrottleOptions,
   type ScheduleHandle,
   type ScheduledContentSnapshot,
 } from '../automation/index.js'
@@ -122,6 +126,9 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private readonly machine: ConnectionStateMachine = createConnectionStateMachine()
   private reconnectStrategy: ReconnectStrategy
   private readonly authGuard: AuthGuard
+  private readonly operationGuard: OperationGuard
+  private readonly presenceThrottle: PresenceThrottleOptions | undefined
+  private readonly scheduleLimiter: RateLimiter | undefined
   private authExhausted = false
   private _socket: BaileysSocket | undefined
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined
@@ -170,6 +177,10 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.store = options.store ?? new MemoryMessageStore()
     this.reconnectStrategy = createReconnectStrategy(this.reconnectOptions)
     this.authGuard = createAuthGuard(options.authGuard)
+    this.operationGuard = createOperationGuard(options.operationGuard)
+    this.presenceThrottle = options.presence
+    const schedulePerSec = options.scheduleRateLimitPerSec ?? 1
+    this.scheduleLimiter = schedulePerSec > 0 ? new RateLimiter({ perSec: schedulePerSec }) : undefined
     this.commandPrefixes = normalizePrefixes(options.commandPrefix)
     this.citationConfig = options.citation
     this.ignoreMe = options.ignoreMe ?? true
@@ -244,6 +255,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   get group(): GroupModule {
     return (this._group ??= new GroupModule(
       () => this._socket as unknown as DomainSocketLike | undefined,
+      this.operationGuard,
     ))
   }
 
@@ -256,18 +268,21 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   get newsletter(): NewsletterModule {
     return (this._newsletter ??= new NewsletterModule(
       () => this._socket as unknown as DomainSocketLike | undefined,
+      this.operationGuard,
     ))
   }
 
   get community(): CommunityModule {
     return (this._community ??= new CommunityModule(
       () => this._socket as unknown as DomainSocketLike | undefined,
+      this.operationGuard,
     ))
   }
 
   get presence(): PresenceModule {
     return (this._presence ??= new PresenceModule(
       () => this._socket as unknown as AutomationSocketLike | undefined,
+      this.presenceThrottle,
     ))
   }
 
@@ -292,6 +307,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       store: this.store,
       sendSnapshot: (snapshot: ScheduledContentSnapshot) => this.dispatchSnapshot(snapshot),
       logger: this.logger,
+      ...(this.scheduleLimiter ? { acquire: () => this.scheduleLimiter!.acquire() } : {}),
     }))
   }
 

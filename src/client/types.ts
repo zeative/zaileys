@@ -1,5 +1,7 @@
 import type { UserFacingSocketConfig, WASocket } from 'baileys'
 import type { AuthStoreBundle } from '../auth/types.js'
+import type { OperationGuardOptions } from '../automation/operation-guard.js'
+import type { PresenceThrottleOptions } from '../automation/presence.js'
 import type { AuthGuardOptions } from '../connection/auth-guard.js'
 import type { DisconnectReasonDomain } from '../connection/disconnect-reason.js'
 import type { CitationConfig } from '../events/context.js'
@@ -54,6 +56,12 @@ export interface ClientOptions {
   ignoreMe?: boolean
   /** Bounds QR/pairing regeneration to avoid spam restriction. ON by default; `{ enabled: false }` to opt out. */
   authGuard?: AuthGuardOptions
+  /** Spaces out sensitive group/community/newsletter operations. ON by default; `{ enabled: false }` to opt out. */
+  operationGuard?: OperationGuardOptions
+  /** Drops duplicate presence (typing/recording/online) updates within a window. ON by default. */
+  presence?: PresenceThrottleOptions
+  /** Max scheduled messages dispatched per second, smoothing backlog bursts. Default `1`; `0` disables. */
+  scheduleRateLimitPerSec?: number
 }
 
 export type ConnectionEventMap = {

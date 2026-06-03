@@ -1,3 +1,4 @@
+import type { OperationGuard } from '../automation/operation-guard.js'
 import { ZaileysDomainError } from './errors.js'
 import type { DomainSocketLike } from './socket-like.js'
 import type { GroupMetadata, ParticipantUpdateResult } from './types.js'
@@ -5,7 +6,10 @@ import type { GroupMetadata, ParticipantUpdateResult } from './types.js'
 type RawParticipantResult = { status: string; jid: string; content?: unknown }
 
 export class GroupModule {
-  constructor(private readonly getSocket: () => DomainSocketLike | undefined) {}
+  constructor(
+    private readonly getSocket: () => DomainSocketLike | undefined,
+    private readonly guard?: OperationGuard,
+  ) {}
 
   protected requireSocket(): DomainSocketLike {
     const socket = this.getSocket()
@@ -19,27 +23,39 @@ export class GroupModule {
     return raw.map((entry) => ({ jid: entry.jid, status: entry.status }))
   }
 
+  private run<T>(category: Parameters<OperationGuard['run']>[0], op: () => Promise<T>): Promise<T> {
+    return this.guard ? this.guard.run(category, op) : op()
+  }
+
   async create(subject: string, participants: string[]): Promise<GroupMetadata> {
-    return this.requireSocket().groupCreate(subject, participants)
+    return this.run('group.create', () => this.requireSocket().groupCreate(subject, participants))
   }
 
   async addMember(groupId: string, jids: string[]): Promise<ParticipantUpdateResult[]> {
-    const raw = await this.requireSocket().groupParticipantsUpdate(groupId, jids, 'add')
+    const raw = await this.run('group.participants', () =>
+      this.requireSocket().groupParticipantsUpdate(groupId, jids, 'add'),
+    )
     return this.mapParticipants(raw)
   }
 
   async removeMember(groupId: string, jids: string[]): Promise<ParticipantUpdateResult[]> {
-    const raw = await this.requireSocket().groupParticipantsUpdate(groupId, jids, 'remove')
+    const raw = await this.run('group.participants', () =>
+      this.requireSocket().groupParticipantsUpdate(groupId, jids, 'remove'),
+    )
     return this.mapParticipants(raw)
   }
 
   async promote(groupId: string, jids: string[]): Promise<ParticipantUpdateResult[]> {
-    const raw = await this.requireSocket().groupParticipantsUpdate(groupId, jids, 'promote')
+    const raw = await this.run('group.participants', () =>
+      this.requireSocket().groupParticipantsUpdate(groupId, jids, 'promote'),
+    )
     return this.mapParticipants(raw)
   }
 
   async demote(groupId: string, jids: string[]): Promise<ParticipantUpdateResult[]> {
-    const raw = await this.requireSocket().groupParticipantsUpdate(groupId, jids, 'demote')
+    const raw = await this.run('group.participants', () =>
+      this.requireSocket().groupParticipantsUpdate(groupId, jids, 'demote'),
+    )
     return this.mapParticipants(raw)
   }
 
@@ -81,7 +97,7 @@ export class GroupModule {
   }
 
   async acceptInvite(code: string): Promise<string> {
-    const groupJid = await this.requireSocket().groupAcceptInvite(code)
+    const groupJid = await this.run('group.join', () => this.requireSocket().groupAcceptInvite(code))
     if (!groupJid) {
       throw new ZaileysDomainError('OPERATION_FAILED', 'invite acceptance failed')
     }

@@ -57,6 +57,35 @@ describe('Scheduler', () => {
     expect(sendSnapshot).toHaveBeenCalledTimes(1)
   })
 
+  it('awaits acquire() before dispatching a due job', async () => {
+    const sendSnapshot = vi.fn(async (_snap: ScheduledContentSnapshot) => undefined)
+    const acquire = vi.fn(async () => undefined)
+    const scheduler = new Scheduler({
+      store: {} as MessageStore,
+      sendSnapshot: sendSnapshot as never,
+      now: () => Date.now(),
+      acquire,
+    })
+    await scheduler.scheduleAt(new Date(1000), buildFor(JID))
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(acquire).toHaveBeenCalledTimes(1)
+    expect(sendSnapshot).toHaveBeenCalledTimes(1)
+  })
+
+  it('a rejecting acquire() suppresses the send (job is skipped, not crashed)', async () => {
+    const sendSnapshot = vi.fn(async (_snap: ScheduledContentSnapshot) => undefined)
+    const acquire = vi.fn(async () => Promise.reject(new Error('limiter down')))
+    const scheduler = new Scheduler({
+      store: {} as MessageStore,
+      sendSnapshot: sendSnapshot as never,
+      now: () => Date.now(),
+      acquire,
+    })
+    await scheduler.scheduleAt(new Date(1000), buildFor(JID))
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(sendSnapshot).not.toHaveBeenCalled()
+  })
+
   it('snapshot carries the resolved recipient', async () => {
     const { scheduler, sendSnapshot } = makeScheduler()
     await scheduler.scheduleAt(new Date(1000), buildFor(JID))

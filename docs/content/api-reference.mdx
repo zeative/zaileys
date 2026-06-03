@@ -233,12 +233,12 @@ Rate limiting, queues, broadcast, scheduling, presence. See [Broadcast & Schedul
 | `TaskQueue` | class | Concurrency-limited queue. Methods: `add(task)`, `onIdle()`. Options: `TaskQueueOptions`, `TaskQueueClock`. |
 | `runBroadcast(...)` | function | Fan-out send. Options: `BroadcastOptions`, `BroadcastResult`, `BroadcastDeps`. |
 | `Scheduler` | class | Persistent scheduler. Methods: `scheduleAt(...)`, `loadPending()`, `dispose()`. Deps/types: `SchedulerDeps`, `SchedulerTimer`, `ScheduleHandle`, `ScheduledContentSnapshot`. |
-| `PresenceModule` | class | Methods: `online()`, `offline()`, `typing(jid, ms?)`, `recording(jid, ms?)`. Types: `AutomationSocketLike`, `WAPresence`. |
+| `PresenceModule` | class | Methods: `online()`, `offline()`, `typing(jid, ms?)`, `recording(jid, ms?)`. Types: `AutomationSocketLike`, `WAPresence`. Full guide: [Presence](/presence). |
 | `RetryPolicy` / `ScheduledJob` / `ScheduledJobRecord` | type | Retry config and scheduled-job shapes. |
 
 ## Domain Modules
 
-Accessed via `client.group`, `client.privacy`, `client.newsletter`, `client.community`. See [Client & Lifecycle](/client).
+Accessed via `client.group`, `client.privacy`, `client.newsletter`, `client.community`. Full guides: [Groups](/groups) · [Communities](/community) · [Newsletters](/newsletter) · [Privacy & Blocking](/privacy). See also [Client & Lifecycle](/client).
 
 ```typescript
 const meta = await client.group.metadata('xxx@g.us')

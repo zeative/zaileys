@@ -166,6 +166,17 @@ const bodyText = (content: Record<string, unknown>): string | null =>
     contactText(content),
   )
 
+const buttonResponseText = (content: Record<string, unknown>): string | null =>
+  firstString(
+    asRecord(content['buttonsResponseMessage'])?.['selectedDisplayText'],
+    asRecord(content['buttonsResponseMessage'])?.['selectedButtonId'],
+    asRecord(content['templateButtonReplyMessage'])?.['selectedDisplayText'],
+    asRecord(content['templateButtonReplyMessage'])?.['selectedId'],
+    asRecord(content['listResponseMessage'])?.['title'],
+    asRecord(asRecord(content['listResponseMessage'])?.['singleSelectReply'])?.['selectedRowId'],
+    asRecord(asRecord(content['interactiveResponseMessage'])?.['body'])?.['text'],
+  )
+
 const mediaCaptionText = (content: Record<string, unknown>): string | null =>
   firstString(
     asRecord(content['imageMessage'])?.['caption'],
@@ -183,7 +194,7 @@ const anyText = (msg: WAMessage): string | null => {
   const content = asRecord(msg.message)
   if (content == null) return null
   const inner = unwrap(content)
-  return bodyText(inner) ?? mediaCaptionText(inner)
+  return bodyText(inner) ?? buttonResponseText(inner) ?? mediaCaptionText(inner)
 }
 
 const contextInfoOf = (msg: WAMessage): WAContextInfo | null => {

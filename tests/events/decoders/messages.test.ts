@@ -711,3 +711,36 @@ describe('comprehensive text in payload (main + replied + viewOnce)', () => {
     expect(out?.text).toBe('rahasia')
   })
 })
+
+describe('button responses in payload', () => {
+  const quotedBy = (quotedMessage: unknown): WAMessage =>
+    base({
+      key: { remoteJid: '628222@s.whatsapp.net', fromMe: false, id: 'BR' },
+      message: {
+        extendedTextMessage: {
+          text: 'q',
+          contextInfo: { stanzaId: 'BRQ', participant: '628999@s.whatsapp.net', remoteJid: '628222@s.whatsapp.net', quotedMessage },
+        },
+      },
+    } as Partial<WAMessage>)
+
+  it('replied: buttons response -> selectedDisplayText', async () => {
+    const out = await decodeText(quotedBy({ buttonsResponseMessage: { selectedButtonId: 'yes', selectedDisplayText: 'Ya, lanjut' } }), ctx)?.replied()
+    expect(out?.text).toBe('Ya, lanjut')
+  })
+
+  it('replied: list response -> title', async () => {
+    const out = await decodeText(quotedBy({ listResponseMessage: { title: 'Pizza', singleSelectReply: { selectedRowId: 'pizza' } } }), ctx)?.replied()
+    expect(out?.text).toBe('Pizza')
+  })
+
+  it('replied: template button reply -> selectedDisplayText', async () => {
+    const out = await decodeText(quotedBy({ templateButtonReplyMessage: { selectedId: 't1', selectedDisplayText: 'Action 1' } }), ctx)?.replied()
+    expect(out?.text).toBe('Action 1')
+  })
+
+  it('main: button response does NOT emit as text (button-click decoder handles it)', () => {
+    expect(decodeText(base({ message: { buttonsResponseMessage: { selectedButtonId: 'yes', selectedDisplayText: 'Ya' } } }), ctx)).toBeNull()
+    expect(decodeText(base({ message: { listResponseMessage: { title: 'Pizza', singleSelectReply: { selectedRowId: 'p' } } } }), ctx)).toBeNull()
+  })
+})

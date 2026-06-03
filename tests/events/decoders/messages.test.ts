@@ -601,3 +601,61 @@ describe('decodeMentionAll (Task 1b — MentionAllContext)', () => {
     expect(decodeMentionAll(base({ message: null }), ctx)).toBeNull()
   })
 })
+
+describe('replied() to rich / interactive bubbles', () => {
+  const withQuote = (quotedMessage: unknown, participant: string): WAMessage =>
+    base({
+      key: { remoteJid: '628222@s.whatsapp.net', fromMe: false, id: 'R1' },
+      message: {
+        extendedTextMessage: {
+          text: 'clear',
+          contextInfo: {
+            stanzaId: 'Q1',
+            participant,
+            remoteJid: '628222@s.whatsapp.net',
+            quotedMessage,
+          },
+        },
+      },
+    } as Partial<WAMessage>)
+
+  it('extracts text from a quoted AIRich (richResponseMessage) bubble', async () => {
+    const quoted = {
+      botForwardedMessage: {
+        message: {
+          richResponseMessage: {
+            submessages: [
+              { messageType: 2, messageText: 'nih link docs resminya kak:' },
+              { messageType: 2, messageText: 'kalau mau, bisa kirim link skill juga.' },
+            ],
+          },
+        },
+      },
+    }
+    const out = decodeText(withQuote(quoted, SELF), ctx)
+    const replied = await out?.replied()
+    expect(replied?.text).toBe('nih link docs resminya kak:\nkalau mau, bisa kirim link skill juga.')
+  })
+
+  it('marks isFromMe=true when the quoted bubble was authored by self', async () => {
+    const quoted = { botForwardedMessage: { message: { richResponseMessage: { submessages: [{ messageText: 'hi' }] } } } }
+    const out = decodeText(withQuote(quoted, SELF), ctx)
+    const replied = await out?.replied()
+    expect(replied?.isFromMe).toBe(true)
+  })
+
+  it('keeps isFromMe=false when the quoted bubble was authored by someone else', async () => {
+    const quoted = { conversation: 'orang lain' }
+    const out = decodeText(withQuote(quoted, '628999@s.whatsapp.net'), ctx)
+    const replied = await out?.replied()
+    expect(replied?.isFromMe).toBe(false)
+    expect(replied?.text).toBe('orang lain')
+  })
+
+  it('extracts body text from a quoted interactiveMessage (buttons/carousel)', async () => {
+    const quoted = { interactiveMessage: { body: { text: 'pilih salah satu ya' } } }
+    const out = decodeText(withQuote(quoted, SELF), ctx)
+    const replied = await out?.replied()
+    expect(replied?.text).toBe('pilih salah satu ya')
+  })
+})

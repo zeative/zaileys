@@ -54,14 +54,53 @@ const resolveJid = (key: WAMessage['key'] | undefined): string => {
   return typeof remote === 'string' && remote.length > 0 ? remote : ''
 }
 
-const textContent = (msg: WAMessage): string | null => {
-  const content = msg.message
-  if (content == null) return null
-  if (typeof content.conversation === 'string' && content.conversation.length > 0) {
-    return content.conversation
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  value != null && typeof value === 'object' ? (value as Record<string, unknown>) : null
+
+const nonEmptyString = (value: unknown): string | null =>
+  typeof value === 'string' && value.length > 0 ? value : null
+
+const richResponseText = (content: Record<string, unknown>): string | null => {
+  const forwarded = asRecord(asRecord(asRecord(content['botForwardedMessage'])?.['message'])?.['richResponseMessage'])
+  const rich = forwarded ?? asRecord(content['richResponseMessage'])
+  if (rich == null) return null
+  const submessages = rich['submessages']
+  if (!Array.isArray(submessages)) return null
+  const parts: string[] = []
+  for (const sub of submessages) {
+    const text = nonEmptyString(asRecord(sub)?.['messageText'])
+    if (text != null) parts.push(text)
   }
-  const ext = content.extendedTextMessage
-  if (ext != null && typeof ext.text === 'string' && ext.text.length > 0) return ext.text
+  const joined = parts.join('\n').trim()
+  return joined.length > 0 ? joined : null
+}
+
+const interactiveText = (content: Record<string, unknown>): string | null => {
+  const direct = asRecord(content['interactiveMessage'])
+  const viewOnce = asRecord(asRecord(asRecord(content['viewOnceMessage'])?.['message'])?.['interactiveMessage'])
+  const body = asRecord((direct ?? viewOnce)?.['body'])
+  return nonEmptyString(body?.['text'])
+}
+
+const textContent = (msg: WAMessage): string | null => {
+  const content = asRecord(msg.message)
+  if (content == null) return null
+  const conversation = nonEmptyString(content['conversation'])
+  if (conversation != null) return conversation
+  const extText = nonEmptyString(asRecord(content['extendedTextMessage'])?.['text'])
+  if (extText != null) return extText
+  const rich = richResponseText(content)
+  if (rich != null) return rich
+  const interactive = interactiveText(content)
+  if (interactive != null) return interactive
+  for (const field of ['imageMessage', 'videoMessage', 'documentMessage'] as const) {
+    const caption = nonEmptyString(asRecord(content[field])?.['caption'])
+    if (caption != null) return caption
+  }
+  const buttonsText = nonEmptyString(asRecord(content['buttonsMessage'])?.['contentText'])
+  if (buttonsText != null) return buttonsText
+  const listText = nonEmptyString(asRecord(content['listMessage'])?.['description'])
+  if (listText != null) return listText
   return null
 }
 
@@ -144,6 +183,14 @@ const decodeQuotedContext = async (
     if (typeof quoted.key.id !== 'string' || quoted.key.id.length === 0) return null
     const remoteJid = quoted.key.remoteJid
     if (typeof remoteJid !== 'string' || remoteJid.length === 0) return null
+    const participant = quoted.key.participant
+    if (
+      typeof participant === 'string' &&
+      ctx.selfJid.length > 0 &&
+      jidNormalizedUser(participant) === jidNormalizedUser(ctx.selfJid)
+    ) {
+      quoted.key.fromMe = true
+    }
     const qm = contextInfo.quotedMessage as WAMessage['message']
     const reconstructed = Object.assign(
       { key: quoted.key, message: qm ?? null },

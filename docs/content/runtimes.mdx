@@ -26,7 +26,7 @@ const { Client } = require('zaileys')       // CommonJS
 | Node.js | `>=20.0.0` | ✅ | ✅ | Primary target (`engines.node`) |
 | Bun | latest | ✅ | ✅ | Runs both bundles + TypeScript directly |
 | Deno | latest | ✅ | ✅ | Needs `--node-modules-dir` for npm deps |
-| Termux (Android) | Node 20+ | ✅ | ✅ | Native deps may need build tools |
+| Termux (Android) | Node 20+ | ✅ | ✅ | Install with `--legacy-peer-deps` (skips native `sharp`) |
 
 <Callout type="info">
   The `exports` map in `package.json` resolves `types` → `import` → `require` automatically.
@@ -212,23 +212,29 @@ await client.connect()
 
 ## Termux (Android)
 
-Termux installs Zaileys as a normal Node project. Install a Node 20+ runtime and the build
-toolchain so optional native modules can compile when a prebuilt binary is unavailable for the
-ARM/Android target.
+Termux installs Zaileys as a normal Node project. The recommended install skips the native
+`sharp` accelerator — Baileys declares `sharp` as a peer dependency, so a plain `npm install`
+tries to compile it from source and **fails on Android** (no prebuilt ARM binary, missing
+`libvips`/`node-addon-api`). Zaileys never needs `sharp`: image processing falls back to the
+bundled pure-JS `jimp` path automatically.
 
 <Steps>
-### Install Node and build tools
+### Install Node and ffmpeg
 
 ```bash
 pkg update && pkg upgrade
-pkg install nodejs-lts python make clang ffmpeg
+pkg install nodejs-lts ffmpeg
 ```
 
-### Install Zaileys
+### Install Zaileys (skips the native sharp peer)
 
 ```bash
-npm install zaileys
+npm install zaileys --legacy-peer-deps
 ```
+
+`--legacy-peer-deps` stops npm from auto-installing Baileys' optional `sharp` peer, so the
+install never touches `node-gyp`. Everything Zaileys needs (`baileys`, `jimp`, `audio-decode`,
+the bundled ffmpeg binaries) installs normally.
 
 ### Run
 
@@ -237,6 +243,13 @@ npx tsx bot.ts
 # or: node dist/bot.js
 ```
 </Steps>
+
+<Callout type="warning">
+  Plain `npm install zaileys` on Termux fails with `sharp ... command failed ... node install/build.js`.
+  That is **not** a Zaileys bug — it is Baileys' `sharp` peer trying to build from source. Use
+  `--legacy-peer-deps` (above) to skip it, or install the build toolchain
+  (`pkg install python make clang`) first if you genuinely want the native `sharp` accelerator.
+</Callout>
 
 <Callout type="info">
   Zaileys bundles `ffmpeg` and `ffprobe` binaries via `@ffmpeg-installer/ffmpeg` /
@@ -247,10 +260,10 @@ npx tsx bot.ts
 
 <Callout type="warning">
   Native add-ons such as `better-sqlite3` and `sharp` compile from source on Termux because prebuilt
-  binaries rarely ship for Android. Install `python`, `make`, and `clang` (above) so `node-gyp` can
-  build them. If a build fails, fall back to a pure-JS path: use the in-memory or file storage
-  adapter instead of SQLite (see [Storage Adapters](/storage)), and skip `sharp` so image
-  processing uses the bundled `jimp` fallback.
+  binaries rarely ship for Android. If you skip `sharp` with `--legacy-peer-deps` (above) you get a
+  fully working bot on the pure-JS `jimp` path. Only install `python make clang` if you specifically
+  need a native add-on — e.g. the SQLite storage adapter; otherwise prefer the in-memory or file
+  storage adapter (see [Storage Adapters](/storage)) and the bundled `jimp` fallback.
 </Callout>
 
 ## Native dependencies per runtime
@@ -269,14 +282,21 @@ loaded lazily, so the core library installs and runs without any compiler.
 
 ### sharp (image acceleration)
 
-`sharp` is **not** a declared dependency. Zaileys probes for it at runtime using a hybrid loader
-(`require('sharp')` first, then dynamic `import('sharp')`), so it works in both ESM and CJS bundles.
-If `sharp` is absent or fails to load, image and sticker processing automatically fall back to the
-bundled pure-JS `jimp` path. Install it only when you want the faster native path:
+`sharp` is **not** a declared dependency of Zaileys. Zaileys probes for it at runtime using a hybrid
+loader (`require('sharp')` first, then dynamic `import('sharp')`), so it works in both ESM and CJS
+bundles. If `sharp` is absent or fails to load, image and sticker processing automatically fall back
+to the bundled pure-JS `jimp` path. Install it only when you want the faster native path:
 
 ```bash
 npm i sharp
 ```
+
+<Callout type="warning">
+  `sharp` *is* pulled in transitively as a peer dependency of **Baileys**, and npm auto-installs it
+  on a normal `npm install`. On platforms with no prebuilt `sharp` binary (notably **Termux/Android**,
+  and some Alpine/musl setups) that triggers a source build that can fail. Install with
+  `npm install zaileys --legacy-peer-deps` to skip it and run on the `jimp` fallback.
+</Callout>
 
 <Callout type="info">
   On Bun and Node with a matching prebuilt, `sharp` installs without a compiler. On Termux it
@@ -330,8 +350,9 @@ backend you actually use:
 - **Node.js** — `>=20.0.0`; the primary, fully supported runtime.
 - **Bun** — `bun add zaileys`, runs `.ts` directly; ignore harmless `ws` upgrade warnings.
 - **Deno** — `import 'npm:zaileys'`, always run with `--node-modules-dir` plus the right permissions.
-- **Termux** — install `nodejs-lts python make clang ffmpeg`; prefer file/memory storage and the
-  `jimp` fallback if native builds fail.
+- **Termux** — install with `npm install zaileys --legacy-peer-deps` (skips Baileys' native `sharp`
+  peer that fails to compile on Android); `pkg install nodejs-lts ffmpeg`; prefer file/memory storage
+  and the `jimp` fallback.
 
 For platform-agnostic install steps see [Installation](/installation), for picking a session backend
 see [Storage Adapters](/storage), and for runtime-specific failures see

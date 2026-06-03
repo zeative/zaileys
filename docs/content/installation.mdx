@@ -49,10 +49,18 @@ Bun, Deno, and Termux.
 | Node.js | `>=20` | Primary target. Both `import` and `require` work. |
 | Bun | latest | Runs both bundles directly — `bun add zaileys`. |
 | Deno | latest | Run with `deno run --node-modules-dir` so npm deps resolve. |
-| Termux (Android) | — | Installs as a normal Node project. |
+| Termux (Android) | — | Install with `npm install zaileys --legacy-peer-deps` (skips the native `sharp` peer). |
 
 For per-runtime caveats (the `node:` protocol on Deno, ffmpeg fallback on Termux, etc.) see
 [Runtime Support](/runtimes).
+
+<Callout type="warning">
+  On **Termux/Android** (and some Alpine/musl images) a plain `npm install zaileys` fails while
+  building `sharp` from source — `sharp` is a peer dependency of Baileys and has no prebuilt binary
+  there. Install with `npm install zaileys --legacy-peer-deps` to skip it; image processing falls
+  back to the bundled `jimp` path. `pnpm add zaileys` and `yarn add zaileys` are unaffected. See
+  [Runtimes → Termux](/runtimes#termux-android).
+</Callout>
 
 <Callout type="info">
   The published package bundles `ffmpeg` and `ffprobe` binaries for media conversion, so you do

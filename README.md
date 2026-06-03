@@ -113,6 +113,8 @@ npm i zaileys      # or: pnpm add zaileys  •  yarn add zaileys  •  bun add z
 
 Requires **Node.js v20+**. The `file` auth store is the zero-config default and needs nothing else.
 
+> **Termux / Android:** install with `npm install zaileys --legacy-peer-deps`. A plain `npm install` tries to compile `sharp` (a peer dependency of Baileys, no prebuilt ARM binary) and fails; the flag skips it and Zaileys falls back to the bundled `jimp` path. `pnpm`/`yarn` are unaffected.
+
 Other storage backends are **optional peer dependencies** — install only the one you use:
 
 ```bash
@@ -122,7 +124,7 @@ npm i pg               # postgres adapters
 npm i convex           # convex adapters
 ```
 
-`sharp` is an optional accelerator for media/sticker processing; without it Zaileys falls back to a pure-JS path automatically.
+`sharp` is an optional accelerator for media/sticker processing; without it Zaileys falls back to a pure-JS path automatically. It is **not** a Zaileys dependency, but Baileys pulls it in as a peer — on platforms with no prebuilt binary (Termux/Android, some Alpine) install with `--legacy-peer-deps` to skip it.
 
 ## What you can build
 

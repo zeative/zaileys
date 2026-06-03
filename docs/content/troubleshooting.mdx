@@ -69,6 +69,7 @@ The disconnect reason in the parentheses tells you whether reconnecting will hel
 | `restart-required` | Yes | WhatsApp asked for a fresh socket. |
 | `unavailable-service` | Yes | WhatsApp service temporarily unavailable. |
 | `multi-device-mismatch` | Yes | Device list out of sync. |
+| `rate-limited` | Yes (long fixed backoff) | WhatsApp returned HTTP 429. Non-fatal, but zaileys waits `rateLimitedDelayMs` (default 5 min) instead of the exponential ladder. See [Account restricted / banned](#account-restricted--banned-your-account-is-restricted-right-now). |
 | `bad-session` | Yes (but creds are suspect) | Triggers the "invalid/corrupted" hint above. |
 | `logged-out` | No (fatal) | You unlinked the device — re-authenticate. |
 | `connection-replaced` | No (fatal) | Another session took over this account. |
@@ -77,7 +78,7 @@ The disconnect reason in the parentheses tells you whether reconnecting will hel
 
 `logged-out`, `connection-replaced`, and `forbidden` are fatal — the library stops retrying and emits a final `disconnect` with `willReconnect: false`. For everything else it backs off and retries.
 
-You can observe and tune this. Defaults: `enabled: true`, `maxAttempts: Infinity`, `initialDelayMs: 1000`, `maxDelayMs: 60000`, `jitterFactor: 0.2`.
+You can observe and tune this. Defaults: `enabled: true`, `maxAttempts: Infinity`, `initialDelayMs: 3000`, `maxDelayMs: 60000`, `jitterFactor: 0.2`, `rateLimitedDelayMs: 300000`.
 
 ```typescript
 import { Client } from 'zaileys'
@@ -146,6 +147,32 @@ Error: failed to request pairing code: <reason from WhatsApp>
 Common mistakes: leaving the local leading `0` (write `62812...`, not `0812...`), using a number not registered on WhatsApp, or requesting too many codes in a short window. Wait a few minutes and try again, and double-check the digits.
 </Callout>
 
+### Account restricted / banned ("Your account is restricted right now")
+
+If WhatsApp shows *"Your account is restricted right now"* (or you keep getting HTTP 429 / `rate-limited` disconnects), the account has been throttled or temporarily banned. The two things that trigger this:
+
+1. **Spamming pairing codes / QR refreshes.** A reconnect loop that never finishes authenticating keeps creating a fresh socket, and each one re-emits a QR or requests a brand-new pairing code. With no cap that becomes a flood, and WhatsApp answers with `rate-overlimit` and a restriction.
+2. **Rapid bulk operations.** Mass-joining or mass-creating groups, bulk-adding members, or blasting messages — especially on a fresh number — looks automated and abusive.
+
+`zaileys` now defends against both **by default**:
+
+- [`authGuard`](/configuration#authguard) caps QR (`maxQrAttempts`, default 5) and pairing (`maxPairingAttempts`, default 3) regeneration, with an escalating `pairingCooldownMs` between pairing requests. When the budget is spent it **stops** and emits an [`auth-exhausted`](/events) event instead of looping.
+- [`operationGuard`](/configuration#operationguard) serializes and spaces out group / community / newsletter operations per category.
+- The reconnect backoff is safer: `initialDelayMs` defaults to `3000` (no instant reconnect storms), and a `rate-limited` (429) disconnect uses the fixed [`rateLimitedDelayMs`](/configuration#reconnect) (default 5 minutes) instead of the exponential ladder.
+
+If you are already restricted:
+
+<Callout type="error">
+**Stop the bot and wait out the timer** — restrictions are usually time-based (often a few hours). Do **not** keep restarting / retrying; every fresh connection attempt while restricted prolongs the block and can escalate it.
+</Callout>
+
+- Keep `authGuard` **on**. Disabling it (`{ enabled: false }`) is what re-creates the spam loop.
+- For pairing, use a valid registered number (E.164, no leading `0`) and do **not** restart the process in a tight loop — fix *why* auth isn't completing first.
+- Avoid mass group joins / creates / member-adds and high-volume sends, particularly on new numbers. Leave `operationGuard` on so those calls stay spaced out.
+- When you do reconnect, do it once and let the built-in backoff handle retries; don't wrap `connect()` in your own retry loop.
+
+See [Configuration](/configuration) for `authGuard`, `operationGuard`, `presence`, and the `reconnect` defaults referenced here.
+
 ## Module & dependency errors
 
 ### "Cannot find module" sharp / better-sqlite3 / pg / redis / convex
@@ -187,8 +214,47 @@ bun add better-sqlite3       # or: pg | redis | convex
 See [Storage Adapters](/storage) for which adapter uses which driver. The default file-based auth store needs none of these.
 
 <Callout type="info">
-`sharp` is a special case: it is **fully optional and not a peer dependency**. Sticker/image processing tries `sharp` first and silently falls back to the bundled `jimp` engine if it is not installed — so a missing `sharp` never throws, it just uses the fallback. Install `sharp` only if you want its faster image pipeline: `pnpm add sharp`.
+`sharp` is a special case: it is **fully optional and not a peer dependency** of Zaileys. Sticker/image processing tries `sharp` first and silently falls back to the bundled `jimp` engine if it is not installed — so a missing `sharp` never throws, it just uses the fallback. Install `sharp` only if you want its faster image pipeline: `pnpm add sharp`.
 </Callout>
+
+### `npm install` fails building `sharp` (Termux / Android / Alpine)
+
+The install aborts with something like:
+
+```text
+npm error code 1
+npm error path .../node_modules/sharp
+npm error command failed
+npm error command sh -c node install/check.js || npm run build
+npm error sharp: Attempting to build from source via node-gyp
+npm error sharp: Please add node-addon-api to your dependencies
+```
+
+This is **not** a Zaileys bug. `sharp` is declared as a peer dependency by **Baileys** (`"sharp": "*"`), and Baileys does not mark it optional in `peerDependenciesMeta`, so npm 7+ auto-installs it. On platforms with no prebuilt `sharp` binary — **Termux/Android**, and some Alpine/musl images — npm tries to compile it from source and fails (no `libvips`, missing build tools).
+
+Zaileys never requires `sharp`: image and sticker processing fall back to the bundled pure-JS `jimp` path automatically. Install with `--legacy-peer-deps` so npm skips Baileys' `sharp` peer:
+
+<Tabs items={['npm','pnpm','yarn']}>
+<Tabs.Tab>
+```bash
+npm install zaileys --legacy-peer-deps
+```
+</Tabs.Tab>
+<Tabs.Tab>
+```bash
+# pnpm does not run dependency build scripts unless approved, so the sharp build never fires
+pnpm add zaileys
+```
+</Tabs.Tab>
+<Tabs.Tab>
+```bash
+# Yarn does not auto-install peer dependencies, so sharp is skipped
+yarn add zaileys
+```
+</Tabs.Tab>
+</Tabs>
+
+If you genuinely want the native `sharp` accelerator on Termux, install the build toolchain first (`pkg install python make clang`) and then `npm install zaileys` — but the `jimp` fallback works fine without it.
 
 ### ESM / `require()` errors ("require is not defined", "ERR_REQUIRE_ESM", "Cannot use import statement")
 

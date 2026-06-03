@@ -60,6 +60,40 @@ const asRecord = (value: unknown): Record<string, unknown> | null =>
 const nonEmptyString = (value: unknown): string | null =>
   typeof value === 'string' && value.length > 0 ? value : null
 
+const firstString = (...values: unknown[]): string | null => {
+  for (const value of values) {
+    const text = nonEmptyString(value)
+    if (text != null) return text
+  }
+  return null
+}
+
+const WRAPPER_FIELDS = [
+  'ephemeralMessage',
+  'viewOnceMessage',
+  'viewOnceMessageV2',
+  'viewOnceMessageV2Extension',
+  'documentWithCaptionMessage',
+  'editedMessage',
+] as const
+
+const unwrap = (content: Record<string, unknown>): Record<string, unknown> => {
+  let node = content
+  for (let i = 0; i < 5; i++) {
+    let next: Record<string, unknown> | null = null
+    for (const field of WRAPPER_FIELDS) {
+      const inner = asRecord(asRecord(node[field])?.['message'])
+      if (inner != null) {
+        next = inner
+        break
+      }
+    }
+    if (next == null) break
+    node = next
+  }
+  return node
+}
+
 const richResponseText = (content: Record<string, unknown>): string | null => {
   const forwarded = asRecord(asRecord(asRecord(content['botForwardedMessage'])?.['message'])?.['richResponseMessage'])
   const rich = forwarded ?? asRecord(content['richResponseMessage'])
@@ -75,33 +109,81 @@ const richResponseText = (content: Record<string, unknown>): string | null => {
   return joined.length > 0 ? joined : null
 }
 
-const interactiveText = (content: Record<string, unknown>): string | null => {
-  const direct = asRecord(content['interactiveMessage'])
-  const viewOnce = asRecord(asRecord(asRecord(content['viewOnceMessage'])?.['message'])?.['interactiveMessage'])
-  const body = asRecord((direct ?? viewOnce)?.['body'])
-  return nonEmptyString(body?.['text'])
+const templateText = (content: Record<string, unknown>): string | null => {
+  const tpl = asRecord(content['templateMessage'])
+  const hydrated = asRecord(tpl?.['hydratedTemplate']) ?? asRecord(tpl?.['hydratedFourRowTemplate'])
+  return nonEmptyString(hydrated?.['hydratedContentText'])
 }
 
-const textContent = (msg: WAMessage): string | null => {
+const pollText = (content: Record<string, unknown>): string | null =>
+  firstString(
+    asRecord(content['pollCreationMessage'])?.['name'],
+    asRecord(content['pollCreationMessageV2'])?.['name'],
+    asRecord(content['pollCreationMessageV3'])?.['name'],
+  )
+
+const locationText = (content: Record<string, unknown>): string | null => {
+  const loc = asRecord(content['locationMessage']) ?? asRecord(content['liveLocationMessage'])
+  if (loc == null) return null
+  const labelled = firstString(loc['name'], loc['address'])
+  if (labelled != null) {
+    const name = nonEmptyString(loc['name'])
+    const address = nonEmptyString(loc['address'])
+    return name != null && address != null && name !== address ? `${name} — ${address}` : labelled
+  }
+  const lat = loc['degreesLatitude']
+  const lng = loc['degreesLongitude']
+  return typeof lat === 'number' && typeof lng === 'number' ? `${lat}, ${lng}` : null
+}
+
+const contactText = (content: Record<string, unknown>): string | null => {
+  const single = nonEmptyString(asRecord(content['contactMessage'])?.['displayName'])
+  if (single != null) return single
+  const arr = asRecord(content['contactsArrayMessage'])
+  const display = nonEmptyString(arr?.['displayName'])
+  if (display != null) return display
+  const contacts = arr?.['contacts']
+  if (Array.isArray(contacts)) {
+    const names = contacts
+      .map((c) => nonEmptyString(asRecord(c)?.['displayName']))
+      .filter((n): n is string => n != null)
+    if (names.length > 0) return names.join(', ')
+  }
+  return null
+}
+
+const bodyText = (content: Record<string, unknown>): string | null =>
+  firstString(
+    content['conversation'],
+    asRecord(content['extendedTextMessage'])?.['text'],
+    richResponseText(content),
+    nonEmptyString(asRecord(asRecord(content['interactiveMessage'])?.['body'])?.['text']),
+    asRecord(content['buttonsMessage'])?.['contentText'],
+    asRecord(content['listMessage'])?.['description'],
+    templateText(content),
+    pollText(content),
+    locationText(content),
+    contactText(content),
+  )
+
+const mediaCaptionText = (content: Record<string, unknown>): string | null =>
+  firstString(
+    asRecord(content['imageMessage'])?.['caption'],
+    asRecord(content['videoMessage'])?.['caption'],
+    asRecord(content['documentMessage'])?.['caption'],
+    asRecord(content['documentMessage'])?.['fileName'],
+  )
+
+const mainText = (msg: WAMessage): string | null => {
+  const content = asRecord(msg.message)
+  return content == null ? null : bodyText(unwrap(content))
+}
+
+const anyText = (msg: WAMessage): string | null => {
   const content = asRecord(msg.message)
   if (content == null) return null
-  const conversation = nonEmptyString(content['conversation'])
-  if (conversation != null) return conversation
-  const extText = nonEmptyString(asRecord(content['extendedTextMessage'])?.['text'])
-  if (extText != null) return extText
-  const rich = richResponseText(content)
-  if (rich != null) return rich
-  const interactive = interactiveText(content)
-  if (interactive != null) return interactive
-  for (const field of ['imageMessage', 'videoMessage', 'documentMessage'] as const) {
-    const caption = nonEmptyString(asRecord(content[field])?.['caption'])
-    if (caption != null) return caption
-  }
-  const buttonsText = nonEmptyString(asRecord(content['buttonsMessage'])?.['contentText'])
-  if (buttonsText != null) return buttonsText
-  const listText = nonEmptyString(asRecord(content['listMessage'])?.['description'])
-  if (listText != null) return listText
-  return null
+  const inner = unwrap(content)
+  return bodyText(inner) ?? mediaCaptionText(inner)
 }
 
 const contextInfoOf = (msg: WAMessage): WAContextInfo | null => {
@@ -172,7 +254,7 @@ const decodeQuotedContext = async (
     if (ctx.resolveQuoted != null && parentRemoteJid.length > 0) {
       const original = await ctx.resolveQuoted(stanzaId, parentRemoteJid)
       if (original != null && original.message != null) {
-        const originalText = textContent(original) ?? ''
+        const originalText = anyText(original) ?? ''
         const fromStore = buildContext(original, ctx, chatTypeOf(original.message), originalText)
         if (fromStore !== null) return fromStore
       }
@@ -196,7 +278,7 @@ const decodeQuotedContext = async (
       { key: quoted.key, message: qm ?? null },
       quoted.sender?.pushName != null ? { pushName: quoted.sender.pushName } : {},
     ) as WAMessage
-    const text = textContent(reconstructed) ?? ''
+    const text = anyText(reconstructed) ?? ''
     return buildContext(reconstructed, ctx, chatTypeOf(qm), text)
   } catch {
     return null
@@ -288,7 +370,7 @@ const buildContext = (
 }
 
 export const decodeText = (msg: WAMessage, ctx: DecodeContext): MessageContext | null => {
-  const content = textContent(msg)
+  const content = mainText(msg)
   if (content === null) return null
   return buildContext(msg, ctx, 'text', content)
 }
@@ -349,7 +431,7 @@ export const decodeMention = (msg: WAMessage, ctx: DecodeContext): MentionContex
   if (!hasSelf) return null
   const content = msg.message
   if (content == null) return null
-  const text = textContent(msg) ?? ''
+  const text = anyText(msg) ?? ''
   let chatType: ChatType = 'text'
   if (content != null) {
     const fields = Object.values(MEDIA_FIELD)
@@ -374,7 +456,7 @@ export const decodeMentionAll = (msg: WAMessage, ctx: DecodeContext): MentionAll
   if (!mentionAll) return null
   const content = msg.message
   if (content == null) return null
-  const text = textContent(msg) ?? ''
+  const text = anyText(msg) ?? ''
   const base = buildContext(msg, ctx, 'text', text)
   if (base === null) return null
   return { ...base, isMentionAll: true, selfJid: ctx.selfJid }

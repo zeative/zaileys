@@ -659,3 +659,55 @@ describe('replied() to rich / interactive bubbles', () => {
     expect(replied?.text).toBe('pilih salah satu ya')
   })
 })
+
+describe('comprehensive text in payload (main + replied + viewOnce)', () => {
+  const quotedBy = (quotedMessage: unknown, participant = SELF): WAMessage =>
+    base({
+      key: { remoteJid: '628222@s.whatsapp.net', fromMe: false, id: 'RX' },
+      message: {
+        extendedTextMessage: {
+          text: 'q',
+          contextInfo: { stanzaId: 'QX', participant, remoteJid: '628222@s.whatsapp.net', quotedMessage },
+        },
+      },
+    } as Partial<WAMessage>)
+
+  it('main: poll -> text event with poll name', () => {
+    const out = decodeText(base({ message: { pollCreationMessage: { name: 'Makan apa?' } } }), ctx)
+    expect(out?.text).toBe('Makan apa?')
+  })
+
+  it('main: location -> text event with name/address', () => {
+    const out = decodeText(base({ message: { locationMessage: { name: 'Monas', address: 'Jakarta Pusat' } } }), ctx)
+    expect(out?.text).toBe('Monas — Jakarta Pusat')
+  })
+
+  it('main: contact -> text event with display name', () => {
+    const out = decodeText(base({ message: { contactMessage: { displayName: 'Budi' } } }), ctx)
+    expect(out?.text).toBe('Budi')
+  })
+
+  it('main: document/image with caption does NOT double-emit as text (own decoder handles it)', () => {
+    expect(decodeText(base({ message: { documentMessage: { caption: 'laporan', fileName: 'a.pdf' } } }), ctx)).toBeNull()
+    expect(decodeText(base({ message: { imageMessage: { caption: 'hai' } } }), ctx)).toBeNull()
+  })
+
+  it('replied: document caption + filename fallback', async () => {
+    const withCap = await decodeText(quotedBy({ documentMessage: { caption: 'laporan q3' } }), ctx)?.replied()
+    expect(withCap?.text).toBe('laporan q3')
+    const noCapName = await decodeText(quotedBy({ documentMessage: { fileName: 'invoice.pdf' } }), ctx)?.replied()
+    expect(noCapName?.text).toBe('invoice.pdf')
+  })
+
+  it('replied: poll / location / contact', async () => {
+    expect((await decodeText(quotedBy({ pollCreationMessage: { name: 'Voting' } }), ctx)?.replied())?.text).toBe('Voting')
+    expect((await decodeText(quotedBy({ locationMessage: { name: 'Kantor' } }), ctx)?.replied())?.text).toBe('Kantor')
+    expect((await decodeText(quotedBy({ contactMessage: { displayName: 'Sari' } }), ctx)?.replied())?.text).toBe('Sari')
+  })
+
+  it('replied: viewOnce-wrapped image caption is unwrapped', async () => {
+    const quoted = { viewOnceMessageV2: { message: { imageMessage: { caption: 'rahasia' } } } }
+    const out = await decodeText(quotedBy(quoted), ctx)?.replied()
+    expect(out?.text).toBe('rahasia')
+  })
+})

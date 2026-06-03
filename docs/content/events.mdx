@@ -60,6 +60,7 @@ These fire as your session connects, authenticates, and (occasionally) drops. Ev
 | `connect` | `{ sessionId, me }` | The socket is fully open and authenticated. `me` is `{ id, lid?, name? }` — your own account. |
 | `reconnecting` | `{ sessionId, attempt, delayMs, reason }` | A reconnect is scheduled after a recoverable drop. `attempt` is the 1-based try number, `delayMs` is the backoff wait, `reason` is a `DisconnectReasonDomain`. |
 | `disconnect` | `{ sessionId, reason, willReconnect }` | The connection closed. `reason` is a `DisconnectReasonDomain`; `willReconnect` tells you whether zaileys will retry. |
+| `auth-exhausted` | `{ sessionId, kind, attempts, max }` | The [`authGuard`](/configuration#authguard) budget ran out — too many QR / pairing regenerations. `kind` is `'qr' \| 'pairing'`. The client stops and will not auto-retry until you call `connect()` again. |
 | `error` | `{ sessionId, error }` | An internal connection error surfaced as an `Error`. |
 
 ### Inbound messages
@@ -144,7 +145,7 @@ client.on('connect', async ({ sessionId, me }) => {
 
 ### `disconnect` — the connection closed
 
-`reason` is a normalized `DisconnectReasonDomain` (one of `logged-out`, `connection-replaced`, `forbidden`, `restart-required`, `bad-session`, `connection-closed`, `connection-lost`, `multi-device-mismatch`, `unavailable-service`, `unknown`). `willReconnect` tells you whether zaileys is going to retry automatically.
+`reason` is a normalized `DisconnectReasonDomain` (one of `logged-out`, `connection-replaced`, `forbidden`, `restart-required`, `bad-session`, `connection-closed`, `connection-lost`, `multi-device-mismatch`, `unavailable-service`, `rate-limited`, `unknown`). `willReconnect` tells you whether zaileys is going to retry automatically. `rate-limited` maps from a WhatsApp HTTP 429 and is **non-fatal** — zaileys reconnects, but with the long fixed [`rateLimitedDelayMs`](/configuration#reconnect) backoff (default 5 minutes) instead of the exponential ladder.
 
 ```typescript
 client.on('disconnect', ({ reason, willReconnect }) => {
@@ -172,6 +173,20 @@ client.on('reconnecting', ({ attempt, delayMs, reason }) => {
   console.log(`Reconnect #${attempt} in ${delayMs}ms (was: ${reason})`)
 })
 ```
+
+The `auth-exhausted` event fires once the [`authGuard`](/configuration#authguard) budget is spent — the client has emitted `maxQrAttempts` QR codes (default 5) or made `maxPairingAttempts` pairing requests (default 3) without completing login. At that point zaileys **stops**: it tears the socket down and will **not** auto-retry. This is deliberate — endlessly regenerating a QR / pairing code is exactly what spams WhatsApp into restricting the account. To retry, call `connect()` again (which resets the budget); but first investigate *why* auth never completed (wrong phone number, QR never scanned, network never staying up):
+
+```typescript
+client.on('auth-exhausted', ({ kind, attempts, max }) => {
+  console.error(`auth-exhausted: gave up after ${attempts}/${max} ${kind} attempt(s)`)
+  // fix the underlying cause, then re-arm the budget:
+  // await client.connect()
+})
+```
+
+<Callout type="warning">
+Do **not** wrap `connect()` in a tight retry loop on `auth-exhausted` — that defeats the guard and re-creates the very loop that gets accounts restricted. See [Account restricted / banned](/troubleshooting) for guidance.
+</Callout>
 
 ---
 

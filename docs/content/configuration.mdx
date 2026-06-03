@@ -38,16 +38,21 @@ const client = new Client({ sessionId: 'default' })
 | `ignoreMe` | `boolean` | `true` | When `true`, inbound messages sent by your own account are dropped before reaching handlers. |
 | `citation` | `CitationConfig` | `undefined` | Configures the per-message `citation.authors()` / `citation.banned()` predicates available in message context. |
 | `reconnect` | `ReconnectOptions` | `{}` (strategy defaults below) | Tunes the auto-reconnect backoff strategy. |
+| `authGuard` | `AuthGuardOptions` | on (bounds QR/pairing regeneration) | Caps how many QR codes / pairing codes the client regenerates, with an escalating pairing cooldown, so a stuck auth loop can't spam WhatsApp into a restriction. |
+| `operationGuard` | `OperationGuardOptions` | on (spaces group/community/newsletter ops) | Serializes and rate-limits sensitive group / community / newsletter operations per category so rapid bulk actions don't trip a ban. |
+| `presence` | `PresenceThrottleOptions` | on (drops duplicate presence) | Drops repeated presence updates (typing / recording / online) for the same chat within a short window. |
+| `scheduleRateLimitPerSec` | `number` | `1` (`0` disables) | Max scheduled messages dispatched per second, smoothing out a backlog of overdue jobs so they don't all fire at once. |
 | `autoConnect` | `boolean` | `true` | When `true`, the constructor calls `connect()` on the next microtask. Set `false` to connect manually. |
 | `qrTerminal` | `boolean` | `true` | When `true`, prints the QR code to the terminal in addition to emitting the `qr` event. |
 | `statusLog` | `boolean` | `true` | When `true`, writes human-readable connection status lines to `stderr` and suppresses noisy libsignal logs. |
 | `cacheSignal` | `boolean` | `true` | When `true`, wraps the auth store with an in-memory signal-key cache for faster reads. |
-| `baileys` | `Partial<UserFacingSocketConfig>` | `{}` | Extra Baileys socket config merged into the internal config (after `markOnlineOnConnect: false`, before the managed `auth` / `logger`). |
+| `baileys` | `Partial<UserFacingSocketConfig>` | `{}` | Extra Baileys socket config merged into the internal config (after the internal defaults `markOnlineOnConnect: false` / `syncFullHistory: false` / `qrTimeout: 60000`, before the managed `auth` / `logger`). |
 
 <Callout type="warning">
-  `auth`, `logger`, and `markOnlineOnConnect: false` are set internally and override anything you
-  pass through `baileys`. Use `auth` / `store` / `logger` top-level options for those concerns
-  rather than reaching into `baileys`.
+  `auth` and `logger` are **forced** internally and override anything you pass through `baileys`.
+  The safety defaults `markOnlineOnConnect: false`, `syncFullHistory: false`, and `qrTimeout` are set
+  **before** your `baileys` spread, so those three you *can* override. Use the top-level `auth` /
+  `store` / `logger` options rather than reaching into `baileys` for those concerns.
 </Callout>
 
 ## `sessionId`
@@ -269,9 +274,10 @@ only the fields you care about.
 | ----- | ---- | ------- | ----------- |
 | `enabled` | `boolean` | `true` | Whether to reconnect at all after a non-fatal disconnect. |
 | `maxAttempts` | `number` | `Infinity` | Maximum reconnect attempts before giving up. |
-| `initialDelayMs` | `number` | `1000` | Base delay for the first attempt; doubles each subsequent attempt. |
+| `initialDelayMs` | `number` | `3000` | Base delay for the first attempt; doubles each subsequent attempt. (Default raised from `1000` — instant reconnect storms are a ban trigger.) |
 | `maxDelayMs` | `number` | `60000` | Upper bound on the (jittered) delay between attempts. |
 | `jitterFactor` | `number` | `0.2` | Randomization applied to the delay (±20% by default) to avoid thundering herds. |
+| `rateLimitedDelayMs` | `number` | `300000` | Fixed backoff used when the disconnect reason is `rate-limited` (HTTP 429), instead of the exponential ladder. |
 
 ```typescript
 import { Client } from 'zaileys'
@@ -290,6 +296,149 @@ const client = new Client({
   Fatal disconnects (such as logged-out) never trigger a reconnect regardless of these settings;
   zaileys clears the auth folder so you can re-authenticate. See [Events](/events) for the
   `disconnect` / `reconnecting` payloads.
+</Callout>
+
+<Callout type="info">
+  A `rate-limited` (HTTP 429) disconnect is **non-fatal** — zaileys still reconnects, but it uses the
+  fixed `rateLimitedDelayMs` (default 5 minutes) instead of the exponential ladder, so it backs off
+  hard rather than hammering WhatsApp while you are being throttled.
+</Callout>
+
+## `authGuard`
+
+`authGuard` bounds how many times the client regenerates a login QR or requests a pairing code. Every
+reconnect creates a fresh socket that re-emits a QR / requests a new pairing code; with no cap and no
+cooldown, an auth flow that never completes turns into a loop that spams WhatsApp — which answers with
+HTTP 429 (`rate-overlimit`) and the dreaded *"Your account is restricted right now"*. The guard puts a
+ceiling on that.
+
+| Field | Type | Default | Description |
+| ----- | ---- | ------- | ----------- |
+| `enabled` | `boolean` | `true` | Set `{ enabled: false }` to restore the old unlimited behavior. |
+| `maxQrAttempts` | `number` | `5` | Total QR codes emitted before the client gives up. |
+| `maxPairingAttempts` | `number` | `3` | Total pairing-code requests before giving up. |
+| `pairingCooldownMs` | `number` | `60000` | Base cooldown between pairing requests; it escalates per attempt (60s, then 120s, then 180s…) capped at `300000` (5 min). |
+
+When the budget is exhausted the client **stops** (it does not keep looping), emits an
+[`auth-exhausted`](/events) event, and tears down. Calling `client.connect()` again resets the budget
+and retries; the budget also resets automatically on a successful connection.
+
+```typescript
+import { Client } from 'zaileys'
+
+const client = new Client({
+  authType: 'pairing',
+  phoneNumber: '628xxxxxxxxxx',
+  authGuard: {
+    maxPairingAttempts: 3,
+    pairingCooldownMs: 60_000,
+  },
+})
+
+client.on('auth-exhausted', ({ kind, attempts, max }) => {
+  console.error(`auth gave up after ${attempts}/${max} ${kind} attempts — fix auth, then connect() again`)
+})
+```
+
+<Callout type="warning">
+  Keep `authGuard` on. It is the main protection against spamming WhatsApp into an account
+  restriction during a stuck QR / pairing loop. Only set `{ enabled: false }` if you have your own
+  external throttling. See [Account restricted / banned](/troubleshooting) if you have already hit
+  the limit.
+</Callout>
+
+## `operationGuard`
+
+`operationGuard` serializes and spaces out sensitive group / community / newsletter operations.
+Rapidly joining or creating groups and mass-adding members is one of the top ban triggers, so each
+operation **category** has a minimum interval — a rapid second call to the same category simply waits
+until the interval elapses.
+
+| Field | Type | Default | Description |
+| ----- | ---- | ------- | ----------- |
+| `enabled` | `boolean` | `true` | Set `{ enabled: false }` to disable spacing entirely. |
+| `intervalsMs` | `Partial<Record<OperationCategory, number>>` | `{}` | Per-category minimum-interval overrides (ms). |
+
+Default minimum interval per category:
+
+| Category | Default interval (ms) |
+| -------- | --------------------- |
+| `group.create` | `60000` |
+| `group.join` | `30000` |
+| `group.participants` | `10000` |
+| `group.update` | `3000` |
+| `community.create` | `120000` |
+| `community.join` | `30000` |
+| `community.update` | `3000` |
+| `newsletter.create` | `120000` |
+| `newsletter.follow` | `2000` |
+| `newsletter.update` | `3000` |
+
+The affected methods are `client.group.create` / `addMember` / `removeMember` / `promote` / `demote` /
+`acceptInvite`, `client.community.create` / `createGroup` / `acceptInvite`, and
+`client.newsletter.create` / `follow` / `unfollow`.
+
+```typescript
+import { Client } from 'zaileys'
+
+const client = new Client({
+  operationGuard: {
+    intervalsMs: {
+      'group.participants': 15_000, // slow member adds down even further
+    },
+  },
+})
+```
+
+<Callout type="warning">
+  Mass group joins / creates / member-adds on a fresh number are a fast path to a ban. Leaving
+  `operationGuard` on (the default) keeps those calls spaced out automatically. Disable with
+  `{ enabled: false }` only if you handle pacing yourself.
+</Callout>
+
+## `presence`
+
+`presence` drops duplicate presence updates. A repeated `client.presence.typing(jid)` /
+`recording(jid)` / `online()` for the **same** `(type, chat)` within `minIntervalMs` is silently
+dropped (no socket call); different chats are independent.
+
+| Field | Type | Default | Description |
+| ----- | ---- | ------- | ----------- |
+| `enabled` | `boolean` | `true` | Set `{ enabled: false }` to send every presence update. |
+| `minIntervalMs` | `number` | `1000` | Window within which a repeated presence update for the same chat is dropped. |
+
+```typescript
+import { Client } from 'zaileys'
+
+const client = new Client({
+  presence: { minIntervalMs: 1000 },
+})
+```
+
+<Callout type="info">
+  Spamming presence updates (e.g. emitting "typing…" on every keystroke) is needless socket traffic
+  that contributes to looking abusive. Throttling is on by default; disable it with
+  `{ enabled: false }` if you need every update through.
+</Callout>
+
+## `scheduleRateLimitPerSec`
+
+Caps how many scheduled messages are dispatched per second (default `1`; set `0` to disable). If many
+overdue scheduled jobs come due at the same instant — for example right after `loadPending()` replays
+a backlog — they no longer all fire simultaneously, which would otherwise look like a burst of
+automated sends.
+
+```typescript
+import { Client } from 'zaileys'
+
+const client = new Client({
+  scheduleRateLimitPerSec: 1, // at most one scheduled message per second
+})
+```
+
+<Callout type="info">
+  Smoothing the scheduler's output spreads a backlog over time instead of blasting it at once. Set
+  `scheduleRateLimitPerSec: 0` only if you explicitly want every due job to fire immediately.
 </Callout>
 
 ## `autoConnect`
@@ -355,7 +504,9 @@ const client = new Client({ cacheSignal: false })
 ## `baileys`
 
 Escape hatch for advanced Baileys socket configuration. Your object is spread into the internal
-config **after** `markOnlineOnConnect: false` and **before** the managed `auth` and `logger`.
+config **after** the safety defaults `markOnlineOnConnect: false`, `syncFullHistory: false`, and
+`qrTimeout: 60000` — so you can override those three — and **before** the managed `auth` and
+`logger`, which you cannot.
 
 ```typescript
 import { Client } from 'zaileys'
@@ -369,8 +520,9 @@ const client = new Client({
 ```
 
 <Callout type="warning">
-  Do not set `auth`, `logger`, or `markOnlineOnConnect` here — the client overrides them. Use the
-  top-level `auth` / `store` / `logger` options instead.
+  Do not set `auth` or `logger` here — the client forces them and your values are ignored. Use the
+  top-level `auth` / `store` / `logger` options instead. `markOnlineOnConnect`, `syncFullHistory`,
+  and `qrTimeout` are merely internal defaults you *can* override here if you really need to.
 </Callout>
 
 ## Fully-configured example
@@ -394,10 +546,15 @@ const client = new Client({
   },
   reconnect: {
     maxAttempts: 20,
-    initialDelayMs: 2000,
+    initialDelayMs: 3000,
     maxDelayMs: 30000,
     jitterFactor: 0.25,
+    rateLimitedDelayMs: 300_000,
   },
+  authGuard: { maxQrAttempts: 5, maxPairingAttempts: 3 },
+  operationGuard: { enabled: true },
+  presence: { minIntervalMs: 1000 },
+  scheduleRateLimitPerSec: 1,
   autoConnect: true,
   qrTerminal: false,
   statusLog: true,
@@ -432,6 +589,7 @@ client.command('ping', async (ctx) => {
 | Quiet operation | `statusLog: false`, default `silent` logger |
 | Connect on your own schedule | `autoConnect: false` + `await client.connect()` |
 | Per-message author/ban checks | `citation` → [Events](/events) |
+| Avoid WhatsApp spam restriction / ban | `authGuard`, `operationGuard`, `presence` (on by default) |
 
 ## See also
 

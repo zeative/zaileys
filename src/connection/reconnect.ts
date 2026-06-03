@@ -1,5 +1,5 @@
 import type { ReconnectOptions } from '../client/types.js'
-import { isFatalDisconnect, type DisconnectReasonDomain } from './disconnect-reason.js'
+import { isFatalDisconnect, isRateLimited, type DisconnectReasonDomain } from './disconnect-reason.js'
 
 export interface ReconnectDecision {
   attempt: number
@@ -19,9 +19,10 @@ export interface ReconnectStrategyDeps {
 const DEFAULTS = {
   enabled: true,
   maxAttempts: Number.POSITIVE_INFINITY,
-  initialDelayMs: 1000,
+  initialDelayMs: 3000,
   maxDelayMs: 60000,
   jitterFactor: 0.2,
+  rateLimitedDelayMs: 300000,
 } as const
 
 export function createReconnectStrategy(
@@ -33,6 +34,7 @@ export function createReconnectStrategy(
   const initialDelayMs = options?.initialDelayMs ?? DEFAULTS.initialDelayMs
   const maxDelayMs = options?.maxDelayMs ?? DEFAULTS.maxDelayMs
   const jitterFactor = options?.jitterFactor ?? DEFAULTS.jitterFactor
+  const rateLimitedDelayMs = options?.rateLimitedDelayMs ?? DEFAULTS.rateLimitedDelayMs
   const random = deps?.random ?? Math.random
 
   let attempts = 0
@@ -43,6 +45,9 @@ export function createReconnectStrategy(
     const nextAttempt = attempts + 1
     if (nextAttempt > maxAttempts) return null
     attempts = nextAttempt
+    if (isRateLimited(reason)) {
+      return { attempt: nextAttempt, delayMs: rateLimitedDelayMs }
+    }
     const exponent = Math.pow(2, nextAttempt - 1)
     const base = Math.min(maxDelayMs, initialDelayMs * exponent)
     const jitter = 1 + (random() * 2 - 1) * jitterFactor

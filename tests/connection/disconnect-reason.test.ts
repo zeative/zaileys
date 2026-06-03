@@ -2,6 +2,7 @@ import { DisconnectReason as BaileysDisconnectReason } from 'baileys'
 import { describe, expect, it } from 'vitest'
 import {
   isFatalDisconnect,
+  isRateLimited,
   mapDisconnectReason,
   shouldClearAuth,
   shouldReconnect,
@@ -38,6 +39,10 @@ describe('mapDisconnectReason', () => {
 
   it('maps 503 -> unavailable-service', () => {
     expect(mapDisconnectReason(503)).toBe('unavailable-service')
+  })
+
+  it('maps 429 -> rate-limited', () => {
+    expect(mapDisconnectReason(429)).toBe('rate-limited')
   })
 
   it('maps 515 -> restart-required', () => {
@@ -88,6 +93,22 @@ describe('isFatalDisconnect', () => {
 
   it('returns false for unknown', () => {
     expect(isFatalDisconnect('unknown')).toBe(false)
+  })
+
+  it('returns false for rate-limited (non-fatal, reconnect with backoff)', () => {
+    expect(isFatalDisconnect('rate-limited')).toBe(false)
+  })
+})
+
+describe('isRateLimited', () => {
+  it('returns true for rate-limited', () => {
+    expect(isRateLimited('rate-limited')).toBe(true)
+  })
+
+  it('returns false for other reasons', () => {
+    expect(isRateLimited('connection-lost')).toBe(false)
+    expect(isRateLimited('forbidden')).toBe(false)
+    expect(isRateLimited('unknown')).toBe(false)
   })
 })
 

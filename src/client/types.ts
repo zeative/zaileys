@@ -1,5 +1,6 @@
 import type { UserFacingSocketConfig, WASocket } from 'baileys'
 import type { AuthStoreBundle } from '../auth/types.js'
+import type { AuthGuardOptions } from '../connection/auth-guard.js'
 import type { DisconnectReasonDomain } from '../connection/disconnect-reason.js'
 import type { CitationConfig } from '../events/context.js'
 import type { InboundEventMap } from '../events/types.js'
@@ -31,6 +32,8 @@ export interface ReconnectOptions {
   initialDelayMs?: number
   maxDelayMs?: number
   jitterFactor?: number
+  /** Fixed backoff applied when the disconnect reason is `rate-limited` (429). Default `300000`. */
+  rateLimitedDelayMs?: number
 }
 
 export interface ClientOptions {
@@ -49,6 +52,8 @@ export interface ClientOptions {
   commandPrefix?: string | string[]
   citation?: CitationConfig
   ignoreMe?: boolean
+  /** Bounds QR/pairing regeneration to avoid spam restriction. ON by default; `{ enabled: false }` to opt out. */
+  authGuard?: AuthGuardOptions
 }
 
 export type ConnectionEventMap = {
@@ -57,6 +62,7 @@ export type ConnectionEventMap = {
   qr: { sessionId: string; qrString: string; expiresAt: number }
   'pairing-code': { sessionId: string; code: string; expiresAt: number }
   reconnecting: { sessionId: string; attempt: number; delayMs: number; reason: DisconnectReasonDomain }
+  'auth-exhausted': { sessionId: string; kind: ConnectionAuthType; attempts: number; max: number }
   error: { sessionId: string; error: Error }
 }
 

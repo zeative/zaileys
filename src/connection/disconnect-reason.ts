@@ -10,9 +10,13 @@ export type DisconnectReasonDomain =
   | 'connection-lost'
   | 'multi-device-mismatch'
   | 'unavailable-service'
+  | 'rate-limited'
   | 'unknown'
 
+const RATE_LIMIT_STATUS = 429
+
 export function mapDisconnectReason(code: number | undefined): DisconnectReasonDomain {
+  if (code === RATE_LIMIT_STATUS) return 'rate-limited'
   switch (code) {
     case BaileysDisconnectReason.loggedOut:
       return 'logged-out'
@@ -39,6 +43,10 @@ export function mapDisconnectReason(code: number | undefined): DisconnectReasonD
 
 export function isFatalDisconnect(reason: DisconnectReasonDomain): boolean {
   return reason === 'logged-out' || reason === 'connection-replaced' || reason === 'forbidden'
+}
+
+export function isRateLimited(reason: DisconnectReasonDomain): boolean {
+  return reason === 'rate-limited'
 }
 
 export function shouldClearAuth(reason: DisconnectReasonDomain): boolean {

@@ -59,10 +59,12 @@ import type { AuthStoreBundle } from '../auth/types.js'
 import { signalKeyStoreFromAuthStore } from '../connection/auth-adapter.js'
 import {
   isFatalDisconnect,
+  isRateLimited,
   mapDisconnectReason,
   shouldClearAuth,
   type DisconnectReasonDomain,
 } from '../connection/disconnect-reason.js'
+import { createAuthGuard, type AuthGuard } from '../connection/auth-guard.js'
 import { createPairingFlow } from '../connection/pairing-flow.js'
 import { printQrToTerminal } from '../connection/qr-terminal.js'
 import { createReconnectStrategy, type ReconnectStrategy } from '../connection/reconnect.js'
@@ -119,6 +121,8 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private readonly baileysExtra: Partial<UserFacingSocketConfig>
   private readonly machine: ConnectionStateMachine = createConnectionStateMachine()
   private reconnectStrategy: ReconnectStrategy
+  private readonly authGuard: AuthGuard
+  private authExhausted = false
   private _socket: BaileysSocket | undefined
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined
   private listenerCleanup: SocketCleanup[] = []
@@ -165,6 +169,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.auth = options.auth ?? new FileAuthStore({ basePath: `./.zaileys/auth/${this.sessionId}` })
     this.store = options.store ?? new MemoryMessageStore()
     this.reconnectStrategy = createReconnectStrategy(this.reconnectOptions)
+    this.authGuard = createAuthGuard(options.authGuard)
     this.commandPrefixes = normalizePrefixes(options.commandPrefix)
     this.citationConfig = options.citation
     this.ignoreMe = options.ignoreMe ?? true
@@ -315,6 +320,10 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       this._socket = undefined
     }
     const fromReconnect = this.machine.state === 'reconnecting'
+    if (!fromReconnect) {
+      this.authGuard.reset()
+      this.authExhausted = false
+    }
     this.machine.transition('connecting')
     this.connectAttemptSeq += 1
     this.pairingRequested = false
@@ -330,6 +339,8 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     const keys = signalKeyStoreFromAuthStore(this.auth.signal, this.logger)
     const config: UserFacingSocketConfig = {
       markOnlineOnConnect: false,
+      syncFullHistory: false,
+      qrTimeout: QR_DEFAULT_TTL_MS,
       ...(this.waVersion ? { version: this.waVersion } : {}),
       ...this.baileysExtra,
       auth: { creds, keys },
@@ -569,9 +580,19 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   }
 
   private async handleQrUpdate(qr: string): Promise<void> {
+    if (this.authExhausted) return
     if (this.authType === 'pairing' && this.phoneNumber) {
       if (this.pairingRequested) return
+      const now = Date.now()
+      const decision = this.authGuard.evaluate('pairing', now)
+      if (!decision.allowed) {
+        if (decision.reason === 'budget-exhausted') {
+          this.handleAuthExhausted('pairing', decision.attempts, decision.max)
+        }
+        return
+      }
       this.pairingRequested = true
+      this.authGuard.record('pairing', now)
       if (this.machine.canTransition('pairing-pending')) {
         this.machine.transition('pairing-pending')
       }
@@ -591,6 +612,13 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       }
       return
     }
+    const now = Date.now()
+    const decision = this.authGuard.evaluate('qr', now)
+    if (!decision.allowed) {
+      this.handleAuthExhausted('qr', decision.attempts, decision.max)
+      return
+    }
+    this.authGuard.record('qr', now)
     if (this.machine.canTransition('qr-pending')) {
       this.machine.transition('qr-pending')
     }
@@ -605,8 +633,23 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.emit('qr', {
       sessionId: this.sessionId,
       qrString: qr,
-      expiresAt: Date.now() + QR_DEFAULT_TTL_MS,
+      expiresAt: now + QR_DEFAULT_TTL_MS,
     })
+  }
+
+  private handleAuthExhausted(kind: ConnectionAuthType, attempts: number, max: number): void {
+    if (this.authExhausted) return
+    this.authExhausted = true
+    this.logger.warn(
+      { sessionId: this.sessionId, kind, attempts, max },
+      `auth attempts exhausted (${attempts}/${max} ${kind}); stopping to avoid WhatsApp spam restriction — call connect() to retry`,
+    )
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = undefined
+    }
+    this.emit('auth-exhausted', { sessionId: this.sessionId, kind, attempts, max })
+    void this.disconnect()
   }
 
   private handleOpen(): void {
@@ -615,6 +658,8 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     }
     this.openedThisRun = true
     this.credsHintShown = false
+    this.authExhausted = false
+    this.authGuard.reset()
     this.reconnectStrategy.reset()
     const me = this.resolveMe()
     this.logStatus({ kind: 'connected', id: typeof me.id === 'string' ? me.id : '' })
@@ -679,7 +724,13 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         this.logger.warn(err, 'auth.creds.deleteCreds failed (post-close)')
       }
     }
-    if (!isFatalDisconnect(reason)) {
+    if (!isFatalDisconnect(reason) && !this.authExhausted) {
+      if (isRateLimited(reason)) {
+        this.logger.warn(
+          { sessionId: this.sessionId },
+          'WhatsApp returned rate-limited (429); backing off before reconnect to avoid restriction',
+        )
+      }
       const decision = this.reconnectStrategy.next(reason)
       if (decision !== null) {
         willReconnect = true

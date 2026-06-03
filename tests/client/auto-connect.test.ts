@@ -15,6 +15,7 @@ vi.mock('baileys', async () => {
     default: makeWASocketMock,
     makeWASocket: makeWASocketMock,
     initAuthCreds: initAuthCredsMock,
+    fetchLatestBaileysVersion: vi.fn(async () => ({ version: [2, 3000, 0], isLatest: true })),
     DisconnectReason: {
       loggedOut: 401, forbidden: 403, connectionLost: 408, multideviceMismatch: 411,
       connectionClosed: 428, connectionReplaced: 440, badSession: 500,

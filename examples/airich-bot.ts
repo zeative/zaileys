@@ -50,7 +50,7 @@ const showcase = async (target: string): Promise<void> => {
     '',
     'const client = new Client()',
     '',
-    "client.on('message', async (msg) => {",
+    "client.on('text', async (msg) => {",
     '  await client.send(msg.senderId).buttons(',
     "    [{ id: 'yes', text: 'Ya' }, { id: 'no', text: 'Tidak' }],",
     "    { text: 'Lanjut order?' },",

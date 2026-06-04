@@ -172,7 +172,7 @@ const client = new Client() // connects automatically
 
 // These run on the same tick, before the queued connect() fires
 client.on('qr', ({ qrString }) => console.log(qrString))
-client.on('message', (ctx) => console.log(ctx.text))
+client.on('text', (ctx) => console.log(ctx.text))
 ```
 
 If auto-connect fails, the client logs the error and emits an `'error'` event **only if** you have

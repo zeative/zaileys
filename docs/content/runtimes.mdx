@@ -62,7 +62,7 @@ That means both styles are first-class — pick whichever matches your project:
       phoneNumber: 628000000000,
     })
 
-    client.on('connection', ({ status }) => console.log(status))
+    client.on('connect', ({ me }) => console.log('connected as', me.id))
     await client.connect()
     ```
   </Tabs.Tab>
@@ -75,7 +75,7 @@ That means both styles are first-class — pick whichever matches your project:
       phoneNumber: 628000000000,
     })
 
-    client.on('connection', ({ status }) => console.log(status))
+    client.on('connect', ({ me }) => console.log('connected as', me.id))
     client.connect()
     ```
   </Tabs.Tab>

@@ -172,7 +172,7 @@ await client.send(jid).text(
     '',
     'const client = new Client()',
     '',
-    "client.on('message', async (msg) => {",
+    "client.on('text', async (msg) => {",
     "  await client.send(msg.senderId).text('hi')",
     '})',
     '```',

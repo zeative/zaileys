@@ -314,8 +314,8 @@ const key = await client.send(to).text('Original')
 await client.send(to).text('A reply').reply(key)
 
 // inside a handler, you typically already have the full message:
-client.on('message', async (msg) => {
-  await client.send(msg.chat.id).text('got it').reply(msg)
+client.on('text', async (ctx) => {
+  await client.send(ctx.senderId).text('got it').reply(ctx.message())
 })
 ```
 

@@ -60,7 +60,7 @@
     "@size-limit/file": "^12.1.0",
     "@types/better-sqlite3": "^7.6.13",
     "@types/express": "^5.0.6",
-    "@types/node": "^24.10.1",
+    "@types/node": "^25.9.1",
     "@types/pg": "^8.20.0",
     "@types/qrcode-terminal": "^0.12.2",
     "@typescript/native-preview": "7.0.0-dev.20260527.2",

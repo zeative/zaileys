@@ -15,8 +15,6 @@ export interface CacheableAuthStoreOptions {
     warn?: (msg: unknown) => void
     error?: (msg: unknown) => void
   }
-  cacheSize?: number
-  cacheTtlSeconds?: number
 }
 
 export function makeCacheableAuthStore(

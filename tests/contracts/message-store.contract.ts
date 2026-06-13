@@ -4,6 +4,7 @@ import type { Chat, Contact, PresenceData, WAMessage } from 'baileys'
 import type { MessageStore } from '../../src/store/index.js'
 import { ZaileysStoreError } from '../../src/types/store-error.js'
 import {
+  assertSignalEquals,
   sampleChat,
   sampleContact,
   sampleMessages,
@@ -56,6 +57,11 @@ export const runMessageStoreContract = (
         expect(read).toBeDefined()
         expect(read!.key.id).toBe(m!.key.id)
         expect(read!.message?.conversation).toBe(m!.message?.conversation)
+        assertSignalEquals(
+          m!.message?.imageMessage?.mediaKey,
+          read!.message?.imageMessage?.mediaKey,
+          '$.message.imageMessage.mediaKey',
+        )
       })
 
       it('A3: saving same key twice updates (last-write-wins)', async () => {

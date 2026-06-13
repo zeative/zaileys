@@ -1,4 +1,5 @@
 import type { Chat, Contact, PresenceData, WAMessage, WAMessageKey } from 'baileys'
+import { BufferJSON } from 'baileys'
 import type { Pool, PoolClient } from 'pg'
 import { ZaileysStoreError } from '../../types/store-error.js'
 import type { BaileysSocketLike, MessageStore, MessageStoreListOptions } from '../types.js'
@@ -39,8 +40,8 @@ const MIGRATIONS: readonly string[] = [
 
 const reviveJson = <T>(value: unknown): T => {
   if (value === null || value === undefined) return value as T
-  if (typeof value === 'string') return JSON.parse(value) as T
-  return value as T
+  const text = typeof value === 'string' ? value : JSON.stringify(value)
+  return JSON.parse(text, BufferJSON.reviver) as T
 }
 
 export class PostgresMessageStore implements MessageStore {
@@ -129,7 +130,7 @@ export class PostgresMessageStore implements MessageStore {
     try {
       await pool.query(
         'INSERT INTO zaileys_messages(remote_jid, id, from_me, timestamp, data) VALUES ($1, $2, $3, $4, $5::jsonb) ON CONFLICT (remote_jid, id, from_me) DO UPDATE SET data = EXCLUDED.data, timestamp = EXCLUDED.timestamp',
-        [remoteJid, id, fromMe, ts, JSON.stringify(message)],
+        [remoteJid, id, fromMe, ts, JSON.stringify(message, BufferJSON.replacer)],
       )
     } catch (err) {
       throw new ZaileysStoreError('STORE_WRITE_FAILED', 'failed to save message', { cause: err })
@@ -175,7 +176,7 @@ export class PostgresMessageStore implements MessageStore {
     try {
       await pool.query(
         'INSERT INTO zaileys_chats(jid, archived, data) VALUES ($1, $2, $3::jsonb) ON CONFLICT (jid) DO UPDATE SET archived = EXCLUDED.archived, data = EXCLUDED.data',
-        [id, archived, JSON.stringify(chat)],
+        [id, archived, JSON.stringify(chat, BufferJSON.replacer)],
       )
     } catch (err) {
       throw new ZaileysStoreError('STORE_WRITE_FAILED', 'failed to save chat', { cause: err })
@@ -216,7 +217,7 @@ export class PostgresMessageStore implements MessageStore {
     try {
       await pool.query(
         'INSERT INTO zaileys_contacts(jid, data) VALUES ($1, $2::jsonb) ON CONFLICT (jid) DO UPDATE SET data = EXCLUDED.data',
-        [contact.id, JSON.stringify(contact)],
+        [contact.id, JSON.stringify(contact, BufferJSON.replacer)],
       )
     } catch (err) {
       throw new ZaileysStoreError('STORE_WRITE_FAILED', 'failed to save contact', { cause: err })
@@ -253,7 +254,7 @@ export class PostgresMessageStore implements MessageStore {
     try {
       await pool.query(
         'INSERT INTO zaileys_presence(jid, data, updated_at) VALUES ($1, $2::jsonb, now()) ON CONFLICT (jid) DO UPDATE SET data = EXCLUDED.data, updated_at = now()',
-        [jid, JSON.stringify(presence)],
+        [jid, JSON.stringify(presence, BufferJSON.replacer)],
       )
     } catch (err) {
       throw new ZaileysStoreError('STORE_WRITE_FAILED', 'failed to save presence', { cause: err })

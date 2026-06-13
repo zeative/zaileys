@@ -55,7 +55,13 @@ export const sampleMessages = (jid: string, count: number): WAMessage[] => {
     out.push({
       key: { remoteJid: jid, fromMe: false, id: `msg-${jid}-${i}-${Math.random().toString(36).slice(2, 8)}` },
       messageTimestamp: 1_700_000_000 + i,
-      message: { conversation: `text-${i}` },
+      message: {
+        conversation: `text-${i}`,
+        imageMessage: {
+          mediaKey: Buffer.from([i & 0xff, 0xde, 0xad, 0xbe, 0xef]),
+          fileSha256: Uint8Array.from([1, 2, 3, 4, 5]),
+        },
+      },
     } as WAMessage)
   }
   return out

@@ -16,6 +16,7 @@ import {
   extractQuoted,
   extractSender,
   isGroupJid,
+  safeNumber,
 } from './_shared.js'
 
 export interface DecodeContext {
@@ -185,6 +186,193 @@ const mediaCaptionText = (content: Record<string, unknown>): string | null =>
     asRecord(content['documentMessage'])?.['fileName'],
   )
 
+const toNum = (value: unknown): number | null => {
+  if (typeof value === 'number') return value
+  const n = safeNumber(value as never)
+  return typeof n === 'number' ? n : null
+}
+
+const STRUCTURED_FIELDS: ReadonlyArray<readonly [string, ChatType]> = [
+  ['pollCreationMessage', 'poll'],
+  ['pollCreationMessageV2', 'poll'],
+  ['pollCreationMessageV3', 'poll'],
+  ['contactMessage', 'contact'],
+  ['contactsArrayMessage', 'contact'],
+  ['locationMessage', 'location'],
+  ['liveLocationMessage', 'live-location'],
+  ['eventMessage', 'event'],
+  ['buttonsMessage', 'buttons'],
+  ['listMessage', 'list'],
+  ['interactiveMessage', 'interactive'],
+  ['templateMessage', 'template'],
+]
+
+const structuredMedia = (content: Record<string, unknown>): ContextMedia | null => {
+  const poll =
+    asRecord(content['pollCreationMessage']) ??
+    asRecord(content['pollCreationMessageV2']) ??
+    asRecord(content['pollCreationMessageV3'])
+  if (poll != null) {
+    const options = Array.isArray(poll['options']) ? poll['options'] : []
+    return {
+      type: 'poll',
+      name: nonEmptyString(poll['name']),
+      options: options
+        .map((o) => nonEmptyString(asRecord(o)?.['optionName']))
+        .filter((n): n is string => n != null),
+      selectableCount: toNum(poll['selectableOptionsCount']) ?? 0,
+    }
+  }
+
+  const contact = asRecord(content['contactMessage'])
+  if (contact != null) {
+    return {
+      type: 'contact',
+      displayName: nonEmptyString(contact['displayName']),
+      vcard: nonEmptyString(contact['vcard']),
+      contacts: [
+        { displayName: nonEmptyString(contact['displayName']), vcard: nonEmptyString(contact['vcard']) },
+      ],
+    }
+  }
+
+  const contactsArray = asRecord(content['contactsArrayMessage'])
+  if (contactsArray != null) {
+    const list = Array.isArray(contactsArray['contacts']) ? contactsArray['contacts'] : []
+    return {
+      type: 'contact',
+      displayName: nonEmptyString(contactsArray['displayName']),
+      vcard: null,
+      contacts: list.map((c) => ({
+        displayName: nonEmptyString(asRecord(c)?.['displayName']),
+        vcard: nonEmptyString(asRecord(c)?.['vcard']),
+      })),
+    }
+  }
+
+  const location = asRecord(content['locationMessage'])
+  if (location != null) {
+    return {
+      type: 'location',
+      latitude: toNum(location['degreesLatitude']),
+      longitude: toNum(location['degreesLongitude']),
+      name: nonEmptyString(location['name']),
+      address: nonEmptyString(location['address']),
+      accuracy: toNum(location['accuracyInMeters']),
+      speed: toNum(location['speedInMps']),
+      caption: nonEmptyString(location['comment']),
+    }
+  }
+
+  const live = asRecord(content['liveLocationMessage'])
+  if (live != null) {
+    return {
+      type: 'live-location',
+      latitude: toNum(live['degreesLatitude']),
+      longitude: toNum(live['degreesLongitude']),
+      name: null,
+      address: null,
+      accuracy: toNum(live['accuracyInMeters']),
+      speed: toNum(live['speedInMps']),
+      caption: nonEmptyString(live['caption']),
+    }
+  }
+
+  const event = asRecord(content['eventMessage'])
+  if (event != null) {
+    const evLoc = asRecord(event['location'])
+    return {
+      type: 'event',
+      name: nonEmptyString(event['name']),
+      description: nonEmptyString(event['description']),
+      location: evLoc != null ? firstString(evLoc['name'], evLoc['address']) : null,
+      startTime: toNum(event['startTime']),
+      endTime: toNum(event['endTime']),
+      isCanceled: event['isCanceled'] === true,
+    }
+  }
+
+  const buttons = asRecord(content['buttonsMessage'])
+  if (buttons != null) {
+    const list = Array.isArray(buttons['buttons']) ? buttons['buttons'] : []
+    return {
+      type: 'buttons',
+      contentText: nonEmptyString(buttons['contentText']),
+      footerText: nonEmptyString(buttons['footerText']),
+      buttons: list.map((b) => ({
+        id: nonEmptyString(asRecord(b)?.['buttonId']),
+        text: nonEmptyString(asRecord(asRecord(b)?.['buttonText'])?.['displayText']),
+      })),
+    }
+  }
+
+  const listMsg = asRecord(content['listMessage'])
+  if (listMsg != null) {
+    const sections = Array.isArray(listMsg['sections']) ? listMsg['sections'] : []
+    return {
+      type: 'list',
+      title: nonEmptyString(listMsg['title']),
+      description: nonEmptyString(listMsg['description']),
+      buttonText: nonEmptyString(listMsg['buttonText']),
+      sections: sections.map((s) => {
+        const rows = Array.isArray(asRecord(s)?.['rows']) ? (asRecord(s)!['rows'] as unknown[]) : []
+        return {
+          title: nonEmptyString(asRecord(s)?.['title']),
+          rows: rows.map((r) => ({
+            id: nonEmptyString(asRecord(r)?.['rowId']),
+            title: nonEmptyString(asRecord(r)?.['title']),
+            description: nonEmptyString(asRecord(r)?.['description']),
+          })),
+        }
+      }),
+    }
+  }
+
+  const interactive = asRecord(content['interactiveMessage'])
+  if (interactive != null) {
+    const nativeFlow = asRecord(interactive['nativeFlowMessage'])
+    const flowButtons = Array.isArray(nativeFlow?.['buttons'])
+      ? (nativeFlow!['buttons'] as unknown[])
+      : []
+    return {
+      type: 'interactive',
+      title: nonEmptyString(asRecord(interactive['header'])?.['title']),
+      body: nonEmptyString(asRecord(interactive['body'])?.['text']),
+      footer: nonEmptyString(asRecord(interactive['footer'])?.['text']),
+      buttons: flowButtons.map((b) => ({
+        name: nonEmptyString(asRecord(b)?.['name']),
+        params: nonEmptyString(asRecord(b)?.['buttonParamsJson']),
+      })),
+    }
+  }
+
+  const template = asRecord(content['templateMessage'])
+  if (template != null) {
+    const hydrated =
+      asRecord(template['hydratedTemplate']) ?? asRecord(template['hydratedFourRowTemplate'])
+    const hydratedButtons = Array.isArray(hydrated?.['hydratedButtons'])
+      ? (hydrated!['hydratedButtons'] as unknown[])
+      : []
+    return {
+      type: 'template',
+      text: nonEmptyString(hydrated?.['hydratedContentText']),
+      buttons: hydratedButtons.map((b) => {
+        const rec = asRecord(b)
+        const picked =
+          asRecord(rec?.['quickReplyButton']) ??
+          asRecord(rec?.['urlButton']) ??
+          asRecord(rec?.['callButton'])
+        return {
+          id: nonEmptyString(picked?.['id']),
+          text: nonEmptyString(picked?.['displayText']),
+        }
+      }),
+    }
+  }
+
+  return null
+}
+
 const mainText = (msg: WAMessage): string | null => {
   const content = asRecord(msg.message)
   return content == null ? null : bodyText(unwrap(content))
@@ -242,11 +430,16 @@ const isEphemeralOf = (msg: WAMessage, contextInfo: WAContextInfo | null): boole
 }
 
 const chatTypeOf = (content: WAMessage['message']): ChatType => {
-  if (content == null) return 'text'
+  const rec = asRecord(content)
+  if (rec == null) return 'text'
+  const inner = unwrap(rec)
   for (const field of Object.values(MEDIA_FIELD)) {
-    if ((content as Record<string, unknown>)[field] != null) {
+    if (inner[field] != null) {
       return field.replace('Message', '') as ChatType
     }
+  }
+  for (const [field, type] of STRUCTURED_FIELDS) {
+    if (inner[field] != null) return type
   }
   return 'text'
 }
@@ -381,9 +574,13 @@ const buildContext = (
 }
 
 export const decodeText = (msg: WAMessage, ctx: DecodeContext): MessageContext | null => {
-  const content = mainText(msg)
-  if (content === null) return null
-  return buildContext(msg, ctx, 'text', content)
+  const content = asRecord(msg.message)
+  if (content == null) return null
+  const inner = unwrap(content)
+  const body = bodyText(inner)
+  const media = structuredMedia(inner) ?? undefined
+  if (body === null && media === undefined) return null
+  return buildContext(msg, ctx, chatTypeOf(msg.message), body ?? '', media)
 }
 
 const decodeMedia = <K extends MediaKind>(
@@ -399,6 +596,12 @@ const decodeMedia = <K extends MediaKind>(
   const bufferFn = createDownloadFn(msg, kind, ctx.logger)
   const streamFn = createStreamFn(msg, kind, ctx.logger)
   const media: ContextMedia = {
+    type: kind,
+    mimetype: typeof node.mimetype === 'string' ? node.mimetype : null,
+    caption: typeof node.caption === 'string' ? node.caption : null,
+    fileName: typeof node.fileName === 'string' ? node.fileName : null,
+    fileSize: toNum(node.fileLength),
+    ptt: node.ptt === true,
     buffer: async () => {
       const result = await bufferFn()
       return result.buffer
@@ -440,20 +643,11 @@ export const decodeMention = (msg: WAMessage, ctx: DecodeContext): MentionContex
   if (mentionedJids.length === 0) return null
   const hasSelf = mentionedJids.some((jid) => normalizedEquals(jid, ctx.selfJid))
   if (!hasSelf) return null
-  const content = msg.message
+  const content = asRecord(msg.message)
   if (content == null) return null
   const text = anyText(msg) ?? ''
-  let chatType: ChatType = 'text'
-  if (content != null) {
-    const fields = Object.values(MEDIA_FIELD)
-    for (const f of fields) {
-      if ((content as Record<string, unknown>)[f] != null) {
-        chatType = f.replace('Message', '') as ChatType
-        break
-      }
-    }
-  }
-  const base = buildContext(msg, ctx, chatType, text)
+  const media = structuredMedia(unwrap(content)) ?? undefined
+  const base = buildContext(msg, ctx, chatTypeOf(msg.message), text, media)
   if (base === null) return null
   return { ...base, mentionedJids, selfJid: ctx.selfJid }
 }
@@ -465,10 +659,11 @@ export const decodeMentionAll = (msg: WAMessage, ctx: DecodeContext): MentionAll
   if (jid.length === 0 || !isGroupJid(jid)) return null
   const { mentionAll } = extractMentions(contextInfoOf(msg))
   if (!mentionAll) return null
-  const content = msg.message
+  const content = asRecord(msg.message)
   if (content == null) return null
   const text = anyText(msg) ?? ''
-  const base = buildContext(msg, ctx, 'text', text)
+  const media = structuredMedia(unwrap(content)) ?? undefined
+  const base = buildContext(msg, ctx, chatTypeOf(msg.message), text, media)
   if (base === null) return null
   return { ...base, isMentionAll: true, selfJid: ctx.selfJid }
 }

@@ -744,3 +744,146 @@ describe('button responses in payload', () => {
     expect(decodeText(base({ message: { listResponseMessage: { title: 'Pizza', singleSelectReply: { selectedRowId: 'p' } } } }), ctx)).toBeNull()
   })
 })
+
+describe('structured media (msg.media union)', () => {
+  it('poll → chatType poll + media { name, options, selectableCount }', () => {
+    const out = decodeText(
+      base({
+        message: {
+          pollCreationMessage: {
+            name: 'Makan apa?',
+            options: [{ optionName: 'Bakso' }, { optionName: 'Soto' }],
+            selectableOptionsCount: 1,
+          },
+        },
+      }),
+      ctx,
+    )
+    expect(out?.chatType).toBe('poll')
+    expect(out?.text).toBe('Makan apa?')
+    expect(out?.media).toMatchObject({ type: 'poll', name: 'Makan apa?', options: ['Bakso', 'Soto'], selectableCount: 1 })
+  })
+
+  it('contact → media { displayName, vcard, contacts[] }', () => {
+    const out = decodeText(
+      base({ message: { contactMessage: { displayName: 'Budi', vcard: 'BEGIN:VCARD' } } }),
+      ctx,
+    )
+    expect(out?.chatType).toBe('contact')
+    expect(out?.media).toMatchObject({ type: 'contact', displayName: 'Budi', vcard: 'BEGIN:VCARD' })
+    expect((out?.media as { contacts: unknown[] }).contacts).toHaveLength(1)
+  })
+
+  it('contactsArray → media contacts list', () => {
+    const out = decodeText(
+      base({
+        message: {
+          contactsArrayMessage: {
+            displayName: '2 contacts',
+            contacts: [{ displayName: 'A', vcard: 'va' }, { displayName: 'B', vcard: 'vb' }],
+          },
+        },
+      }),
+      ctx,
+    )
+    expect(out?.chatType).toBe('contact')
+    expect((out?.media as { contacts: unknown[] }).contacts).toHaveLength(2)
+  })
+
+  it('location → media { latitude, longitude, name }', () => {
+    const out = decodeText(
+      base({ message: { locationMessage: { degreesLatitude: -6.2, degreesLongitude: 106.8, name: 'Monas' } } }),
+      ctx,
+    )
+    expect(out?.chatType).toBe('location')
+    expect(out?.media).toMatchObject({ type: 'location', latitude: -6.2, longitude: 106.8, name: 'Monas' })
+  })
+
+  it('liveLocation → media type live-location', () => {
+    const out = decodeText(
+      base({ message: { liveLocationMessage: { degreesLatitude: 1, degreesLongitude: 2, caption: 'otw' } } }),
+      ctx,
+    )
+    expect(out?.chatType).toBe('live-location')
+    expect(out?.media).toMatchObject({ type: 'live-location', latitude: 1, longitude: 2, caption: 'otw' })
+  })
+
+  it('event → fires (even with no body text) with media { name, startTime, isCanceled }', () => {
+    const out = decodeText(
+      base({ message: { eventMessage: { name: 'Meetup', description: 'ngoding bareng', startTime: 1800000000, isCanceled: false } } }),
+      ctx,
+    )
+    expect(out).not.toBeNull()
+    expect(out?.chatType).toBe('event')
+    expect(out?.media).toMatchObject({ type: 'event', name: 'Meetup', description: 'ngoding bareng', startTime: 1800000000, isCanceled: false })
+  })
+
+  it('buttons → media { contentText, buttons[] }', () => {
+    const out = decodeText(
+      base({
+        message: {
+          buttonsMessage: {
+            contentText: 'Pilih',
+            footerText: 'ft',
+            buttons: [{ buttonId: 'a', buttonText: { displayText: 'Ya' } }, { buttonId: 'b', buttonText: { displayText: 'Tidak' } }],
+          },
+        },
+      }),
+      ctx,
+    )
+    expect(out?.chatType).toBe('buttons')
+    expect(out?.media).toMatchObject({
+      type: 'buttons',
+      contentText: 'Pilih',
+      buttons: [{ id: 'a', text: 'Ya' }, { id: 'b', text: 'Tidak' }],
+    })
+  })
+
+  it('list → media sections with rows', () => {
+    const out = decodeText(
+      base({
+        message: {
+          listMessage: {
+            title: 'Menu',
+            description: 'desc',
+            buttonText: 'Open',
+            sections: [{ title: 'Food', rows: [{ rowId: 'r1', title: 'Nasi', description: 'goreng' }] }],
+          },
+        },
+      }),
+      ctx,
+    )
+    expect(out?.chatType).toBe('list')
+    const media = out?.media as { sections: Array<{ title: string; rows: Array<{ id: string; title: string }> }> }
+    expect(media.sections).toHaveLength(1)
+    expect(media.sections[0]!.rows[0]).toMatchObject({ id: 'r1', title: 'Nasi', description: 'goreng' })
+  })
+
+  it('interactive → media { body, buttons[] }', () => {
+    const out = decodeText(
+      base({
+        message: {
+          interactiveMessage: {
+            body: { text: 'hi' },
+            footer: { text: 'ft' },
+            nativeFlowMessage: { buttons: [{ name: 'cta_url', buttonParamsJson: '{}' }] },
+          },
+        },
+      }),
+      ctx,
+    )
+    expect(out?.chatType).toBe('interactive')
+    expect(out?.media).toMatchObject({ type: 'interactive', body: 'hi', buttons: [{ name: 'cta_url', params: '{}' }] })
+  })
+
+  it('attachment media still exposes type + lazy buffer/stream', async () => {
+    const out = decodeImage(
+      base({ message: { imageMessage: { mimetype: 'image/jpeg', caption: 'cap', fileLength: 123 } } }),
+      ctx,
+    )
+    expect(out?.chatType).toBe('image')
+    expect(out?.media).toMatchObject({ type: 'image', mimetype: 'image/jpeg', caption: 'cap', fileSize: 123 })
+    expect(typeof (out?.media as { buffer: unknown }).buffer).toBe('function')
+    expect(await (out!.media as { buffer: () => Promise<Buffer> }).buffer()).toBeInstanceOf(Buffer)
+  })
+})

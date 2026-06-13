@@ -4,7 +4,23 @@ import { isGroupJid } from './decoders/_shared.js'
 import type { SenderInfo } from './types.js'
 import type { TextOptions } from '../builder/builder.js'
 
-export type ChatType = 'text' | 'image' | 'video' | 'audio' | 'document' | 'sticker' | 'unknown'
+export type ChatType =
+  | 'text'
+  | 'image'
+  | 'video'
+  | 'audio'
+  | 'document'
+  | 'sticker'
+  | 'poll'
+  | 'contact'
+  | 'location'
+  | 'live-location'
+  | 'event'
+  | 'buttons'
+  | 'list'
+  | 'interactive'
+  | 'template'
+  | 'unknown'
 
 export type SenderDevice = 'unknown' | 'android' | 'ios' | 'web' | 'desktop' | string
 
@@ -18,10 +34,112 @@ export interface CitationPredicates {
   banned(): Promise<boolean>
 }
 
-export interface ContextMedia {
+export interface MediaAttachment {
+  type: 'image' | 'video' | 'audio' | 'document' | 'sticker'
+  mimetype: string | null
+  caption: string | null
+  fileName: string | null
+  fileSize: number | null
+  ptt: boolean
   buffer(): Promise<Buffer>
   stream(): Promise<Readable>
 }
+
+export interface PollMedia {
+  type: 'poll'
+  name: string | null
+  options: string[]
+  selectableCount: number
+}
+
+export interface ContactCard {
+  displayName: string | null
+  vcard: string | null
+}
+
+export interface ContactMedia {
+  type: 'contact'
+  displayName: string | null
+  vcard: string | null
+  contacts: ContactCard[]
+}
+
+export interface LocationMedia {
+  type: 'location' | 'live-location'
+  latitude: number | null
+  longitude: number | null
+  name: string | null
+  address: string | null
+  accuracy: number | null
+  speed: number | null
+  caption: string | null
+}
+
+export interface EventMedia {
+  type: 'event'
+  name: string | null
+  description: string | null
+  location: string | null
+  startTime: number | null
+  endTime: number | null
+  isCanceled: boolean
+}
+
+export interface MessageButton {
+  id: string | null
+  text: string | null
+}
+
+export interface ButtonsMedia {
+  type: 'buttons'
+  contentText: string | null
+  footerText: string | null
+  buttons: MessageButton[]
+}
+
+export interface ListRow {
+  id: string | null
+  title: string | null
+  description: string | null
+}
+
+export interface ListSection {
+  title: string | null
+  rows: ListRow[]
+}
+
+export interface ListMedia {
+  type: 'list'
+  title: string | null
+  description: string | null
+  buttonText: string | null
+  sections: ListSection[]
+}
+
+export interface InteractiveMedia {
+  type: 'interactive'
+  title: string | null
+  body: string | null
+  footer: string | null
+  buttons: Array<{ name: string | null; params: string | null }>
+}
+
+export interface TemplateMedia {
+  type: 'template'
+  text: string | null
+  buttons: MessageButton[]
+}
+
+export type ContextMedia =
+  | MediaAttachment
+  | PollMedia
+  | ContactMedia
+  | LocationMedia
+  | EventMedia
+  | ButtonsMedia
+  | ListMedia
+  | InteractiveMedia
+  | TemplateMedia
 
 export interface MessageContext {
   uniqueId: string

@@ -368,8 +368,16 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.store.bind(socket as unknown as BaileysSocketLike)
     this.wireSocket(socket)
     const promise = new Promise<void>((resolve, reject) => {
-      this.connectResolve = resolve
-      this.connectReject = reject
+      const prevResolve = this.connectResolve
+      const prevReject = this.connectReject
+      this.connectResolve = () => {
+        prevResolve?.()
+        resolve()
+      }
+      this.connectReject = (err) => {
+        prevReject?.(err)
+        reject(err)
+      }
     })
     void this.auth.creds
       .readCreds()

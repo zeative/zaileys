@@ -317,6 +317,29 @@ describe('integration: reconnect storm — exponential backoff sequence', () => 
     expect(reasons).toContain('restart-required')
   })
 
+  it('connect() promise resolves when the first attempt reconnects before opening', async () => {
+    vi.useFakeTimers()
+    const socks = queueSockets(3)
+    const c = new Client({
+      auth: new MemoryAuthStore(),
+      qrTerminal: false,
+      reconnect: { initialDelayMs: 100, jitterFactor: 0 },
+      autoConnect: false,
+    })
+    let resolved = false
+    const p = c.connect().then(() => {
+      resolved = true
+    })
+    simulateBoomDisconnect(socks[0]!, 515)
+    await tick()
+    expect(resolved).toBe(false)
+    vi.advanceTimersByTime(100)
+    await tick()
+    socks[1]!.triggerConnectionUpdate({ connection: 'open' })
+    await p
+    expect(resolved).toBe(true)
+  })
+
   it('logout during reconnect cancels pending retry and reaches disconnected', async () => {
     vi.useFakeTimers()
     const socks = queueSockets(3)

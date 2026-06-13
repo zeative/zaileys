@@ -734,7 +734,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         const found = await this.store.getMessage({ id, remoteJid, fromMe })
         if (found != null) return found
       } catch {
-        return null
+        continue
       }
     }
     return null

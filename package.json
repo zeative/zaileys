@@ -81,7 +81,7 @@
     "@ffmpeg-installer/ffmpeg": "^1.1.0",
     "@ffprobe-installer/ffprobe": "^2.1.2",
     "async-mutex": "^0.5.0",
-    "audio-decode": "^2.2.3",
+    "audio-decode": "^3.10.1",
     "baileys": "^7.0.0-rc13",
     "file-type": "^21.1.1",
     "jimp": "^1.6.0",

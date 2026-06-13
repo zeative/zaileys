@@ -361,6 +361,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       ...this.baileysExtra,
       auth: { creds, keys },
       logger: this.logger as never,
+      getMessage: (key) => this.resolveMessageForResend(key),
     }
     const socket = makeWASocket(config)
     this._socket = socket
@@ -707,6 +708,16 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.connectResolve = undefined
     this.connectReject = undefined
     if (resolve) resolve()
+  }
+
+  private async resolveMessageForResend(key: WAMessageKey): Promise<NonNullable<WAMessage['message']> | undefined> {
+    try {
+      const found = await this.store.getMessage(key)
+      return found?.message ?? undefined
+    } catch (err) {
+      this.logger.warn(err, 'getMessage resend lookup failed')
+      return undefined
+    }
   }
 
   private async lookupQuoted(id: string, remoteJid: string): Promise<WAMessage | null> {

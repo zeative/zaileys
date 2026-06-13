@@ -169,4 +169,18 @@ describe('MessageBuilder.text({ rich: true })', () => {
     expect(relayMessage).not.toHaveBeenCalled()
     expect(sendMessage).toHaveBeenCalledOnce()
   })
+
+  it('records the relayed rich message to the store so quoted replies can resolve it', async () => {
+    const relayMessage = vi.fn(async () => 'R1')
+    const sendMessage = vi.fn(async () => ({ key: { id: 'X' } as WAMessageKey }) as WAMessage)
+    const socket: BuilderSocketLike = { sendMessage, relayMessage, user: { id: '9@s.whatsapp.net' } }
+    const recorded: WAMessage[] = []
+    const key = await MessageBuilder.create(socket, RECIPIENT, undefined, (m) =>
+      recorded.push(m),
+    ).text('hi', { rich: true })
+    expect(recorded).toHaveLength(1)
+    expect(recorded[0]!.key.id).toBe(key.id)
+    expect(recorded[0]!.key.fromMe).toBe(true)
+    expect(recorded[0]!.message).toBeDefined()
+  })
 })

@@ -529,11 +529,17 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
 
   send(to: string): MessageBuilder<'init'> {
     const socket = this.requireSocket()
-    if (isJid(to)) {
-      return MessageBuilder.create(socket as unknown as BuilderSocketLike, to)
+    const recordSent = (message: WAMessage): void => {
+      void this.store.saveMessage(message).catch((err) => this.logger.warn(err, 'recordSent failed'))
     }
-    return MessageBuilder.create(socket as unknown as BuilderSocketLike, to, (raw) =>
-      this.resolveRecipient(raw),
+    if (isJid(to)) {
+      return MessageBuilder.create(socket as unknown as BuilderSocketLike, to, undefined, recordSent)
+    }
+    return MessageBuilder.create(
+      socket as unknown as BuilderSocketLike,
+      to,
+      (raw) => this.resolveRecipient(raw),
+      recordSent,
     )
   }
 

@@ -11,12 +11,15 @@ export type BuilderInternalState = {
   mentionAll?: boolean
   disappearingSeconds?: number
   resolveRecipient?: (raw: string) => Promise<string>
+  recordSent?: (message: WAMessage) => void
 }
 
 export const createInternalState = (
   recipient: string,
   resolveRecipient?: (raw: string) => Promise<string>,
+  recordSent?: (message: WAMessage) => void,
 ): BuilderInternalState => ({
   recipient,
   ...(resolveRecipient ? { resolveRecipient } : {}),
+  ...(recordSent ? { recordSent } : {}),
 })

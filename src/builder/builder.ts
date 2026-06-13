@@ -90,8 +90,12 @@ export class MessageBuilder<State extends BuilderState> {
     socket: BuilderSocketLike,
     recipient: string,
     resolveRecipient?: (raw: string) => Promise<string>,
+    recordSent?: (message: WAMessage) => void,
   ): MessageBuilder<'init'> {
-    return new MessageBuilder<'init'>(socket, createInternalState(recipient, resolveRecipient))
+    return new MessageBuilder<'init'>(
+      socket,
+      createInternalState(recipient, resolveRecipient, recordSent),
+    )
   }
 
   to(this: MessageBuilder<'init'>, recipient: string): MessageBuilder<'init'> {
@@ -351,6 +355,7 @@ export class MessageBuilder<State extends BuilderState> {
     } catch (err) {
       throw new ZaileysBuilderError('SEND_FAILED', 'socket relayMessage rejected', { cause: err })
     }
+    this.internal.recordSent?.(waMsg as WAMessage)
     return waMsg.key as WAMessageKey
   }
 }

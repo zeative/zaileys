@@ -78,7 +78,12 @@ export class Scheduler {
 
   async loadPending(): Promise<void> {
     const list = this.store.listScheduledJobs
-    if (!list) return
+    if (!list) {
+      for (const job of this.memory.values()) {
+        if (!this.timers.has(job.id)) this.arm(job)
+      }
+      return
+    }
     let jobs: ScheduledJobRecord[]
     try {
       jobs = await list.call(this.store)
@@ -118,15 +123,16 @@ export class Scheduler {
 
   private async fire(record: ScheduledJobRecord): Promise<void> {
     this.timers.delete(record.id)
-    this.memory.delete(record.id)
     if (isSnapshot(record.payload)) {
       try {
         if (this.acquire) await this.acquire()
         await this.sendSnapshot(record.payload)
       } catch (err) {
-        this.logger?.warn(err, 'scheduled send failed')
+        this.logger?.warn(err, 'scheduled send failed; retaining job for retry')
+        return
       }
     }
+    this.memory.delete(record.id)
     await this.remove(record.id)
   }
 

@@ -160,6 +160,33 @@ describe('Scheduler', () => {
     expect(deleteScheduledJob).toHaveBeenCalledWith(handle.id)
   })
 
+  it('retains the record when the send fails at fire time', async () => {
+    const saveScheduledJob = vi.fn(async () => undefined)
+    const deleteScheduledJob = vi.fn(async (_id: string) => undefined)
+    const sendSnapshot = vi.fn(async () => {
+      throw new Error('client not connected')
+    })
+    const { scheduler } = makeScheduler({
+      store: { saveScheduledJob, deleteScheduledJob },
+      sendSnapshot,
+    })
+    await scheduler.scheduleAt(new Date(1000), buildFor(JID))
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(sendSnapshot).toHaveBeenCalledTimes(1)
+    expect(deleteScheduledJob).not.toHaveBeenCalled()
+  })
+
+  it('re-arms in-memory jobs on loadPending when store lacks listScheduledJobs', async () => {
+    const { scheduler, sendSnapshot } = makeScheduler({ store: {} })
+    await scheduler.scheduleAt(new Date(1000), buildFor(JID))
+    scheduler.dispose()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(sendSnapshot).not.toHaveBeenCalled()
+    await scheduler.loadPending()
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(sendSnapshot).toHaveBeenCalledTimes(1)
+  })
+
   it('deletes the record on cancel', async () => {
     const saveScheduledJob = vi.fn(async () => undefined)
     const deleteScheduledJob = vi.fn(async (_id: string) => undefined)

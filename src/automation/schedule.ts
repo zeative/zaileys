@@ -161,20 +161,35 @@ export class Scheduler {
     build: (b: MessageBuilder<'init'>) => MessageBuilder<'content-set'>,
   ): Promise<ScheduledContentSnapshot> {
     let captured: ScheduledContentSnapshot | undefined
+    let sendCount = 0
     const captureSocket: BuilderSocketLike = {
       sendMessage: async (
         jid: string,
         content: AnyMessageContent,
         options?: MiscMessageGenerationOptions,
       ): Promise<WAMessage | undefined> => {
+        sendCount += 1
+        if (sendCount > 1) {
+          throw new ZaileysAutomationError(
+            'SCHEDULE_INVALID',
+            'scheduling multi-part messages (e.g. album) is not supported; schedule a single message',
+          )
+        }
         captured = options ? { recipient: jid, content, options } : { recipient: jid, content }
         return { key: { remoteJid: jid, id: 'scheduled-snapshot', fromMe: true } } as WAMessage
+      },
+      relayMessage: async (): Promise<string> => {
+        throw new ZaileysAutomationError(
+          'SCHEDULE_INVALID',
+          'scheduling interactive/relayed content is not supported; schedule a text or media message',
+        )
       },
     }
     const builder = MessageBuilder.create(captureSocket, '')
     try {
       await build(builder)
     } catch (err) {
+      if (err instanceof ZaileysAutomationError) throw err
       throw new ZaileysAutomationError('SCHEDULE_INVALID', 'scheduled builder evaluation failed', {
         cause: err,
       })

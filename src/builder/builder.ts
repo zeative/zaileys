@@ -55,6 +55,7 @@ export interface BuilderSocketLike {
     message: unknown,
     options: { messageId: string; additionalNodes?: unknown[] },
   ): Promise<string>
+  chatModify?(mod: unknown, jid: string): Promise<void>
   user?: { id?: string | null } | null
   waUploadToServer?: unknown
 }

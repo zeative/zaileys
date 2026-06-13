@@ -161,12 +161,15 @@ describe('integration: Client.delete', () => {
     expect(content.delete).toEqual(key)
   })
 
-  it('targets the local copy when forEveryone is false', async () => {
+  it('deletes for me via chatModify when forEveryone is false', async () => {
     const { c, sock } = await connectedClient()
     const key: WAMessageKey = { remoteJid: JID, id: 'D2', fromMe: false }
     await c.delete(key, { forEveryone: false })
-    const { content } = lastSend(sock)
-    expect(content.delete).toEqual({ ...key, fromMe: true })
+    expect(sock.sendMessage).not.toHaveBeenCalled()
+    expect(sock.chatModify).toHaveBeenCalledWith(
+      { deleteForMe: { deleteMedia: false, key, timestamp: expect.any(Number) } },
+      JID,
+    )
   })
 })
 

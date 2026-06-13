@@ -15,6 +15,7 @@ export interface MockSocket {
   logout: Mock
   requestPairingCode: Mock
   sendMessage: Mock
+  chatModify: Mock
   sendPresenceUpdate: Mock
   onWhatsApp: Mock
   groupCreate: Mock
@@ -79,6 +80,7 @@ export function createMockSocket(initial?: { user?: MockSocketUser }): MockSocke
     sendMessage: vi.fn(async (_jid: string, _content: unknown, _options?: unknown) => ({
       key: { remoteJid: _jid, id: 'mock-sent-id', fromMe: true },
     })),
+    chatModify: vi.fn(async (_mod: unknown, _jid: string) => undefined),
     sendPresenceUpdate: vi.fn(async (_type: string, _jid?: string) => undefined),
     onWhatsApp: vi.fn(async (..._phoneNumber: string[]) => undefined),
     groupCreate: vi.fn(async (_subject: string, _participants: string[]) => ({

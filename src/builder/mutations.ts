@@ -29,8 +29,17 @@ export const deleteMessage = async (
 ): Promise<void> => {
   const remoteJid = requireRemoteJid(key)
   const forEveryone = opts.forEveryone ?? true
-  const target: WAMessageKey = forEveryone ? key : { ...key, fromMe: true }
-  await socket.sendMessage(remoteJid, { delete: target })
+  if (forEveryone) {
+    await socket.sendMessage(remoteJid, { delete: key })
+    return
+  }
+  if (typeof socket.chatModify !== 'function') {
+    throw new ZaileysBuilderError('INVALID_OPTIONS', 'delete-for-me is not supported by this socket')
+  }
+  await socket.chatModify(
+    { deleteForMe: { deleteMedia: false, key, timestamp: Date.now() } },
+    remoteJid,
+  )
 }
 
 export const reactToMessage = async (

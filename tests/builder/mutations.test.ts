@@ -10,6 +10,7 @@ const SENT: WAMessage = { key: { remoteJid: '111@s.whatsapp.net', id: 'SENT1', f
 
 const makeSocket = () => ({
   sendMessage: vi.fn(async (_jid: string, _content: unknown) => SENT),
+  chatModify: vi.fn(async (_mod: unknown, _jid: string) => undefined),
 })
 
 const makeOnWhatsApp = (results: Array<{ jid: string; exists: boolean }> | undefined) => ({
@@ -111,12 +112,14 @@ describe('deleteMessage', () => {
     await deleteMessage(socket, KEY, { forEveryone: true })
     expect(socket.sendMessage).toHaveBeenCalledWith(KEY.remoteJid, { delete: KEY })
   })
-  it('forEveryone=false targets fromMe variant', async () => {
+  it('forEveryone=false deletes for me via chatModify, preserving original key', async () => {
     const socket = makeSocket()
     await deleteMessage(socket, KEY, { forEveryone: false })
-    expect(socket.sendMessage).toHaveBeenCalledWith(KEY.remoteJid, {
-      delete: { ...KEY, fromMe: true },
-    })
+    expect(socket.sendMessage).not.toHaveBeenCalled()
+    expect(socket.chatModify).toHaveBeenCalledWith(
+      { deleteForMe: { deleteMedia: false, key: KEY, timestamp: expect.any(Number) } },
+      KEY.remoteJid,
+    )
   })
   it('throws when key has no remoteJid', async () => {
     const socket = makeSocket()

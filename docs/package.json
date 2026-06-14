@@ -12,6 +12,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@theguild/remark-mermaid": "^0.3.0",
     "next": "^15.5.4",
     "nextra": "4.2.17",
     "nextra-theme-docs": "4.2.17",

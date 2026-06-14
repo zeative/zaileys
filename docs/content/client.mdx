@@ -119,6 +119,22 @@ The typical happy path is `idle → connecting → qr-pending/pairing-pending �
 `connected → reconnecting → connecting → connected` (with backoff), and a clean shutdown goes
 `connected → disconnecting → disconnected`.
 
+```mermaid
+stateDiagram-v2
+    [*] --> idle
+    idle --> connecting: connect()
+    connecting --> qr_pending: no creds (QR)
+    connecting --> pairing_pending: no creds (pairing code)
+    qr_pending --> connected: scanned
+    pairing_pending --> connected: paired
+    connecting --> connected: creds restored
+    connected --> reconnecting: dropped
+    reconnecting --> connecting: backoff retry
+    connected --> disconnecting: disconnect()
+    disconnecting --> disconnected
+    disconnected --> [*]
+```
+
 ### `connect()`
 
 ```typescript

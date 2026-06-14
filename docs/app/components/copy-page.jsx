@@ -38,17 +38,34 @@ const HOVER = 'light-dark(rgba(0,0,0,0.05), rgba(255,255,255,0.07))'
 const MENU_BG = 'light-dark(#ffffff, #1c1c1f)'
 const MUTED = 'light-dark(#52525b, #a1a1aa)'
 
+function writeClipboard(text) {
+  if (navigator.clipboard && window.isSecureContext) {
+    return navigator.clipboard.writeText(text)
+  }
+  return new Promise((resolve, reject) => {
+    const ta = document.createElement('textarea')
+    ta.value = text
+    ta.style.position = 'fixed'
+    ta.style.opacity = '0'
+    document.body.appendChild(ta)
+    ta.focus()
+    ta.select()
+    try {
+      document.execCommand('copy') ? resolve() : reject(new Error('execCommand failed'))
+    } catch (e) {
+      reject(e)
+    } finally {
+      document.body.removeChild(ta)
+    }
+  })
+}
+
 export default function CopyPage() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
   const [copied, setCopied] = useState(false)
   const ref = useRef(null)
-
-  useEffect(() => {
-    const onDoc = (e) => ref.current && !ref.current.contains(e.target) && setOpen(false)
-    document.addEventListener('click', onDoc)
-    return () => document.removeEventListener('click', onDoc)
-  }, [])
+  const mdRef = useRef(null)
 
   const slug = slugFrom(pathname)
   const mdUrl = `${BASE}/md/${slug}.md`
@@ -56,16 +73,35 @@ export default function CopyPage() {
   const absMd = typeof window !== 'undefined' ? `${window.location.origin}${mdUrl}` : mdUrl
   const prompt = `Read ${pageUrl} (raw markdown: ${absMd}) — a Zaileys documentation page — then help me with it.`
 
+  useEffect(() => {
+    const onDoc = (e) => ref.current && !ref.current.contains(e.target) && setOpen(false)
+    document.addEventListener('click', onDoc)
+    let alive = true
+    fetch(mdUrl)
+      .then((r) => (r.ok ? r.text() : null))
+      .then((t) => alive && (mdRef.current = t))
+      .catch(() => {})
+    return () => {
+      alive = false
+      document.removeEventListener('click', onDoc)
+    }
+  }, [mdUrl])
+
   const copy = async () => {
+    setOpen(false)
+    let text = mdRef.current
     try {
-      const text = await (await fetch(mdUrl)).text()
-      await navigator.clipboard.writeText(text)
+      if (!text) text = await (await fetch(mdUrl)).text()
+      await writeClipboard(text)
     } catch {
-      await navigator.clipboard.writeText(pageUrl)
+      try {
+        await writeClipboard(pageUrl)
+      } catch {
+        return
+      }
     }
     setCopied(true)
     setTimeout(() => setCopied(false), 1800)
-    setOpen(false)
   }
 
   const item = {

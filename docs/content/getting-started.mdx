@@ -70,6 +70,27 @@ client.on('text', async (msg) => {
 })
 ```
 
+<StackBlitz
+  title="Zaileys — Echo Bot"
+  description="Minimal Zaileys echo bot: connect, scan QR, reply to text."
+  code={`import { Client } from 'zaileys'
+
+const client = new Client()
+
+client.on('qr', ({ qrString }) => console.log('Scan QR:', qrString))
+client.on('connect', ({ me }) => console.log('Connected as', me.id))
+
+client.on('text', async (msg) => {
+  await msg.reply(\`Echo: \${msg.text}\`)
+})`}
+/>
+
+<Callout type="info">
+  The StackBlitz sandbox runs in a browser WebContainer — connection, events, and
+  text replies work there. Media and sticker features need native `ffmpeg`, so run
+  those locally.
+</Callout>
+
 ### Run it and authenticate
 
 Run the file with your runtime of choice, then link the device from your phone.

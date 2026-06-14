@@ -38,6 +38,14 @@ const textOf = (message: proto.IMessage | null | undefined): string => {
   if (typeof vidCaption === 'string') return vidCaption
   const docCaption = message.documentMessage?.caption
   if (typeof docCaption === 'string') return docCaption
+  const rich = message.botForwardedMessage?.message?.richResponseMessage ?? message.richResponseMessage
+  const submessages = rich?.submessages
+  if (Array.isArray(submessages)) {
+    const parts = submessages
+      .map((s) => s?.messageText)
+      .filter((t): t is string => typeof t === 'string' && t.length > 0)
+    if (parts.length > 0) return parts.join('\n')
+  }
   return ''
 }
 

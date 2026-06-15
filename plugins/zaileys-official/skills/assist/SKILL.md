@@ -28,6 +28,7 @@ knowledge). Sibling focused skills exist for explicit invocation, but you can do
 | **Review/audit** ("review", "cek kode", "is this correct", before shipping) | Check against best practices + anti-patterns + ban-safety; report findings + fixes | [references/pitfalls.md](references/pitfalls.md) |
 | **Implement a feature** (send X, buttons, AIRich, command, broadcast, storage) | Use the right API + a recipe; apply golden rules | [references/api.md](references/api.md), [references/recipes.md](references/recipes.md) |
 | **Explain/choose** ("how does X work", "which adapter", "qr vs pairing") | Answer from the references; show a minimal example | all references |
+| **AI bot + external tools** ("connect MCP", "give the bot tools", scraper catalog, "MCP server", zpi) | Wire MCP server(s) into the LLM call (AI SDK), expose tools via a lazy router | [references/mcp.md](references/mcp.md) |
 
 Default when ambiguous: ask one clarifying question, then proceed. Prefer doing the work
 over describing it.
@@ -41,6 +42,7 @@ Read the relevant file before writing or debugging — they contain the verified
 - [references/errors.md](references/errors.md) — every error class + `.code`, what it means, and how to fix it. **Read this first when diagnosing an exception.**
 - [references/troubleshooting.md](references/troubleshooting.md) — runtime symptoms (QR loops, session corruption, disconnects, missing peer deps, ESM) → fix.
 - [references/pitfalls.md](references/pitfalls.md) — common mistakes & anti-patterns → the correct way. **Read this when reviewing code.**
+- [references/mcp.md](references/mcp.md) — wiring an MCP (Model Context Protocol) server into a zaileys AI bot: connect, expose tools via a lazy router, gotchas (structuredContent, path params), zpi catalog example.
 
 For exhaustive detail, the full docs are one file: <https://zeative.github.io/zaileys/llms-full.txt>.
 

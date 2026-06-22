@@ -114,4 +114,39 @@ export class GroupModule {
   ): Promise<void> {
     await this.requireSocket().groupSettingUpdate(groupId, setting)
   }
+
+  async list(): Promise<GroupMetadata[]> {
+    const all = await this.requireSocket().groupFetchAllParticipating()
+    return Object.values(all)
+  }
+
+  async inviteInfo(code: string): Promise<GroupMetadata> {
+    return this.requireSocket().groupGetInviteInfo(code)
+  }
+
+  async joinRequests(groupId: string): Promise<Array<{ [k: string]: string }>> {
+    return this.requireSocket().groupRequestParticipantsList(groupId)
+  }
+
+  async approveJoin(groupId: string, jids: string[]): Promise<ParticipantUpdateResult[]> {
+    const raw = await this.run('group.participants', () =>
+      this.requireSocket().groupRequestParticipantsUpdate(groupId, jids, 'approve'),
+    )
+    return this.mapParticipants(raw)
+  }
+
+  async rejectJoin(groupId: string, jids: string[]): Promise<ParticipantUpdateResult[]> {
+    const raw = await this.run('group.participants', () =>
+      this.requireSocket().groupRequestParticipantsUpdate(groupId, jids, 'reject'),
+    )
+    return this.mapParticipants(raw)
+  }
+
+  async joinApproval(groupId: string, enabled: boolean): Promise<void> {
+    await this.requireSocket().groupJoinApprovalMode(groupId, enabled ? 'on' : 'off')
+  }
+
+  async memberAddMode(groupId: string, adminsOnly: boolean): Promise<void> {
+    await this.requireSocket().groupMemberAddMode(groupId, adminsOnly ? 'admin_add' : 'all_member_add')
+  }
 }

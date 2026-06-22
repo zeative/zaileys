@@ -31,6 +31,20 @@ export interface DomainSocketLike {
     setting: 'announcement' | 'not_announcement' | 'locked' | 'unlocked',
   ): Promise<void>
   updateMemberLabel(jid: string, memberLabel: string): Promise<unknown>
+  groupFetchAllParticipating(): Promise<{ [jid: string]: GroupMetadata }>
+  groupGetInviteInfo(code: string): Promise<GroupMetadata>
+  groupRequestParticipantsList(jid: string): Promise<Array<{ [k: string]: string }>>
+  groupRequestParticipantsUpdate(
+    jid: string,
+    participants: string[],
+    action: 'approve' | 'reject',
+  ): Promise<{ status: string; jid: string }[]>
+  groupJoinApprovalMode(jid: string, mode: 'on' | 'off'): Promise<void>
+  groupMemberAddMode(jid: string, mode: 'admin_add' | 'all_member_add'): Promise<void>
+
+  onWhatsApp(...jids: string[]): Promise<Array<{ jid: string; exists: boolean; lid?: string }> | undefined>
+  addOrEditContact(jid: string, contact: { firstName?: string; lastName?: string; fullName?: string }): Promise<unknown>
+  removeContact(jid: string): Promise<unknown>
 
   updateLastSeenPrivacy(value: WAPrivacyValue): Promise<void>
   updateOnlinePrivacy(value: WAPrivacyOnlineValue): Promise<void>

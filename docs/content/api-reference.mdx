@@ -50,6 +50,9 @@ client.on('text', (ctx) => {
 | `delete(key, opts?)` | `(key, opts?: DeleteOptions): Promise<void>` | Delete a message. |
 | `react(key, emoji)` | `(key, emoji: string): Promise<WAMessageKey>` | React to a message. |
 | `forward(key, to)` | `(key, to: string): Promise<WAMessageKey>` | Forward a message to a JID. |
+| `pin(key, opts?)` | `(key, opts?: { duration?: number }): Promise<WAMessageKey>` | Pin a message (`duration` seconds; defaults 86400). |
+| `unpin(key)` | `(key): Promise<WAMessageKey>` | Unpin a message. |
+| `setDisappearing(jid, seconds)` | `(jid: string, seconds: number): Promise<void>` | Set the chat's disappearing-message timer. |
 | `broadcast(jids, build, opts?)` | `(jids: string[], build, opts?): Promise<BroadcastResult>` | Send to many recipients. See [Broadcast & Schedule](/automation). |
 | `scheduleAt(date, build, opts?)` | `(date: Date, build, opts?): Promise<ScheduleHandle>` | Schedule a message for later. |
 | `command(spec, handler)` | `(spec: string, handler: CommandHandler): this` | Register a command. See [Commands](/commands). |
@@ -58,6 +61,10 @@ client.on('text', (ctx) => {
 | `get privacy` | `PrivacyModule` | Privacy & blocking. |
 | `get newsletter` | `NewsletterModule` | Newsletter/channel management. |
 | `get community` | `CommunityModule` | Community management. |
+| `get profile` | `ProfileModule` | Own profile name/status/picture. |
+| `get chat` | `ChatModule` | Chat archive/pin/mute/read/star/delete. |
+| `get contact` | `ContactModule` | Contact check/exists/save/remove. |
+| `get business` | `BusinessModule` | Business profile & catalog/products. |
 | `get presence` | `PresenceModule` | Presence updates. |
 | `on/once/off/emit` | inherited from `TypedEventEmitter` | Typed event subscription. See [Events](/events). |
 
@@ -139,6 +146,7 @@ client
 | `text(content, opts?)` | `(content: string, opts?: TextOptions): MessageBuilder<'content-set'>` | Text message (`opts.rich` enables AIRich). |
 | `image(src, opts?)` | `(src: MediaSource, opts?: ImageOptions)` | Image. |
 | `video(src, opts?)` | `(src: MediaSource, opts?: VideoOptions)` | Video. |
+| `videoNote(src, opts?)` | `(src: MediaSource, opts?: VideoNoteOptions)` | Round video note (PTV). |
 | `audio(src, opts?)` | `(src: MediaSource, opts?: AudioOptions)` | Audio / voice note. |
 | `document(src, opts)` | `(src: MediaSource, opts: DocumentOptions)` | Document. |
 | `sticker(src, opts?)` | `(src: MediaSource, opts?: StickerOptions)` | Sticker. |
@@ -149,6 +157,12 @@ client
 | `location(...)` | location (`LocationOptions`) | Share location. |
 | `contact(vcard)` | `(vcard: string)` | Share a contact. |
 | `template(opts)` | `(opts: TemplateOptions)` | Template message. |
+| `event(opts)` | `(opts: EventOptions)` | Event message (`name`, `startAt`, optional `endAt`/`location`/`call`/`canceled`). |
+| `groupInvite(opts)` | `(opts: GroupInviteOptions)` | Group-invite card (`jid`, `code`, optional `subject`/`caption`/`expiresAt`/`thumbnail`). |
+| `product(opts)` | `(opts: ProductOptions)` | Business product card (`image`, `title`, `businessOwnerId`, optional `price`/`currency`/`productId`/etc.). |
+| `requestPhoneNumber()` | `()` | Ask the recipient to share their phone number. |
+| `sharePhoneNumber()` | `()` | Share your own phone number. |
+| `limitSharing(enabled?)` | `(enabled?: boolean)` | Toggle advanced chat-privacy (limit sharing); defaults `true`. |
 | `album(items)` | `(items: AlbumItem[])` | Media album. |
 | `reply(quoted)` | `(quoted: WAMessage \| WAMessageKey)` | Quote a message. |
 | `mentions(jids)` | `(jids: string[])` | Mention specific JIDs. |
@@ -178,16 +192,27 @@ client
 
 ### Builder types
 
-`BuilderState`, `BuilderContext`, `MediaSource`, `ImageOptions`, `VideoOptions`, `AudioOptions`, `DocumentOptions`, `StickerOptions`, `AlbumItem`, `ListOptions`, `ListSection`, `PollOptions`, `LocationOptions`, `TemplateOptions`, `ButtonDef`, `InteractiveButton` (`ReplyButton`, `UrlButton`, `CopyButton`, `CallButton`, `ReminderButton`, `CancelReminderButton`, `LocationRequestButton`, `AddressButton`), `BottomSheetOptions`, `LimitedTimeOfferOptions`.
+`BuilderState`, `BuilderContext`, `MediaSource`, `ImageOptions`, `VideoOptions`, `VideoNoteOptions`, `AudioOptions`, `DocumentOptions`, `StickerOptions`, `AlbumItem`, `ListOptions`, `ListSection`, `PollOptions`, `LocationOptions`, `TemplateOptions`, `EventOptions`, `GroupInviteOptions`, `ProductOptions`, `ButtonDef`, `InteractiveButton` (`ReplyButton`, `UrlButton`, `CopyButton`, `CallButton`, `ReminderButton`, `CancelReminderButton`, `LocationRequestButton`, `AddressButton`), `BottomSheetOptions`, `LimitedTimeOfferOptions`.
 
 ## Events
 
 Inbound event payloads and helpers. See [Events](/events).
 
 ```typescript
+client.on('message', (ctx) => console.log(ctx.chatType, ctx.text, ctx.senderId))
 client.on('text', (ctx) => console.log(ctx.text, ctx.senderId))
 client.on('call-incoming', (call) => console.log(call))
 ```
+
+The `message` event is an umbrella that fires **once for any inbound message** regardless of type, delivering the same `MessageContext` as the typed events (`text`, `image`, …). Use it as a single catch-all entry point.
+
+`MessageContext` notes:
+- `uniqueId` — 16-char uppercase hex, stable per message (`remoteJid|id|fromMe`).
+- `staticId` — 16-char uppercase hex, stable per room + sender (same value for every message from one sender in one room).
+- `mentions` — resolved to PN (LID mentions mapped back to phone-number JIDs).
+- `senderDevice` — detected (`android` \| `ios` \| `web` \| `desktop` \| `unknown`).
+- Content-derived flags: `isEdited`, `isDeleted`, `isPinned`, `isUnPinned`, `isBot`, `isStatusMention`, `isGroupStatusMention`, `isStory`, `isHideTags`.
+- `chatType` values include `album`, `group-invite`, `product`, `order`, `payment` (plus `text`/`image`/`video`/`audio`/`document`/`sticker`/`poll`/`contact`/`location`/`live-location`/`event`/`buttons`/`list`/`interactive`/`template`/`unknown`).
 
 | Export | Kind | Description |
 | --- | --- | --- |
@@ -198,10 +223,24 @@ client.on('call-incoming', (call) => console.log(call))
 | `ChatType` / `SenderInfo` / `SenderDevice` | type | Sender/chat metadata. |
 | Payload types | type | `ButtonClickPayload`, `CallPayload`/`CallBase`, `DeletePayload`, `EditPayload`, `GroupJoinPayload`, `GroupLeavePayload`, `GroupUpdatePayload`, `GroupParticipantInfo`, `HistorySyncPayload`, `LimitedPayload`, `ListSelectPayload`, `MemberTagPayload`, `NewsletterPayload`, `PollVotePayload`, `PresencePayload`, `ReactionPayload`, `QuotedRef`. |
 | Media context | type | `ContextMedia`, `MediaDescriptor`, `MediaDownloadResult`, `MediaKind`. |
+| `ctx.media` variants | interface | `MediaAttachment`, `PollMedia`, `ContactMedia`, `LocationMedia`, `EventMedia`, `AlbumMedia`, `GroupInviteMedia`, `ProductMedia`, `OrderMedia`, `PaymentMedia`, `LinkPreviewMedia`, `ButtonsMedia`, `ListMedia`, `InteractiveMedia`, `TemplateMedia` (see below). |
 | Mentions | type | `MentionContext`, `MentionAllContext`. |
 | Event maps | type | `InboundEventMap`, `InboundEventName`. |
 | Citations | type | `CitationConfig`, `CitationPredicates`. |
 | Misc | type | `BuildContextInput`, `UpsertPayload`, `SelfOnlyProtocolType`. |
+
+### `ctx.media` variants
+
+`ctx.media` is a discriminated union keyed on `type`. New variants added in v4.4 (all fields nullable unless noted):
+
+| Variant (`type`) | Fields |
+| --- | --- |
+| `album` | `expectedImageCount`, `expectedVideoCount`. |
+| `group-invite` | `groupId`, `groupName`, `inviteCode`, `caption`, `expiresAt`. |
+| `product` | `productId`, `title`, `description`, `price`, `currency`, `retailerId`, `url`, `businessOwnerId`. |
+| `order` | `orderId`, `title`, `itemCount`, `total`, `currency`, `status`, `message`. |
+| `payment` | `kind` (`'request' \| 'send' \| 'invite'`), `amount`, `currency`, `note`, `expiresAt`. |
+| `link` | `url`, `title`, `description`. |
 
 ## Commands
 
@@ -238,7 +277,7 @@ Rate limiting, queues, broadcast, scheduling, presence. See [Broadcast & Schedul
 
 ## Domain Modules
 
-Accessed via `client.group`, `client.privacy`, `client.newsletter`, `client.community`. Full guides: [Groups](/groups) · [Communities](/community) · [Newsletters](/newsletter) · [Privacy & Blocking](/privacy). See also [Client & Lifecycle](/client).
+Accessed via `client.group`, `client.privacy`, `client.newsletter`, `client.community`, `client.profile`, `client.chat`, `client.contact`, `client.business`. Full guides: [Groups](/groups) · [Communities](/community) · [Newsletters](/newsletter) · [Privacy & Blocking](/privacy). See also [Client & Lifecycle](/client).
 
 ```typescript
 const meta = await client.group.metadata('xxx@g.us')
@@ -246,16 +285,28 @@ await client.group.addMember('xxx@g.us', ['628xxx@s.whatsapp.net'])
 ```
 
 ### `GroupModule`
-`create`, `addMember`, `removeMember`, `promote`, `demote`, `updateSubject`, `updateDescription`, `leave`, `metadata`, `tagMember`, `inviteCode`, `revokeInvite`, `acceptInvite`, `toggleEphemeral`, `setting`.
+`create`, `addMember`, `removeMember`, `promote`, `demote`, `updateSubject`, `updateDescription`, `leave`, `metadata`, `tagMember`, `inviteCode`, `revokeInvite`, `acceptInvite`, `toggleEphemeral`, `setting`, `list`, `inviteInfo`, `joinRequests`, `approveJoin`, `rejectJoin`, `joinApproval`, `memberAddMode`.
 
 ### `PrivacyModule`
 `set`, `get`, `block`, `unblock`, `blocklist`, `disappearingMode`.
 
 ### `NewsletterModule`
-`create`, `follow`, `unfollow`, `metadata`, `updateName`, `updateDescription`, `updatePicture`, `mute`, `unmute`, `delete`.
+`create`, `follow`, `unfollow`, `metadata`, `updateName`, `updateDescription`, `updatePicture`, `mute`, `unmute`, `delete`, `removePicture`, `react`, `unreact`, `subscribers`, `messages`, `adminCount`, `changeOwner`, `demote`.
 
 ### `CommunityModule`
-`create`, `createGroup`, `linkGroup`, `unlinkGroup`, `subGroups`, `leave`, `updateSubject`, `updateDescription`, `inviteCode`, `revokeInvite`, `acceptInvite`.
+`create`, `createGroup`, `linkGroup`, `unlinkGroup`, `subGroups`, `leave`, `updateSubject`, `updateDescription`, `inviteCode`, `revokeInvite`, `acceptInvite`, `metadata`, `list`, `inviteInfo`, `toggleEphemeral`, `setting`, `memberAddMode`, `joinApproval`.
+
+### `ProfileModule`
+`setName`, `setStatus`, `setPicture`, `removePicture`, `getPicture`, `getStatus`.
+
+### `ChatModule`
+`archive`, `unarchive`, `pin`, `unpin`, `mute`, `unmute`, `markRead`, `markUnread`, `star`, `unstar`, `delete`, `clear`.
+
+### `ContactModule`
+`check`, `exists`, `save`, `remove`. Type: `ContactCheckResult`.
+
+### `BusinessModule`
+`profile`, `catalog`, `collections`, `orderDetails`, `createProduct`, `updateProduct`, `deleteProduct`.
 
 Domain types: `ParticipantUpdateResult`, `PrivacyConfig`, `PrivacySettings`, `LinkedGroup`, `DomainSocketLike`.
 

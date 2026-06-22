@@ -45,6 +45,13 @@ or after `await client.connect()`. See [Error Handling](/error-handling).
 | `inviteCode(communityId)` | `Promise<string \| undefined>` | Get the current invite code. |
 | `revokeInvite(communityId)` | `Promise<string \| undefined>` | Revoke and regenerate the invite code. |
 | `acceptInvite(code)` | `Promise<string \| undefined>` | Join a community via invite code. |
+| `metadata(communityId)` | `Promise<GroupMetadata>` | Fetch community metadata. |
+| `list()` | `Promise<GroupMetadata[]>` | Communities you participate in. |
+| `inviteInfo(code)` | `Promise<GroupMetadata>` | Resolve an invite code to its metadata (preview). |
+| `toggleEphemeral(communityId, seconds)` | `Promise<void>` | Set the disappearing-message default (`0` disables). |
+| `setting(communityId, value)` | `Promise<void>` | Update the announcement restriction. |
+| `memberAddMode(communityId, adminsOnly)` | `Promise<void>` | Toggle whether only admins can add members. |
+| `joinApproval(communityId, enabled)` | `Promise<void>` | Toggle "admin approval to join". |
 
 <Callout type="warning">
 **Ban-safety — `operationGuard` is active by default.** `create` and `createGroup` share the
@@ -313,6 +320,158 @@ const code = url.split('/').pop()!
 
 const communityId = await client.community.acceptInvite(code)
 console.log('Joined community:', communityId)
+```
+
+## `metadata`
+
+```typescript
+metadata(communityId: string): Promise<GroupMetadata>
+```
+
+Fetches the metadata for a community: subject, description, participant list, and related fields.
+This is the primary read operation for community state.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `communityId` | `string` | Community JID (`xxx@g.us`). |
+
+```typescript
+const meta = await client.community.metadata('120363000000000001@g.us')
+console.log(meta.subject, '—', meta.participants.length, 'members')
+```
+
+**Returns:** `GroupMetadata`.
+
+## `list`
+
+```typescript
+list(): Promise<GroupMetadata[]>
+```
+
+Returns the metadata for every community the bot currently participates in.
+
+```typescript
+const communities = await client.community.list()
+console.log('You are in', communities.length, 'communities')
+
+for (const c of communities) {
+  console.log(c.subject, '—', c.id)
+}
+```
+
+**Returns:** `GroupMetadata[]`.
+
+## `inviteInfo`
+
+```typescript
+inviteInfo(code: string): Promise<GroupMetadata>
+```
+
+Resolves a community invite code to its metadata **without joining**. Use this to preview a
+community before calling `acceptInvite`. The `code` is the raw fragment (the part after
+`https://chat.whatsapp.com/`).
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `code` | `string` | The invite code (just the code portion, not the full URL). |
+
+```typescript
+const info = await client.community.inviteInfo('AbCdEfGhIjKlMnOpQrStUv')
+console.log('Community:', info.subject)
+```
+
+**Returns:** `GroupMetadata`.
+
+## `toggleEphemeral`
+
+```typescript
+toggleEphemeral(communityId: string, seconds: number): Promise<void>
+```
+
+Sets the default disappearing-message timer for the community. Pass `0` to disable. Common values
+are `86400` (24 hours), `604800` (7 days), and `7776000` (90 days). Requires admin rights.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `communityId` | `string` | Community JID (`xxx@g.us`). |
+| `seconds` | `number` | Timer in seconds. `0` disables disappearing messages. |
+
+```typescript
+// Enable 7-day disappearing messages by default
+await client.community.toggleEphemeral('120363000000000001@g.us', 604800)
+
+// Disable
+await client.community.toggleEphemeral('120363000000000001@g.us', 0)
+```
+
+## `setting`
+
+```typescript
+setting(communityId: string, setting: 'announcement' | 'not_announcement'): Promise<void>
+```
+
+Applies the announcement restriction to the community. Requires admin rights.
+
+| Value | Effect |
+| ----- | ------ |
+| `'announcement'` | Only admins can post in the community announcement space. |
+| `'not_announcement'` | All members can post. |
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `communityId` | `string` | Community JID (`xxx@g.us`). |
+| `setting` | `'announcement' \| 'not_announcement'` | The restriction to apply. |
+
+```typescript
+// Only admins can post
+await client.community.setting('120363000000000001@g.us', 'announcement')
+
+// Re-open for all members
+await client.community.setting('120363000000000001@g.us', 'not_announcement')
+```
+
+## `memberAddMode`
+
+```typescript
+memberAddMode(communityId: string, adminsOnly: boolean): Promise<void>
+```
+
+Toggles who can add new members to the community. When `adminsOnly` is `true`, only admins can add
+members; when `false`, any member can. Requires admin rights.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `communityId` | `string` | Community JID (`xxx@g.us`). |
+| `adminsOnly` | `boolean` | `true` to restrict adding members to admins only. |
+
+```typescript
+// Only admins can add members
+await client.community.memberAddMode('120363000000000001@g.us', true)
+
+// Any member can add members
+await client.community.memberAddMode('120363000000000001@g.us', false)
+```
+
+## `joinApproval`
+
+```typescript
+joinApproval(communityId: string, enabled: boolean): Promise<void>
+```
+
+Toggles the community's "admin approval to join" mode. When enabled, users who follow the invite
+link must be approved by an admin before joining. Requires admin rights.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `communityId` | `string` | Community JID (`xxx@g.us`). |
+| `enabled` | `boolean` | `true` to require admin approval, `false` to allow direct joins. |
+
+```typescript
+// Require admin approval
+await client.community.joinApproval('120363000000000001@g.us', true)
+
+// Allow direct joins
+await client.community.joinApproval('120363000000000001@g.us', false)
 ```
 
 ## Complete example

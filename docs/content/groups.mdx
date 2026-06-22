@@ -49,6 +49,13 @@ calling any group method. See [Error Handling](/error-handling).
 | `acceptInvite` | `acceptInvite(code)` | `Promise<string>` | Join a group by invite code; returns the group JID. |
 | `toggleEphemeral` | `toggleEphemeral(groupId, seconds)` | `Promise<void>` | Set the disappearing-message timer (`0` disables). |
 | `setting` | `setting(groupId, value)` | `Promise<void>` | Update group restrictions (`announcement`, `locked`, etc.). |
+| `list` | `list()` | `Promise<GroupMetadata[]>` | All groups you participate in. |
+| `inviteInfo` | `inviteInfo(code)` | `Promise<GroupMetadata>` | Resolve an invite code to its metadata (preview before joining). |
+| `joinRequests` | `joinRequests(groupId)` | `Promise<Array<{ [k: string]: string }>>` | Pending join requests for the group. |
+| `approveJoin` | `approveJoin(groupId, jids[])` | `Promise<ParticipantUpdateResult[]>` | Approve pending join requests. |
+| `rejectJoin` | `rejectJoin(groupId, jids[])` | `Promise<ParticipantUpdateResult[]>` | Reject pending join requests. |
+| `joinApproval` | `joinApproval(groupId, enabled)` | `Promise<void>` | Toggle "admin approval to join". |
+| `memberAddMode` | `memberAddMode(groupId, adminsOnly)` | `Promise<void>` | Toggle whether only admins can add members. |
 
 ## Rate limiting and ban safety
 
@@ -483,6 +490,189 @@ client.on('connect', async () => {
 | --------- | ---- | ----------- |
 | `groupId` | `string` | Target group JID. |
 | `setting` | `'announcement' \| 'not_announcement' \| 'locked' \| 'unlocked'` | The restriction to apply. |
+
+## `list`
+
+```typescript
+list(): Promise<GroupMetadata[]>
+```
+
+Returns the metadata for every group the bot currently participates in. Internally fetches all
+participating groups and returns them as an array.
+
+```typescript
+client.on('connect', async () => {
+  const groups = await client.group.list()
+  console.log('You are in', groups.length, 'groups')
+
+  for (const g of groups) {
+    console.log(g.subject, '—', g.participants.length, 'members')
+  }
+})
+```
+
+**Returns:** `GroupMetadata[]` — see [GroupMetadata shape](#groupmetadata).
+
+## `inviteInfo`
+
+```typescript
+inviteInfo(code: string): Promise<GroupMetadata>
+```
+
+Resolves a group invite code to its metadata **without joining**. Use this to preview a group
+(subject, description, participant count) before deciding to call `acceptInvite`. The `code` is the
+raw fragment (the part after `https://chat.whatsapp.com/`).
+
+```typescript
+client.on('connect', async () => {
+  const info = await client.group.inviteInfo('AbCdEfGhIjKlMnOpQrSt12')
+
+  console.log('Group:', info.subject)
+  console.log('Members:', info.size)
+  console.log('Owner:', info.owner)
+})
+```
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `code` | `string` | The invite code (the part after `https://chat.whatsapp.com/`). |
+
+**Returns:** `GroupMetadata` — see [GroupMetadata shape](#groupmetadata).
+
+## `joinRequests`
+
+```typescript
+joinRequests(groupId: string): Promise<Array<{ [k: string]: string }>>
+```
+
+Returns the list of pending join requests for a group whose join approval mode is enabled. Each
+entry describes a user awaiting admin approval. You must be a group admin.
+
+```typescript
+client.on('connect', async () => {
+  const requests = await client.group.joinRequests('120363000000000000@g.us')
+  console.log('Pending requests:', requests.length)
+
+  for (const req of requests) {
+    console.log(req)
+  }
+})
+```
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `groupId` | `string` | Target group JID. |
+
+**Returns:** `Array<{ [k: string]: string }>` — raw pending-request entries.
+
+## `approveJoin`
+
+```typescript
+approveJoin(groupId: string, jids: string[]): Promise<ParticipantUpdateResult[]>
+```
+
+Approves one or more pending join requests. The approved JIDs become group members. You must be a
+group admin.
+
+Throttled by `operationGuard` under the `group.participants` category (default 10 s between calls).
+
+```typescript
+client.on('connect', async () => {
+  const results = await client.group.approveJoin('120363000000000000@g.us', [
+    '628333333333@s.whatsapp.net',
+  ])
+
+  for (const r of results) {
+    console.log(r.jid, '->', r.status)
+  }
+})
+```
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `groupId` | `string` | Target group JID. |
+| `jids` | `string[]` | JIDs of pending requesters to approve. |
+
+**Returns:** `ParticipantUpdateResult[]`.
+
+## `rejectJoin`
+
+```typescript
+rejectJoin(groupId: string, jids: string[]): Promise<ParticipantUpdateResult[]>
+```
+
+Rejects one or more pending join requests. The rejected JIDs are removed from the pending list. You
+must be a group admin.
+
+Throttled under `group.participants` (default 10 s).
+
+```typescript
+client.on('connect', async () => {
+  const results = await client.group.rejectJoin('120363000000000000@g.us', [
+    '628333333333@s.whatsapp.net',
+  ])
+
+  for (const r of results) {
+    console.log(r.jid, '->', r.status)
+  }
+})
+```
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `groupId` | `string` | Target group JID. |
+| `jids` | `string[]` | JIDs of pending requesters to reject. |
+
+**Returns:** `ParticipantUpdateResult[]`.
+
+## `joinApproval`
+
+```typescript
+joinApproval(groupId: string, enabled: boolean): Promise<void>
+```
+
+Toggles the group's "admin approval to join" mode. When enabled, users who follow the invite link
+are placed in a pending queue (see `joinRequests`) instead of joining immediately. You must be a
+group admin.
+
+```typescript
+client.on('connect', async () => {
+  // Require admin approval for new joins
+  await client.group.joinApproval('120363000000000000@g.us', true)
+
+  // Allow anyone with the link to join directly
+  await client.group.joinApproval('120363000000000000@g.us', false)
+})
+```
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `groupId` | `string` | Target group JID. |
+| `enabled` | `boolean` | `true` to require admin approval, `false` to allow direct joins. |
+
+## `memberAddMode`
+
+```typescript
+memberAddMode(groupId: string, adminsOnly: boolean): Promise<void>
+```
+
+Toggles who can add new members to the group. When `adminsOnly` is `true`, only admins can add
+members; when `false`, any participant can. You must be a group admin.
+
+```typescript
+client.on('connect', async () => {
+  // Only admins can add members
+  await client.group.memberAddMode('120363000000000000@g.us', true)
+
+  // Any member can add members
+  await client.group.memberAddMode('120363000000000000@g.us', false)
+})
+```
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `groupId` | `string` | Target group JID. |
+| `adminsOnly` | `boolean` | `true` to restrict adding members to admins only. |
 
 ## GroupMetadata
 

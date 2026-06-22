@@ -313,4 +313,123 @@ await client.send(jid).video(mp4)
 - **Reuse the instance.** Building one `Media` and calling several namespaces avoids re-reading
   the source repeatedly when you process the same file in multiple ways.
 
+## Incoming media: `ctx.media`
+
+The `Media` class above is for **outgoing** transforms. On the **incoming** side, every message
+context exposes an optional `ctx.media` — a discriminated union on `.type` that carries the rich
+payload behind a message. For attachments (`image`, `video`, `audio`, `document`, `sticker`) it
+holds the file metadata plus lazy `buffer()` / `stream()` accessors; for richer message kinds it
+holds the structured fields below. Narrow on `ctx.media?.type` to read the right shape.
+
+Beyond the attachment and the earlier structured types (`poll`, `contact`, `location`, `event`),
+these variants are also surfaced:
+
+### `type: 'album'`
+
+The album **header** message. The actual photos and videos arrive afterwards as separate
+`image` / `video` messages — this header only announces how many to expect.
+
+| Field                | Type             | Description                                              |
+| -------------------- | ---------------- | -------------------------------------------------------- |
+| `expectedImageCount` | `number \| null` | How many image messages the album will contain.         |
+| `expectedVideoCount` | `number \| null` | How many video messages the album will contain.         |
+
+### `type: 'group-invite'`
+
+A shared group-invite card.
+
+| Field        | Type             | Description                                          |
+| ------------ | ---------------- | --------------------------------------------------- |
+| `groupId`    | `string \| null` | JID of the invited group.                           |
+| `groupName`  | `string \| null` | Display name of the group.                          |
+| `inviteCode` | `string \| null` | The invite code (used to join).                     |
+| `caption`    | `string \| null` | Optional caption attached to the invite.            |
+| `expiresAt`  | `number \| null` | Expiry timestamp of the invite.                     |
+
+### `type: 'product'`
+
+A product card from a WhatsApp Business catalog.
+
+| Field             | Type             | Description                                       |
+| ----------------- | ---------------- | ------------------------------------------------- |
+| `productId`       | `string \| null` | Catalog product id.                               |
+| `title`           | `string \| null` | Product title.                                    |
+| `description`     | `string \| null` | Product description.                              |
+| `price`           | `number \| null` | Price amount.                                     |
+| `currency`        | `string \| null` | ISO currency code.                                |
+| `retailerId`      | `string \| null` | Retailer-defined SKU / id.                        |
+| `url`             | `string \| null` | Product URL.                                      |
+| `businessOwnerId` | `string \| null` | JID of the business that owns the catalog.        |
+
+### `type: 'order'`
+
+An order summary referencing one or more catalog products.
+
+| Field       | Type                                              | Description                                  |
+| ----------- | ------------------------------------------------- | -------------------------------------------- |
+| `orderId`   | `string \| null`                                  | Order id.                                    |
+| `title`     | `string \| null`                                  | Order title.                                 |
+| `itemCount` | `number \| null`                                  | Number of items in the order.                |
+| `total`     | `number \| null`                                  | Order total amount.                          |
+| `currency`  | `string \| null`                                  | ISO currency code.                           |
+| `status`    | `'inquiry' \| 'accepted' \| 'declined' \| null`   | Order status.                                |
+| `message`   | `string \| null`                                  | Attached message / note.                     |
+
+### `type: 'payment'`
+
+A payment request, send, or invite.
+
+| Field       | Type                                  | Description                                       |
+| ----------- | ------------------------------------- | ------------------------------------------------- |
+| `kind`      | `'request' \| 'send' \| 'invite'`     | Whether it requests, sends, or invites a payment. |
+| `amount`    | `number \| null`                      | Payment amount.                                   |
+| `currency`  | `string \| null`                      | ISO currency code.                                |
+| `note`      | `string \| null`                      | Attached note.                                    |
+| `expiresAt` | `number \| null`                      | Expiry timestamp.                                 |
+
+### `type: 'link'`
+
+A plain **text** message that carries a rich link preview. The `chatType` stays `'text'`, but
+`ctx.media` holds the unfurled preview.
+
+| Field         | Type             | Description                          |
+| ------------- | ---------------- | ------------------------------------ |
+| `url`         | `string \| null` | The previewed URL.                   |
+| `title`       | `string \| null` | Preview title.                       |
+| `description` | `string \| null` | Preview description.                 |
+
+```typescript
+import { Client } from 'zaileys'
+
+const client = new Client({ /* ... */ })
+
+client.on('messages', async (ctx) => {
+  switch (ctx.media?.type) {
+    case 'album':
+      console.log(`Album incoming: ${ctx.media.expectedImageCount} images, ${ctx.media.expectedVideoCount} videos`)
+      break
+    case 'group-invite':
+      console.log(`Invite to ${ctx.media.groupName} (code ${ctx.media.inviteCode})`)
+      break
+    case 'product':
+      console.log(`${ctx.media.title} — ${ctx.media.price} ${ctx.media.currency}`)
+      break
+    case 'order':
+      console.log(`Order ${ctx.media.orderId}: ${ctx.media.itemCount} items, ${ctx.media.status}`)
+      break
+    case 'payment':
+      console.log(`Payment ${ctx.media.kind}: ${ctx.media.amount} ${ctx.media.currency}`)
+      break
+    case 'link':
+      console.log(`Link preview: ${ctx.media.title} → ${ctx.media.url}`)
+      break
+  }
+})
+```
+
+<Callout type="info">
+  `ctx.media` is optional and `type`-discriminated — always narrow on `ctx.media?.type` before
+  reading fields, and remember most fields are `… | null` because WhatsApp omits them freely.
+</Callout>
+
 See also: [Sending Messages](/sending-messages) and [Installation](/installation).

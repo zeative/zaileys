@@ -69,6 +69,7 @@ These deliver a rich [message context](#the-message-context) object — the same
 
 | Event | Payload | When |
 | --- | --- | --- |
+| `message` | `MessageContext` | **Umbrella event** — fires once for *any* inbound message type (text, image, video, audio, document, sticker, poll, contact, location, album, …) with the same `MessageContext`. Use it when you want a single handler instead of one-per-type. The per-type events below still fire too. |
 | `text` | `MessageContext` | A plain text (or extended text) message arrives. |
 | `image` | `MessageContext` (with `media`) | An image message arrives. `msg.text` holds the caption. |
 | `video` | `MessageContext` (with `media`) | A video message arrives. `msg.text` holds the caption. |
@@ -192,7 +193,7 @@ Do **not** wrap `connect()` in a tight retry loop on `auth-exhausted` — that d
 
 ## The message context
 
-Every message event (`text`, `image`, `video`, `audio`, `document`, `sticker`, `mention`, `mention-all`) hands your handler a **`MessageContext`** — a single object with all the metadata plus action methods (`reply`, `react`, `replied`, …). This is the workhorse object of zaileys.
+Every message event (`message`, `text`, `image`, `video`, `audio`, `document`, `sticker`, `mention`, `mention-all`) hands your handler a **`MessageContext`** — a single object with all the metadata plus action methods (`reply`, `react`, `replied`, …). This is the workhorse object of zaileys.
 
 ```typescript
 client.on('text', async (msg) => {
@@ -205,20 +206,36 @@ client.on('text', async (msg) => {
 })
 ```
 
+#### `message` — one handler for every message type
+
+If you don't care about per-type routing, subscribe to `message`. It fires once for **any** inbound message — text, image, video, audio, document, sticker, poll, contact, location, album, and so on — delivering the same `MessageContext`. Branch on `msg.chatType` to tell them apart. The per-type events (`text`, `image`, …) still fire alongside it, so don't subscribe to both unless you want the handler to run twice.
+
+```typescript
+client.on('message', async (msg) => {
+  console.log(msg.chatType, '|', msg.senderId, '|', msg.text)
+  if (msg.chatType === 'image' && msg.media) {
+    const buf = await msg.media.buffer()
+    // …
+  }
+  await msg.reply(`Got a ${msg.chatType} message`)
+})
+```
+
 ### Identity & routing fields
 
 | Property | Type | Description |
 | --- | --- | --- |
-| `uniqueId` | `string` | Stable 8-char hash of the message key (`remoteJid \| id \| fromMe`). Handy as a dedupe key. |
+| `uniqueId` | `string` | A 16-char **UPPERCASE** hex hash of the message key (`remoteJid \| id \| fromMe`). Unique **per message** — handy as a dedupe key. |
+| `staticId` | `string` | A 16-char **UPPERCASE** hex hash of `roomId \| senderId`. **Stable per `(room, sender)` pair** — same value for every message from the same person in the same chat. Good as a conversation/session key. |
 | `channelId` | `string` | The configured `sessionId` / channel this message came through. |
 | `chatId` | `string` | The raw WhatsApp message id (`key.id`). |
-| `chatType` | `ChatType` | `'text' \| 'image' \| 'video' \| 'audio' \| 'document' \| 'sticker' \| 'unknown'`. |
-| `receiverId` | `string` | Your own account id (the receiver of this inbound message). |
-| `roomId` | `string \| null` | The group JID (`xxx@g.us`) when in a group, otherwise `null`. |
-| `senderId` | `string` | The sender's phone-number JID (e.g. `628xxxxxxxxxx`). |
-| `senderLid` | `string \| null` | The sender's LID (linked-device identifier), if known. |
+| `chatType` | `ChatType` | `'text' \| 'image' \| 'video' \| 'audio' \| 'document' \| 'sticker' \| 'poll' \| 'contact' \| 'location' \| 'live-location' \| 'event' \| 'album' \| 'group-invite' \| 'product' \| 'order' \| 'payment' \| 'buttons' \| 'list' \| 'interactive' \| 'template' \| 'unknown'`. |
+| `receiverId` | `string` | Your own account id (the receiver of this inbound message). Resolved to phone-number (PN) form even when only the LID is known. |
+| `roomId` | `string \| null` | The group JID (`xxx@g.us`) when in a group, otherwise the chat's phone-number JID. Resolved to PN form even when only the LID is known. |
+| `senderId` | `string` | The sender's phone-number JID (e.g. `628xxxxxxxxxx`). Resolved to PN form even when only the LID is known. |
+| `senderLid` | `string \| null` | The sender's LID (linked-device identifier), if known. Keeps the raw LID even after `senderId` is resolved to PN. |
 | `senderName` | `string \| null` | The sender's WhatsApp push name. |
-| `senderDevice` | `SenderDevice` | `'android' \| 'ios' \| 'web' \| 'desktop' \| 'unknown'`. |
+| `senderDevice` | `SenderDevice` | `'android' \| 'ios' \| 'web' \| 'desktop' \| 'unknown'` — detected from the JID's device suffix. |
 | `timestamp` | `number` | Message time in epoch **milliseconds**. |
 
 ### Content fields
@@ -226,7 +243,7 @@ client.on('text', async (msg) => {
 | Property | Type | Description |
 | --- | --- | --- |
 | `text` | `string` | The message body. For media this is the caption (empty string if none). |
-| `mentions` | `string[]` | JIDs explicitly mentioned in the message. |
+| `mentions` | `string[]` | JIDs explicitly mentioned in the message. Resolved to phone-number JIDs (`@s.whatsapp.net`) instead of raw `@lid` when the LID→PN mapping is available; inline `@number` text in `text` is rewritten to match. |
 | `links` | `string[]` | URLs auto-extracted from `text` (trailing punctuation stripped). |
 
 ### Boolean flags
@@ -245,14 +262,14 @@ All of these are plain `boolean` fields you can branch on directly.
 | `isQuestion` | `text` ends with `?`. |
 | `isPrefix` | `text` starts with one of your configured command prefixes. |
 | `isTagMe` | You (`receiverId`) are among the `mentions`. |
-| `isEdited` | Message is an edit. |
-| `isDeleted` | Message was deleted. |
-| `isPinned` / `isUnPinned` | Pin / unpin state. |
-| `isBot` | Detected as a bot message. |
-| `isSpam` | Flagged as spam. |
-| `isHideTags` | A hidetag (silent @all) message. |
-| `isStatusMention` / `isGroupStatusMention` | Status-mention variants. |
-| `isStory` | A status/story message. |
+| `isEdited` | The message is an edit — has an inner `editedMessage` or a `protocolMessage` of edit type. |
+| `isDeleted` | The message is a delete/revoke — a `protocolMessage` of revoke type. |
+| `isPinned` / `isUnPinned` | A `pinInChatMessage` pinning / unpinning for everyone. |
+| `isBot` | The message carries `messageContextInfo.botMetadata` (sent by a bot). |
+| `isSpam` | Flagged as spam. (Currently always `false`.) |
+| `isHideTags` | Hidetag (silent tag) — `mentions` are present but `text` has no visible `@number`. |
+| `isStatusMention` / `isGroupStatusMention` | Carries a `statusMentionMessage` / `groupStatusMentionMessage` respectively. |
+| `isStory` | A status/story message — `remoteJid` is `status@broadcast`. |
 
 ### Methods
 
@@ -454,7 +471,7 @@ Media is **lazy** — nothing is downloaded until you call `msg.media.buffer()` 
 </Callout>
 
 <Callout type="default">
-A single incoming message can fan out to multiple events (e.g. a group image that mentions you fires `image` and `mention`). Use `uniqueId` if you must dedupe across handlers.
+A single incoming message can fan out to multiple events (e.g. a group image that mentions you fires `message`, `image`, and `mention`). Use `uniqueId` (per-message) if you must dedupe across handlers, or `staticId` (stable per room+sender) to key per-conversation state.
 </Callout>
 
 ## Related

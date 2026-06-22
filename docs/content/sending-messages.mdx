@@ -1,5 +1,5 @@
 ---
-description: "Send every WhatsApp message type with the Zaileys fluent builder — text, image, video, audio, document, sticker, location, contact, poll, and albums."
+description: "Send every WhatsApp message type with the Zaileys fluent builder — text, image, video, video note, audio, document, sticker, location, contact, poll, albums, events, group invites, products, and phone-number sharing."
 ---
 
 import { Callout, Tabs, Steps } from 'nextra/components'
@@ -7,7 +7,8 @@ import { Callout, Tabs, Steps } from 'nextra/components'
 # Sending Messages
 
 `client.send(recipient)` returns a chainable, lazy message builder. You add **exactly one** content
-method (`.text`, `.image`, `.poll`, …), optionally chain modifiers (`.reply`, `.mentions`,
+method (`.text`, `.image`, `.poll`, `.event`, `.groupInvite`, `.product`, …), optionally chain
+modifiers (`.reply`, `.mentions`,
 `.disappearing`, …), then `await` the builder to actually send. Every successful send resolves to the
 new message's `WAMessageKey`, which you can later pass to [`client.edit`/`client.delete`/`client.forward`](/client).
 
@@ -106,6 +107,19 @@ await client.send(to).image('./photo.jpg', { caption: 'A nice view' })
 | --- | --- | --- | --- |
 | `caption` | `string` | — | Text shown beneath the image. |
 | `viewOnce` | `boolean` | `false` | Send as a view-once (disappears after the recipient opens it). |
+
+## Video note (PTV)
+
+A **round video note** (push-to-video). Plays as a circular bubble in chat. Takes the same
+`MediaSource` as `video()`; the source must decode to a `video/*` MIME type.
+
+```typescript
+await client.send(to).videoNote('./note.mp4')
+```
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `viewOnce` | `boolean` | `false` | Send as a view-once video note. |
 
 ## Video
 
@@ -287,6 +301,133 @@ Each item is an `AlbumItem`:
   An album requires **2–30** items. Anything outside that range, or an item with a `type` other than
   `image`/`video`, rejects with `INVALID_OPTIONS`.
 </Callout>
+
+## Event
+
+Send a WhatsApp event (a scheduled meetup with a date, optional location, and optional call link).
+
+```typescript
+await client.send(groupJid).event({
+  name: 'Team standup',
+  description: 'Daily sync',
+  startAt: new Date('2026-07-01T09:00:00Z'),
+  endAt: Date.now() + 3_600_000, // epoch ms also accepted
+  location: { latitude: -6.2, longitude: 106.816666, name: 'HQ', address: 'Jakarta' },
+  call: 'video',
+})
+```
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `name` | `string` | **required** | Event title. Must be non-empty. |
+| `description` | `string` | — | Longer details shown on the event card. |
+| `startAt` | `Date \| number` | **required** | Start time. A `Date` or epoch milliseconds. |
+| `endAt` | `Date \| number` | — | End time. A `Date` or epoch milliseconds. |
+| `location` | `{ latitude, longitude, name?, address? }` | — | Where the event takes place. |
+| `call` | `'audio' \| 'video'` | — | Attach a WhatsApp call link of this type. |
+| `canceled` | `boolean` | `false` | Mark the event as cancelled. |
+
+<Callout type="warning">
+  WhatsApp only **renders** events inside **groups** — sending one to a 1:1 DM will not show the
+  event card. The timestamps are second-precision (sub-second is truncated).
+</Callout>
+
+<Callout type="error">
+  An empty `name`, or a `startAt`/`endAt` that is not a valid `Date` or epoch, rejects with
+  `INVALID_OPTIONS`.
+</Callout>
+
+## Group invite
+
+Send a tappable **group invite card**. You need the group's invite code, which you fetch with
+`client.group.inviteCode(groupJid)`.
+
+```typescript
+const groupJid = '120363012345678901@g.us'
+const code = await client.group.inviteCode(groupJid)
+
+await client.send(to).groupInvite({
+  jid: groupJid,
+  code,
+  subject: 'My Group',
+  caption: 'Join us!',
+})
+```
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `jid` | `string` | **required** | The group JID — must end in `@g.us`. |
+| `code` | `string` | **required** | Invite code from `client.group.inviteCode(jid)`. |
+| `subject` | `string` | `''` | Group name shown on the card. |
+| `caption` | `string` | `''` | Message text shown with the invite. |
+| `expiresAt` | `number` | ~3 days from now | Expiry as a **Unix timestamp in seconds**. |
+| `thumbnail` | `Buffer` | — | Optional JPEG (group avatar) to improve how the card renders. |
+
+<Callout type="error">
+  A `jid` not ending in `@g.us`, or an empty `code`, rejects with `INVALID_OPTIONS`.
+</Callout>
+
+## Product
+
+Send a **business catalog product card**. Requires a **WhatsApp Business** account.
+
+```typescript
+await client.send(to).product({
+  image: './shoe.jpg',
+  title: 'Running Shoes',
+  businessOwnerId: '6281234567890@s.whatsapp.net',
+  description: 'Lightweight trainers',
+  price: 50, // currency units → renders as 50.00
+  currency: 'USD',
+  body: 'Limited stock',
+  footer: 'Free shipping',
+})
+```
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `image` | `MediaSource` | **required** | Product image (URL, path, `URL`, or `Buffer`). |
+| `title` | `string` | **required** | Product name. Must be non-empty. |
+| `businessOwnerId` | `string` | **required** | JID of the business that owns the catalog. |
+| `description` | `string` | — | Product description. |
+| `price` | `number` | — | Price in currency units — `50` renders as `50.00`. |
+| `currency` | `string` | — | ISO currency code, e.g. `'USD'`. |
+| `productId` | `string` | — | Catalog product id. |
+| `retailerId` | `string` | — | Retailer SKU / id. |
+| `url` | `string` | — | Product link. |
+| `body` | `string` | — | Text shown above the card. |
+| `footer` | `string` | — | Text shown below the card. |
+
+<Callout type="error">
+  An empty `title` or a missing `businessOwnerId` rejects with `INVALID_OPTIONS`.
+</Callout>
+
+## Phone number sharing
+
+Two no-argument helpers for exchanging phone numbers.
+
+```typescript
+await client.send(to).requestPhoneNumber()   // ask the recipient to share theirs
+await client.send(to).sharePhoneNumber()     // share your own number
+```
+
+| Method | Description |
+| --- | --- |
+| `.requestPhoneNumber()` | Prompts the recipient to share their phone number. |
+| `.sharePhoneNumber()` | Shares your phone number with the recipient. |
+
+## Limit sharing
+
+Toggle WhatsApp's forward/sharing limit on a chat.
+
+```typescript
+await client.send(to).limitSharing()       // enable (default)
+await client.send(to).limitSharing(false)  // disable
+```
+
+| Argument | Type | Default | Description |
+| --- | --- | --- | --- |
+| `enabled` (arg 1) | `boolean` | `true` | Whether the sharing limit is on. |
 
 ---
 

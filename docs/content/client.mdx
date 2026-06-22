@@ -350,6 +350,34 @@ participants. With `forEveryone: false` only your own copy is deleted (the helpe
 `MESSAGE_NOT_FOUND`. Use a persistent [store](/storage) if you forward older messages.
 </Callout>
 
+### Pin, unpin, and disappearing messages
+
+Beyond editing and reacting, the client can pin an individual message in its chat and set the
+chat's disappearing-messages timer.
+
+| Method | Signature | Description |
+| ------ | --------- | ----------- |
+| `pin` | `pin(key, opts?: { duration?: number }): Promise<WAMessageKey>` | Pin a message in its chat. `duration` is in seconds (default `86400`). |
+| `unpin` | `unpin(key): Promise<WAMessageKey>` | Unpin a previously pinned message. |
+| `setDisappearing` | `setDisappearing(jid, seconds): Promise<void>` | Set the disappearing-messages timer for a chat. `0` turns it off. |
+
+```typescript
+const key = await client.send(jid).text('Pinned announcement')
+
+await client.pin(key)                       // pin for 24h (default)
+await client.pin(key, { duration: 604800 }) // pin for 7 days
+await client.unpin(key)                      // unpin
+
+await client.setDisappearing(jid, 86400) // messages vanish after 24h
+await client.setDisappearing(jid, 0)     // turn disappearing off
+```
+
+<Callout type="info">
+**Pin durations.** WhatsApp offers three pin windows, in seconds: `86400` (24 hours), `604800`
+(7 days), and `2592000` (30 days). `pin` defaults to `86400` when `duration` is omitted. This pins an
+individual **message** — to pin an entire **chat**, use [`client.chat.pin(jid)`](/chat#pin--unpin).
+</Callout>
+
 ## Domain namespaces
 
 Higher-level WhatsApp operations are grouped under lazy namespaces on the client. Each is created on
@@ -357,6 +385,10 @@ first access and proxies to the live socket.
 
 | Namespace | Purpose |
 | --------- | ------- |
+| `client.profile.*` | Your name/status/avatar and reading another JID's picture/status. See [Profile](/profile). |
+| `client.chat.*` | Per-chat state: archive, pin, mute, read/unread, star, delete, clear. See [Chats](/chat). |
+| `client.contact.*` | Check numbers on WhatsApp and save/remove contacts. See [Contacts](/contacts). |
+| `client.business.*` | WhatsApp Business: profiles, catalogs, collections, orders, products. See [Business & Catalog](/business). |
 | `client.group.*` | Create/leave groups, manage participants, subject/description, invites, settings. |
 | `client.presence.*` | Typing/recording indicators and online/offline presence. |
 | `client.privacy.*` | Privacy settings, block list, disappearing-messages default. |

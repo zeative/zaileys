@@ -67,7 +67,8 @@ zaileys task, then routes internally. Use the focused commands when you want a s
 
 After installing, your AI assistant can:
 
-- **Implement with best practices** — typed events, the fluent send builder, interactive messages, AIRich, commands, broadcast, and the right storage adapter for your runtime.
+- **Implement with best practices** — typed events (including the `message` umbrella event), the fluent send builder, interactive messages, AIRich, commands, broadcast, and the right storage adapter for your runtime.
+- **Use the full v4.4 surface** — new send methods (`videoNote`, `event`, `groupInvite`, `product`, `requestPhoneNumber`, `sharePhoneNumber`, `limitSharing`), message helpers (`client.pin`/`unpin`/`setDisappearing`), new domain modules (`client.profile`/`chat`/`contact`/`business`), new `chatType`s (`album`, `group-invite`, `product`, `order`, `payment`), and the matching `ctx.media` variants.
 - **Diagnose errors precisely** — identify the error class and `.code`, what it means, and how to fix it.
 - **Catch anti-patterns** — flag tight send loops, missing `await` on keys, raw-JID owner checks, wrong `expiresAt` units, and more during review.
 - **Stay accurate** — every reference is grounded in the zaileys source, so the assistant won't invent methods or options.

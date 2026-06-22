@@ -76,13 +76,17 @@ export default {
   automation: item('megaphone', 'Broadcast & Schedule'),
 
   '-- social': { type: 'separator', title: 'Social & Channels' },
+  profile: item('users', 'Profile'),
   presence: item('eye', 'Presence'),
+  chat: item('eye', 'Chats'),
   groups: item('users', 'Groups'),
+  contacts: item('users', 'Contacts'),
   community: item('network', 'Communities'),
   newsletter: item('rss', 'Newsletters (Channels)'),
   privacy: item('shield', 'Privacy & Blocking'),
 
   '-- advanced': { type: 'separator', title: 'Advanced' },
+  business: item('database', 'Business & Catalog'),
   storage: item('database', 'Storage Adapters'),
   'error-handling': item('alert', 'Error Handling'),
   runtimes: item('server', 'Runtime Support'),

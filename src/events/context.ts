@@ -314,9 +314,49 @@ export const makeCitation = (
   }
 }
 
+interface MessageFlags {
+  isEdited: boolean
+  isDeleted: boolean
+  isPinned: boolean
+  isUnPinned: boolean
+  isBot: boolean
+  isStatusMention: boolean
+  isGroupStatusMention: boolean
+}
+
+const PROTOCOL_REVOKE = 0
+const PROTOCOL_MESSAGE_EDIT = 14
+const PIN_FOR_ALL = 1
+const UNPIN_FOR_ALL = 2
+
+const asRecord = (value: unknown): Record<string, unknown> | null =>
+  value != null && typeof value === 'object' ? (value as Record<string, unknown>) : null
+
+const deriveFlags = (message: WAMessage): MessageFlags => {
+  const content = asRecord(message.message)
+  if (content == null) {
+    return { isEdited: false, isDeleted: false, isPinned: false, isUnPinned: false, isBot: false, isStatusMention: false, isGroupStatusMention: false }
+  }
+  const protocol = asRecord(content['protocolMessage'])
+  const protoType = typeof protocol?.['type'] === 'number' ? protocol['type'] : undefined
+  const pinType = typeof asRecord(content['pinInChatMessage'])?.['type'] === 'number'
+    ? (content['pinInChatMessage'] as { type: number }).type
+    : undefined
+  return {
+    isEdited: content['editedMessage'] != null || protoType === PROTOCOL_MESSAGE_EDIT,
+    isDeleted: protoType === PROTOCOL_REVOKE,
+    isPinned: pinType === PIN_FOR_ALL,
+    isUnPinned: pinType === UNPIN_FOR_ALL,
+    isBot: asRecord(content['messageContextInfo'])?.['botMetadata'] != null,
+    isStatusMention: content['statusMentionMessage'] != null,
+    isGroupStatusMention: content['groupStatusMentionMessage'] != null,
+  }
+}
+
 export const buildMessageContext = (input: BuildContextInput): MessageContext => {
   const remoteJid = typeof input.key.remoteJid === 'string' ? input.key.remoteJid : null
   const isGroup = remoteJid !== null && isGroupJid(remoteJid)
+  const flags = deriveFlags(input.message)
   const senderId = input.sender.pn ?? input.sender.jid
   const roomId = isGroup
     ? (remoteJid ? jidNormalizedUser(remoteJid) : null)
@@ -350,16 +390,16 @@ export const buildMessageContext = (input: BuildContextInput): MessageContext =>
     isQuestion: isQuestionOf(input.text),
     isPrefix: isPrefixOf(input.text, input.prefixes),
     isTagMe: isTagMeOf(input.selfJid, input.mentions),
-    isEdited: false,
-    isDeleted: false,
-    isPinned: false,
-    isUnPinned: false,
-    isBot: false,
+    isEdited: flags.isEdited,
+    isDeleted: flags.isDeleted,
+    isPinned: flags.isPinned,
+    isUnPinned: flags.isUnPinned,
+    isBot: flags.isBot,
     isSpam: false,
-    isHideTags: false,
-    isStatusMention: false,
-    isGroupStatusMention: false,
-    isStory: false,
+    isHideTags: input.mentions.length > 0 && !/@\d/.test(input.text),
+    isStatusMention: flags.isStatusMention,
+    isGroupStatusMention: flags.isGroupStatusMention,
+    isStory: remoteJid === 'status@broadcast',
     roomName: input.resolveRoomName,
     receiverName: input.resolveReceiverName,
     replied: input.resolveReplied,

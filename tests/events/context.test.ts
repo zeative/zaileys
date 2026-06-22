@@ -271,6 +271,45 @@ describe('buildMessageContext', () => {
     expect(ctx.isStory).toBe(false)
   })
 
+  const withMessage = (m: Record<string, unknown>) => ({
+    ...baseInput(),
+    message: { key: MSG_KEY, messageTimestamp: 1700000000, pushName: 'Alice', message: m } as never,
+  })
+
+  it('isDeleted when protocolMessage is REVOKE', () => {
+    expect(buildMessageContext(withMessage({ protocolMessage: { type: 0 } })).isDeleted).toBe(true)
+  })
+
+  it('isEdited from MESSAGE_EDIT protocol or editedMessage wrapper', () => {
+    expect(buildMessageContext(withMessage({ protocolMessage: { type: 14 } })).isEdited).toBe(true)
+    expect(buildMessageContext(withMessage({ editedMessage: { message: {} } })).isEdited).toBe(true)
+  })
+
+  it('isPinned / isUnPinned from pinInChatMessage type', () => {
+    expect(buildMessageContext(withMessage({ pinInChatMessage: { type: 1 } })).isPinned).toBe(true)
+    expect(buildMessageContext(withMessage({ pinInChatMessage: { type: 2 } })).isUnPinned).toBe(true)
+  })
+
+  it('isBot when messageContextInfo carries botMetadata', () => {
+    expect(buildMessageContext(withMessage({ conversation: 'hi', messageContextInfo: { botMetadata: { botName: 'x' } } })).isBot).toBe(true)
+  })
+
+  it('isStatusMention / isGroupStatusMention from message fields', () => {
+    expect(buildMessageContext(withMessage({ statusMentionMessage: {} })).isStatusMention).toBe(true)
+    expect(buildMessageContext(withMessage({ groupStatusMentionMessage: {} })).isGroupStatusMention).toBe(true)
+  })
+
+  it('isStory when remoteJid is status@broadcast', () => {
+    const key = { remoteJid: 'status@broadcast', id: 'S1', fromMe: false }
+    const ctx = buildMessageContext({ ...baseInput(), key, message: { key, messageTimestamp: 1700000000, message: { conversation: 'hi' } } as never })
+    expect(ctx.isStory).toBe(true)
+  })
+
+  it('isHideTags when mentions exist but text has no @number', () => {
+    expect(buildMessageContext({ ...baseInput(), text: 'halo semua', mentions: ['628999@s.whatsapp.net'] }).isHideTags).toBe(true)
+    expect(buildMessageContext({ ...baseInput(), text: 'halo @628999', mentions: ['628999@s.whatsapp.net'] }).isHideTags).toBe(false)
+  })
+
   it('isQuestion flag is set from text', () => {
     const ctx = buildMessageContext({ ...baseInput(), text: 'is this a test?' })
     expect(ctx.isQuestion).toBe(true)

@@ -8,6 +8,8 @@ vi.mock('baileys', async (importOriginal) => {
 const {
   extractLinks,
   computeUniqueId,
+  computeStaticId,
+  epochSecondsToMs,
   isQuestionOf,
   isPrefixOf,
   isTagMeOf,
@@ -63,13 +65,53 @@ describe('computeUniqueId', () => {
 
   it('returns a non-empty hex string', () => {
     const id = computeUniqueId({ remoteJid: 'r', id: 'i', fromMe: false })
-    expect(id).toMatch(/^[0-9a-f]+$/)
+    expect(id).toMatch(/^[0-9A-F]+$/)
     expect(id.length).toBeGreaterThan(0)
   })
 
   it('handles undefined key fields gracefully', () => {
     const id = computeUniqueId({ remoteJid: undefined, id: undefined, fromMe: undefined })
     expect(typeof id).toBe('string')
+  })
+
+  it('emits a 16-char hex id', () => {
+    expect(computeUniqueId({ remoteJid: 'r', id: 'i', fromMe: false })).toMatch(/^[0-9A-F]{16}$/)
+  })
+})
+
+describe('computeStaticId', () => {
+  it('is stable for the same room+sender pair regardless of message', () => {
+    const a = computeStaticId('628room@s.whatsapp.net', '628me@s.whatsapp.net')
+    const b = computeStaticId('628room@s.whatsapp.net', '628me@s.whatsapp.net')
+    expect(a).toBe(b)
+    expect(a).toMatch(/^[0-9A-F]{16}$/)
+  })
+
+  it('differs when room or sender differs', () => {
+    const base = computeStaticId('room@g.us', 'a@s.whatsapp.net')
+    expect(base).not.toBe(computeStaticId('room@g.us', 'b@s.whatsapp.net'))
+    expect(base).not.toBe(computeStaticId('other@g.us', 'a@s.whatsapp.net'))
+  })
+})
+
+describe('epochSecondsToMs', () => {
+  const SECS = 1782132231
+  it('converts a number (seconds) to ms', () => {
+    expect(epochSecondsToMs(SECS)).toBe(SECS * 1000)
+  })
+  it('parses string seconds', () => {
+    expect(epochSecondsToMs(String(SECS))).toBe(SECS * 1000)
+  })
+  it('handles Long-like with toNumber', () => {
+    expect(epochSecondsToMs({ toNumber: () => SECS })).toBe(SECS * 1000)
+  })
+  it('handles serialized Long {low, high}', () => {
+    expect(epochSecondsToMs({ low: SECS, high: 0 })).toBe(SECS * 1000)
+  })
+  it('returns 0 for missing/invalid', () => {
+    expect(epochSecondsToMs(undefined)).toBe(0)
+    expect(epochSecondsToMs(0)).toBe(0)
+    expect(epochSecondsToMs('nope')).toBe(0)
   })
 })
 

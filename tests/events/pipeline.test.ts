@@ -95,6 +95,51 @@ describe('attachInboundPipeline — messages.upsert', () => {
     expect(seen).not.toHaveBeenCalled()
   })
 
+  it('resolves LID mentions to PN via resolveLidToPn', async () => {
+    const client = new TypedEventEmitter<ClientEventMap>()
+    const socket = makeInboundSocket({ user: { id: SELF } })
+    attachInboundPipeline(
+      client,
+      socket as unknown as Parameters<typeof attachInboundPipeline>[1],
+      {
+        selfJid: SELF,
+        resolveLidToPn: async (lid) =>
+          lid === '66554863583429@lid' ? '628999:0@s.whatsapp.net' : null,
+      },
+    )
+    const seen = vi.fn()
+    client.on('text', seen)
+    socket.triggerMessagesUpsert({
+      messages: [
+        textMsg('hey @66554863583429', {
+          message: { extendedTextMessage: { text: 'hey @66554863583429', contextInfo: { mentionedJid: ['66554863583429@lid'] } } },
+        }),
+      ],
+      type: 'notify',
+    })
+    await new Promise((r) => setTimeout(r, 0))
+    expect(seen).toHaveBeenCalledTimes(1)
+    const ctx = seen.mock.calls[0]?.[0]
+    expect(ctx.mentions).toEqual(['628999@s.whatsapp.net'])
+    expect(ctx.text).toBe('hey @628999')
+  })
+
+  it('keeps unmapped LID mentions (best-effort) and stays sync without a resolver', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('text', seen)
+    socket.triggerMessagesUpsert({
+      messages: [
+        textMsg('@x', {
+          message: { extendedTextMessage: { text: '@x', contextInfo: { mentionedJid: ['66554863583429@lid'] } } },
+        }),
+      ],
+      type: 'notify',
+    })
+    expect(seen).toHaveBeenCalledTimes(1)
+    expect(seen.mock.calls[0]?.[0].mentions).toEqual(['66554863583429@lid'])
+  })
+
   it('emits both text and mention when self mentioned (multi-decoder)', () => {
     const { client, socket } = setup()
     const text = vi.fn()

@@ -710,6 +710,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         groupMetadata: (groupId) => this.group.metadata(groupId).catch(() => null),
         receiverName: () => Promise.resolve(this.resolveMe().name ?? null),
         resolveQuoted: (id, remoteJid) => this.lookupQuoted(id, remoteJid),
+        resolveLidToPn: (lid) => this.lidToPn(lid),
         sendReply: async (target, content, opts, quoted) =>
           await this.send(target).text(content, opts).reply(quoted),
         react: (key, emoji) => this.react(key, emoji),
@@ -733,6 +734,17 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     } catch (err) {
       this.logger.warn(err, 'getMessage resend lookup failed')
       return undefined
+    }
+  }
+
+  private async lidToPn(lid: string): Promise<string | null> {
+    try {
+      const repo = (this._socket as { signalRepository?: { lidMapping?: { getPNForLID?: (l: string) => Promise<string | null> } } } | undefined)?.signalRepository
+      const mapping = repo?.lidMapping
+      if (mapping == null || typeof mapping.getPNForLID !== 'function') return null
+      return await mapping.getPNForLID(lid)
+    } catch {
+      return null
     }
   }
 

@@ -42,8 +42,10 @@ import {
   decodeSticker,
   decodeText,
   decodeVideo,
+  rawMentionsOf,
   type DecodeContext,
 } from './decoders/messages.js'
+import { isLidJid } from './decoders/_shared.js'
 import {
   decodeDelete,
   decodeEdit,
@@ -70,6 +72,7 @@ export interface InboundPipelineContext {
   groupMetadata?: (groupId: string) => Promise<{ subject?: string } | null>
   receiverName?: () => Promise<string | null>
   resolveQuoted?: (id: string, remoteJid: string) => Promise<WAMessage | null>
+  resolveLidToPn?: (lid: string) => Promise<string | null>
   sendReply?: (target: string, content: string, opts: TextOptions | undefined, quoted: WAMessage) => Promise<WAMessageKey>
   react?: (key: WAMessageKey, emoji: string) => Promise<WAMessageKey>
   ignoreMe?: boolean
@@ -145,18 +148,37 @@ export function attachInboundPipeline(
     cleanups.push(() => socket.ev.off(event, wrapped))
   }
 
-  const runMessage = (msg: WAMessage): void => {
-    tryEmit(() => decodeMessage(msg, decodeCtx), (p) => client.emit('message', p))
-    tryEmit(() => decodeText(msg, decodeCtx), (p) => client.emit('text', p))
-    tryEmit(() => decodeImage(msg, decodeCtx), (p) => client.emit('image', p))
-    tryEmit(() => decodeVideo(msg, decodeCtx), (p) => client.emit('video', p))
-    tryEmit(() => decodeAudio(msg, decodeCtx), (p) => client.emit('audio', p))
-    tryEmit(() => decodeDocument(msg, decodeCtx), (p) => client.emit('document', p))
-    tryEmit(() => decodeSticker(msg, decodeCtx), (p) => client.emit('sticker', p))
-    tryEmit(() => decodeMention(msg, decodeCtx), (p) => client.emit('mention', p))
-    tryEmit(() => decodeMentionAll(msg, decodeCtx), (p) => client.emit('mention-all', p))
+  const runMessage = (msg: WAMessage, msgCtx: DecodeContext): void => {
+    tryEmit(() => decodeMessage(msg, msgCtx), (p) => client.emit('message', p))
+    tryEmit(() => decodeText(msg, msgCtx), (p) => client.emit('text', p))
+    tryEmit(() => decodeImage(msg, msgCtx), (p) => client.emit('image', p))
+    tryEmit(() => decodeVideo(msg, msgCtx), (p) => client.emit('video', p))
+    tryEmit(() => decodeAudio(msg, msgCtx), (p) => client.emit('audio', p))
+    tryEmit(() => decodeDocument(msg, msgCtx), (p) => client.emit('document', p))
+    tryEmit(() => decodeSticker(msg, msgCtx), (p) => client.emit('sticker', p))
+    tryEmit(() => decodeMention(msg, msgCtx), (p) => client.emit('mention', p))
+    tryEmit(() => decodeMentionAll(msg, msgCtx), (p) => client.emit('mention-all', p))
     tryEmit(() => decodeButtonClick(msg, interactiveCtx), (p) => client.emit('button-click', p))
     tryEmit(() => decodeListSelect(msg, interactiveCtx), (p) => client.emit('list-select', p))
+  }
+
+  const buildMentionMap = async (msg: WAMessage): Promise<Map<string, string> | undefined> => {
+    const resolve = ctx.resolveLidToPn
+    if (resolve == null) return undefined
+    const lids = [...new Set(rawMentionsOf(msg).filter(isLidJid))]
+    if (lids.length === 0) return undefined
+    const map = new Map<string, string>()
+    await Promise.all(
+      lids.map(async (lid) => {
+        try {
+          const pn = await resolve(lid)
+          if (pn != null && pn.length > 0) map.set(lid, pn)
+        } catch (err) {
+          ctx.logger?.warn(err, 'inbound pipeline: lid->pn resolve threw')
+        }
+      }),
+    )
+    return map.size > 0 ? map : undefined
   }
 
   const tryEmit = <T>(decode: () => T | null, emit: (payload: T) => void): void => {
@@ -175,7 +197,15 @@ export function attachInboundPipeline(
     const upsert = dropSpoofedSelfOnly(raw as UpsertPayload)
     for (const msg of upsert.messages) {
       if (ctx.ignoreMe === true && msg.key?.fromMe === true) continue
-      runMessage(msg)
+      const needsResolve =
+        ctx.resolveLidToPn != null && rawMentionsOf(msg).some(isLidJid)
+      if (!needsResolve) {
+        runMessage(msg, decodeCtx)
+        continue
+      }
+      void buildMentionMap(msg).then((mentionMap) =>
+        runMessage(msg, mentionMap != null ? { ...decodeCtx, mentionMap } : decodeCtx),
+      )
     }
   })
 

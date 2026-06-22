@@ -24,6 +24,7 @@ export interface DecodeContext {
   selfJid: string
   selfLid?: string
   selfName?: string
+  mentionMap?: Map<string, string>
   logger?: DownloadLogger
   channelId?: string
   receiverId?: string
@@ -514,6 +515,33 @@ const decodeQuotedContext = async (
   }
 }
 
+export const rawMentionsOf = (msg: WAMessage): string[] =>
+  extractMentions(contextInfoOf(msg)).mentionedJids
+
+const normalizeJid = (jid: string): string => {
+  try {
+    return jidNormalizedUser(jid)
+  } catch {
+    return jid
+  }
+}
+
+const mapMentions = (jids: string[], ctx: DecodeContext): string[] =>
+  jids.map((j) => normalizeJid(ctx.mentionMap?.get(j) ?? j))
+
+const userPart = (jid: string): string => (jid.split('@')[0] ?? '').split(':')[0] ?? ''
+
+const syncMentionText =(text: string, map: Map<string, string> | undefined): string => {
+  if (map == null || map.size === 0 || text.length === 0) return text
+  let out = text
+  for (const [lid, pn] of map) {
+    const from = userPart(lid)
+    const to = userPart(pn)
+    if (from.length > 0 && to.length > 0 && from !== to) out = out.split(`@${from}`).join(`@${to}`)
+  }
+  return out
+}
+
 const buildContext = (
   msg: WAMessage,
   ctx: DecodeContext,
@@ -567,7 +595,8 @@ const buildContext = (
     return ctx.react(key, emoji)
   }
 
-  const { mentionedJids } = extractMentions(contextInfo)
+  const mentionedJids = mapMentions(extractMentions(contextInfo).mentionedJids, ctx)
+  const syncedText = syncMentionText(text, ctx.mentionMap)
 
   const baseInput = {
     message: msg,
@@ -575,7 +604,7 @@ const buildContext = (
     channelId,
     receiverId,
     selfJid: ctx.selfJid,
-    text,
+    text: syncedText,
     chatType,
     sender,
     mentions: mentionedJids,
@@ -689,9 +718,12 @@ export const decodeMention = (msg: WAMessage, ctx: DecodeContext): MentionContex
   const key = msg.key
   if (key == null) return null
   const contextInfo = contextInfoOf(msg)
-  const { mentionedJids } = extractMentions(contextInfo)
-  if (mentionedJids.length === 0) return null
-  const hasSelf = mentionedJids.some((jid) => normalizedEquals(jid, ctx.selfJid))
+  const rawMentions = extractMentions(contextInfo).mentionedJids
+  if (rawMentions.length === 0) return null
+  const mentionedJids = mapMentions(rawMentions, ctx)
+  const hasSelf =
+    mentionedJids.some((jid) => normalizedEquals(jid, ctx.selfJid)) ||
+    (ctx.selfLid != null && rawMentions.some((jid) => normalizedEquals(jid, ctx.selfLid as string)))
   if (!hasSelf) return null
   const content = asRecord(msg.message)
   if (content == null) return null

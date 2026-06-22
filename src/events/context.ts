@@ -143,6 +143,7 @@ export type ContextMedia =
 
 export interface MessageContext {
   uniqueId: string
+  staticId: string
   channelId: string
   chatId: string
   chatType: ChatType
@@ -228,14 +229,37 @@ export const extractLinks = (text: string): string[] => {
   return matches.map((url) => url.replace(/[.,;:!?]+$/, ''))
 }
 
-export const computeUniqueId = (key: WAMessageKey): string => {
-  const input = `${key.remoteJid ?? ''}|${key.id ?? ''}|${key.fromMe === true ? '1' : '0'}`
-  let hash = 0x811c9dc5
+const fnv1a = (input: string, seed = 0x811c9dc5): number => {
+  let hash = seed >>> 0
   for (let i = 0; i < input.length; i++) {
     hash ^= input.charCodeAt(i)
-    hash = (Math.imul(hash, 0x01000193) >>> 0)
+    hash = Math.imul(hash, 0x01000193) >>> 0
   }
-  return hash.toString(16).padStart(8, '0')
+  return hash >>> 0
+}
+
+const hashHex = (input: string): string =>
+  (fnv1a(input).toString(16).padStart(8, '0') + fnv1a(input, 0x9dc5811c).toString(16).padStart(8, '0')).toUpperCase()
+
+export const computeUniqueId = (key: WAMessageKey): string =>
+  hashHex(`${key.remoteJid ?? ''}|${key.id ?? ''}|${key.fromMe === true ? '1' : '0'}`)
+
+export const computeStaticId = (roomId: string | null, senderId: string): string =>
+  hashHex(`${roomId ?? ''}|${senderId}`)
+
+export const epochSecondsToMs = (value: unknown): number => {
+  let secs: number | null = null
+  if (typeof value === 'number') secs = value
+  else if (typeof value === 'bigint') secs = Number(value)
+  else if (typeof value === 'string') {
+    const n = Number.parseInt(value, 10)
+    secs = Number.isFinite(n) ? n : null
+  } else if (value != null && typeof value === 'object') {
+    const o = value as { toNumber?: () => number; low?: number; high?: number }
+    if (typeof o.toNumber === 'function') secs = o.toNumber()
+    else if (typeof o.low === 'number') secs = (typeof o.high === 'number' ? o.high : 0) * 4294967296 + (o.low >>> 0)
+  }
+  return secs != null && Number.isFinite(secs) && secs > 0 ? secs * 1000 : 0
 }
 
 export const senderDeviceOf = (jid: string): SenderDevice => {
@@ -293,25 +317,26 @@ export const makeCitation = (
 export const buildMessageContext = (input: BuildContextInput): MessageContext => {
   const remoteJid = typeof input.key.remoteJid === 'string' ? input.key.remoteJid : null
   const isGroup = remoteJid !== null && isGroupJid(remoteJid)
+  const senderId = input.sender.pn ?? input.sender.jid
+  const roomId = isGroup
+    ? (remoteJid ? jidNormalizedUser(remoteJid) : null)
+    : input.key.fromMe === true && remoteJid
+      ? jidNormalizedUser(remoteJid)
+      : senderId
 
   const ctx: MessageContext = {
     uniqueId: computeUniqueId(input.key),
+    staticId: computeStaticId(roomId, senderId),
     channelId: input.channelId,
     chatId: input.key.id ?? '',
     chatType: input.chatType,
     receiverId: input.receiverId ? jidNormalizedUser(input.receiverId) : input.receiverId,
-    roomId: isGroup
-      ? (remoteJid ? jidNormalizedUser(remoteJid) : null)
-      : input.key.fromMe === true && remoteJid
-        ? jidNormalizedUser(remoteJid)
-        : (input.sender.pn ?? input.sender.jid),
-    senderId: input.sender.pn ?? input.sender.jid,
+    roomId,
+    senderId,
     senderLid: input.sender.lid ?? null,
     senderName: input.sender.pushName ?? null,
     senderDevice: senderDeviceOf(input.sender.jid),
-    timestamp: typeof input.message.messageTimestamp === 'number'
-      ? input.message.messageTimestamp * 1000
-      : 0,
+    timestamp: epochSecondsToMs(input.message.messageTimestamp),
     text: input.text,
     mentions: input.mentions,
     links: extractLinks(input.text),

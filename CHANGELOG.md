@@ -1,5 +1,20 @@
 # zaileys
 
+## 4.3.0
+
+### Minor Changes
+
+- Add umbrella `message` event that fires for any inbound message type.
+- Add `staticId` (stable hash of roomId+senderId) and make `uniqueId` a 16-char uppercase hex.
+- Resolve `@lid` mentions to PN via the lid mapping, normalize device suffixes, and rewrite inline @numbers in text to match.
+- Derive message flags from content: `isEdited`, `isDeleted`, `isPinned`, `isUnPinned`, `isBot`, `isStatusMention`, `isGroupStatusMention`, `isStory`, `isHideTags`.
+
+### Patch Changes
+
+- Fix quoted/`replied()` context: carry media, resolve sender LID→PN, inherit the parent chat room, and parse timestamps from number/string/Long.
+- Fix `senderDevice` always reporting `android` (the device suffix was stripped before decoding).
+- Bound LID mention resolution with a 3s timeout so a hung resolver never drops the message.
+
 ## 4.0.0
 
 ### Major Changes

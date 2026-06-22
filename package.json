@@ -36,6 +36,7 @@
     "dev": "tsx --watch examples/quickstart-connect.ts",
     "build": "tsup",
     "prepublishOnly": "tsup",
+    "release": "node scripts/release.mjs",
     "typecheck": "tsgo --noEmit",
     "typecheck:legacy": "tsc --noEmit",
     "typecheck:audit": "tsx scripts/audit-tsgo-compat.ts",

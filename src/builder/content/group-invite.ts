@@ -12,15 +12,13 @@ export const buildGroupInviteContent = (opts: GroupInviteOptions): AnyMessageCon
   if (typeof opts.code !== 'string' || opts.code.trim().length === 0) {
     throw new ZaileysBuilderError('INVALID_OPTIONS', 'groupInvite() requires an invite code')
   }
-  return {
-    [RELAY_CONTENT_KEY]: {
-      groupInviteMessage: {
-        inviteCode: opts.code,
-        inviteExpiration: opts.expiresAt ?? 0,
-        groupJid: opts.jid,
-        groupName: opts.subject ?? '',
-        caption: opts.caption ?? '',
-      },
-    },
-  } as unknown as AnyMessageContent
+  const groupInviteMessage: Record<string, unknown> = {
+    inviteCode: opts.code,
+    inviteExpiration: opts.expiresAt ?? Math.floor(Date.now() / 1000) + 3 * 86400,
+    groupJid: opts.jid,
+    groupName: opts.subject ?? '',
+    caption: opts.caption ?? '',
+  }
+  if (opts.thumbnail !== undefined) groupInviteMessage['jpegThumbnail'] = opts.thumbnail
+  return { [RELAY_CONTENT_KEY]: { groupInviteMessage } } as unknown as AnyMessageContent
 }

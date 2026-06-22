@@ -118,7 +118,10 @@ export type GroupInviteOptions = {
   code: string
   subject?: string
   caption?: string
+  /** Unix seconds when the invite expires. Defaults to ~3 days from now. WhatsApp reads this as seconds. */
   expiresAt?: number
+  /** Optional JPEG thumbnail (group avatar) — improves how the card renders. */
+  thumbnail?: Buffer
 }
 
 export type BuilderContext = {

@@ -49,9 +49,19 @@ describe('buildGroupInviteContent', () => {
     expect(invite(content)).toMatchObject({ groupJid: '123@g.us', inviteCode: 'ABC', groupName: 'ScrapeOps', caption: 'join', inviteExpiration: 99 })
   })
 
-  it('defaults expiration/subject/caption when omitted', () => {
+  it('defaults expiration to a future unix-seconds value; subject/caption empty', () => {
     const content = rec(buildGroupInviteContent({ jid: '123@g.us', code: 'ABC' }))
-    expect(invite(content)).toMatchObject({ inviteExpiration: 0, groupName: '', caption: '' })
+    const inv = invite(content)
+    expect(inv).toMatchObject({ groupName: '', caption: '' })
+    const nowSec = Math.floor(Date.now() / 1000)
+    expect(inv.inviteExpiration as number).toBeGreaterThan(nowSec)
+    expect(inv.inviteExpiration as number).toBeLessThan(nowSec + 10 * 86400)
+  })
+
+  it('attaches a jpegThumbnail when provided', () => {
+    const thumb = Buffer.from([1, 2, 3])
+    const content = rec(buildGroupInviteContent({ jid: '123@g.us', code: 'ABC', thumbnail: thumb }))
+    expect(invite(content).jpegThumbnail).toBe(thumb)
   })
 
   it('rejects a non-group jid or missing code', () => {

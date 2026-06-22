@@ -46,6 +46,14 @@ export interface DomainSocketLike {
   addOrEditContact(jid: string, contact: { firstName?: string; lastName?: string; fullName?: string }): Promise<unknown>
   removeContact(jid: string): Promise<unknown>
 
+  getBusinessProfile(jid: string): Promise<unknown>
+  getCatalog(opts: { jid?: string; limit?: number; cursor?: string }): Promise<unknown>
+  getCollections(jid?: string, limit?: number): Promise<unknown>
+  getOrderDetails(orderId: string, tokenBase64: string): Promise<unknown>
+  productCreate(create: Record<string, unknown>): Promise<unknown>
+  productUpdate(productId: string, update: Record<string, unknown>): Promise<unknown>
+  productDelete(productIds: string[]): Promise<{ deleted: number }>
+
   updateLastSeenPrivacy(value: WAPrivacyValue): Promise<void>
   updateOnlinePrivacy(value: WAPrivacyOnlineValue): Promise<void>
   updateProfilePicturePrivacy(value: WAPrivacyValue): Promise<void>

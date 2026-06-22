@@ -25,6 +25,7 @@ import {
 import {
   CommunityModule,
   GroupModule,
+  BusinessModule,
   ChatModule,
   ContactModule,
   NewsletterModule,
@@ -158,6 +159,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private _profile?: ProfileModule
   private _chat?: ChatModule
   private _contact?: ContactModule
+  private _business?: BusinessModule
   private commandRegistry?: CommandRegistry
   private readonly commandMiddleware: Middleware[] = []
   private readonly commandPrefixes: string[]
@@ -313,6 +315,12 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     return (this._contact ??= new ContactModule(
       () => this._socket as unknown as DomainSocketLike | undefined,
       (input) => (isJid(input) ? input : `${input.replace(/\D/g, '')}@s.whatsapp.net`),
+    ))
+  }
+
+  get business(): BusinessModule {
+    return (this._business ??= new BusinessModule(
+      () => this._socket as unknown as DomainSocketLike | undefined,
     ))
   }
 

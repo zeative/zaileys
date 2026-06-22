@@ -17,6 +17,10 @@ export type ChatType =
   | 'live-location'
   | 'event'
   | 'album'
+  | 'group-invite'
+  | 'product'
+  | 'order'
+  | 'payment'
   | 'buttons'
   | 'list'
   | 'interactive'
@@ -82,6 +86,54 @@ export interface AlbumMedia {
   expectedVideoCount: number | null
 }
 
+export interface GroupInviteMedia {
+  type: 'group-invite'
+  groupId: string | null
+  groupName: string | null
+  inviteCode: string | null
+  caption: string | null
+  expiresAt: number | null
+}
+
+export interface ProductMedia {
+  type: 'product'
+  productId: string | null
+  title: string | null
+  description: string | null
+  price: number | null
+  currency: string | null
+  retailerId: string | null
+  url: string | null
+  businessOwnerId: string | null
+}
+
+export interface OrderMedia {
+  type: 'order'
+  orderId: string | null
+  title: string | null
+  itemCount: number | null
+  total: number | null
+  currency: string | null
+  status: string | null
+  message: string | null
+}
+
+export interface PaymentMedia {
+  type: 'payment'
+  kind: 'request' | 'send' | 'invite'
+  amount: number | null
+  currency: string | null
+  note: string | null
+  expiresAt: number | null
+}
+
+export interface LinkPreviewMedia {
+  type: 'link'
+  url: string | null
+  title: string | null
+  description: string | null
+}
+
 export interface EventMedia {
   type: 'event'
   name: string | null
@@ -144,6 +196,11 @@ export type ContextMedia =
   | LocationMedia
   | EventMedia
   | AlbumMedia
+  | GroupInviteMedia
+  | ProductMedia
+  | OrderMedia
+  | PaymentMedia
+  | LinkPreviewMedia
   | ButtonsMedia
   | ListMedia
   | InteractiveMedia

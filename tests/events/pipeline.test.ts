@@ -92,6 +92,23 @@ describe('attachInboundPipeline — messages.upsert', () => {
     expect(seen.mock.calls[0]?.[0].media).toMatchObject({ type: 'album', expectedImageCount: null, expectedVideoCount: null })
   })
 
+  it('decodes group-invite, product, order, payment, and link preview as media', () => {
+    const { client, socket } = setup()
+    const got: Array<{ chatType: string; media: unknown }> = []
+    client.on('message', (m) => got.push({ chatType: m.chatType, media: m.media }))
+    socket.triggerMessagesUpsert({ messages: [textMsg('', { message: { groupInviteMessage: { groupJid: 'g@g.us', inviteCode: 'ABC', groupName: 'ScrapeOps', caption: 'join', inviteExpiration: 99 } } })], type: 'notify' })
+    socket.triggerMessagesUpsert({ messages: [textMsg('', { message: { productMessage: { businessOwnerJid: 'biz@s.whatsapp.net', product: { productId: 'p1', title: 'Item', priceAmount1000: 50000, currencyCode: 'IDR' } } } })], type: 'notify' })
+    socket.triggerMessagesUpsert({ messages: [textMsg('', { message: { orderMessage: { orderId: 'o1', orderTitle: 'My Order', itemCount: 3, totalAmount1000: 99000, totalCurrencyCode: 'IDR', status: 2 } } })], type: 'notify' })
+    socket.triggerMessagesUpsert({ messages: [textMsg('', { message: { requestPaymentMessage: { amount1000: 25000, currencyCodeIso4217: 'IDR', noteMessage: { conversation: 'bayar' } } } })], type: 'notify' })
+    socket.triggerMessagesUpsert({ messages: [textMsg('check', { message: { extendedTextMessage: { text: 'check', canonicalUrl: 'https://novaqore.ai', title: 'Novaqore', description: 'quantum' } } })], type: 'notify' })
+
+    expect(got[0]).toMatchObject({ chatType: 'group-invite', media: { type: 'group-invite', groupId: 'g@g.us', inviteCode: 'ABC', groupName: 'ScrapeOps' } })
+    expect(got[1]).toMatchObject({ chatType: 'product', media: { type: 'product', title: 'Item', price: 50, currency: 'IDR' } })
+    expect(got[2]).toMatchObject({ chatType: 'order', media: { type: 'order', total: 99, status: 'accepted', itemCount: 3 } })
+    expect(got[3]).toMatchObject({ chatType: 'payment', media: { type: 'payment', kind: 'request', amount: 25, currency: 'IDR', note: 'bayar' } })
+    expect(got[4]).toMatchObject({ chatType: 'text', media: { type: 'link', url: 'https://novaqore.ai', title: 'Novaqore' } })
+  })
+
   it('emits umbrella message for text and every media type', () => {
     const { client, socket } = setup()
     const got: string[] = []

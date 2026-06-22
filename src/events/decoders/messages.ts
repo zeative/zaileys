@@ -206,6 +206,12 @@ const STRUCTURED_FIELDS: ReadonlyArray<readonly [string, ChatType]> = [
   ['liveLocationMessage', 'live-location'],
   ['eventMessage', 'event'],
   ['albumMessage', 'album'],
+  ['groupInviteMessage', 'group-invite'],
+  ['productMessage', 'product'],
+  ['orderMessage', 'order'],
+  ['requestPaymentMessage', 'payment'],
+  ['sendPaymentMessage', 'payment'],
+  ['paymentInviteMessage', 'payment'],
   ['buttonsMessage', 'buttons'],
   ['listMessage', 'list'],
   ['interactiveMessage', 'interactive'],
@@ -289,6 +295,70 @@ const structuredMedia = (content: Record<string, unknown>): ContextMedia | null 
       type: 'album',
       expectedImageCount: toNum(album['expectedImageCount']),
       expectedVideoCount: toNum(album['expectedVideoCount']),
+    }
+  }
+
+  const invite = asRecord(content['groupInviteMessage'])
+  if (invite != null) {
+    return {
+      type: 'group-invite',
+      groupId: nonEmptyString(invite['groupJid']),
+      groupName: nonEmptyString(invite['groupName']),
+      inviteCode: nonEmptyString(invite['inviteCode']),
+      caption: nonEmptyString(invite['caption']),
+      expiresAt: toNum(invite['inviteExpiration']),
+    }
+  }
+
+  const product = asRecord(asRecord(content['productMessage'])?.['product'])
+  if (asRecord(content['productMessage']) != null) {
+    const owner = nonEmptyString(asRecord(content['productMessage'])?.['businessOwnerJid'])
+    const price = toNum(product?.['priceAmount1000'])
+    return {
+      type: 'product',
+      productId: nonEmptyString(product?.['productId']),
+      title: nonEmptyString(product?.['title']),
+      description: nonEmptyString(product?.['description']),
+      price: price != null ? price / 1000 : null,
+      currency: nonEmptyString(product?.['currencyCode']),
+      retailerId: nonEmptyString(product?.['retailerId']),
+      url: nonEmptyString(product?.['url']),
+      businessOwnerId: owner,
+    }
+  }
+
+  const order = asRecord(content['orderMessage'])
+  if (order != null) {
+    const total = toNum(order['totalAmount1000'])
+    const ORDER_STATUS: Record<number, string> = { 1: 'inquiry', 2: 'accepted', 3: 'declined' }
+    const rawStatus = order['status']
+    return {
+      type: 'order',
+      orderId: nonEmptyString(order['orderId']),
+      title: nonEmptyString(order['orderTitle']),
+      itemCount: toNum(order['itemCount']),
+      total: total != null ? total / 1000 : null,
+      currency: nonEmptyString(order['totalCurrencyCode']),
+      status: typeof rawStatus === 'number' ? (ORDER_STATUS[rawStatus] ?? null) : nonEmptyString(rawStatus),
+      message: nonEmptyString(order['message']),
+    }
+  }
+
+  const payment =
+    (asRecord(content['requestPaymentMessage']) != null && { node: content['requestPaymentMessage'], kind: 'request' as const }) ||
+    (asRecord(content['sendPaymentMessage']) != null && { node: content['sendPaymentMessage'], kind: 'send' as const }) ||
+    (asRecord(content['paymentInviteMessage']) != null && { node: content['paymentInviteMessage'], kind: 'invite' as const })
+  if (payment !== false) {
+    const node = asRecord(payment.node)
+    const amount = toNum(node?.['amount1000'])
+    const note = asRecord(node?.['noteMessage'])
+    return {
+      type: 'payment',
+      kind: payment.kind,
+      amount: amount != null ? amount / 1000 : null,
+      currency: nonEmptyString(node?.['currencyCodeIso4217']),
+      note: firstString(note?.['conversation'], asRecord(note?.['extendedTextMessage'])?.['text']),
+      expiresAt: toNum(node?.['expiryTimestamp']),
     }
   }
 
@@ -381,6 +451,16 @@ const structuredMedia = (content: Record<string, unknown>): ContextMedia | null 
           text: nonEmptyString(picked?.['displayText']),
         }
       }),
+    }
+  }
+
+  const ext = asRecord(content['extendedTextMessage'])
+  if (ext != null) {
+    const url = firstString(ext['canonicalUrl'], ext['matchedText'])
+    const title = nonEmptyString(ext['title'])
+    const description = nonEmptyString(ext['description'])
+    if (url != null && (title != null || description != null)) {
+      return { type: 'link', url, title, description }
     }
   }
 

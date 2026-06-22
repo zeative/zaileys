@@ -24,7 +24,7 @@ export interface DecodeContext {
   selfJid: string
   selfLid?: string
   selfName?: string
-  mentionMap?: Map<string, string>
+  lidMap?: Map<string, string>
   logger?: DownloadLogger
   channelId?: string
   receiverId?: string
@@ -617,7 +617,10 @@ const normalizeJid = (jid: string): string => {
 }
 
 const mapMentions = (jids: string[], ctx: DecodeContext): string[] =>
-  jids.map((j) => normalizeJid(ctx.mentionMap?.get(j) ?? j))
+  jids.map((j) => {
+    const norm = normalizeJid(j)
+    return ctx.lidMap?.get(norm) ?? norm
+  })
 
 const userPart = (jid: string): string => (jid.split('@')[0] ?? '').split(':')[0] ?? ''
 
@@ -686,7 +689,7 @@ const buildContext = (
   }
 
   const mentionedJids = mapMentions(extractMentions(contextInfo).mentionedJids, ctx)
-  const syncedText = syncMentionText(text, ctx.mentionMap)
+  const syncedText = syncMentionText(text, ctx.lidMap)
 
   const baseInput = {
     message: msg,
@@ -704,6 +707,7 @@ const buildContext = (
     isBroadcast,
     isNewsletter,
     prefixes,
+    ...(ctx.lidMap != null ? { lidMap: ctx.lidMap } : {}),
     resolveRoomName,
     resolveReceiverName,
     resolveReplied,

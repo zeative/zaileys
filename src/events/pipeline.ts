@@ -46,6 +46,7 @@ import {
   type DecodeContext,
 } from './decoders/messages.js'
 import { isLidJid } from './decoders/_shared.js'
+import { jidNormalizedUser } from 'baileys'
 import {
   decodeDelete,
   decodeEdit,
@@ -173,17 +174,33 @@ export function attachInboundPipeline(
     tryEmit(() => decodeListSelect(msg, interactiveCtx), (p) => client.emit('list-select', p))
   }
 
-  const buildMentionMap = async (msg: WAMessage): Promise<Map<string, string> | undefined> => {
+  const normLid = (jid: string | null | undefined): string | null => {
+    if (typeof jid !== 'string' || jid.length === 0) return null
+    let n: string
+    try { n = jidNormalizedUser(jid) } catch { n = jid }
+    return isLidJid(n) ? n : null
+  }
+
+  const lidTargetsOf = (msg: WAMessage): string[] => {
+    const out = new Set<string>()
+    for (const cand of [msg.key?.participant, msg.key?.remoteJid, ctx.selfJid, ...rawMentionsOf(msg)]) {
+      const lid = normLid(cand)
+      if (lid != null) out.add(lid)
+    }
+    return [...out]
+  }
+
+  const buildLidMap = async (lids: string[]): Promise<Map<string, string> | undefined> => {
     const resolve = ctx.resolveLidToPn
-    if (resolve == null) return undefined
-    const lids = [...new Set(rawMentionsOf(msg).filter(isLidJid))]
-    if (lids.length === 0) return undefined
+    if (resolve == null || lids.length === 0) return undefined
     const map = new Map<string, string>()
     await Promise.all(
       lids.map(async (lid) => {
         try {
           const pn = await raceTimeout(Promise.resolve(resolve(lid)), MENTION_RESOLVE_TIMEOUT_MS)
-          if (pn != null && pn.length > 0) map.set(lid, pn)
+          if (pn != null && pn.length > 0) {
+            try { map.set(lid, jidNormalizedUser(pn)) } catch { map.set(lid, pn) }
+          }
         } catch (err) {
           ctx.logger?.warn(err, 'inbound pipeline: lid->pn resolve threw')
         }
@@ -208,18 +225,17 @@ export function attachInboundPipeline(
     const upsert = dropSpoofedSelfOnly(raw as UpsertPayload)
     for (const msg of upsert.messages) {
       if (ctx.ignoreMe === true && msg.key?.fromMe === true) continue
-      const needsResolve =
-        ctx.resolveLidToPn != null && rawMentionsOf(msg).some(isLidJid)
-      if (!needsResolve) {
+      const lids = ctx.resolveLidToPn != null ? lidTargetsOf(msg) : []
+      if (lids.length === 0) {
         runMessage(msg, decodeCtx)
         continue
       }
-      void buildMentionMap(msg)
-        .then((mentionMap) =>
-          runMessage(msg, mentionMap != null ? { ...decodeCtx, mentionMap } : decodeCtx),
+      void buildLidMap(lids)
+        .then((lidMap) =>
+          runMessage(msg, lidMap != null ? { ...decodeCtx, lidMap } : decodeCtx),
         )
         .catch((err) => {
-          ctx.logger?.warn(err, 'inbound pipeline: deferred mention emit failed')
+          ctx.logger?.warn(err, 'inbound pipeline: deferred lid resolve emit failed')
           runMessage(msg, decodeCtx)
         })
     }

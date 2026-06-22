@@ -195,6 +195,30 @@ describe('attachInboundPipeline — messages.upsert', () => {
     }
   })
 
+  it('resolves a LID-only DM sender so senderId/roomId/receiverId are PN', async () => {
+    const client = new TypedEventEmitter<ClientEventMap>()
+    const socket = makeInboundSocket({ user: { id: SELF } })
+    attachInboundPipeline(
+      client,
+      socket as unknown as Parameters<typeof attachInboundPipeline>[1],
+      {
+        selfJid: SELF,
+        resolveLidToPn: async (lid) => (lid === '123456@lid' ? '628111:0@s.whatsapp.net' : null),
+      },
+    )
+    const seen = vi.fn()
+    client.on('text', seen)
+    socket.triggerMessagesUpsert({
+      messages: [{ key: { remoteJid: '123456@lid', id: 'L1', fromMe: false }, message: { conversation: 'hi' }, messageTimestamp: 1700, pushName: 'X' }],
+      type: 'notify',
+    })
+    await new Promise((r) => setTimeout(r, 0))
+    const ctx = seen.mock.calls[0]?.[0]
+    expect(ctx.senderId).toBe('628111@s.whatsapp.net')
+    expect(ctx.roomId).toBe('628111@s.whatsapp.net')
+    expect(ctx.receiverId).toBe(SELF)
+  })
+
   it('keeps unmapped LID mentions (best-effort) and stays sync without a resolver', () => {
     const { client, socket } = setup()
     const seen = vi.fn()

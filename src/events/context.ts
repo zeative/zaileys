@@ -280,6 +280,7 @@ export interface BuildContextInput {
   isNewsletter: boolean
   prefixes: string[]
   citationConfig?: CitationConfig
+  lidMap?: Map<string, string>
   resolveRoomName: () => Promise<string | null>
   resolveReceiverName: () => Promise<string | null>
   resolveReplied: () => Promise<MessageContext | null>
@@ -422,11 +423,13 @@ export const buildMessageContext = (input: BuildContextInput): MessageContext =>
   const remoteJid = typeof input.key.remoteJid === 'string' ? input.key.remoteJid : null
   const isGroup = remoteJid !== null && isGroupJid(remoteJid)
   const flags = deriveFlags(input.message)
-  const senderId = input.sender.pn ?? input.sender.jid
+  const toPn = (jid: string): string =>
+    input.lidMap != null && jid.endsWith('@lid') ? (input.lidMap.get(jid) ?? jid) : jid
+  const senderId = toPn(input.sender.pn ?? input.sender.jid)
   const roomId = isGroup
     ? (remoteJid ? jidNormalizedUser(remoteJid) : null)
     : input.key.fromMe === true && remoteJid
-      ? jidNormalizedUser(remoteJid)
+      ? toPn(jidNormalizedUser(remoteJid))
       : senderId
 
   const ctx: MessageContext = {
@@ -435,7 +438,7 @@ export const buildMessageContext = (input: BuildContextInput): MessageContext =>
     channelId: input.channelId,
     chatId: input.key.id ?? '',
     chatType: input.chatType,
-    receiverId: input.receiverId ? jidNormalizedUser(input.receiverId) : input.receiverId,
+    receiverId: input.receiverId ? toPn(jidNormalizedUser(input.receiverId)) : input.receiverId,
     roomId,
     senderId,
     senderLid: input.sender.lid ?? null,

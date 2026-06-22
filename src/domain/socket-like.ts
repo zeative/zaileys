@@ -42,6 +42,13 @@ export interface DomainSocketLike {
   updateBlockStatus(jid: string, action: 'block' | 'unblock'): Promise<void>
   fetchBlocklist(): Promise<string[]>
 
+  updateProfileName(name: string): Promise<void>
+  updateProfileStatus(status: string): Promise<void>
+  updateProfilePicture(jid: string, content: WAMediaUpload): Promise<void>
+  removeProfilePicture(jid: string): Promise<void>
+  profilePictureUrl(jid: string, type?: 'image' | 'preview', timeoutMs?: number): Promise<string | undefined>
+  fetchStatus(jid: string): Promise<unknown>
+
   newsletterCreate(name: string, description?: string): Promise<NewsletterMetadata>
   newsletterFollow(jid: string): Promise<unknown>
   newsletterUnfollow(jid: string): Promise<unknown>

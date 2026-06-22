@@ -27,6 +27,7 @@ import {
   GroupModule,
   NewsletterModule,
   PrivacyModule,
+  ProfileModule,
   type DomainSocketLike,
 } from '../domain/index.js'
 import {
@@ -152,6 +153,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private _privacy?: PrivacyModule
   private _newsletter?: NewsletterModule
   private _community?: CommunityModule
+  private _profile?: ProfileModule
   private commandRegistry?: CommandRegistry
   private readonly commandMiddleware: Middleware[] = []
   private readonly commandPrefixes: string[]
@@ -278,6 +280,12 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     return (this._community ??= new CommunityModule(
       () => this._socket as unknown as DomainSocketLike | undefined,
       this.operationGuard,
+    ))
+  }
+
+  get profile(): ProfileModule {
+    return (this._profile ??= new ProfileModule(
+      () => this._socket as unknown as DomainSocketLike | undefined,
     ))
   }
 

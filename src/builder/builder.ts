@@ -22,6 +22,7 @@ import { buildImageContent } from './content/image.js'
 import { buildListContent } from './content/list.js'
 import { buildLocationContent } from './content/location.js'
 import { buildPollContent } from './content/poll.js'
+import { buildProductContent } from './content/product.js'
 import { buildStickerContent } from './content/sticker.js'
 import { buildTemplateContent } from './content/template.js'
 import { buildTextContent } from './content/text.js'
@@ -43,6 +44,7 @@ import type {
   LocationOptions,
   MediaSource,
   PollOptions,
+  ProductOptions,
   StickerOptions,
   TemplateOptions,
   VideoNoteOptions,
@@ -208,6 +210,26 @@ export class MessageBuilder<State extends BuilderState> {
 
   groupInvite(this: MessageBuilder<'init'>, opts: GroupInviteOptions): MessageBuilder<'content-set'> {
     this.internal.content = buildGroupInviteContent(opts)
+    return this as unknown as MessageBuilder<'content-set'>
+  }
+
+  product(this: MessageBuilder<'init'>, opts: ProductOptions): MessageBuilder<'content-set'> {
+    this.internal.pendingContent = buildProductContent(opts)
+    return this as unknown as MessageBuilder<'content-set'>
+  }
+
+  requestPhoneNumber(this: MessageBuilder<'init'>): MessageBuilder<'content-set'> {
+    this.internal.content = { requestPhoneNumber: {} } as unknown as AnyMessageContent
+    return this as unknown as MessageBuilder<'content-set'>
+  }
+
+  sharePhoneNumber(this: MessageBuilder<'init'>): MessageBuilder<'content-set'> {
+    this.internal.content = { sharePhoneNumber: {} } as unknown as AnyMessageContent
+    return this as unknown as MessageBuilder<'content-set'>
+  }
+
+  limitSharing(this: MessageBuilder<'init'>, enabled = true): MessageBuilder<'content-set'> {
+    this.internal.content = { limitSharing: enabled } as unknown as AnyMessageContent
     return this as unknown as MessageBuilder<'content-set'>
   }
 

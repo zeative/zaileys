@@ -119,6 +119,21 @@ export type EventOptions = {
   canceled?: boolean
 }
 
+export type ProductOptions = {
+  image: MediaSource
+  title: string
+  businessOwnerId: string
+  description?: string
+  /** Price in currency units (e.g. 50 = 50.00); mapped to priceAmount1000. */
+  price?: number
+  currency?: string
+  productId?: string
+  retailerId?: string
+  url?: string
+  body?: string
+  footer?: string
+}
+
 export type GroupInviteOptions = {
   jid: string
   code: string

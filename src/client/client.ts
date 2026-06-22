@@ -571,6 +571,12 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     return pinMessage(this.requireSocket() as unknown as BuilderSocketLike, key, false)
   }
 
+  async setDisappearing(to: string, seconds: number): Promise<void> {
+    const recipient = await this.resolveRecipient(to)
+    const socket = this.requireSocket() as unknown as BuilderSocketLike
+    await socket.sendMessage(recipient, { disappearingMessagesInChat: seconds } as never)
+  }
+
   private resolveRecipient(to: string): Promise<string> {
     return resolveUsername(this.requireSocket() as unknown as UsernameResolveSocketLike, to, this.usernameCache)
   }

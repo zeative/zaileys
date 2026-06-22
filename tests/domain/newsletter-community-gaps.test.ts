@@ -12,7 +12,7 @@ describe('NewsletterModule gaps', () => {
     await n.react('nl@newsletter', '5', '🔥')
     expect(newsletterReactMessage).toHaveBeenCalledWith('nl@newsletter', '5', '🔥')
     await n.unreact('nl@newsletter', '5')
-    expect(newsletterReactMessage).toHaveBeenCalledWith('nl@newsletter', '5', undefined)
+    expect(newsletterReactMessage).toHaveBeenLastCalledWith('nl@newsletter', '5')
   })
 
   it('subscribers/adminCount/changeOwner/demote/removePicture forward', async () => {

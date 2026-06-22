@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { buildEventContent } from '../../src/builder/content/event.js'
 import { buildGroupInviteContent } from '../../src/builder/content/group-invite.js'
+import { RELAY_CONTENT_KEY } from '../../src/builder/content/buttons.js'
 import { ZaileysBuilderError } from '../../src/builder/errors.js'
 
 const rec = (c: unknown) => c as Record<string, unknown>
@@ -40,14 +41,17 @@ describe('buildEventContent', () => {
 })
 
 describe('buildGroupInviteContent', () => {
-  it('maps simplified fields to baileys groupInvite shape', () => {
+  const invite = (c: Record<string, unknown>) =>
+    (c[RELAY_CONTENT_KEY] as { groupInviteMessage: Record<string, unknown> }).groupInviteMessage
+
+  it('maps simplified fields to a raw groupInviteMessage proto (relayed)', () => {
     const content = rec(buildGroupInviteContent({ jid: '123@g.us', code: 'ABC', subject: 'ScrapeOps', caption: 'join', expiresAt: 99 }))
-    expect(content.groupInvite).toMatchObject({ jid: '123@g.us', inviteCode: 'ABC', subject: 'ScrapeOps', text: 'join', inviteExpiration: 99 })
+    expect(invite(content)).toMatchObject({ groupJid: '123@g.us', inviteCode: 'ABC', groupName: 'ScrapeOps', caption: 'join', inviteExpiration: 99 })
   })
 
   it('defaults expiration/subject/caption when omitted', () => {
     const content = rec(buildGroupInviteContent({ jid: '123@g.us', code: 'ABC' }))
-    expect(content.groupInvite).toMatchObject({ inviteExpiration: 0, subject: '', text: '' })
+    expect(invite(content)).toMatchObject({ inviteExpiration: 0, groupName: '', caption: '' })
   })
 
   it('rejects a non-group jid or missing code', () => {

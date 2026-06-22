@@ -124,6 +124,35 @@ describe('attachInboundPipeline — messages.upsert', () => {
     expect(ctx.text).toBe('hey @628999')
   })
 
+  it('still emits the message when the LID resolver hangs (timeout fallback)', async () => {
+    vi.useFakeTimers()
+    try {
+      const client = new TypedEventEmitter<ClientEventMap>()
+      const socket = makeInboundSocket({ user: { id: SELF } })
+      attachInboundPipeline(
+        client,
+        socket as unknown as Parameters<typeof attachInboundPipeline>[1],
+        { selfJid: SELF, resolveLidToPn: () => new Promise<string | null>(() => {}) },
+      )
+      const seen = vi.fn()
+      client.on('text', seen)
+      socket.triggerMessagesUpsert({
+        messages: [
+          textMsg('hi @66554863583429', {
+            message: { extendedTextMessage: { text: 'hi @66554863583429', contextInfo: { mentionedJid: ['66554863583429@lid'] } } },
+          }),
+        ],
+        type: 'notify',
+      })
+      expect(seen).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(3001)
+      expect(seen).toHaveBeenCalledTimes(1)
+      expect(seen.mock.calls[0]?.[0].mentions).toEqual(['66554863583429@lid'])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('keeps unmapped LID mentions (best-effort) and stays sync without a resolver', () => {
     const { client, socket } = setup()
     const seen = vi.fn()

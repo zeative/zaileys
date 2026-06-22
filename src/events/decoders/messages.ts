@@ -531,14 +531,14 @@ const mapMentions = (jids: string[], ctx: DecodeContext): string[] =>
 
 const userPart = (jid: string): string => (jid.split('@')[0] ?? '').split(':')[0] ?? ''
 
-const syncMentionText =(text: string, map: Map<string, string> | undefined): string => {
+const syncMentionText = (text: string, map: Map<string, string> | undefined): string => {
   if (map == null || map.size === 0 || text.length === 0) return text
+  const pairs = [...map]
+    .map(([lid, pn]) => [userPart(lid), userPart(pn)] as const)
+    .filter(([from, to]) => from.length > 0 && to.length > 0 && from !== to)
+    .sort((a, b) => b[0].length - a[0].length)
   let out = text
-  for (const [lid, pn] of map) {
-    const from = userPart(lid)
-    const to = userPart(pn)
-    if (from.length > 0 && to.length > 0 && from !== to) out = out.split(`@${from}`).join(`@${to}`)
-  }
+  for (const [from, to] of pairs) out = out.split(`@${from}`).join(`@${to}`)
   return out
 }
 

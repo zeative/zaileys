@@ -91,6 +91,17 @@ type ClientEmitter = TypedEventEmitter<ClientEventMap>
 
 const asArray = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : [])
 
+const MENTION_RESOLVE_TIMEOUT_MS = 3000
+
+const raceTimeout = <T>(p: Promise<T>, ms: number): Promise<T | null> =>
+  new Promise<T | null>((resolve) => {
+    const timer = setTimeout(() => resolve(null), ms)
+    p.then(
+      (v) => { clearTimeout(timer); resolve(v) },
+      () => { clearTimeout(timer); resolve(null) },
+    )
+  })
+
 const connectionReachout = (update: unknown): RawReachoutTimelock | null => {
   if (update == null || typeof update !== 'object') return null
   const lock = (update as { reachoutTimeLock?: unknown }).reachoutTimeLock
@@ -171,7 +182,7 @@ export function attachInboundPipeline(
     await Promise.all(
       lids.map(async (lid) => {
         try {
-          const pn = await resolve(lid)
+          const pn = await raceTimeout(Promise.resolve(resolve(lid)), MENTION_RESOLVE_TIMEOUT_MS)
           if (pn != null && pn.length > 0) map.set(lid, pn)
         } catch (err) {
           ctx.logger?.warn(err, 'inbound pipeline: lid->pn resolve threw')
@@ -203,9 +214,14 @@ export function attachInboundPipeline(
         runMessage(msg, decodeCtx)
         continue
       }
-      void buildMentionMap(msg).then((mentionMap) =>
-        runMessage(msg, mentionMap != null ? { ...decodeCtx, mentionMap } : decodeCtx),
-      )
+      void buildMentionMap(msg)
+        .then((mentionMap) =>
+          runMessage(msg, mentionMap != null ? { ...decodeCtx, mentionMap } : decodeCtx),
+        )
+        .catch((err) => {
+          ctx.logger?.warn(err, 'inbound pipeline: deferred mention emit failed')
+          runMessage(msg, decodeCtx)
+        })
     }
   })
 

@@ -50,7 +50,7 @@ client.on('text', async (msg) => { if (msg.text === 'ping') await msg.reply('pon
 | `client.connect()` | `Promise<void>` | resolves on first `open`; rejects if pairing w/o phoneNumber or closed before open |
 | `client.disconnect()` | `Promise<void>` | graceful; closes auth+store, emits `disconnect{willReconnect:false}` |
 | `client.logout()` | `Promise<void>` | `socket.logout()` + clears creds/signal; emits `disconnect{reason:'logged-out'}` |
-| `client.group` / `.privacy` / `.newsletter` / `.community` / `.presence` | domain modules | lazy getters |
+| `client.group` / `.privacy` / `.newsletter` / `.community` / `.presence` / `.profile` / `.chat` / `.contact` / `.business` | domain modules | lazy getters |
 
 Domain/builder methods throw `ZaileysBuilderError('INVALID_OPTIONS','client not connected')` (send/edit/etc) or `ZaileysDomainError('NOT_CONNECTED', …)` when socket is absent.
 
@@ -79,6 +79,7 @@ Message events deliver a `MessageContext` (mention events extend it):
 
 | event | payload type |
 |---|---|
+| `message` | `MessageContext` — umbrella; fires once for ANY inbound message (any `chatType`), in addition to the specific event |
 | `text` `image` `video` `audio` `document` `sticker` | `MessageContext` |
 | `reaction` | `ReactionPayload {key,emoji:string\|null,sender,timestamp}` |
 | `edit` | `EditPayload {key,newContent,editedAt,sender}` |
@@ -104,10 +105,11 @@ Message events deliver a `MessageContext` (mention events extend it):
 
 | field | type | note |
 |---|---|---|
-| `uniqueId` | `string` | FNV-1a hash of remoteJid\|id\|fromMe |
+| `uniqueId` | `string` | 16-char UPPERCASE hex (FNV-1a of remoteJid\|id\|fromMe); changes per message |
+| `staticId` | `string` | 16-char UPPERCASE hex (FNV-1a of roomId\|senderId); STABLE per room+sender |
 | `channelId` | `string` | = sessionId |
 | `chatId` | `string` | message key id |
-| `chatType` | `'text'\|'image'\|'video'\|'audio'\|'document'\|'sticker'\|'unknown'` | |
+| `chatType` | `'text'\|'image'\|'video'\|'audio'\|'document'\|'sticker'\|'poll'\|'contact'\|'location'\|'live-location'\|'event'\|'album'\|'group-invite'\|'product'\|'order'\|'payment'\|'buttons'\|'list'\|'interactive'\|'template'\|'unknown'` | |
 | `receiverId` | `string` | self jid |
 | `roomId` | `string \| null` | group jid, else null |
 | `senderId` | `string` | sender.pn ?? sender.jid |
@@ -116,13 +118,16 @@ Message events deliver a `MessageContext` (mention events extend it):
 | `senderDevice` | `'android'\|'ios'\|'web'\|'desktop'\|'unknown'\|string` | from jid device byte |
 | `timestamp` | `number` | ms epoch |
 | `text` | `string` | |
-| `mentions` | `string[]` | |
+| `mentions` | `string[]` | resolved to PN (`@s.whatsapp.net`) when a LID map is available |
 | `links` | `string[]` | http(s) URLs, trailing punctuation trimmed |
 | `isFromMe` `isGroup` `isNewsletter` `isBroadcast` `isViewOnce` `isEphemeral` `isForwarded` | `boolean` | |
 | `isQuestion` | `boolean` | text ends with `?` |
 | `isPrefix` | `boolean` | text starts with a configured prefix |
 | `isTagMe` | `boolean` | self jid in mentions |
-| `isEdited` `isDeleted` `isPinned` `isUnPinned` `isBot` `isSpam` `isHideTags` `isStatusMention` `isGroupStatusMention` `isStory` | `boolean` | currently always `false` on initial build |
+| `isEdited` `isDeleted` `isPinned` `isUnPinned` `isBot` `isStatusMention` `isGroupStatusMention` | `boolean` | DERIVED from the raw message (protocol/pin/bot-metadata) |
+| `isStory` | `boolean` | `remoteJid === 'status@broadcast'` |
+| `isHideTags` | `boolean` | has mentions but text contains no `@digits` |
+| `isSpam` | `boolean` | always `false` (reserved) |
 
 ### MessageContext methods
 
@@ -134,8 +139,30 @@ Message events deliver a `MessageContext` (mention events extend it):
 | `message()` | `WAMessage` | raw baileys message |
 | `reply(content, opts?)` | `Promise<WAMessageKey>` | `opts: TextOptions`; quotes this msg |
 | `react(emoji)` | `Promise<WAMessageKey>` | |
-| `media?` | `{ buffer():Promise<Buffer>; stream():Promise<Readable> }` | present only for media messages |
+| `media?` | `ContextMedia` (discriminated by `type`) | present per message kind — see "ctx.media variants" below |
 | `citation` | `{ authors():Promise<boolean>; banned():Promise<boolean> }` | resolved against `CitationConfig` for sender |
+
+### ctx.media variants (`ContextMedia`, discriminated by `type`)
+
+| type | fields |
+|---|---|
+| `image`/`video`/`audio`/`document`/`sticker` | `MediaAttachment { mimetype, caption, fileName, fileSize, ptt, buffer(), stream() }` (all nullable except flags) |
+| `poll` | `{ name, options:string[], selectableCount }` |
+| `contact` | `{ displayName, vcard, contacts: { displayName, vcard }[] }` |
+| `location`/`live-location` | `{ latitude, longitude, name, address, accuracy, speed, caption }` |
+| `event` | `{ name, description, location, startTime, endTime, isCanceled }` |
+| `album` | `{ expectedImageCount, expectedVideoCount }` (counts null when absent) |
+| `group-invite` | `{ groupId, groupName, inviteCode, caption, expiresAt }` |
+| `product` | `{ productId, title, description, price, currency, retailerId, url, businessOwnerId }` |
+| `order` | `{ orderId, title, itemCount, total, currency, status, message }` |
+| `payment` | `{ kind:'request'\|'send'\|'invite', amount, currency, note, expiresAt }` |
+| `link` | `{ url, title, description }` (link-preview) |
+| `buttons` | `{ contentText, footerText, buttons: { id, text }[] }` |
+| `list` | `{ title, description, buttonText, sections: { title, rows: { id, title, description }[] }[] }` |
+| `interactive` | `{ title, body, footer, buttons: { name, params }[] }` |
+| `template` | `{ text, buttons: { id, text }[] }` |
+
+All scalar fields are nullable (`| null`) unless noted.
 
 ---
 
@@ -154,7 +181,8 @@ Content methods (each returns `MessageBuilder<'content-set'>`):
 |---|---|---|
 | `text` | `(content, opts?: TextOptions)` | `TextOptions = { rich?: boolean } & AIRichOptions` (see AIRich) |
 | `image` | `(src: MediaSource, opts?: ImageOptions)` | `{ caption?, viewOnce? }` |
-| `video` | `(src, opts?: VideoOptions)` | `{ caption?, gifPlayback?, viewOnce? }` |
+| `video` | `(src, opts?: VideoOptions)` | `{ caption?, gifPlayback?, viewOnce?, ptv? }` |
+| `videoNote` | `(src, opts?: VideoNoteOptions)` | round PTV note; `{ viewOnce? }` |
 | `audio` | `(src, opts?: AudioOptions)` | `{ ptt?, seconds? }` |
 | `document` | `(src, opts: DocumentOptions)` | `{ fileName (req), mimetype?, caption? }` |
 | `sticker` | `(src, opts?: StickerOptions)` | `{ animated? }` |
@@ -166,6 +194,12 @@ Content methods (each returns `MessageBuilder<'content-set'>`):
 | `template` | `(opts: TemplateOptions)` | `{ header?, body (req), footer?, buttons: ButtonDef[] }` |
 | `list` | `(opts: ListOptions)` | interactive — see below |
 | `carousel` | `(cards: CarouselCard[], opts?: { text? })` | interactive — see below |
+| `event` | `(opts: EventOptions)` | `{ name (req), description?, startAt:Date\|number (req), endAt?, location?:{latitude,longitude,name?,address?}, call?:'audio'\|'video', canceled? }` |
+| `groupInvite` | `(opts: GroupInviteOptions)` | `{ jid (req), code (req), subject?, caption?, expiresAt?:unix-sec, thumbnail?:Buffer }` |
+| `product` | `(opts: ProductOptions)` | `{ image (req), title (req), businessOwnerId (req), description?, price?, currency?, productId?, retailerId?, url?, body?, footer? }` |
+| `requestPhoneNumber` | `()` | ask recipient to share their number |
+| `sharePhoneNumber` | `()` | share own number |
+| `limitSharing` | `(enabled = true)` | toggle limit-sharing (status forwarding) |
 
 `MediaSource = string | Buffer | URL` (file path, URL, or buffer).
 
@@ -275,6 +309,9 @@ Programmatic `AIRichPart` union also supports `product`/`reels`/`post` with full
 | `client.delete(key, opts?)` | `Promise<void>` | `DeleteOptions = { forEveryone? }` default `true`; `false` ⇒ delete-for-me |
 | `client.react(key, emoji)` | `Promise<WAMessageKey>` | empty string emoji removes reaction |
 | `client.forward(key, to)` | `Promise<WAMessageKey>` | looks up message in `store`; throws `MESSAGE_NOT_FOUND` if absent |
+| `client.pin(key, opts?)` | `Promise<WAMessageKey>` | pin-in-chat; `PinOptions = { duration?:seconds }` (WA: 86400/604800/2592000; default 24h) |
+| `client.unpin(key)` | `Promise<WAMessageKey>` | unpin |
+| `client.setDisappearing(jid, seconds)` | `Promise<void>` | set chat-wide disappearing-message timer (0 = off) |
 
 ```typescript
 const key = await client.send(jid).text('v1')
@@ -321,6 +358,54 @@ client.command('add user', async (ctx) => { /* multi-word path */ })
 | `acceptInvite(code)` | | `string` (group jid) |
 | `toggleEphemeral(groupId, seconds)` | | `void` |
 | `setting(groupId, 'announcement'\|'not_announcement'\|'locked'\|'unlocked')` | | `void` |
+| `list()` | | `GroupMetadata[]` (all participating) |
+| `inviteInfo(code)` | | `GroupMetadata` |
+| `joinRequests(groupId)` | | `Array<Record<string,string>>` (pending) |
+| `approveJoin(groupId, jids)` / `rejectJoin(groupId, jids)` | `(string, string[])` | `ParticipantUpdateResult[]` |
+| `joinApproval(groupId, enabled)` | `(string, boolean)` | `void` (approval mode on/off) |
+| `memberAddMode(groupId, adminsOnly)` | `(string, boolean)` | `void` (admin_add vs all_member_add) |
+
+### `client.profile` (ProfileModule)
+
+| method | signature |
+|---|---|
+| `setName(name)` / `setStatus(status)` | `(string)` → `void` |
+| `setPicture(jid, image)` | `(string, WAMediaUpload)` → `void` (jid = self or group) |
+| `removePicture(jid)` | `(string)` → `void` |
+| `getPicture(jid, hd?)` | `(string, boolean=false)` → `Promise<string \| null>` (URL) |
+| `getStatus(jid)` | `(string)` → `Promise<unknown>` |
+
+### `client.chat` (ChatModule)
+
+| method | signature |
+|---|---|
+| `archive(jid)` / `unarchive(jid)` | `(string)` → `void` |
+| `pin(jid)` / `unpin(jid)` | `(string)` → `void` (chat pin, not message pin) |
+| `mute(jid, durationMs?)` | `(string, number?)` → `void` (omit = indefinite) |
+| `unmute(jid)` | `(string)` → `void` |
+| `markRead(jid)` / `markUnread(jid)` | `(string)` → `void` |
+| `star(key, starred?)` / `unstar(key)` | `(WAMessageKey, boolean=true)` → `void` |
+| `delete(jid)` / `clear(jid)` | `(string)` → `void` |
+
+### `client.contact` (ContactModule)
+
+| method | signature |
+|---|---|
+| `check(...numbers)` | `(...string)` → `Promise<{ jid, exists, lid? }[]>` (onWhatsApp) |
+| `exists(number)` | `(string)` → `Promise<boolean>` |
+| `save(jid, { firstName?, lastName?, fullName? })` | → `void` |
+| `remove(jid)` | `(string)` → `void` |
+
+### `client.business` (BusinessModule)
+
+| method | signature |
+|---|---|
+| `profile(jid)` | `(string)` → `Promise<unknown>` |
+| `catalog({ jid?, limit?, cursor? })` | → `Promise<unknown>` |
+| `collections(jid?, limit?)` | → `Promise<unknown>` |
+| `orderDetails(orderId, tokenBase64)` | → `Promise<unknown>` |
+| `createProduct(create)` / `updateProduct(productId, update)` | `(Record<string,unknown>)` → `Promise<unknown>` |
+| `deleteProduct(...productIds)` | `(...string)` → `Promise<{ deleted: number }>` |
 
 ### `client.privacy` (PrivacyModule)
 
@@ -343,6 +428,12 @@ client.command('add user', async (ctx) => { /* multi-word path */ })
 | `updatePicture(jid, picture: Buffer)` | | `void` |
 | `mute(jid)` / `unmute(jid)` | | `void` |
 | `delete(jid)` | | `void` |
+| `removePicture(jid)` | | `void` |
+| `react(jid, serverId, emoji)` / `unreact(jid, serverId)` | | `void` |
+| `subscribers(jid)` | | `Promise<unknown>` |
+| `messages(jid, count=50, { since?, after? })` | | `Promise<unknown>` |
+| `adminCount(jid)` | | `Promise<number>` |
+| `changeOwner(jid, newOwnerJid)` / `demote(jid, userJid)` | | `void` |
 
 ### `client.community` (CommunityModule)
 
@@ -355,6 +446,12 @@ client.command('add user', async (ctx) => { /* multi-word path */ })
 | `leave(communityId)` | | `void` |
 | `updateSubject(communityId, subject)` / `updateDescription(communityId, description?)` | | `void` |
 | `inviteCode` / `revokeInvite` / `acceptInvite(code)` | | `string \| undefined` |
+| `metadata(communityId)` | | `GroupMetadata` |
+| `list()` | | `GroupMetadata[]` (all participating) |
+| `inviteInfo(code)` | | `GroupMetadata` |
+| `toggleEphemeral(communityId, seconds)` | | `void` |
+| `setting(communityId, 'announcement'\|'not_announcement')` | | `void` |
+| `memberAddMode(communityId, adminsOnly)` / `joinApproval(communityId, enabled)` | `(string, boolean)` | `void` |
 
 ### `client.presence` (PresenceModule)
 

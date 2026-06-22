@@ -99,9 +99,11 @@ await client.forward(key, otherJid)
 await client.broadcast(recipients, (b) => b.text('hi'), { rateLimitPerSec: 5, onProgress: (d, t, jid, ok) => {} })
 ```
 
-**Builder content methods:** `text · image · video · audio · document · sticker · location · contact · poll · album · buttons · template · list · carousel`. **Modifiers:** `reply · mentions · mentionAll · disappearing · to`.
+**Builder content methods:** `text · image · video · videoNote · audio · document · sticker · location · contact · poll · album · buttons · template · list · carousel · event · groupInvite · product · requestPhoneNumber · sharePhoneNumber · limitSharing`. **Modifiers:** `reply · mentions · mentionAll · disappearing · to`.
 
-**Events:** connection (`qr`, `pairing-code`, `connect`, `reconnecting`, `disconnect`, `error`); messages (`text`, `image`, `video`, `audio`, `sticker`, `document`, `reaction`, `poll-vote`); interactive (`button-click`, `list-select`); group/social (`group-update`, `group-join`, `group-leave`, `member-tag`, `mention-all`); calls (`call-incoming`, `call-ended`); `history-sync`.
+**Events:** `message` (umbrella — fires once for ANY inbound message → `MessageContext`); connection (`qr`, `pairing-code`, `connect`, `reconnecting`, `disconnect`, `error`); messages (`text`, `image`, `video`, `audio`, `sticker`, `document`, `reaction`, `poll-vote`); interactive (`button-click`, `list-select`); group/social (`group-update`, `group-join`, `group-leave`, `member-tag`, `mention-all`); calls (`call-incoming`, `call-ended`); `history-sync`. `chatType` now covers `album`, `group-invite`, `product`, `order`, `payment`, `poll`, `contact`, `location`, `event`, `buttons`, `list`, `interactive`, `template`, … (full set in api.md).
+
+**Domain modules (`client.*`):** `group` · `privacy` · `newsletter` · `community` · `presence` · `profile` (name/status/picture) · `chat` (archive/pin/mute/markRead/star/delete/clear) · `contact` (check/exists/save/remove) · `business` (profile/catalog/products). Message mutations also add `pin(key,{duration?})` · `unpin(key)` · `setDisappearing(jid, seconds)`.
 
 **Error classes (all carry `.code`):** `ZaileysBuilderError`, `ZaileysCommandError`, `ZaileysDomainError`, `ZaileysAutomationError`, `ZaileysStoreError`. → see [references/errors.md](references/errors.md).
 

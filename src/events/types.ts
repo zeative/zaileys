@@ -3,6 +3,7 @@ import type { MentionAllContext, MentionContext, MessageContext } from './contex
 
 export interface SenderInfo {
   jid: string
+  deviceJid?: string
   lid?: string
   pn?: string
   username?: string

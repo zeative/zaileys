@@ -169,6 +169,20 @@ describe('attachInboundPipeline — messages.upsert', () => {
     expect(seen.mock.calls[0]?.[0].mentions).toEqual(['66554863583429@lid'])
   })
 
+  it('derives senderDevice from the participant device suffix', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('text', seen)
+    socket.triggerMessagesUpsert({
+      messages: [
+        textMsg('hi', { key: { remoteJid: '99-1@g.us', id: 'D1', fromMe: false, participant: '628000:3@s.whatsapp.net' } }),
+      ],
+      type: 'notify',
+    })
+    expect(seen.mock.calls[0]?.[0].senderDevice).toBe('web')
+    expect(seen.mock.calls[0]?.[0].senderId).toBe('628000@s.whatsapp.net')
+  })
+
   it('emits both text and mention when self mentioned (multi-decoder)', () => {
     const { client, socket } = setup()
     const text = vi.fn()

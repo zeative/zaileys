@@ -335,7 +335,7 @@ export const buildMessageContext = (input: BuildContextInput): MessageContext =>
     senderId,
     senderLid: input.sender.lid ?? null,
     senderName: input.sender.pushName ?? null,
-    senderDevice: senderDeviceOf(input.sender.jid),
+    senderDevice: senderDeviceOf(input.sender.deviceJid ?? input.sender.jid),
     timestamp: epochSecondsToMs(input.message.messageTimestamp),
     text: input.text,
     mentions: input.mentions,

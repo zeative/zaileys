@@ -45,6 +45,7 @@ export const extractSender = (
   const alt = altRaw != null ? extractJid(altRaw) : null
   const username = nonEmpty(key.participantUsername) ?? nonEmpty(key.remoteJidUsername)
   const sender: SenderInfo = { jid, isMe: key.fromMe === true }
+  if (typeof raw === 'string' && raw.length > 0) sender.deviceJid = raw
   const candidates = alt !== null ? [jid, alt] : [jid]
   const lid = candidates.find(isLidJid)
   const pn = candidates.find(isPnJid)

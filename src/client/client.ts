@@ -25,6 +25,7 @@ import {
 import {
   CommunityModule,
   GroupModule,
+  ChatModule,
   NewsletterModule,
   PrivacyModule,
   ProfileModule,
@@ -154,6 +155,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private _newsletter?: NewsletterModule
   private _community?: CommunityModule
   private _profile?: ProfileModule
+  private _chat?: ChatModule
   private commandRegistry?: CommandRegistry
   private readonly commandMiddleware: Middleware[] = []
   private readonly commandPrefixes: string[]
@@ -286,6 +288,22 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   get profile(): ProfileModule {
     return (this._profile ??= new ProfileModule(
       () => this._socket as unknown as DomainSocketLike | undefined,
+    ))
+  }
+
+  get chat(): ChatModule {
+    return (this._chat ??= new ChatModule(
+      () => this._socket as unknown as DomainSocketLike | undefined,
+      async (jid) => {
+        try {
+          const msgs = await this.store.listMessages(jid, { limit: 1 })
+          return msgs
+            .filter((m) => m.key != null)
+            .map((m) => ({ key: m.key, messageTimestamp: Number(m.messageTimestamp ?? 0) }))
+        } catch {
+          return []
+        }
+      },
     ))
   }
 

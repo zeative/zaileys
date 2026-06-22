@@ -1,4 +1,5 @@
 import type {
+  ChatModification,
   GroupMetadata,
   NewsletterMetadata,
   ParticipantAction,
@@ -48,6 +49,7 @@ export interface DomainSocketLike {
   removeProfilePicture(jid: string): Promise<void>
   profilePictureUrl(jid: string, type?: 'image' | 'preview', timeoutMs?: number): Promise<string | undefined>
   fetchStatus(jid: string): Promise<unknown>
+  chatModify(mod: ChatModification, jid: string): Promise<void>
 
   newsletterCreate(name: string, description?: string): Promise<NewsletterMetadata>
   newsletterFollow(jid: string): Promise<unknown>

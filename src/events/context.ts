@@ -16,6 +16,7 @@ export type ChatType =
   | 'location'
   | 'live-location'
   | 'event'
+  | 'album'
   | 'buttons'
   | 'list'
   | 'interactive'
@@ -73,6 +74,12 @@ export interface LocationMedia {
   accuracy: number | null
   speed: number | null
   caption: string | null
+}
+
+export interface AlbumMedia {
+  type: 'album'
+  expectedImageCount: number
+  expectedVideoCount: number
 }
 
 export interface EventMedia {
@@ -136,6 +143,7 @@ export type ContextMedia =
   | ContactMedia
   | LocationMedia
   | EventMedia
+  | AlbumMedia
   | ButtonsMedia
   | ListMedia
   | InteractiveMedia

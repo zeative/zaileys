@@ -375,6 +375,38 @@ describe('context-integration: replied() nested MessageContext', () => {
     expect(replied!.senderName).toBe('Alice')
   })
 
+  it('a quoted album yields chatType album with counts (not empty text)', async () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('text', seen)
+    socket.triggerMessagesUpsert({
+      messages: [
+        {
+          key: { remoteJid: SENDER_PN, id: 'RA', fromMe: false },
+          message: {
+            extendedTextMessage: {
+              text: 'reply to album',
+              contextInfo: {
+                stanzaId: 'QALBUM',
+                participant: SENDER_PN,
+                remoteJid: SENDER_PN,
+                quotedMessage: { albumMessage: { expectedImageCount: 4, expectedVideoCount: 0 } },
+              },
+            },
+          },
+          messageTimestamp: 1700,
+          pushName: 'Alice',
+        },
+      ],
+      type: 'notify',
+    })
+    const ctx = seen.mock.calls[0]?.[0] as MessageContext
+    const replied = await ctx.replied()
+    expect(replied).not.toBeNull()
+    expect(replied!.chatType).toBe('album')
+    expect(replied!.media).toMatchObject({ type: 'album', expectedImageCount: 4 })
+  })
+
   it('replied() returns null when no contextInfo quote present', async () => {
     const { client, socket } = setup()
     const seen = vi.fn()

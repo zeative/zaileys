@@ -205,6 +205,7 @@ const STRUCTURED_FIELDS: ReadonlyArray<readonly [string, ChatType]> = [
   ['locationMessage', 'location'],
   ['liveLocationMessage', 'live-location'],
   ['eventMessage', 'event'],
+  ['albumMessage', 'album'],
   ['buttonsMessage', 'buttons'],
   ['listMessage', 'list'],
   ['interactiveMessage', 'interactive'],
@@ -279,6 +280,15 @@ const structuredMedia = (content: Record<string, unknown>): ContextMedia | null 
       accuracy: toNum(live['accuracyInMeters']),
       speed: toNum(live['speedInMps']),
       caption: nonEmptyString(live['caption']),
+    }
+  }
+
+  const album = asRecord(content['albumMessage'])
+  if (album != null) {
+    return {
+      type: 'album',
+      expectedImageCount: toNum(album['expectedImageCount']) ?? 0,
+      expectedVideoCount: toNum(album['expectedVideoCount']) ?? 0,
     }
   }
 

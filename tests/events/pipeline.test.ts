@@ -67,6 +67,20 @@ describe('attachInboundPipeline — messages.upsert', () => {
     expect(got).toEqual(['video', 'audio', 'document', 'sticker'])
   })
 
+  it('decodes an album message as chatType album with expected counts', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('message', seen)
+    socket.triggerMessagesUpsert({
+      messages: [textMsg('', { message: { albumMessage: { expectedImageCount: 3, expectedVideoCount: 1 } } })],
+      type: 'notify',
+    })
+    expect(seen).toHaveBeenCalledTimes(1)
+    const ctx = seen.mock.calls[0]?.[0]
+    expect(ctx.chatType).toBe('album')
+    expect(ctx.media).toMatchObject({ type: 'album', expectedImageCount: 3, expectedVideoCount: 1 })
+  })
+
   it('emits umbrella message for text and every media type', () => {
     const { client, socket } = setup()
     const got: string[] = []

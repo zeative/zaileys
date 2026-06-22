@@ -287,8 +287,8 @@ const structuredMedia = (content: Record<string, unknown>): ContextMedia | null 
   if (album != null) {
     return {
       type: 'album',
-      expectedImageCount: toNum(album['expectedImageCount']) ?? 0,
-      expectedVideoCount: toNum(album['expectedVideoCount']) ?? 0,
+      expectedImageCount: toNum(album['expectedImageCount']),
+      expectedVideoCount: toNum(album['expectedVideoCount']),
     }
   }
 

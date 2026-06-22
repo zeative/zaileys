@@ -78,8 +78,8 @@ export interface LocationMedia {
 
 export interface AlbumMedia {
   type: 'album'
-  expectedImageCount: number
-  expectedVideoCount: number
+  expectedImageCount: number | null
+  expectedVideoCount: number | null
 }
 
 export interface EventMedia {

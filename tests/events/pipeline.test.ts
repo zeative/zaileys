@@ -81,6 +81,17 @@ describe('attachInboundPipeline — messages.upsert', () => {
     expect(ctx.media).toMatchObject({ type: 'album', expectedImageCount: 3, expectedVideoCount: 1 })
   })
 
+  it('album with stripped counts yields null (not a fabricated 0)', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('message', seen)
+    socket.triggerMessagesUpsert({
+      messages: [textMsg('', { message: { albumMessage: {} } })],
+      type: 'notify',
+    })
+    expect(seen.mock.calls[0]?.[0].media).toMatchObject({ type: 'album', expectedImageCount: null, expectedVideoCount: null })
+  })
+
   it('emits umbrella message for text and every media type', () => {
     const { client, socket } = setup()
     const got: string[] = []

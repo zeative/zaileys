@@ -103,6 +103,24 @@ export type TemplateOptions = {
   buttons: ButtonDef[]
 }
 
+export type EventOptions = {
+  name: string
+  description?: string
+  startAt: Date | number
+  endAt?: Date | number
+  location?: { latitude: number; longitude: number; name?: string; address?: string }
+  call?: 'audio' | 'video'
+  canceled?: boolean
+}
+
+export type GroupInviteOptions = {
+  jid: string
+  code: string
+  subject?: string
+  caption?: string
+  expiresAt?: number
+}
+
 export type BuilderContext = {
   recipient: string
   quoted?: WAMessage | WAMessageKey

@@ -16,6 +16,8 @@ import { parseRichMarkdown } from './content/markdown.js'
 import { loadMedia } from './media-loader.js'
 import { buildContactContent } from './content/contact.js'
 import { buildDocumentContent } from './content/document.js'
+import { buildEventContent } from './content/event.js'
+import { buildGroupInviteContent } from './content/group-invite.js'
 import { buildImageContent } from './content/image.js'
 import { buildListContent } from './content/list.js'
 import { buildLocationContent } from './content/location.js'
@@ -33,6 +35,8 @@ import type {
   BuilderState,
   ButtonDef,
   DocumentOptions,
+  EventOptions,
+  GroupInviteOptions,
   ImageOptions,
   InteractiveButton,
   ListOptions,
@@ -188,6 +192,16 @@ export class MessageBuilder<State extends BuilderState> {
 
   template(this: MessageBuilder<'init'>, opts: TemplateOptions): MessageBuilder<'content-set'> {
     this.internal.content = buildTemplateContent(opts)
+    return this as unknown as MessageBuilder<'content-set'>
+  }
+
+  event(this: MessageBuilder<'init'>, opts: EventOptions): MessageBuilder<'content-set'> {
+    this.internal.content = buildEventContent(opts)
+    return this as unknown as MessageBuilder<'content-set'>
+  }
+
+  groupInvite(this: MessageBuilder<'init'>, opts: GroupInviteOptions): MessageBuilder<'content-set'> {
+    this.internal.content = buildGroupInviteContent(opts)
     return this as unknown as MessageBuilder<'content-set'>
   }
 

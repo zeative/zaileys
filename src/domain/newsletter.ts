@@ -78,4 +78,37 @@ export class NewsletterModule {
     const socket = this.requireSocket()
     await socket.newsletterDelete(jid)
   }
+
+  async removePicture(jid: string): Promise<void> {
+    await this.requireSocket().newsletterRemovePicture(jid)
+  }
+
+  async react(jid: string, serverId: string, emoji: string): Promise<void> {
+    await this.requireSocket().newsletterReactMessage(jid, serverId, emoji)
+  }
+
+  /** Remove a reaction from a newsletter message. */
+  async unreact(jid: string, serverId: string): Promise<void> {
+    await this.requireSocket().newsletterReactMessage(jid, serverId)
+  }
+
+  async subscribers(jid: string): Promise<unknown> {
+    return this.requireSocket().newsletterSubscribers(jid)
+  }
+
+  async messages(jid: string, count = 50, opts?: { since?: number; after?: number }): Promise<unknown> {
+    return this.requireSocket().newsletterFetchMessages(jid, count, opts?.since, opts?.after)
+  }
+
+  async adminCount(jid: string): Promise<number> {
+    return this.requireSocket().newsletterAdminCount(jid)
+  }
+
+  async changeOwner(jid: string, newOwnerJid: string): Promise<void> {
+    await this.requireSocket().newsletterChangeOwner(jid, newOwnerJid)
+  }
+
+  async demote(jid: string, userJid: string): Promise<void> {
+    await this.requireSocket().newsletterDemote(jid, userJid)
+  }
 }

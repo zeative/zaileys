@@ -67,4 +67,32 @@ export class CommunityModule {
   async acceptInvite(code: string): Promise<string | undefined> {
     return this.run('community.join', () => this.requireSocket().communityAcceptInvite(code))
   }
+
+  async metadata(communityId: string): Promise<GroupMetadata> {
+    return this.requireSocket().communityMetadata(communityId)
+  }
+
+  async list(): Promise<GroupMetadata[]> {
+    return Object.values(await this.requireSocket().communityFetchAllParticipating())
+  }
+
+  async inviteInfo(code: string): Promise<GroupMetadata> {
+    return this.requireSocket().communityGetInviteInfo(code)
+  }
+
+  async toggleEphemeral(communityId: string, seconds: number): Promise<void> {
+    await this.requireSocket().communityToggleEphemeral(communityId, seconds)
+  }
+
+  async setting(communityId: string, setting: 'announcement' | 'not_announcement'): Promise<void> {
+    await this.requireSocket().communitySettingUpdate(communityId, setting)
+  }
+
+  async memberAddMode(communityId: string, adminsOnly: boolean): Promise<void> {
+    await this.requireSocket().communityMemberAddMode(communityId, adminsOnly ? 'admin_add' : 'all_member_add')
+  }
+
+  async joinApproval(communityId: string, enabled: boolean): Promise<void> {
+    await this.requireSocket().communityJoinApprovalMode(communityId, enabled ? 'on' : 'off')
+  }
 }

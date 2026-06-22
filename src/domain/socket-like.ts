@@ -75,6 +75,13 @@ export interface DomainSocketLike {
   newsletterMute(jid: string): Promise<unknown>
   newsletterUnmute(jid: string): Promise<unknown>
   newsletterDelete(jid: string): Promise<void>
+  newsletterSubscribers(jid: string): Promise<unknown>
+  newsletterRemovePicture(jid: string): Promise<unknown>
+  newsletterReactMessage(jid: string, serverId: string, reaction?: string): Promise<void>
+  newsletterFetchMessages(jid: string, count: number, since?: number, after?: number): Promise<unknown>
+  newsletterAdminCount(jid: string): Promise<number>
+  newsletterChangeOwner(jid: string, newOwnerJid: string): Promise<void>
+  newsletterDemote(jid: string, userJid: string): Promise<void>
 
   communityCreate(subject: string, body: string): Promise<GroupMetadata>
   communityCreateGroup(
@@ -93,4 +100,11 @@ export interface DomainSocketLike {
   communityInviteCode(jid: string): Promise<string | undefined>
   communityRevokeInvite(jid: string): Promise<string | undefined>
   communityAcceptInvite(code: string): Promise<string | undefined>
+  communityMetadata(jid: string): Promise<GroupMetadata>
+  communityFetchAllParticipating(): Promise<{ [jid: string]: GroupMetadata }>
+  communityGetInviteInfo(code: string): Promise<GroupMetadata>
+  communityToggleEphemeral(jid: string, ephemeralExpiration: number): Promise<void>
+  communitySettingUpdate(jid: string, setting: 'announcement' | 'not_announcement'): Promise<void>
+  communityMemberAddMode(jid: string, mode: 'admin_add' | 'all_member_add'): Promise<void>
+  communityJoinApprovalMode(jid: string, mode: 'on' | 'off'): Promise<void>
 }

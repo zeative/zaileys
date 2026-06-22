@@ -8,6 +8,7 @@ export type VideoContent = {
   caption?: string
   gifPlayback?: boolean
   viewOnce?: boolean
+  ptv?: boolean
 }
 
 export const buildVideoContent = async (
@@ -22,5 +23,6 @@ export const buildVideoContent = async (
   if (opts?.caption !== undefined) content.caption = opts.caption
   if (opts?.gifPlayback !== undefined) content.gifPlayback = opts.gifPlayback
   if (opts?.viewOnce !== undefined) content.viewOnce = opts.viewOnce
+  if (opts?.ptv === true) content.ptv = true
   return content as unknown as AnyMessageContent
 }

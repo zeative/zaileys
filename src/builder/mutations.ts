@@ -7,6 +7,11 @@ export type DeleteOptions = {
   forEveryone?: boolean
 }
 
+export type PinOptions = {
+  /** Pin duration in seconds (WhatsApp offers 86400 / 604800 / 2592000). Defaults to 24h. */
+  duration?: number
+}
+
 const requireRemoteJid = (key: WAMessageKey): string => {
   const jid = key.remoteJid
   if (typeof jid !== 'string' || jid.length === 0) {
@@ -63,5 +68,17 @@ export const forwardMessage = async (
     throw new ZaileysBuilderError('MESSAGE_NOT_FOUND', 'message not found in store for forward')
   }
   const result = await socket.sendMessage(to, { forward: message })
+  return requireKey(result)
+}
+
+export const pinMessage = async (
+  socket: BuilderSocketLike,
+  key: WAMessageKey,
+  pin: boolean,
+  opts: PinOptions = {},
+): Promise<WAMessageKey> => {
+  const remoteJid = requireRemoteJid(key)
+  const content = { pin: key, type: pin ? 1 : 2, time: opts.duration ?? 86400 }
+  const result = await socket.sendMessage(remoteJid, content as never)
   return requireKey(result)
 }

@@ -13,6 +13,12 @@ export type VideoOptions = {
   caption?: string
   gifPlayback?: boolean
   viewOnce?: boolean
+  /** Send as a round video note (PTV). */
+  ptv?: boolean
+}
+
+export type VideoNoteOptions = {
+  viewOnce?: boolean
 }
 
 export type AudioOptions = {

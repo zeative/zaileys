@@ -7,7 +7,6 @@ const toDate = (value: Date | number, field: string): Date => {
   if (Number.isNaN(d.getTime())) {
     throw new ZaileysBuilderError('INVALID_OPTIONS', `event() ${field} must be a valid Date or epoch ms`)
   }
-  // snap to whole seconds so baileys' getTime()/1000 stays an integer timestamp
   return new Date(Math.floor(d.getTime() / 1000) * 1000)
 }
 

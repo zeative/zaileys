@@ -2,7 +2,7 @@ import type { WAMessage, WAMessageKey } from 'baileys'
 import { describe, expect, it, vi } from 'vitest'
 import { EditBuilder } from '../../src/builder/edit-builder.js'
 import { ZaileysBuilderError } from '../../src/builder/errors.js'
-import { deleteMessage, forwardMessage, reactToMessage } from '../../src/builder/mutations.js'
+import { deleteMessage, forwardMessage, pinMessage, reactToMessage } from '../../src/builder/mutations.js'
 import { isJid, resolveUsername } from '../../src/builder/username-resolve.js'
 
 const KEY: WAMessageKey = { remoteJid: '111@s.whatsapp.net', id: 'MSG1', fromMe: false }
@@ -15,6 +15,28 @@ const makeSocket = () => ({
 
 const makeOnWhatsApp = (results: Array<{ jid: string; exists: boolean }> | undefined) => ({
   onWhatsApp: vi.fn(async (..._p: string[]) => results),
+})
+
+describe('pinMessage', () => {
+  it('pins with type 1 and default 24h duration', async () => {
+    const socket = makeSocket()
+    await pinMessage(socket as never, KEY, true)
+    expect(socket.sendMessage).toHaveBeenCalledWith('111@s.whatsapp.net', { pin: KEY, type: 1, time: 86400 })
+  })
+  it('unpins with type 2', async () => {
+    const socket = makeSocket()
+    await pinMessage(socket as never, KEY, false)
+    expect(socket.sendMessage).toHaveBeenCalledWith('111@s.whatsapp.net', { pin: KEY, type: 2, time: 86400 })
+  })
+  it('honors a custom pin duration', async () => {
+    const socket = makeSocket()
+    await pinMessage(socket as never, KEY, true, { duration: 604800 })
+    expect(socket.sendMessage).toHaveBeenCalledWith('111@s.whatsapp.net', { pin: KEY, type: 1, time: 604800 })
+  })
+  it('throws when key has no remoteJid', async () => {
+    const socket = makeSocket()
+    await expect(pinMessage(socket as never, { id: 'x', fromMe: false }, true)).rejects.toThrow(ZaileysBuilderError)
+  })
 })
 
 describe('isJid', () => {

@@ -6,7 +6,9 @@ export {
   deleteMessage,
   reactToMessage,
   forwardMessage,
+  pinMessage,
   type DeleteOptions,
+  type PinOptions,
 } from './mutations.js'
 export {
   isJid,

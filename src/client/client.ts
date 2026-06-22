@@ -12,11 +12,13 @@ import {
   forwardMessage,
   isJid,
   MessageBuilder,
+  pinMessage,
   reactToMessage,
   resolveUsername,
   ZaileysBuilderError,
   type BuilderSocketLike,
   type DeleteOptions,
+  type PinOptions,
   type TextOptions,
   type UsernameResolveSocketLike,
 } from '../builder/index.js'
@@ -559,6 +561,14 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     const socket = this.requireSocket()
     const recipient = await this.resolveRecipient(to)
     return forwardMessage(socket as unknown as BuilderSocketLike, this.store, key, recipient)
+  }
+
+  async pin(key: WAMessageKey, opts?: PinOptions): Promise<WAMessageKey> {
+    return pinMessage(this.requireSocket() as unknown as BuilderSocketLike, key, true, opts)
+  }
+
+  async unpin(key: WAMessageKey): Promise<WAMessageKey> {
+    return pinMessage(this.requireSocket() as unknown as BuilderSocketLike, key, false)
   }
 
   private resolveRecipient(to: string): Promise<string> {

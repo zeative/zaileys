@@ -45,6 +45,7 @@ import type {
   PollOptions,
   StickerOptions,
   TemplateOptions,
+  VideoNoteOptions,
   VideoOptions,
 } from './types.js'
 
@@ -119,6 +120,11 @@ export class MessageBuilder<State extends BuilderState> {
 
   image(this: MessageBuilder<'init'>, src: MediaSource, opts?: ImageOptions): MessageBuilder<'content-set'> {
     this.internal.pendingContent = buildImageContent(src, opts)
+    return this as unknown as MessageBuilder<'content-set'>
+  }
+
+  videoNote(this: MessageBuilder<'init'>, src: MediaSource, opts?: VideoNoteOptions): MessageBuilder<'content-set'> {
+    this.internal.pendingContent = buildVideoContent(src, { ...opts, ptv: true })
     return this as unknown as MessageBuilder<'content-set'>
   }
 

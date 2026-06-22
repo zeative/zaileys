@@ -168,7 +168,7 @@ describe('context-integration: group roomName single-fetch cache', () => {
     expect(groupMetaSpy).toHaveBeenCalledTimes(1)
   })
 
-  it('roomName() returns null for non-group DM', async () => {
+  it('roomName() returns the peer name for non-group DM (no group fetch)', async () => {
     const groupMetaSpy = vi.fn().mockResolvedValue({ subject: 'Should Not Be Called' })
     const { client, socket } = setup({ groupMetadata: groupMetaSpy })
     const seen = vi.fn()
@@ -176,7 +176,7 @@ describe('context-integration: group roomName single-fetch cache', () => {
     socket.triggerMessagesUpsert({ messages: [textMsg()], type: 'notify' })
     const ctx = seen.mock.calls[0]?.[0] as MessageContext
     const name = await ctx.roomName()
-    expect(name).toBeNull()
+    expect(name).toBe('Alice')
     expect(groupMetaSpy).not.toHaveBeenCalled()
   })
 })
@@ -262,6 +262,117 @@ describe('context-integration: replied() nested MessageContext', () => {
     expect(replied).not.toBeNull()
     expect(replied!.text).toBe('original text')
     expect(replied!.chatType).toBe('text')
+  })
+
+  it('a quoted media message yields a nested context with media attachment', async () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('text', seen)
+
+    socket.triggerMessagesUpsert({
+      messages: [
+        {
+          key: { remoteJid: SENDER_PN, id: 'M3', fromMe: false },
+          message: {
+            extendedTextMessage: {
+              text: 'reply to image',
+              contextInfo: {
+                stanzaId: 'QUOTED2',
+                participant: SENDER_PN,
+                remoteJid: SENDER_PN,
+                quotedMessage: { imageMessage: { mimetype: 'image/jpeg', caption: 'orig pic' } },
+              },
+            },
+          },
+          messageTimestamp: 1700,
+          pushName: 'Alice',
+        },
+      ],
+      type: 'notify',
+    })
+
+    const ctx = seen.mock.calls[0]?.[0] as MessageContext
+    const replied = await ctx.replied()
+    expect(replied).not.toBeNull()
+    expect(replied!.chatType).toBe('image')
+    expect(replied!.media?.type).toBe('image')
+    expect(typeof (replied!.media as { buffer?: unknown })?.buffer).toBe('function')
+  })
+
+  it('quoting own (bot) message resolves self PN + chat room, not the LID', async () => {
+    const SELF_LID = '262298551722238@lid'
+    const client = new TypedEventEmitter<ClientEventMap>()
+    const socket = makeInboundSocket({ user: { id: SELF_JID } })
+    attachInboundPipeline(
+      client,
+      socket as unknown as Parameters<typeof attachInboundPipeline>[1],
+      { selfJid: SELF_JID, selfLid: SELF_LID, selfName: 'Botty', channelId: SESSION_ID },
+    )
+    const seen = vi.fn()
+    client.on('text', seen)
+    socket.triggerMessagesUpsert({
+      messages: [
+        {
+          key: { remoteJid: SENDER_PN, id: 'R1', fromMe: false },
+          message: {
+            extendedTextMessage: {
+              text: 'reply to my own msg',
+              contextInfo: {
+                stanzaId: 'QSELF',
+                participant: SELF_LID,
+                remoteJid: SELF_LID,
+                quotedMessage: { conversation: 'bot earlier reply' },
+              },
+            },
+          },
+          messageTimestamp: 1700,
+          pushName: 'Alice',
+        },
+      ],
+      type: 'notify',
+    })
+    const ctx = seen.mock.calls[0]?.[0] as MessageContext
+    const replied = await ctx.replied()
+    expect(replied).not.toBeNull()
+    expect(replied!.isFromMe).toBe(true)
+    expect(replied!.senderId).toBe(SELF_JID)
+    expect(replied!.roomId).toBe(SENDER_PN)
+    expect(replied!.senderName).toBe('Botty')
+    expect(await replied!.roomName()).toBe('Alice')
+  })
+
+  it('quoting the DM partner resolves their PN even when contextInfo carries a LID', async () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('text', seen)
+    socket.triggerMessagesUpsert({
+      messages: [
+        {
+          key: { remoteJid: SENDER_PN, id: 'R2', fromMe: false, participantAlt: SENDER_LID },
+          message: {
+            extendedTextMessage: {
+              text: 'reply to partner',
+              contextInfo: {
+                stanzaId: 'QPART',
+                participant: SENDER_LID,
+                remoteJid: SENDER_LID,
+                quotedMessage: { conversation: 'partner earlier msg' },
+              },
+            },
+          },
+          messageTimestamp: 1700,
+          pushName: 'Alice',
+        },
+      ],
+      type: 'notify',
+    })
+    const ctx = seen.mock.calls[0]?.[0] as MessageContext
+    const replied = await ctx.replied()
+    expect(replied).not.toBeNull()
+    expect(replied!.isFromMe).toBe(false)
+    expect(replied!.senderId).toBe(SENDER_PN)
+    expect(replied!.roomId).toBe(SENDER_PN)
+    expect(replied!.senderName).toBe('Alice')
   })
 
   it('replied() returns null when no contextInfo quote present', async () => {

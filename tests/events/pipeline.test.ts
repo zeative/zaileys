@@ -67,6 +67,34 @@ describe('attachInboundPipeline — messages.upsert', () => {
     expect(got).toEqual(['video', 'audio', 'document', 'sticker'])
   })
 
+  it('emits umbrella message for text and every media type', () => {
+    const { client, socket } = setup()
+    const got: string[] = []
+    client.on('message', (m) => got.push(m.chatType))
+    socket.triggerMessagesUpsert({ messages: [textMsg('hello')], type: 'notify' })
+    socket.triggerMessagesUpsert({ messages: [textMsg('', { message: { imageMessage: { mimetype: 'image/jpeg', caption: 'pic' } } })], type: 'notify' })
+    socket.triggerMessagesUpsert({ messages: [textMsg('', { message: { audioMessage: { mimetype: 'audio/ogg', ptt: true } } })], type: 'notify' })
+    socket.triggerMessagesUpsert({ messages: [textMsg('', { message: { locationMessage: { degreesLatitude: 1, degreesLongitude: 2 } } })], type: 'notify' })
+    expect(got).toEqual(['text', 'image', 'audio', 'location'])
+  })
+
+  it('umbrella message carries media buffer for media types', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('message', seen)
+    socket.triggerMessagesUpsert({ messages: [textMsg('', { message: { imageMessage: { mimetype: 'image/jpeg', caption: 'pic' } } })], type: 'notify' })
+    expect(seen).toHaveBeenCalledTimes(1)
+    expect(typeof seen.mock.calls[0]?.[0].media?.buffer).toBe('function')
+  })
+
+  it('does not emit umbrella message for empty/contentless message', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('message', seen)
+    socket.triggerMessagesUpsert({ messages: [textMsg('', { message: {} })], type: 'notify' })
+    expect(seen).not.toHaveBeenCalled()
+  })
+
   it('emits both text and mention when self mentioned (multi-decoder)', () => {
     const { client, socket } = setup()
     const text = vi.fn()

@@ -38,6 +38,7 @@ import {
   decodeImage,
   decodeMention,
   decodeMentionAll,
+  decodeMessage,
   decodeSticker,
   decodeText,
   decodeVideo,
@@ -59,6 +60,8 @@ export interface InboundPipelineHandle {
 
 export interface InboundPipelineContext {
   selfJid: string
+  selfLid?: string
+  selfName?: string
   logger?: Logger
   channelId?: string
   receiverId?: string
@@ -112,6 +115,8 @@ export function attachInboundPipeline(
     : undefined
   const decodeCtx: DecodeContext = {
     selfJid: ctx.selfJid,
+    ...(ctx.selfLid != null ? { selfLid: ctx.selfLid } : {}),
+    ...(ctx.selfName != null ? { selfName: ctx.selfName } : {}),
     receiverId: ctx.receiverId ?? ctx.selfJid,
     ...(ctx.logger != null ? { logger: ctx.logger } : {}),
     ...(ctx.channelId != null ? { channelId: ctx.channelId } : {}),
@@ -141,6 +146,7 @@ export function attachInboundPipeline(
   }
 
   const runMessage = (msg: WAMessage): void => {
+    tryEmit(() => decodeMessage(msg, decodeCtx), (p) => client.emit('message', p))
     tryEmit(() => decodeText(msg, decodeCtx), (p) => client.emit('text', p))
     tryEmit(() => decodeImage(msg, decodeCtx), (p) => client.emit('image', p))
     tryEmit(() => decodeVideo(msg, decodeCtx), (p) => client.emit('video', p))

@@ -160,6 +160,7 @@ export type NewsletterPayload = {
 )
 
 export type InboundEventMap = {
+  message: MessageContext
   text: MessageContext
   image: MessageContext
   video: MessageContext

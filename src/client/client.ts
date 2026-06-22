@@ -700,6 +700,8 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       this.inboundHandle?.detach()
       this.inboundHandle = attachInboundPipeline(this, socket as unknown as PipelineSocketLike, {
         selfJid: typeof me.id === 'string' ? me.id : '',
+        ...(typeof me.lid === 'string' && me.lid.length > 0 ? { selfLid: me.lid } : {}),
+        ...(typeof me.name === 'string' && me.name.length > 0 ? { selfName: me.name } : {}),
         channelId: this.sessionId,
         receiverId: typeof me.id === 'string' ? me.id : '',
         prefixes: this.commandPrefixes,

@@ -299,8 +299,12 @@ export const buildMessageContext = (input: BuildContextInput): MessageContext =>
     channelId: input.channelId,
     chatId: input.key.id ?? '',
     chatType: input.chatType,
-    receiverId: input.receiverId,
-    roomId: isGroup ? remoteJid : null,
+    receiverId: input.receiverId ? jidNormalizedUser(input.receiverId) : input.receiverId,
+    roomId: isGroup
+      ? (remoteJid ? jidNormalizedUser(remoteJid) : null)
+      : input.key.fromMe === true && remoteJid
+        ? jidNormalizedUser(remoteJid)
+        : (input.sender.pn ?? input.sender.jid),
     senderId: input.sender.pn ?? input.sender.jid,
     senderLid: input.sender.lid ?? null,
     senderName: input.sender.pushName ?? null,

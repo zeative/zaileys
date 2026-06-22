@@ -5,11 +5,12 @@ import {
   type ChatType,
   type CitationConfig,
   type ContextMedia,
+  type MediaAttachment,
   type MentionAllContext,
   type MentionContext,
   type MessageContext,
 } from '../context.js'
-import type { MediaKind } from '../types.js'
+import type { MediaKind, SenderInfo } from '../types.js'
 import { createDownloadFn, createStreamFn, type DownloadLogger } from './_media-download.js'
 import {
   extractMentions,
@@ -21,6 +22,8 @@ import {
 
 export interface DecodeContext {
   selfJid: string
+  selfLid?: string
+  selfName?: string
   logger?: DownloadLogger
   channelId?: string
   receiverId?: string
@@ -444,10 +447,19 @@ const chatTypeOf = (content: WAMessage['message']): ChatType => {
   return 'text'
 }
 
+const sameAuthor = (a: SenderInfo | undefined, b: SenderInfo): boolean => {
+  if (a == null) return false
+  const av = [a.pn, a.lid, a.jid].filter((v): v is string => typeof v === 'string' && v.length > 0)
+  const bv = [b.pn, b.lid, b.jid].filter((v): v is string => typeof v === 'string' && v.length > 0)
+  return av.some((x) => bv.includes(x))
+}
+
 const decodeQuotedContext = async (
   contextInfo: WAContextInfo | null,
   ctx: DecodeContext,
   parentRemoteJid: string,
+  parentSender?: SenderInfo,
+  parentRoomName?: () => Promise<string | null>,
 ): Promise<MessageContext | null> => {
   try {
     if (contextInfo == null) return null
@@ -459,7 +471,7 @@ const decodeQuotedContext = async (
       const original = await ctx.resolveQuoted(stanzaId, parentRemoteJid)
       if (original != null && original.message != null) {
         const originalText = anyText(original) ?? ''
-        const fromStore = buildContext(original, ctx, chatTypeOf(original.message), originalText)
+        const fromStore = buildContext(original, ctx, chatTypeOf(original.message), originalText, mediaOf(original, ctx), parentRoomName)
         if (fromStore !== null) return fromStore
       }
     }
@@ -467,23 +479,36 @@ const decodeQuotedContext = async (
     const quoted = extractQuoted(contextInfo)
     if (quoted === null) return null
     if (typeof quoted.key.id !== 'string' || quoted.key.id.length === 0) return null
-    const remoteJid = quoted.key.remoteJid
-    if (typeof remoteJid !== 'string' || remoteJid.length === 0) return null
-    const participant = quoted.key.participant
-    if (
-      typeof participant === 'string' &&
-      ctx.selfJid.length > 0 &&
-      jidNormalizedUser(participant) === jidNormalizedUser(ctx.selfJid)
-    ) {
+
+    if (parentRemoteJid.length > 0) quoted.key.remoteJid = parentRemoteJid
+    if (typeof quoted.key.remoteJid !== 'string' || quoted.key.remoteJid.length === 0) return null
+
+    const author = quoted.key.participant
+    const isSelf =
+      typeof author === 'string' &&
+      ((ctx.selfJid.length > 0 && normalizedEquals(author, ctx.selfJid)) ||
+        (ctx.selfLid != null && normalizedEquals(author, ctx.selfLid)))
+    const parentIsGroup = isGroupJid(parentRemoteJid)
+
+    let pushName = quoted.sender?.pushName
+    if (isSelf) {
       quoted.key.fromMe = true
+      if (ctx.selfJid.length > 0) quoted.key.participant = ctx.selfJid
+      if (ctx.selfLid != null) quoted.key.participantAlt = ctx.selfLid
+      if (pushName == null) pushName = ctx.selfName
+    } else if (parentSender != null && (!parentIsGroup || sameAuthor(quoted.sender, parentSender))) {
+      if (parentSender.pn != null) quoted.key.participant = parentSender.pn
+      if (parentSender.lid != null) quoted.key.participantAlt = parentSender.lid
+      if (pushName == null) pushName = parentSender.pushName
     }
+
     const qm = contextInfo.quotedMessage as WAMessage['message']
     const reconstructed = Object.assign(
       { key: quoted.key, message: qm ?? null },
-      quoted.sender?.pushName != null ? { pushName: quoted.sender.pushName } : {},
+      pushName != null ? { pushName } : {},
     ) as WAMessage
     const text = anyText(reconstructed) ?? ''
-    return buildContext(reconstructed, ctx, chatTypeOf(qm), text)
+    return buildContext(reconstructed, ctx, chatTypeOf(qm), text, mediaOf(reconstructed, ctx), parentRoomName)
   } catch {
     return null
   }
@@ -495,6 +520,7 @@ const buildContext = (
   chatType: ChatType,
   text: string,
   media?: ContextMedia,
+  roomNameOverride?: () => Promise<string | null>,
 ): MessageContext | null => {
   const key = msg.key
   if (key == null) return null
@@ -516,16 +542,16 @@ const buildContext = (
   const receiverId = ctx.receiverId ?? ''
   const prefixes = ctx.prefixes ?? []
 
-  const resolveRoomName = (): Promise<string | null> =>
-    isGroup && ctx.resolveRoomName != null
-      ? ctx.resolveRoomName(jid)
-      : Promise.resolve(null)
+  const resolveRoomName = roomNameOverride ?? ((): Promise<string | null> =>
+    isGroup
+      ? (ctx.resolveRoomName != null ? ctx.resolveRoomName(jid) : Promise.resolve(null))
+      : Promise.resolve(sender.pushName ?? null))
 
   const resolveReceiverName: () => Promise<string | null> =
     ctx.resolveReceiverName ?? (() => Promise.resolve(null))
 
   const resolveReplied = (): Promise<MessageContext | null> =>
-    decodeQuotedContext(contextInfo, ctx, jid)
+    decodeQuotedContext(contextInfo, ctx, jid, sender, resolveRoomName)
 
   const replyTarget = jid.length > 0 ? jid : (sender.pn ?? sender.jid)
   const reply = (content: string, opts?: TextOptions): Promise<WAMessageKey> => {
@@ -573,6 +599,49 @@ const buildContext = (
   )
 }
 
+const MEDIA_KINDS: readonly string[] = ['image', 'video', 'audio', 'document', 'sticker']
+
+const buildMediaAttachment = (
+  msg: WAMessage,
+  kind: MediaKind,
+  ctx: DecodeContext,
+): MediaAttachment | null => {
+  const node = mediaNodeOf(msg, kind)
+  if (node === null) return null
+  const bufferFn = createDownloadFn(msg, kind, ctx.logger)
+  const streamFn = createStreamFn(msg, kind, ctx.logger)
+  return {
+    type: kind,
+    mimetype: typeof node.mimetype === 'string' ? node.mimetype : null,
+    caption: typeof node.caption === 'string' ? node.caption : null,
+    fileName: typeof node.fileName === 'string' ? node.fileName : null,
+    fileSize: toNum(node.fileLength),
+    ptt: node.ptt === true,
+    buffer: async () => (await bufferFn()).buffer,
+    stream: streamFn,
+  }
+}
+
+const mediaOf =(msg: WAMessage, ctx: DecodeContext): ContextMedia | undefined => {
+  const content = asRecord(msg.message)
+  if (content == null) return undefined
+  const chatType = chatTypeOf(msg.message)
+  if (MEDIA_KINDS.includes(chatType)) {
+    return buildMediaAttachment(msg, chatType as MediaKind, ctx) ?? undefined
+  }
+  return structuredMedia(unwrap(content)) ?? undefined
+}
+
+export const decodeMessage = (msg: WAMessage, ctx: DecodeContext): MessageContext | null => {
+  const content = asRecord(msg.message)
+  if (content == null) return null
+  const chatType = chatTypeOf(msg.message)
+  const media = mediaOf(msg, ctx)
+  const text = anyText(msg) ?? ''
+  if (text === '' && media === undefined) return null
+  return buildContext(msg, ctx, chatType, text, media)
+}
+
 export const decodeText = (msg: WAMessage, ctx: DecodeContext): MessageContext | null => {
   const content = asRecord(msg.message)
   if (content == null) return null
@@ -588,28 +657,9 @@ const decodeMedia = <K extends MediaKind>(
   msg: WAMessage,
   ctx: DecodeContext,
 ): MessageContext | null => {
-  const node = mediaNodeOf(msg, kind)
-  if (node === null) return null
-  const caption = typeof node.caption === 'string' ? node.caption : ''
-  const chatType = kind as ChatType
-
-  const bufferFn = createDownloadFn(msg, kind, ctx.logger)
-  const streamFn = createStreamFn(msg, kind, ctx.logger)
-  const media: ContextMedia = {
-    type: kind,
-    mimetype: typeof node.mimetype === 'string' ? node.mimetype : null,
-    caption: typeof node.caption === 'string' ? node.caption : null,
-    fileName: typeof node.fileName === 'string' ? node.fileName : null,
-    fileSize: toNum(node.fileLength),
-    ptt: node.ptt === true,
-    buffer: async () => {
-      const result = await bufferFn()
-      return result.buffer
-    },
-    stream: streamFn,
-  }
-
-  return buildContext(msg, ctx, chatType, caption, media)
+  const media = buildMediaAttachment(msg, kind, ctx)
+  if (media === null) return null
+  return buildContext(msg, ctx, kind as ChatType, media.caption ?? '', media)
 }
 
 export const decodeImage = (msg: WAMessage, ctx: DecodeContext): MessageContext | null =>
@@ -646,7 +696,7 @@ export const decodeMention = (msg: WAMessage, ctx: DecodeContext): MentionContex
   const content = asRecord(msg.message)
   if (content == null) return null
   const text = anyText(msg) ?? ''
-  const media = structuredMedia(unwrap(content)) ?? undefined
+  const media = mediaOf(msg, ctx)
   const base = buildContext(msg, ctx, chatTypeOf(msg.message), text, media)
   if (base === null) return null
   return { ...base, mentionedJids, selfJid: ctx.selfJid }
@@ -662,7 +712,7 @@ export const decodeMentionAll = (msg: WAMessage, ctx: DecodeContext): MentionAll
   const content = asRecord(msg.message)
   if (content == null) return null
   const text = anyText(msg) ?? ''
-  const media = structuredMedia(unwrap(content)) ?? undefined
+  const media = mediaOf(msg, ctx)
   const base = buildContext(msg, ctx, chatTypeOf(msg.message), text, media)
   if (base === null) return null
   return { ...base, isMentionAll: true, selfJid: ctx.selfJid }

@@ -46,7 +46,7 @@ export class PluginRegistry {
     }
     const disposers: Loaded['disposers'] = []
     const ctx: PluginContext = {
-      client: this.host as never,
+      client: this.host as unknown as PluginContext['client'],
       logger: this.logger,
       pluginDir: path.dirname(file),
       command: (spec, handler) => {
@@ -78,7 +78,7 @@ export class PluginRegistry {
       const teardown = await plugin.setup(ctx)
       if (typeof teardown === 'function') disposers.push(teardown)
     } catch (err) {
-      for (const d of disposers.reverse()) {
+      for (const d of [...disposers].reverse()) {
         try { await d() } catch { void 0 }
       }
       this.logger?.error({ err, name: plugin.name, file }, 'plugin: setup failed; skipped')

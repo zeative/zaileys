@@ -59,6 +59,7 @@ export class PluginLoader {
   private bust = 0
   private debounce: ReturnType<typeof setTimeout> | undefined
   private readonly pending = new Set<string>()
+  private flushChain: Promise<void> = Promise.resolve()
 
   constructor(deps: {
     registry: PluginRegistry
@@ -84,6 +85,7 @@ export class PluginLoader {
     if (this.debounce) clearTimeout(this.debounce)
     this.watcher?.close()
     this.watcher = undefined
+    await this.flushChain
     await this.registry.unloadAll()
     this.fileToName.clear()
   }
@@ -110,7 +112,9 @@ export class PluginLoader {
         if (this.ignore.test(filename.toString()) || !this.pattern.test(filename.toString())) return
         this.pending.add(full)
         if (this.debounce) clearTimeout(this.debounce)
-        this.debounce = setTimeout(() => void this.flush(), 150)
+        this.debounce = setTimeout(() => {
+          this.flushChain = this.flushChain.then(() => this.flush())
+        }, 150)
         this.debounce.unref?.()
       })
     } catch (err) {

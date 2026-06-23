@@ -378,6 +378,28 @@ await client.setDisappearing(jid, 0)     // turn disappearing off
 individual **message** — to pin an entire **chat**, use [`client.chat.pin(jid)`](/chat#pin--unpin).
 </Callout>
 
+### Resolve LID ↔ phone
+
+WhatsApp addresses some users by a privacy-preserving LID (`@lid`) instead of their phone number.
+These two methods resolve between the two using WhatsApp's LID mapping. They require a connected
+socket and may hit the network, so they return a `Promise` and resolve to `null` when the mapping
+is unknown.
+
+| Method | Signature | Description |
+| ------ | --------- | ----------- |
+| `lidToPn` | `lidToPn(lid: string): Promise<string \| null>` | Resolve a `@lid` JID to its phone-number JID. `null` if unknown. |
+| `pnToLid` | `pnToLid(pn: string): Promise<string \| null>` | Resolve a phone-number JID to its `@lid` JID. `null` if unknown. |
+
+```typescript
+const pn = await client.lidToPn('12345@lid')             // '628123@s.whatsapp.net' | null
+const lid = await client.pnToLid('628123@s.whatsapp.net') // '12345@lid' | null
+```
+
+<Callout type="info">
+For pure, offline JID inspection (decode, normalize, predicates) use the
+[JID helpers](/utilities#jid-helpers) instead — those need no socket.
+</Callout>
+
 ## Domain namespaces
 
 Higher-level WhatsApp operations are grouped under lazy namespaces on the client. Each is created on

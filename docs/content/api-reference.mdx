@@ -53,6 +53,8 @@ client.on('text', (ctx) => {
 | `pin(key, opts?)` | `(key, opts?: { duration?: number }): Promise<WAMessageKey>` | Pin a message (`duration` seconds; defaults 86400). |
 | `unpin(key)` | `(key): Promise<WAMessageKey>` | Unpin a message. |
 | `setDisappearing(jid, seconds)` | `(jid: string, seconds: number): Promise<void>` | Set the chat's disappearing-message timer. |
+| `lidToPn(lid)` | `(lid: string): Promise<string \| null>` | Resolve a `@lid` JID to its phone-number JID (`null` if unknown). Needs a connected socket. |
+| `pnToLid(pn)` | `(pn: string): Promise<string \| null>` | Resolve a phone-number JID to its `@lid` JID (`null` if unknown). Needs a connected socket. |
 | `broadcast(jids, build, opts?)` | `(jids: string[], build, opts?): Promise<BroadcastResult>` | Send to many recipients. See [Broadcast & Schedule](/automation). |
 | `scheduleAt(date, build, opts?)` | `(date: Date, build, opts?): Promise<ScheduleHandle>` | Schedule a message for later. |
 | `command(spec, handler)` | `(spec: string, handler: CommandHandler): this` | Register a command. See [Commands](/commands). |
@@ -356,6 +358,11 @@ Lower-level connection primitives (advanced). See [Client & Lifecycle](/client).
 | `isJid(value)` / `isLidJid(jid)` / `isPnJid(jid)` | function | JID predicates: any WhatsApp JID / `@lid` / phone (`@s.whatsapp.net`,`@c.us`). |
 | `normalizeJid(jid)` | function | Strip device suffix and canonicalize a JID (`null` for invalid). |
 | `jidToPhone(jid)` / `phoneToJid(phone)` | function | Convert a phone JID to digits / build a user JID from a phone. |
+| `jidDecode(jid)` / `jidEncode(user, server, device?)` | function | Decode a JID to `{ user, server, device? }` / build a JID from parts (re-exported from Baileys). |
+| `jidNormalizedUser(jid)` / `areJidsSameUser(a, b)` | function | Normalized user JID (strips device) / same-user check ignoring device/LID. |
+| `isJidGroup(jid)` / `isJidBroadcast(jid)` / `isJidNewsletter(jid)` | function | JID predicates: group (`@g.us`) / broadcast / newsletter (`@newsletter`). |
+| `isLidUser(jid)` / `isPnUser(jid)` | function | `@lid` user / phone-number user (`@s.whatsapp.net`) predicates. |
+| `getDevice(jid)` | function | Device kind decoded from a JID (re-exported from Baileys). |
 | `computeUniqueId(key)` / `computeStaticId(roomId, senderId)` | function | 16-char UPPERCASE hex hashers — the context's `uniqueId` / `staticId`. |
 | `extractLinks(text)` | function | Extract `http(s)` URLs from a string. |
 | `senderDeviceOf(jid)` | function | Decode device from a JID: `'android' \| 'ios' \| 'web' \| 'desktop' \| 'unknown'`. |

@@ -52,6 +52,60 @@ jidToPhone('12345@g.us')            // '' (groups have no phone)
 phoneToJid('+62 812-3')             // '628123@s.whatsapp.net'
 ```
 
+### Baileys JID helpers
+
+The lower-level JID helpers from Baileys are re-exported from `'zaileys'`, so you can import them
+directly without depending on `baileys`. They are pure functions.
+
+| Method | Signature | Description |
+| --- | --- | --- |
+| `jidDecode(jid)` | `(jid: string) => { user: string; server: string; device?: number } \| undefined` | Decode a JID into its parts. `undefined` for invalid input. |
+| `jidEncode(user, server, device?)` | `(user: string \| null, server: string, device?: number) => string` | Build a JID string from parts. |
+| `jidNormalizedUser(jid)` | `(jid: string) => string` | Normalized user JID (strips the device segment). |
+| `areJidsSameUser(a, b)` | `(a?: string, b?: string) => boolean` | `true` if both JIDs are the same user, ignoring device/LID. |
+| `isJidGroup(jid)` | `(jid?: string) => boolean` | `true` for a group JID (`@g.us`). |
+| `isJidBroadcast(jid)` | `(jid?: string) => boolean` | `true` for a broadcast JID (`@broadcast`). |
+| `isJidNewsletter(jid)` | `(jid?: string) => boolean` | `true` for a newsletter/channel JID (`@newsletter`). |
+| `isLidUser(jid)` | `(jid?: string) => boolean` | `true` for a LID user (`@lid`). |
+| `isPnUser(jid)` | `(jid?: string) => boolean` | `true` for a phone-number user (`@s.whatsapp.net`). |
+| `getDevice(jid)` | `(jid: string) => string` | Device kind decoded from the JID. |
+
+```typescript
+import {
+  jidDecode, jidEncode, jidNormalizedUser, areJidsSameUser,
+  isJidGroup, isJidNewsletter, isLidUser, isPnUser, getDevice,
+} from 'zaileys'
+
+jidDecode('628123:7@s.whatsapp.net') // { user: '628123', server: 's.whatsapp.net', device: 7 }
+jidEncode('628123', 's.whatsapp.net') // '628123@s.whatsapp.net'
+jidNormalizedUser('628123:7@s.whatsapp.net') // '628123@s.whatsapp.net'
+
+areJidsSameUser('628123:7@s.whatsapp.net', '628123@s.whatsapp.net') // true
+isJidGroup('12345@g.us')           // true
+isPnUser('628123@s.whatsapp.net')  // true
+isLidUser('12345@lid')             // true
+```
+
+### LID ↔ phone (async, on the client)
+
+These two are **`client.*` methods, not pure functions** — they resolve through WhatsApp's LID
+mapping and may hit the network, so they need a connected socket and return a `Promise`.
+
+| Method | Signature | Description |
+| --- | --- | --- |
+| `client.lidToPn(lid)` | `(lid: string) => Promise<string \| null>` | Resolve a `@lid` JID to its phone-number JID. `null` if unknown. |
+| `client.pnToLid(pn)` | `(pn: string) => Promise<string \| null>` | Resolve a phone-number JID to its `@lid` JID. `null` if unknown. |
+
+```typescript
+import { Client } from 'zaileys'
+
+const client = new Client()
+await client.connect()
+
+await client.lidToPn('12345@lid')             // '628123@s.whatsapp.net' | null
+await client.pnToLid('628123@s.whatsapp.net') // '12345@lid' | null
+```
+
 ## ID hashers
 
 Deterministic 16-character UPPERCASE hex hashers. They are pure: the same input always yields the

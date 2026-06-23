@@ -352,8 +352,18 @@ Lower-level connection primitives (advanced). See [Client & Lifecycle](/client).
 | --- | --- | --- |
 | `createLogger(options?)` | function | Build a Pino-based logger. Options: `CreateLoggerOptions`. |
 | `adoptLogger(maybe, fallback?)` | function | Normalize a partial logger into a full `Logger`. |
-| `chunk(...)` | function | Split an array into fixed-size chunks. |
+| `chunk(arr, size)` | function | Split an array into fixed-size chunks. |
+| `isJid(value)` / `isLidJid(jid)` / `isPnJid(jid)` | function | JID predicates: any WhatsApp JID / `@lid` / phone (`@s.whatsapp.net`,`@c.us`). |
+| `normalizeJid(jid)` | function | Strip device suffix and canonicalize a JID (`null` for invalid). |
+| `jidToPhone(jid)` / `phoneToJid(phone)` | function | Convert a phone JID to digits / build a user JID from a phone. |
+| `computeUniqueId(key)` / `computeStaticId(roomId, senderId)` | function | 16-char UPPERCASE hex hashers — the context's `uniqueId` / `staticId`. |
+| `extractLinks(text)` | function | Extract `http(s)` URLs from a string. |
+| `senderDeviceOf(jid)` | function | Decode device from a JID: `'android' \| 'ios' \| 'web' \| 'desktop' \| 'unknown'`. |
+| `epochSecondsToMs(value)` | function | Epoch seconds → ms; accepts `number \| string \| bigint \| Long`. |
+| `loadMedia(src, opts?)` / `detectMimeFromBuffer(buffer)` | function | Resolve a media source to `{ buffer, mime, size }` / sniff a buffer's MIME. Types: `LoadedMedia`, `LoadMediaOptions`. |
 | `ZaileysLogger` / `LoggerLevel` | type | Logger instance and level types. |
+
+See [Utilities](/utilities) for full signatures and examples.
 
 ## Errors
 

@@ -105,6 +105,7 @@ export default {
 
   '-- reference': { type: 'separator', title: 'Reference' },
   troubleshooting: item('help', 'Troubleshooting & FAQ'),
+  utilities: item('book', 'Utilities'),
   'api-reference': item('book', 'API Reference'),
   skill: item('bot', 'AI Skill'),
 }

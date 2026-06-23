@@ -1,4 +1,16 @@
 export { extractJid as normalizeJid, isLidJid, isPnJid } from '../events/decoders/_shared.js'
+export {
+  jidDecode,
+  jidEncode,
+  jidNormalizedUser,
+  areJidsSameUser,
+  isJidGroup,
+  isJidBroadcast,
+  isJidNewsletter,
+  isLidUser,
+  isPnUser,
+  getDevice,
+} from 'baileys'
 
 /** Digits-only phone number from a JID (e.g. `628xx@s.whatsapp.net` → `628xx`). Empty for groups/lids. */
 export const jidToPhone = (jid: string): string => {

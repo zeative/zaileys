@@ -796,12 +796,25 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     }
   }
 
-  private async lidToPn(lid: string): Promise<string | null> {
+  private lidMapping(): { getPNForLID?: (l: string) => Promise<string | null>; getLIDForPN?: (p: string) => Promise<string | null> } | undefined {
+    return (this._socket as { signalRepository?: { lidMapping?: { getPNForLID?: (l: string) => Promise<string | null>; getLIDForPN?: (p: string) => Promise<string | null> } } } | undefined)?.signalRepository?.lidMapping
+  }
+
+  /** Resolve a `@lid` JID to its phone-number JID (uses WhatsApp's LID mapping; may hit the network). */
+  async lidToPn(lid: string): Promise<string | null> {
     try {
-      const repo = (this._socket as { signalRepository?: { lidMapping?: { getPNForLID?: (l: string) => Promise<string | null> } } } | undefined)?.signalRepository
-      const mapping = repo?.lidMapping
-      if (mapping == null || typeof mapping.getPNForLID !== 'function') return null
-      return await mapping.getPNForLID(lid)
+      const fn = this.lidMapping()?.getPNForLID
+      return typeof fn === 'function' ? await fn(lid) : null
+    } catch {
+      return null
+    }
+  }
+
+  /** Resolve a phone-number JID to its `@lid` JID (uses WhatsApp's LID mapping; may hit the network). */
+  async pnToLid(pn: string): Promise<string | null> {
+    try {
+      const fn = this.lidMapping()?.getLIDForPN
+      return typeof fn === 'function' ? await fn(pn) : null
     } catch {
       return null
     }

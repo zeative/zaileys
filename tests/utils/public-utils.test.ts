@@ -13,6 +13,14 @@ import {
   loadMedia,
   detectMimeFromBuffer,
   chunk,
+  jidDecode,
+  jidEncode,
+  jidNormalizedUser,
+  areJidsSameUser,
+  isJidGroup,
+  isJidNewsletter,
+  isLidUser,
+  isPnUser,
 } from '../../src/index.js'
 
 describe('public utility exports', () => {
@@ -37,6 +45,17 @@ describe('public utility exports', () => {
     expect(extractLinks('see https://x.io done')).toEqual(['https://x.io'])
     expect(typeof senderDeviceOf('628@s.whatsapp.net')).toBe('string')
     expect(epochSecondsToMs(1782132231)).toBe(1782132231000)
+  })
+
+  it('re-exports baileys jid utilities', () => {
+    expect(jidNormalizedUser('628:3@s.whatsapp.net')).toBe('628@s.whatsapp.net')
+    expect(jidDecode('628@s.whatsapp.net')?.user).toBe('628')
+    expect(jidEncode('628', 's.whatsapp.net')).toBe('628@s.whatsapp.net')
+    expect(areJidsSameUser('628:3@s.whatsapp.net', '628@s.whatsapp.net')).toBe(true)
+    expect(isJidGroup('1@g.us')).toBe(true)
+    expect(isJidNewsletter('1@newsletter')).toBe(true)
+    expect(isLidUser('1@lid')).toBe(true)
+    expect(isPnUser('628@s.whatsapp.net')).toBe(true)
   })
 
   it('media helpers + chunk are callable', () => {

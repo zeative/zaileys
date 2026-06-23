@@ -99,13 +99,13 @@ export default {
   business: item('briefcase', 'Business & Catalog'),
   storage: item('database', 'Storage Adapters'),
 
-  '-- runtime': { type: 'separator', title: 'Runtime & Errors' },
+  '-- advanced': { type: 'separator', title: 'Advanced' },
+  utilities: item('braces', 'Utilities'),
   'error-handling': item('alert', 'Error Handling'),
   runtimes: item('server', 'Runtime Support'),
 
   '-- reference': { type: 'separator', title: 'Reference' },
   troubleshooting: item('help', 'Troubleshooting & FAQ'),
-  utilities: item('book', 'Utilities'),
   'api-reference': item('book', 'API Reference'),
   skill: item('bot', 'AI Skill'),
 }

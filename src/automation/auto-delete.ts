@@ -62,7 +62,9 @@ export class AutoDeleteSweeper {
 
   private buildPruneOptions(): PruneOptions {
     const opts: PruneOptions = {}
-    if (this.options.maxAgeMs !== undefined) opts.olderThan = this.now() - this.options.maxAgeMs
+    if (this.options.maxAgeMs !== undefined) {
+      opts.olderThan = Math.floor((this.now() - this.options.maxAgeMs) / 1000)
+    }
     if (this.options.maxPerChat !== undefined) opts.maxPerChat = this.options.maxPerChat
     if (typeof this.options.chats === 'function') opts.chatFilter = this.options.chats
     return opts

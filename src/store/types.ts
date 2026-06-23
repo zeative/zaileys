@@ -6,8 +6,11 @@ export type MessageStoreListOptions = {
 }
 
 export type PruneOptions = {
+  /** Delete messages whose `messageTimestamp` is strictly older than this epoch value, in **seconds** (matching stored `messageTimestamp`). */
   olderThan?: number
+  /** Keep only the newest N messages per chat. */
   maxPerChat?: number
+  /** Restrict pruning to chats whose jid passes this predicate. */
   chatFilter?: (jid: string) => boolean
 }
 

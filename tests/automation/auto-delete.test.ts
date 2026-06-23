@@ -21,7 +21,7 @@ describe('AutoDeleteSweeper', () => {
     const n = await sweeper.runOnce()
     expect(n).toBe(3)
     expect(store.pruneMessages).toHaveBeenCalledWith(
-      expect.objectContaining({ olderThan: 9000, maxPerChat: 5 }),
+      expect.objectContaining({ olderThan: 9, maxPerChat: 5 }),
     )
   })
 

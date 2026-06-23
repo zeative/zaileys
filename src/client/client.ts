@@ -816,7 +816,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       })
       this.autoDeleteSweeper.start()
     }
-    if (this.pluginsOptions) {
+    if (this.pluginsOptions && !this.pluginLoader) {
       this.pluginRegistry = new PluginRegistry({
         client: this as unknown as PluginHost,
         logger: this.logger,

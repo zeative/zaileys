@@ -1,5 +1,6 @@
 import type { UserFacingSocketConfig, WASocket } from 'baileys'
 import type { AuthStoreBundle } from '../auth/types.js'
+import type { AutoDeleteOptions } from '../automation/auto-delete.js'
 import type { OperationGuardOptions } from '../automation/operation-guard.js'
 import type { PresenceThrottleOptions } from '../automation/presence.js'
 import type { AuthGuardOptions } from '../connection/auth-guard.js'
@@ -62,6 +63,8 @@ export interface ClientOptions {
   presence?: PresenceThrottleOptions
   /** Max scheduled messages dispatched per second, smoothing backlog bursts. Default `1`; `0` disables. */
   scheduleRateLimitPerSec?: number
+  /** Periodically prune old messages from the store. */
+  autoDelete?: AutoDeleteOptions
 }
 
 export type ConnectionEventMap = {

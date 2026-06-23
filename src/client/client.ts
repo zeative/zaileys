@@ -44,11 +44,13 @@ import {
   type ResolvedCommand,
 } from '../command/index.js'
 import {
+  AutoDeleteSweeper,
   createOperationGuard,
   PresenceModule,
   RateLimiter,
   runBroadcast,
   Scheduler,
+  type AutoDeleteOptions,
   type AutomationSocketLike,
   type BroadcastOptions,
   type BroadcastResult,
@@ -168,6 +170,8 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private commandDispatcher: DispatcherHandle | undefined
   private _presence?: PresenceModule
   private _scheduler?: Scheduler
+  private readonly autoDeleteOptions: AutoDeleteOptions | undefined
+  private autoDeleteSweeper: AutoDeleteSweeper | undefined
   private waVersion?: UserFacingSocketConfig['version']
   private versionWarming?: Promise<void>
 
@@ -194,6 +198,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.commandPrefixes = normalizePrefixes(options.commandPrefix)
     this.citationConfig = options.citation
     this.ignoreMe = options.ignoreMe ?? true
+    this.autoDeleteOptions = options.autoDelete
     this.attachEmitterLogger()
     if (options.autoConnect ?? true) {
       queueMicrotask(() => {
@@ -446,6 +451,8 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.inboundHandle?.detach()
     this.inboundHandle = undefined
     this.detachCommands()
+    this.autoDeleteSweeper?.stop()
+    this.autoDeleteSweeper = undefined
     this._scheduler?.dispose()
     for (const c of this.listenerCleanup) c.off()
     this.listenerCleanup = []
@@ -780,6 +787,15 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     void this.ensureScheduler()
       .loadPending()
       .catch((err) => this.logger.warn(err, 'scheduler loadPending failed'))
+    if (this.autoDeleteOptions) {
+      this.autoDeleteSweeper?.stop()
+      this.autoDeleteSweeper = new AutoDeleteSweeper({
+        store: this.store,
+        options: this.autoDeleteOptions,
+        logger: this.logger,
+      })
+      this.autoDeleteSweeper.start()
+    }
     const resolve = this.connectResolve
     this.connectResolve = undefined
     this.connectReject = undefined

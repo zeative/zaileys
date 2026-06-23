@@ -290,46 +290,49 @@ export class PostgresMessageStore implements MessageStore {
 
   async pruneMessages(opts: PruneOptions): Promise<number> {
     const pool = await this.ensureReady()
-    let removed = 0
-    let jids: string[] | undefined
-    if (opts.chatFilter) {
-      const res = await pool.query<{ remote_jid: string }>(
-        'SELECT DISTINCT remote_jid FROM zaileys_messages',
-        [],
-      )
-      jids = res.rows.map((r) => r.remote_jid).filter((j) => opts.chatFilter!(j))
-    }
-    if (opts.olderThan !== undefined) {
-      const res = jids
-        ? await pool.query(
-            'DELETE FROM zaileys_messages WHERE timestamp < $1 AND remote_jid = ANY($2::text[])',
-            [opts.olderThan, jids],
-          )
-        : await pool.query('DELETE FROM zaileys_messages WHERE timestamp < $1', [opts.olderThan])
-      removed += res.rowCount ?? 0
-    }
-    if (opts.maxPerChat !== undefined) {
-      const allJids = await pool
-        .query<{ remote_jid: string }>('SELECT DISTINCT remote_jid FROM zaileys_messages', [])
-        .then((r) => r.rows.map((row) => row.remote_jid))
-      const scope: string[] = jids ?? allJids
-      for (const jid of scope) {
-        const rows = await pool.query<{ id: string; from_me: boolean }>(
-          'SELECT id, from_me FROM zaileys_messages WHERE remote_jid = $1 ORDER BY timestamp DESC',
-          [jid],
+    try {
+      let removed = 0
+      let jids: string[] | undefined
+      if (opts.chatFilter) {
+        const res = await pool.query<{ remote_jid: string }>(
+          'SELECT DISTINCT remote_jid FROM zaileys_messages',
+          [],
         )
-        const toDelete = rows.rows.slice(opts.maxPerChat)
-        if (toDelete.length === 0) continue
-        for (const row of toDelete) {
-          const r = await pool.query(
-            'DELETE FROM zaileys_messages WHERE remote_jid = $1 AND id = $2 AND from_me = $3',
-            [jid, row.id, row.from_me],
+        jids = res.rows.map((r) => r.remote_jid).filter((j) => opts.chatFilter!(j))
+      }
+      if (opts.olderThan !== undefined) {
+        const res = jids
+          ? await pool.query(
+              'DELETE FROM zaileys_messages WHERE timestamp < $1 AND remote_jid = ANY($2::text[])',
+              [opts.olderThan, jids],
+            )
+          : await pool.query('DELETE FROM zaileys_messages WHERE timestamp < $1', [opts.olderThan])
+        removed += res.rowCount ?? 0
+      }
+      if (opts.maxPerChat !== undefined) {
+        const scope: string[] = jids ?? await pool
+          .query<{ remote_jid: string }>('SELECT DISTINCT remote_jid FROM zaileys_messages', [])
+          .then((r) => r.rows.map((row) => row.remote_jid))
+        for (const jid of scope) {
+          const rows = await pool.query<{ id: string; from_me: boolean }>(
+            'SELECT id, from_me FROM zaileys_messages WHERE remote_jid = $1 ORDER BY timestamp DESC',
+            [jid],
           )
-          removed += r.rowCount ?? 0
+          const toDelete = rows.rows.slice(opts.maxPerChat)
+          if (toDelete.length === 0) continue
+          for (const row of toDelete) {
+            const r = await pool.query(
+              'DELETE FROM zaileys_messages WHERE remote_jid = $1 AND id = $2 AND from_me = $3',
+              [jid, row.id, row.from_me],
+            )
+            removed += r.rowCount ?? 0
+          }
         }
       }
+      return removed
+    } catch (err) {
+      throw new ZaileysStoreError('STORE_WRITE_FAILED', 'failed to prune messages', { cause: err })
     }
-    return removed
   }
 
   bind(socket: BaileysSocketLike): void {

@@ -1,5 +1,30 @@
 # zaileys
 
+## 4.4.0
+
+### Minor Changes
+
+- re-export baileys jid helpers + client.lidToPn/pnToLid (LID<->PN resolve)
+- expose public helpers — jid (normalize/isLid/isPn/jidToPhone/phoneToJid), id hashers, extractLinks, loadMedia, senderDeviceOf, epochSecondsToMs
+- business module — profile/catalog/collections/orderDetails/product CRUD
+- newsletter (react/subscribers/messages/adminCount/changeOwner/demote) + community (metadata/list/settings/approval) gaps
+- group join-requests/list/inviteInfo/approval + contact module (check/save/remove)
+- chat module — archive/pin/mute/markRead/star/delete/clear via chatModify
+- profile module — setName/setStatus/setPicture/removePicture/getPicture/getStatus
+- send product, requestPhoneNumber, sharePhoneNumber, limitSharing; client.setDisappearing
+- videoNote (ptv) send + client.pin/unpin message
+- groupInvite default expiry (~3d, unix seconds) and optional jpeg thumbnail
+- send event and groupInvite messages
+- decode group-invite, product, order, payment, and link-preview as media
+
+### Patch Changes
+
+- relay groupInvite as raw proto to skip pfp fetch (avoids item-not-found)
+- floor event start/end to whole seconds (avoid fractional int64 timestamp)
+- resolve LID-only sender/room/receiver to PN, not just mentions
+- album counts are null when absent instead of a fabricated 0
+- decode album messages as chatType album instead of empty text
+
 ## 4.3.0
 
 ### Minor Changes

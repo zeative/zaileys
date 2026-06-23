@@ -1,2 +1,5 @@
 export { definePlugin } from './types.js'
 export type { Plugin, PluginContext, PluginsOptions } from './types.js'
+export { PluginRegistry } from './registry.js'
+export type { PluginHost } from './registry.js'
+export { PluginLoader, scanPluginFiles, importPlugin } from './loader.js'

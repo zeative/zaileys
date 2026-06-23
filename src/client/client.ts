@@ -529,6 +529,12 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     return this
   }
 
+  unuse(middleware: Middleware): this {
+    const idx = this.commandMiddleware.indexOf(middleware)
+    if (idx >= 0) this.commandMiddleware.splice(idx, 1)
+    return this
+  }
+
   private attachCommandsIfReady(): void {
     if (this.commandDispatcher) return
     if (this.commandPrefixes.length === 0) return

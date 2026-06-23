@@ -28,6 +28,7 @@ const paths: Record<string, string> = {
   message: 'M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z',
   contact: 'M17 18a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2M4 4h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM9 4v2M15 4v2M12 14a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
   briefcase: 'M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16M4 7h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z',
+  braces: 'M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1M16 3h1a2 2 0 0 0 2 2v5a2 2 0 0 1 2 2 2 2 0 0 1-2 2v5a2 2 0 0 1-2 2h-1',
 }
 
 function Icon({ d }: { d: string }) {
@@ -70,6 +71,7 @@ export default {
   '-- core': { type: 'separator', title: 'Core Concepts' },
   client: item('cpu', 'Client & Lifecycle'),
   events: item('zap', 'Events'),
+  'message-payload': item('braces', 'Message Payload'),
 
   '-- messaging': { type: 'separator', title: 'Messaging' },
   'sending-messages': item('send', 'Sending Messages'),

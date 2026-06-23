@@ -75,7 +75,8 @@ sh(`git commit -m "chore: release v${next}" --no-verify`)
 sh(`git tag zaileys@${next}`)
 if (!noPush) {
   const branch = out('git rev-parse --abbrev-ref HEAD')
-  sh(`git push origin ${branch} --follow-tags`)
+  sh(`git push origin ${branch}`)
+  sh(`git push origin zaileys@${next}`)
   sh(`git push origin ${branch}:main`)
 }
 console.log(`\n✔ Released zaileys@${next}`)

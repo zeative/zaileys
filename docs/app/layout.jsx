@@ -177,6 +177,7 @@ const FOOTER_COLS = [
   },
   {
     title: 'Project',
+    external: true,
     links: [
       ['GitHub', 'https://github.com/zeative/zaileys'],
       ['npm', 'https://www.npmjs.com/package/zaileys'],
@@ -211,7 +212,7 @@ const footer = (
     <div className="zl-footer">
       <div className="zl-footer-top">
         <div className="zl-footer-brand">
-          <a className="zl-footer-logo" href={`${basePath}/`} {...newTab}>
+          <a className="zl-footer-logo" href={`${basePath}/`}>
             <img src={logoSrc} alt="Zaileys logo" />
             Zaileys
           </a>
@@ -226,7 +227,7 @@ const footer = (
             <ul>
               {col.links.map(([label, href]) => (
                 <li key={href}>
-                  <a href={href} {...newTab}>
+                  <a href={href} {...(col.external ? newTab : {})}>
                     {label}
                   </a>
                 </li>

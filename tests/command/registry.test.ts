@@ -254,3 +254,22 @@ describe('CommandRegistry.list', () => {
     expect(reg.list()).toEqual([])
   })
 })
+
+describe('CommandRegistry.unregister', () => {
+  it('removes a command and all its aliases, recomputes depth', () => {
+    const reg = new CommandRegistry()
+    reg.register('ping', () => {})
+    reg.register('weather today|w today', () => {})
+    reg.unregister('weather today')
+    expect(reg.list().map((d) => d.name)).toEqual(['ping'])
+    // alias also gone → re-registering the alias path must not throw "duplicate"
+    expect(() => reg.register('w today', () => {})).not.toThrow()
+  })
+
+  it('unregister of unknown spec is a no-op', () => {
+    const reg = new CommandRegistry()
+    reg.register('ping', () => {})
+    expect(() => reg.unregister('nope')).not.toThrow()
+    expect(reg.list().length).toBe(1)
+  })
+})

@@ -69,6 +69,19 @@ export class CommandRegistry {
     return undefined
   }
 
+  unregister(spec: string): void {
+    const segments = spec.split('|').map((segment) => parseSegment(segment))
+    const canonicalKey = keyOf(segments[0] as string[])
+    const def = this.paths.get(canonicalKey)
+    if (def === undefined) return
+    for (const parts of [def.parts, ...def.aliases.map((a) => a.split(' '))]) {
+      this.paths.delete(keyOf(parts))
+    }
+    const idx = this.defs.indexOf(def)
+    if (idx >= 0) this.defs.splice(idx, 1)
+    this.maxDepth = this.defs.reduce((max, d) => Math.max(max, d.parts.length), 1)
+  }
+
   list(): CommandDefinition[] {
     return [...this.defs]
   }

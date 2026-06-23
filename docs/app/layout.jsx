@@ -156,16 +156,91 @@ const navbar = (
     </a>
   </Navbar>
 )
+const FOOTER_COLS = [
+  {
+    title: 'Documentation',
+    links: [
+      ['Getting Started', `${basePath}/getting-started`],
+      ['Sending Messages', `${basePath}/sending-messages`],
+      ['Events & Context', `${basePath}/events`],
+      ['API Reference', `${basePath}/api-reference`],
+    ],
+  },
+  {
+    title: 'Resources',
+    links: [
+      ['AI Skill', `${basePath}/skill`],
+      ['Utilities', `${basePath}/utilities`],
+      ['Storage Adapters', `${basePath}/storage`],
+      ['Troubleshooting', `${basePath}/troubleshooting`],
+    ],
+  },
+  {
+    title: 'Project',
+    links: [
+      ['GitHub', 'https://github.com/zeative/zaileys'],
+      ['npm', 'https://www.npmjs.com/package/zaileys'],
+      ['llms.txt', `${basePath}/llms.txt`],
+      ['llms-full.txt', `${basePath}/llms-full.txt`],
+    ],
+  },
+]
+
+const newTab = { target: '_blank', rel: 'noopener noreferrer' }
+
 const footer = (
   <Footer>
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-      <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', fontSize: '0.85rem' }}>
-        <a href={`${basePath}/llms.txt`}>llms.txt</a>
-        <a href={`${basePath}/llms-full.txt`}>llms-full.txt</a>
-        <a href="https://github.com/zeative/zaileys">GitHub</a>
-        <a href="https://www.npmjs.com/package/zaileys">npm</a>
+    <style>{`
+      .zl-footer{width:100%;display:flex;flex-direction:column;gap:2.5rem}
+      .zl-footer-top{display:grid;grid-template-columns:1.7fr 1fr 1fr 1fr;gap:2.25rem 1.5rem}
+      .zl-footer-brand{display:flex;flex-direction:column;gap:.85rem;max-width:23rem}
+      .zl-footer-logo{display:inline-flex;align-items:center;gap:.55rem;font-weight:600;font-size:1.05rem;text-decoration:none;letter-spacing:-0.01em}
+      .zl-footer-logo img{width:30px;height:30px;border-radius:8px}
+      .zl-footer-tag{margin:0;font-size:.85rem;line-height:1.55;opacity:.62}
+      .zl-footer-meta{font-size:.74rem;opacity:.42;font-variant-numeric:tabular-nums}
+      .zl-footer-col h4{margin:0 0 1rem;font-size:.7rem;font-weight:600;text-transform:uppercase;letter-spacing:.13em;opacity:.5}
+      .zl-footer-col ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.62rem}
+      .zl-footer-col a{font-size:.86rem;text-decoration:none;opacity:.68;transition:opacity .15s ease}
+      .zl-footer-col a:hover{opacity:1}
+      .zl-footer-bottom{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.75rem;padding-top:1.5rem;border-top:1px solid var(--nextra-border-color,rgba(127,127,127,.18));font-size:.78rem;opacity:.6}
+      .zl-footer-bottom a{text-decoration:none;opacity:.85}
+      .zl-footer-bottom a:hover{opacity:1}
+      @media (max-width:768px){.zl-footer-top{grid-template-columns:1fr 1fr}.zl-footer-brand{grid-column:1/-1}}
+      @media (max-width:460px){.zl-footer-top{grid-template-columns:1fr}}
+    `}</style>
+    <div className="zl-footer">
+      <div className="zl-footer-top">
+        <div className="zl-footer-brand">
+          <a className="zl-footer-logo" href={`${basePath}/`} {...newTab}>
+            <img src={logoSrc} alt="Zaileys logo" />
+            Zaileys
+          </a>
+          <p className="zl-footer-tag">
+            Type-safe, batteries-included WhatsApp bot framework for Node.js &amp; TypeScript, built on Baileys.
+          </p>
+          <span className="zl-footer-meta">Runs on Node 20+, Bun, Deno, Termux</span>
+        </div>
+        {FOOTER_COLS.map((col) => (
+          <nav className="zl-footer-col" key={col.title} aria-label={col.title}>
+            <h4>{col.title}</h4>
+            <ul>
+              {col.links.map(([label, href]) => (
+                <li key={href}>
+                  <a href={href} {...newTab}>
+                    {label}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        ))}
       </div>
-      <span>MIT {new Date().getFullYear()} © Zaileys.</span>
+      <div className="zl-footer-bottom">
+        <span>MIT {new Date().getFullYear()} © Zaileys.</span>
+        <a href="https://github.com/WhiskeySockets/Baileys" {...newTab}>
+          Built on Baileys
+        </a>
+      </div>
     </div>
   </Footer>
 )

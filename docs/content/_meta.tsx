@@ -24,6 +24,10 @@ const paths: Record<string, string> = {
   help: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3M12 17h.01',
   book: 'M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15z',
   bot: 'M12 8V4M9 2h6M5 8h14v12H5zM9 13v2M15 13v2M2 14h3M19 14h3',
+  user: 'M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z',
+  message: 'M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z',
+  contact: 'M17 18a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2M4 4h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM9 4v2M15 4v2M12 14a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
+  briefcase: 'M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16M4 7h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z',
 }
 
 function Icon({ d }: { d: string }) {
@@ -76,17 +80,17 @@ export default {
   automation: item('megaphone', 'Broadcast & Schedule'),
 
   '-- social': { type: 'separator', title: 'Social & Channels' },
-  profile: item('users', 'Profile'),
+  profile: item('user', 'Profile'),
   presence: item('eye', 'Presence'),
-  chat: item('eye', 'Chats'),
+  chat: item('message', 'Chats'),
   groups: item('users', 'Groups'),
-  contacts: item('users', 'Contacts'),
+  contacts: item('contact', 'Contacts'),
   community: item('network', 'Communities'),
   newsletter: item('rss', 'Newsletters (Channels)'),
   privacy: item('shield', 'Privacy & Blocking'),
 
   '-- advanced': { type: 'separator', title: 'Advanced' },
-  business: item('database', 'Business & Catalog'),
+  business: item('briefcase', 'Business & Catalog'),
   storage: item('database', 'Storage Adapters'),
   'error-handling': item('alert', 'Error Handling'),
   runtimes: item('server', 'Runtime Support'),

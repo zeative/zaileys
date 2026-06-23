@@ -15,8 +15,10 @@ Key facts an LLM should know:
 - Mutations: `client.edit(key)`, `client.react(key, emoji)` (empty string removes), `client.delete(key, { forEveryone })`, `client.forward(key, jid)`, `client.pin(key, { duration })` / `client.unpin(key)`, `client.setDisappearing(jid, seconds)`. Async LID/PN helpers: `client.lidToPn(lid)` / `client.pnToLid(pn)`.
 - Domain modules (lazy getters): `client.profile` (name/status/picture), `client.chat` (archive/pin/mute/markRead/star/delete/clear), `client.contact` (check/save/remove), `client.business` (catalog/collections/products), `client.group`, `client.newsletter`, `client.community`, `client.privacy`, `client.presence`.
 - Commands: set `commandPrefix` in options, then `client.command('name', handler)` (aliases via `name|alias`), with `client.use(middleware)`.
+- Plugins: drop files in a folder and load them with `plugins: { dir: './plugins' }`. Author with `export default definePlugin({ name, setup(ctx) { ... }, onUnload? })`; `ctx` can register `command`/`use`/`on`/`once` plus a returned teardown, all auto-reversed on unload. Recursive nested scan, hot-reload on by default (`watch: true`), error-isolated (one bad plugin is skipped). Plugins are trusted in-process code (no sandbox).
 - Automation: `client.broadcast(recipients, builderFn, { rateLimitPerSec, onProgress })` and `client.scheduleAt(...)`.
 - Storage adapters (auth + message stores): File (default), Memory, SQLite, Postgres, Redis, Convex. Optional peer deps: `better-sqlite3`, `pg`, `redis`, `convex`. Media processing uses bundled ffmpeg and optionally `sharp` (falls back to `jimp`).
+- Auto-delete: old messages are pruned from the local store on a rolling window — enabled by default with a 1-month `maxAgeMs` (`autoDelete: false` disables; override `maxAgeMs`/`maxPerChat`/`intervalMs`/`chats`). Local store cleanup only — it never deletes messages on WhatsApp. Backed by optional `MessageStore.pruneMessages`/`deleteMessage`, implemented natively by all built-in adapters.
 - Utilities exported from `zaileys`: JID helpers (`isJid`, `normalizeJid`, `isLidJid`, `isPnJid`, `jidToPhone`, `phoneToJid`, plus re-exported baileys `jidDecode`/`jidEncode`/`jidNormalizedUser`/`areJidsSameUser`/`isJidGroup`/`isJidNewsletter`/`isLidUser`/`isPnUser`), id hashers (`computeUniqueId`, `computeStaticId`), `extractLinks`, `senderDeviceOf`, `epochSecondsToMs`, `loadMedia`, `detectMimeFromBuffer`, `chunk`.
 - Errors are typed classes with `.code`: `ZaileysBuilderError`, `ZaileysCommandError`, `ZaileysDomainError`, `ZaileysAutomationError`, `ZaileysStoreError`.
 - License: MIT. Source: https://github.com/zeative/zaileys
@@ -46,6 +48,8 @@ Key facts an LLM should know:
 - [Newsletters (Channels)](https://zeative.github.io/zaileys/newsletter): Channel admin, reactions, subscribers
 - [Business & Catalog](https://zeative.github.io/zaileys/business): Business profile, catalog, collections, products
 - [Storage Adapters](https://zeative.github.io/zaileys/storage): File, Memory, SQLite, Postgres, Redis, Convex
+- [Auto-Delete](https://zeative.github.io/zaileys/auto-delete): Rolling-window cleanup of old messages from the local store (on by default, 1-month retention)
+- [Plugins](https://zeative.github.io/zaileys/plugins): Folder-based plugins with hot-reload, `definePlugin`, and auto-tracked teardown
 - [Utilities](https://zeative.github.io/zaileys/utilities): Exported JID/id/text/media helper functions
 - [Error Handling](https://zeative.github.io/zaileys/error-handling): Error classes, codes, and disconnect reasons
 - [Runtime Support](https://zeative.github.io/zaileys/runtimes): Node.js, Bun, Deno, Termux specifics

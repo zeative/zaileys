@@ -85,6 +85,51 @@ JIDs follow WhatsApp conventions: individual chats are `628xxx@s.whatsapp.net` a
 `xxx@g.us`. `listMessages('…@g.us', …)` works the same for group history.
 </Callout>
 
+## Pruning old messages
+
+The auto-delete sweeper (enabled by default — see [Auto-Delete](/auto-delete)) calls two optional
+`MessageStore` methods to remove stale messages. All five built-in adapters implement both.
+
+### `pruneMessages(opts)`
+
+```typescript
+pruneMessages?(opts: PruneOptions): Promise<number>
+```
+
+Deletes messages matching `opts` and returns the number of records deleted. Built-in adapters
+execute this as a single efficient query (e.g. a SQL `DELETE WHERE`).
+
+### `deleteMessage(key)`
+
+```typescript
+deleteMessage?(key: WAMessageKey): Promise<void>
+```
+
+Deletes one message by its Baileys `WAMessageKey`. Used by the sweeper as a fallback when
+`pruneMessages` is not implemented — it enumerates and deletes messages individually.
+
+### `PruneOptions`
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `olderThan` | `number` | Epoch timestamp in **seconds** (matches the stored `messageTimestamp`). Messages with a timestamp older than this value are deleted. |
+| `maxPerChat` | `number` | Keep only the newest N messages per chat. Applied after the age filter. |
+| `chatFilter` | `(jid: string) => boolean` | Restrict pruning to chats whose JID passes the predicate. |
+
+All fields are optional — you may pass any combination. When `olderThan` is omitted, only
+`maxPerChat` applies (and vice versa).
+
+<Callout type="info">
+  `olderThan` is an epoch time in **seconds**, not milliseconds — it maps directly to the
+  `messageTimestamp` field stored by Baileys. The auto-delete sweeper converts its `maxAgeMs`
+  option to seconds before passing it here: `Math.floor((Date.now() - maxAgeMs) / 1000)`.
+</Callout>
+
+Custom stores can participate in auto-delete by implementing `pruneMessages` (preferred — efficient
+native query) or at least `deleteMessage` (sweeper falls back to one-by-one deletion). A store that
+implements neither causes the sweeper to disable itself with a warning. See [Auto-Delete](/auto-delete)
+for the full sweeper behavior.
+
 ## Defaults
 
 If you do not pass `auth` / `store`, Zaileys picks:

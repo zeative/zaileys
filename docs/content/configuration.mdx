@@ -42,6 +42,8 @@ const client = new Client({ sessionId: 'default' })
 | `operationGuard` | `OperationGuardOptions` | on (spaces group/community/newsletter ops) | Serializes and rate-limits sensitive group / community / newsletter operations per category so rapid bulk actions don't trip a ban. |
 | `presence` | `PresenceThrottleOptions` | on (drops duplicate presence) | Drops repeated presence updates (typing / recording / online) for the same chat within a short window. |
 | `scheduleRateLimitPerSec` | `number` | `1` (`0` disables) | Max scheduled messages dispatched per second, smoothing out a backlog of overdue jobs so they don't all fire at once. |
+| `autoDelete` | `AutoDeleteOptions \| false` | `on (1-month retention)` | Periodically prune old messages from the local store. See [Auto-Delete](/auto-delete). |
+| `plugins` | `PluginsOptions` | `undefined` | Load and hot-reload plugins from a folder. See [Plugins](/plugins). |
 | `autoConnect` | `boolean` | `true` | When `true`, the constructor calls `connect()` on the next microtask. Set `false` to connect manually. |
 | `qrTerminal` | `boolean` | `true` | When `true`, prints the QR code to the terminal in addition to emitting the `qr` event. |
 | `statusLog` | `boolean` | `true` | When `true`, writes human-readable connection status lines to `stderr` and suppresses noisy libsignal logs. |
@@ -524,6 +526,71 @@ const client = new Client({
   top-level `auth` / `store` / `logger` options instead. `markOnlineOnConnect`, `syncFullHistory`,
   and `qrTimeout` are merely internal defaults you *can* override here if you really need to.
 </Callout>
+
+## `autoDelete`
+
+`autoDelete` periodically prunes old messages from the local store to keep memory usage bounded. It is
+**enabled by default** with a 1-month retention window — no configuration needed unless you want to
+change the defaults. Pass `false` to disable pruning entirely, or supply an `AutoDeleteOptions` object
+to override individual fields.
+
+| Field | Type | Default | Description |
+| ----- | ---- | ------- | ----------- |
+| `maxAgeMs` | `number` | `2592000000` (30 days) | Messages older than this are pruned. |
+| `maxPerChat` | `number` | `undefined` | If set, keeps at most this many messages per chat (oldest removed first). |
+| `intervalMs` | `number` | `60000` | How often the cleanup job runs (ms). |
+| `chats` | `string[]` | `undefined` | Restrict pruning to specific chat JIDs. When omitted, all chats are pruned. |
+
+```typescript
+import { Client } from 'zaileys'
+
+// Disable auto-delete entirely.
+const client = new Client({ autoDelete: false })
+
+// Override: keep messages for 7 days, run cleanup every 5 minutes.
+const client2 = new Client({
+  autoDelete: {
+    maxAgeMs: 7 * 24 * 60 * 60 * 1000,
+    intervalMs: 5 * 60 * 1000,
+  },
+})
+```
+
+<Callout type="info">
+  Auto-delete only cleans the **local store** — it never deletes messages on WhatsApp itself. Your
+  chat history on other devices is unaffected.
+</Callout>
+
+Full guide: [Auto-Delete](/auto-delete)
+
+## `plugins`
+
+`plugins` enables loading and hot-reloading plugin modules from a directory. When omitted (default),
+no plugins are loaded. Set it to an object with at least `dir` to activate the plugin system;
+`watch` defaults to `true` so code changes are picked up without a restart during development.
+
+| Field | Type | Default | Description |
+| ----- | ---- | ------- | ----------- |
+| `dir` | `string` | `'./plugins'` | Directory to scan for plugin modules. |
+| `watch` | `boolean` | `true` | Hot-reload plugins when files in `dir` change. |
+| `pattern` | `string \| RegExp` | `undefined` | Glob/regex filter — only matching files are loaded. |
+| `ignore` | `string \| RegExp` | `undefined` | Glob/regex of files to skip. |
+| `onError` | `(err: Error) => void` | `undefined` | Called when a plugin throws on load or reload. |
+
+```typescript
+import { Client } from 'zaileys'
+
+const client = new Client({
+  plugins: { dir: './plugins' },
+})
+```
+
+<Callout type="info">
+  `watch` is `true` by default, which is ideal during development. Set `watch: false` in production
+  to avoid the filesystem watcher overhead.
+</Callout>
+
+Full guide: [Plugins](/plugins)
 
 ## Fully-configured example
 

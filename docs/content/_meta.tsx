@@ -30,6 +30,8 @@ const paths: Record<string, string> = {
   contact: 'M17 18a2 2 0 0 0-2-2H9a2 2 0 0 0-2 2M4 4h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM9 4v2M15 4v2M12 14a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
   briefcase: 'M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16M4 7h16a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2z',
   braces: 'M8 3H7a2 2 0 0 0-2 2v5a2 2 0 0 1-2 2 2 2 0 0 1 2 2v5a2 2 0 0 0 2 2h1M16 3h1a2 2 0 0 0 2 2v5a2 2 0 0 1 2 2 2 2 0 0 1-2 2v5a2 2 0 0 1-2 2h-1',
+  trash: 'M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6',
+  plug: 'M12 22v-5M9 8V2M15 8V2M18 8H6a2 2 0 0 0-2 2v3a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2z',
 }
 
 function Icon({ d }: { d: string }) {
@@ -100,8 +102,10 @@ export default {
   '-- data': { type: 'separator', title: 'Business & Storage' },
   business: item('briefcase', 'Business & Catalog'),
   storage: item('database', 'Storage Adapters'),
+  'auto-delete': item('trash', 'Auto-Delete'),
 
   '-- advanced': { type: 'separator', title: 'Advanced' },
+  plugins: item('plug', 'Plugins'),
   utilities: item('wrench', 'Utilities'),
   'error-handling': item('alert', 'Error Handling'),
   runtimes: item('server', 'Runtime Support'),

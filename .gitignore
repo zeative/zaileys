@@ -36,3 +36,7 @@ GEMINI.md
 # macOS
 .DS_Store
 **/.DS_Store
+
+# superpowers workflow scratch (specs, plans, sdd ledger) — local only
+docs/superpowers/
+.superpowers/

@@ -1,6 +1,6 @@
 import type { Chat, Contact, PresenceData, WAMessage, WAMessageKey } from 'baileys'
 import { ZaileysStoreError } from '../../types/store-error.js'
-import type { BaileysSocketLike, MessageStore, MessageStoreListOptions } from '../types.js'
+import type { BaileysSocketLike, MessageStore, MessageStoreListOptions, PruneOptions } from '../types.js'
 
 type Listener = (...args: unknown[]) => void
 
@@ -165,6 +165,43 @@ export class MemoryMessageStore implements MessageStore {
     for (const [event, handler] of this.listeners) {
       socket.ev.on(event, handler)
     }
+  }
+
+  async deleteMessage(key: WAMessageKey): Promise<void> {
+    this.assertOpen()
+    const k = encodeKey(key)
+    this.messages.delete(k)
+    const jid = key.remoteJid ?? ''
+    const bucket = this.messagesByJid.get(jid)
+    if (bucket) {
+      bucket.delete(k)
+      if (bucket.size === 0) this.messagesByJid.delete(jid)
+    }
+  }
+
+  async pruneMessages(opts: PruneOptions): Promise<number> {
+    this.assertOpen()
+    let removed = 0
+    for (const [jid, bucket] of [...this.messagesByJid.entries()]) {
+      if (opts.chatFilter && !opts.chatFilter(jid)) continue
+      const msgs: WAMessage[] = []
+      for (const k of bucket) {
+        const m = this.messages.get(k)
+        if (m) msgs.push(m)
+      }
+      msgs.sort((a, b) => Number(b.messageTimestamp ?? 0) - Number(a.messageTimestamp ?? 0))
+      const victims = msgs.filter((m, idx) => {
+        const ts = Number(m.messageTimestamp ?? 0)
+        if (opts.olderThan !== undefined && ts < opts.olderThan) return true
+        if (opts.maxPerChat !== undefined && idx >= opts.maxPerChat) return true
+        return false
+      })
+      for (const m of victims) {
+        await this.deleteMessage(m.key)
+        removed += 1
+      }
+    }
+    return removed
   }
 
   async clear(): Promise<void> {

@@ -5,6 +5,12 @@ export type MessageStoreListOptions = {
   before?: number
 }
 
+export type PruneOptions = {
+  olderThan?: number
+  maxPerChat?: number
+  chatFilter?: (jid: string) => boolean
+}
+
 export type ScheduledJobRecord = {
   id: string
   fireAt: number
@@ -37,4 +43,6 @@ export interface MessageStore {
   saveScheduledJob?(job: ScheduledJobRecord): Promise<void>
   listScheduledJobs?(): Promise<ScheduledJobRecord[]>
   deleteScheduledJob?(id: string): Promise<void>
+  deleteMessage?(key: WAMessageKey): Promise<void>
+  pruneMessages?(opts: PruneOptions): Promise<number>
 }

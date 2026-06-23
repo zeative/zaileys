@@ -294,5 +294,55 @@ export const runMessageStoreContract = (
         expect(second.length).toBe(3)
       })
     })
+
+    describe('Group P — pruneMessages', () => {
+      it('P1: skips when unsupported', async () => {
+        if (typeof store.pruneMessages !== 'function') return
+        expect(typeof store.pruneMessages).toBe('function')
+      })
+
+      it('P2: prunes by olderThan (age)', async () => {
+        if (typeof store.pruneMessages !== 'function') return
+        const jid = 'p2@s.whatsapp.net'
+        const msgs = sampleMessages(jid, 5) // timestamps 1_700_000_000..+4
+        for (const m of msgs) await store.saveMessage(m)
+        const deleted = await store.pruneMessages({ olderThan: 1_700_000_003 })
+        expect(deleted).toBe(3) // ts 0,1,2 removed; 3,4 kept
+        const left = await store.listMessages(jid)
+        expect(left.length).toBe(2)
+      })
+
+      it('P3: prunes by maxPerChat (keep newest N)', async () => {
+        if (typeof store.pruneMessages !== 'function') return
+        const jid = 'p3@s.whatsapp.net'
+        for (const m of sampleMessages(jid, 6)) await store.saveMessage(m)
+        const deleted = await store.pruneMessages({ maxPerChat: 2 })
+        expect(deleted).toBe(4)
+        const left = await store.listMessages(jid)
+        expect(left.length).toBe(2)
+        expect(Number(left[0]!.messageTimestamp)).toBe(1_700_000_005)
+      })
+
+      it('P4: chatFilter limits scope', async () => {
+        if (typeof store.pruneMessages !== 'function') return
+        for (const m of sampleMessages('keep@s.whatsapp.net', 4)) await store.saveMessage(m)
+        for (const m of sampleMessages('drop@s.whatsapp.net', 4)) await store.saveMessage(m)
+        const deleted = await store.pruneMessages({
+          maxPerChat: 1,
+          chatFilter: (j) => j === 'drop@s.whatsapp.net',
+        })
+        expect(deleted).toBe(3)
+        expect((await store.listMessages('keep@s.whatsapp.net')).length).toBe(4)
+        expect((await store.listMessages('drop@s.whatsapp.net')).length).toBe(1)
+      })
+
+      it('P5: deleteMessage removes a single message', async () => {
+        if (typeof store.deleteMessage !== 'function') return
+        const [m] = sampleMessages('p5@s.whatsapp.net', 1)
+        await store.saveMessage(m!)
+        await store.deleteMessage(m!.key)
+        expect(await store.getMessage(m!.key)).toBeUndefined()
+      })
+    })
   })
 }

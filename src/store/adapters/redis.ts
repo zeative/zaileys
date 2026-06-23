@@ -2,7 +2,7 @@ import { BufferJSON } from 'baileys'
 import type { Chat, Contact, PresenceData, WAMessage, WAMessageKey } from 'baileys'
 import type { RedisClientType } from 'redis'
 import { ZaileysStoreError } from '../../types/store-error.js'
-import type { BaileysSocketLike, MessageStore, MessageStoreListOptions } from '../types.js'
+import type { BaileysSocketLike, MessageStore, MessageStoreListOptions, PruneOptions } from '../types.js'
 
 export interface RedisMessageStoreOptions {
   client?: RedisClientType
@@ -273,6 +273,62 @@ export class RedisMessageStore implements MessageStore {
       this.ownedClient = undefined
     }
     this.ready = undefined
+  }
+
+  async deleteMessage(key: WAMessageKey): Promise<void> {
+    this.assertOpen()
+    const client = await this.ensureReady()
+    const jid = key.remoteJid ?? ''
+    const member = encodeMember(key)
+    const multi = client.multi()
+    multi.zRem(this.msgIndexKey(jid), member)
+    multi.hDel(this.msgDataKey(jid), member)
+    await this.runWrite(() => multi.exec())
+  }
+
+  async pruneMessages(opts: PruneOptions): Promise<number> {
+    this.assertOpen()
+    const client = await this.ensureReady()
+    let removed = 0
+    const indexKeys: string[] = []
+    const match = this.msgIndexKey('*')
+    let cursor = 0
+    do {
+      const result = await this.runRead(() => client.scan(cursor, { MATCH: match, COUNT: SCAN_BATCH }))
+      cursor = Number(result.cursor)
+      for (const k of result.keys) indexKeys.push(k)
+    } while (cursor !== 0)
+    for (const idxKey of indexKeys) {
+      const jid = this.jidFromIndexKey(idxKey)
+      if (opts.chatFilter && !opts.chatFilter(jid)) continue
+      const dataKey = this.msgDataKey(jid)
+      const victims = new Set<string>()
+      if (opts.olderThan !== undefined) {
+        const old = await this.runRead(() =>
+          client.zRangeByScore(idxKey, '-inf', `(${opts.olderThan}`),
+        )
+        for (const m of old) victims.add(m)
+      }
+      if (opts.maxPerChat !== undefined) {
+        const stale = await this.runRead(() =>
+          client.zRange(idxKey, 0, -(opts.maxPerChat! + 1)),
+        )
+        for (const m of stale) victims.add(m)
+      }
+      if (victims.size === 0) continue
+      const members = [...victims]
+      const multi = client.multi()
+      multi.zRem(idxKey, members)
+      multi.hDel(dataKey, members)
+      await this.runWrite(() => multi.exec())
+      removed += members.length
+    }
+    return removed
+  }
+
+  private jidFromIndexKey(key: string): string {
+    const prefix = this.msgIndexKey('')
+    return key.startsWith(prefix) ? key.slice(prefix.length) : key
   }
 
   private msgIndexKey(jid: string): string {

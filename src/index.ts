@@ -1,4 +1,6 @@
 export * from './client/index.js'
+export { definePlugin } from './plugin/index.js'
+export type { Plugin, PluginContext, PluginsOptions } from './plugin/index.js'
 export * from './auth/index.js'
 export * from './store/index.js'
 export * from './connection/index.js'

@@ -8,6 +8,7 @@ import type { DisconnectReasonDomain } from '../connection/disconnect-reason.js'
 import type { CitationConfig } from '../events/context.js'
 import type { InboundEventMap } from '../events/types.js'
 import type { MessageStore } from '../store/types.js'
+import type { PluginsOptions } from '../plugin/types.js'
 
 export type ConnectionState =
   | 'idle'
@@ -65,6 +66,8 @@ export interface ClientOptions {
   scheduleRateLimitPerSec?: number
   /** Periodically prune old messages from the store. */
   autoDelete?: AutoDeleteOptions
+  /** Load and manage plugins from a directory. */
+  plugins?: PluginsOptions
 }
 
 export type ConnectionEventMap = {

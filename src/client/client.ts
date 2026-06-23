@@ -43,6 +43,8 @@ import {
   type Middleware,
   type ResolvedCommand,
 } from '../command/index.js'
+import { PluginRegistry, PluginLoader, type PluginHost } from '../plugin/index.js'
+import type { PluginsOptions } from '../plugin/types.js'
 import {
   AutoDeleteSweeper,
   createOperationGuard,
@@ -172,6 +174,9 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private _scheduler?: Scheduler
   private readonly autoDeleteOptions: AutoDeleteOptions | undefined
   private autoDeleteSweeper: AutoDeleteSweeper | undefined
+  private readonly pluginsOptions: PluginsOptions | undefined
+  private pluginRegistry: PluginRegistry | undefined
+  private pluginLoader: PluginLoader | undefined
   private waVersion?: UserFacingSocketConfig['version']
   private versionWarming?: Promise<void>
 
@@ -199,6 +204,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.citationConfig = options.citation
     this.ignoreMe = options.ignoreMe ?? true
     this.autoDeleteOptions = options.autoDelete
+    this.pluginsOptions = options.plugins
     this.attachEmitterLogger()
     if (options.autoConnect ?? true) {
       queueMicrotask(() => {
@@ -453,6 +459,9 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.detachCommands()
     this.autoDeleteSweeper?.stop()
     this.autoDeleteSweeper = undefined
+    await this.pluginLoader?.stop().catch(() => undefined)
+    this.pluginLoader = undefined
+    this.pluginRegistry = undefined
     this._scheduler?.dispose()
     for (const c of this.listenerCleanup) c.off()
     this.listenerCleanup = []
@@ -521,6 +530,11 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   command(spec: string, handler: CommandHandler): this {
     ;(this.commandRegistry ??= new CommandRegistry()).register(spec, handler)
     this.attachCommandsIfReady()
+    return this
+  }
+
+  unregisterCommand(spec: string): this {
+    this.commandRegistry?.unregister(spec)
     return this
   }
 
@@ -801,6 +815,20 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         logger: this.logger,
       })
       this.autoDeleteSweeper.start()
+    }
+    if (this.pluginsOptions) {
+      this.pluginRegistry = new PluginRegistry({
+        client: this as unknown as PluginHost,
+        logger: this.logger,
+      })
+      this.pluginLoader = new PluginLoader({
+        registry: this.pluginRegistry,
+        options: this.pluginsOptions,
+        logger: this.logger,
+      })
+      void this.pluginLoader.start().catch((err) =>
+        this.logger.error(err, 'plugin loader start failed'),
+      )
     }
     const resolve = this.connectResolve
     this.connectResolve = undefined

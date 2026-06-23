@@ -203,7 +203,10 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.commandPrefixes = normalizePrefixes(options.commandPrefix)
     this.citationConfig = options.citation
     this.ignoreMe = options.ignoreMe ?? true
-    this.autoDeleteOptions = options.autoDelete
+    this.autoDeleteOptions =
+      options.autoDelete === false
+        ? undefined
+        : { maxAgeMs: 30 * 24 * 60 * 60 * 1000, ...options.autoDelete }
     this.pluginsOptions = options.plugins
     this.attachEmitterLogger()
     if (options.autoConnect ?? true) {

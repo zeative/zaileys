@@ -64,8 +64,8 @@ export interface ClientOptions {
   presence?: PresenceThrottleOptions
   /** Max scheduled messages dispatched per second, smoothing backlog bursts. Default `1`; `0` disables. */
   scheduleRateLimitPerSec?: number
-  /** Periodically prune old messages from the store. */
-  autoDelete?: AutoDeleteOptions
+  /** Periodically prune old messages from the store. Enabled by default with a 1-month `maxAgeMs`; pass `false` to disable or override any field. */
+  autoDelete?: AutoDeleteOptions | false
   /** Load and manage plugins from a directory. */
   plugins?: PluginsOptions
 }

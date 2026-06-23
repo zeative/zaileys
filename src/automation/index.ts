@@ -25,3 +25,5 @@ export {
   type ScheduledContentSnapshot,
 } from './schedule.js'
 export type { ScheduledJobRecord } from '../store/types.js'
+export { AutoDeleteSweeper, genericPrune } from './auto-delete.js'
+export type { AutoDeleteOptions } from './auto-delete.js'

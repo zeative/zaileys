@@ -1,5 +1,5 @@
 ---
-name: review
+name: zaileys-review
 description: >-
   Use to REVIEW / AUDIT / CHECK existing zaileys (Node.js/TypeScript WhatsApp framework
   on Baileys) code against best practices, anti-patterns, and ban-safety — triggers on

@@ -1,5 +1,5 @@
 ---
-name: scaffold
+name: zaileys-scaffold
 description: >-
   Use when the user wants to CREATE, BUILD, SCAFFOLD, or SET UP a NEW zaileys WhatsApp bot
   or project from scratch ("buatkan bot WhatsApp", "create a whatsapp bot", "set up zaileys",

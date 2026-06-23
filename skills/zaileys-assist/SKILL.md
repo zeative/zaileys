@@ -1,5 +1,5 @@
 ---
-name: assist
+name: zaileys-assist
 description: >-
   The zaileys orchestrator — handles ANY zaileys task (type-safe Node.js/TypeScript
   WhatsApp framework on Baileys). Use whenever the user wants to build, scaffold,

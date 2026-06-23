@@ -1,5 +1,5 @@
 ---
-name: debug
+name: zaileys-debug
 description: >-
   Use when a zaileys app throws an ERROR/exception/stack trace (or a `.code` like
   EMPTY_CONTENT, INVALID_OPTIONS, SEND_FAILED, STORE_NOT_AVAILABLE) or hits a runtime
@@ -117,7 +117,7 @@ New v4.4 send methods route through the same codes: `videoNote()` → `MEDIA_LOA
 > automation `TASK_FAILED`, `STORE_UNAVAILABLE`. Note: `client.broadcast()` does NOT throw per bad
 > recipient — it resolves `{ sent, failed: { jid, error }[] }`; inspect `failed`.
 
-Full per-code throw-site tables: `references/errors.md` (in the sibling `assist` skill).
+Full per-code throw-site tables: `references/errors.md` (in the sibling `zaileys-assist` skill).
 
 ## Most-common runtime symptoms (condensed)
 
@@ -190,8 +190,8 @@ silences the `[zaileys]` lines. Report at github.com/zeative/zaileys with the lo
 
 ## Full references
 
-- `references/errors.md` (sibling `assist` skill) — every class + `.code` with exact throw sites.
-- `references/troubleshooting.md` (sibling `assist` skill) — all runtime symptoms.
+- `references/errors.md` (sibling `zaileys-assist` skill) — every class + `.code` with exact throw sites.
+- `references/troubleshooting.md` (sibling `zaileys-assist` skill) — all runtime symptoms.
 - Live full docs (single file): <https://zeative.github.io/zaileys/llms-full.txt>.
 
 

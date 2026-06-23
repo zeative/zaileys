@@ -1,7 +1,7 @@
 {
   "name": "zaileys-official",
-  "description": "Official zaileys skill suite — an orchestrator (assist) plus focused scaffold, debug, and review skills for building WhatsApp bots with best practices.",
-  "version": "4.1.0",
+  "description": "Official zaileys skill suite — an orchestrator (zaileys-assist) plus focused zaileys-scaffold, zaileys-debug, and zaileys-review skills for building WhatsApp bots with best practices.",
+  "version": "4.2.0",
   "author": {
     "name": "zeative",
     "email": "zaadevofc@gmail.com"

@@ -2,7 +2,7 @@ import { BufferJSON } from 'baileys'
 import type { Chat, Contact, PresenceData, WAMessage, WAMessageKey } from 'baileys'
 import { ConvexKv, type ConvexKvOptions, type ConvexKvRow } from '../../types/convex.js'
 import { ZaileysStoreError } from '../../types/store-error.js'
-import type { BaileysSocketLike, MessageStore, MessageStoreListOptions, ScheduledJobRecord } from '../types.js'
+import type { BaileysSocketLike, MessageStore, MessageStoreListOptions, PruneOptions, ScheduledJobRecord } from '../types.js'
 
 export type ConvexMessageStoreOptions = ConvexKvOptions
 
@@ -122,6 +122,36 @@ export class ConvexMessageStore implements MessageStore {
   async deleteScheduledJob(id: string): Promise<void> {
     this.assertOpen()
     await this.kv.del([`${JOB}${id}`])
+  }
+
+  async deleteMessage(key: WAMessageKey): Promise<void> {
+    this.assertOpen()
+    await this.kv.del([msgKey(key)])
+  }
+
+  async pruneMessages(opts: PruneOptions): Promise<number> {
+    this.assertOpen()
+    const rows = await this.kv.list(MSG, {})
+    const byJid = new Map<string, Array<{ key: string; ts: number }>>()
+    for (const r of rows) {
+      const rest = r.key.slice(MSG.length)
+      const jid = rest.slice(0, rest.indexOf(':'))
+      if (opts.chatFilter && !opts.chatFilter(jid)) continue
+      const arr = byJid.get(jid) ?? []
+      arr.push({ key: r.key, ts: r.sortKey ?? 0 })
+      byJid.set(jid, arr)
+    }
+    const victims: string[] = []
+    for (const arr of byJid.values()) {
+      arr.sort((a, b) => b.ts - a.ts)
+      for (let i = 0; i < arr.length; i++) {
+        const row = arr[i]!
+        if (opts.olderThan !== undefined && row.ts < opts.olderThan) victims.push(row.key)
+        else if (opts.maxPerChat !== undefined && i >= opts.maxPerChat) victims.push(row.key)
+      }
+    }
+    if (victims.length > 0) await this.kv.del(victims)
+    return victims.length
   }
 
   bind(socket: BaileysSocketLike): void {

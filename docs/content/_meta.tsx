@@ -76,22 +76,28 @@ export default {
   media: item('image', 'Media Processing'),
   interactive: item('pointer', 'Interactive Messages'),
   'rich-responses': item('sparkles', 'Rich Responses (AIRich)'),
+
+  '-- commands': { type: 'separator', title: 'Commands & Broadcast' },
   commands: item('terminal', 'Commands'),
   automation: item('megaphone', 'Broadcast & Schedule'),
 
-  '-- social': { type: 'separator', title: 'Social & Channels' },
+  '-- chats': { type: 'separator', title: 'Chats & Contacts' },
   profile: item('user', 'Profile'),
   presence: item('eye', 'Presence'),
   chat: item('message', 'Chats'),
-  groups: item('users', 'Groups'),
   contacts: item('contact', 'Contacts'),
-  community: item('network', 'Communities'),
-  newsletter: item('rss', 'Newsletters (Channels)'),
   privacy: item('shield', 'Privacy & Blocking'),
 
-  '-- advanced': { type: 'separator', title: 'Advanced' },
+  '-- groups': { type: 'separator', title: 'Groups & Channels' },
+  groups: item('users', 'Groups'),
+  community: item('network', 'Communities'),
+  newsletter: item('rss', 'Newsletters (Channels)'),
+
+  '-- data': { type: 'separator', title: 'Business & Storage' },
   business: item('briefcase', 'Business & Catalog'),
   storage: item('database', 'Storage Adapters'),
+
+  '-- runtime': { type: 'separator', title: 'Runtime & Errors' },
   'error-handling': item('alert', 'Error Handling'),
   runtimes: item('server', 'Runtime Support'),
 

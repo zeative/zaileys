@@ -28,6 +28,7 @@ knowledge). Sibling focused skills exist for explicit invocation, but you can do
 | **Review/audit** ("review", "cek kode", "is this correct", before shipping) | Check against best practices + anti-patterns + ban-safety; report findings + fixes | [references/pitfalls.md](references/pitfalls.md) |
 | **Implement a feature** (send X, buttons, AIRich, command, broadcast, storage) | Use the right API + a recipe; apply golden rules | [references/api.md](references/api.md), [references/recipes.md](references/recipes.md) |
 | **Explain/choose** ("how does X work", "which adapter", "qr vs pairing") | Answer from the references; show a minimal example | all references |
+| **Manage account/chats/groups** (profile name/status/avatar, archive/pin/mute a chat, save contact, group join-requests, newsletter/community admin, business catalog/products) | Use the right `client.*` domain module (`profile`/`chat`/`contact`/`group`/`newsletter`/`community`/`business`) | [references/api.md](references/api.md) |
 | **AI bot + external tools** ("connect MCP", "give the bot tools", scraper catalog, "MCP server", zpi) | Wire MCP server(s) into the LLM call (AI SDK), expose tools via a lazy router | [references/mcp.md](references/mcp.md) |
 
 Default when ambiguous: ask one clarifying question, then proceed. Prefer doing the work
@@ -37,7 +38,7 @@ over describing it.
 
 Read the relevant file before writing or debugging — they contain the verified, exact API:
 
-- [references/api.md](references/api.md) — full surface: `ClientOptions` + defaults, the send builder, events + message context, mutations, domain namespaces, storage, automation, media.
+- [references/api.md](references/api.md) — full surface: `ClientOptions` + defaults, the send builder (incl. `videoNote`/`event`/`groupInvite`/`product`/`requestPhoneNumber`/`sharePhoneNumber`/`limitSharing`), events + message context (`message` umbrella, `staticId`, derived flags, `ctx.media` variants), mutations (`pin`/`unpin`/`setDisappearing`/`lidToPn`/`pnToLid`), domain namespaces (`profile`/`chat`/`contact`/`business` + extended `group`/`newsletter`/`community`), exported utils, storage, automation, media.
 - [references/recipes.md](references/recipes.md) — best-practice, copy-paste patterns for every common bot.
 - [references/errors.md](references/errors.md) — every error class + `.code`, what it means, and how to fix it. **Read this first when diagnosing an exception.**
 - [references/troubleshooting.md](references/troubleshooting.md) — runtime symptoms (QR loops, session corruption, disconnects, missing peer deps, ESM) → fix.
@@ -49,7 +50,7 @@ For exhaustive detail, the full docs are one file: <https://zeative.github.io/za
 ## Mental model
 
 1. **`Client` is the entry point.** Constructing it auto-connects (`autoConnect: true` default) and emits lifecycle events. Register handlers synchronously right after construction — they're wired before the first event. Set `autoConnect: false` + `await client.connect()` to control timing.
-2. **Receiving = events.** `client.on('text' | 'image' | 'button-click' | 'group-update' | …, handler)`. The handler gets a typed **message context** with `senderId`, `text`, `roomId`, `isFromMe`, and methods `reply()`, `react()`, `replied()`, `media`.
+2. **Receiving = events.** `client.on('message' | 'text' | 'image' | 'button-click' | 'group-update' | …, handler)`. `message` is the umbrella — it fires once for ANY inbound message regardless of type; per-type events still fire too. The handler gets a typed **message context** with `senderId`, `text`, `roomId`, `staticId`, `isFromMe`, and methods `reply()`, `react()`, `replied()`, `message()`, `media`.
 3. **Sending = a fluent builder.** `client.send(jid)` returns a builder; pick one content method, optionally chain `.reply()`/`.mentions()`, and `await` it → resolves to a `WAMessageKey`.
 4. **Storage is pluggable.** `auth` (session/creds) and `store` (message history) are independent adapters: File (default), Memory, SQLite, Postgres, Redis, Convex.
 
@@ -65,6 +66,10 @@ For exhaustive detail, the full docs are one file: <https://zeative.github.io/za
 8. **Secrets via env.** Never hardcode phone numbers/tokens. `OWNER`, `phoneNumber`, DB URLs all come from `process.env` (bracket access: `process.env['OWNER']`).
 9. **Match the engine.** zaileys targets Node **20+**. Don't pull deps that require Node 22 (e.g. `file-type` v22) without raising the floor.
 10. **Pick storage for the runtime.** Long-lived servers: Postgres/Redis. Single instance: SQLite/File. Serverless/edge: Convex. Memory is tests-only (lost on restart).
+11. **Use `ctx.staticId` as the conversation key.** It's a 16-char uppercase hex, **stable per room+sender** — don't hand-build `roomId:senderId` strings. `uniqueId` is per-message (also 16-char uppercase). `mentions` arrive already resolved to PN; `senderDevice` is detected.
+12. **Events render in GROUPS only.** `client.send(jid).event({...})` does NOT show up in 1:1 DMs — only in `@g.us` groups. `startAt`/`endAt` accept a `Date` or epoch **ms**.
+13. **`groupInvite.expiresAt` is unix SECONDS** (passing ms makes the card show "expired"). The card may fail to resolve on linked-device/LID-group sessions even when it renders — the `chat.whatsapp.com/<code>` link always works, so include it as a fallback.
+14. **product/order/payment are receive-mostly.** All three can be RECEIVED (`ctx.media` variants), but only **`product`** can be SENT — and only from a **WhatsApp Business** account.
 
 ## Quick API cheat-sheet
 
@@ -77,8 +82,9 @@ client.on('qr', ({ qrString }) => console.log('Scan QR:', qrString))
 client.on('connect', ({ me }) => console.log('Connected as', me.id))
 client.on('disconnect', ({ reason, willReconnect }) => console.log('Down:', reason, willReconnect))
 
-client.on('text', async (msg) => {
+client.on('message', async (msg) => {                    // umbrella: ANY inbound type
   if (msg.isFromMe) return
+  const convoKey = msg.staticId                          // stable per room+sender; prefer over roomId:senderId
   await msg.reply(`You said: ${msg.text}`)               // reply on the context
 })
 
@@ -87,21 +93,47 @@ await client.send(jid).text('hello')
 await client.send(jid).image(bufferOrUrlOrPath, { caption: 'pic' })
 await client.send(jid).text(markdown, { rich: true, title: '🤖', footer: 'zaileys' }) // AIRich
 await client.send(jid).buttons([{ id: 'yes', text: 'Yes' }], { text: 'Pick' })
+await client.send(jid).videoNote(srcMp4)                                 // round PTV video
+await client.send(groupJid).event({ name: 'Meetup', startAt: new Date(), call: 'video' }) // GROUPS only
+await client.send(jid).groupInvite({ jid: groupJid, code, subject: 'My Group', expiresAt: Math.floor(Date.now()/1000)+86400 }) // expiresAt = SECONDS
+await client.send(jid).product({ image, title: 'Hat', businessOwnerId: myJid, price: 50, currency: 'USD' }) // Business only
+await client.send(jid).requestPhoneNumber()              // also: sharePhoneNumber(), limitSharing(enabled?)
 await client.send(jid).text('tag').reply(quotedKey).mentions(['628x@s.whatsapp.net'])
 
-// Mutations
+// Message mutations
 await client.edit(key).text('edited')
 await client.react(key, '🔥')        // '' to remove
 await client.delete(key, { forEveryone: true })
 await client.forward(key, otherJid)
+await client.pin(key, { duration: 604800 })   // 86400 / 604800 / 2592000 sec; default 24h
+await client.unpin(key)
+await client.setDisappearing(jid, 604800)     // 0 to turn off
+const pn = await client.lidToPn(lidJid)        // async LID↔PN
+const lid = await client.pnToLid(pnJid)
 
 // Automation
 await client.broadcast(recipients, (b) => b.text('hi'), { rateLimitPerSec: 5, onProgress: (d, t, jid, ok) => {} })
 ```
 
-**Builder content methods:** `text · image · video · audio · document · sticker · location · contact · poll · album · buttons · template · list · carousel`. **Modifiers:** `reply · mentions · mentionAll · disappearing · to`.
+**Builder content methods:** `text · image · video · videoNote · audio · document · sticker · location · contact · poll · album · buttons · template · list · carousel · event · groupInvite · product · requestPhoneNumber · sharePhoneNumber · limitSharing`. **Modifiers:** `reply · mentions · mentionAll · disappearing · to`. (`event` GROUPS-only; `product` Business-only.)
 
-**Events:** connection (`qr`, `pairing-code`, `connect`, `reconnecting`, `disconnect`, `error`); messages (`text`, `image`, `video`, `audio`, `sticker`, `document`, `reaction`, `poll-vote`); interactive (`button-click`, `list-select`); group/social (`group-update`, `group-join`, `group-leave`, `member-tag`, `mention-all`); calls (`call-incoming`, `call-ended`); `history-sync`.
+**Events:** `message` (umbrella — fires once for ANY inbound message → `MessageContext`); connection (`qr`, `pairing-code`, `connect`, `reconnecting`, `disconnect`, `auth-exhausted`, `error`); messages (`text`, `image`, `video`, `audio`, `sticker`, `document`, `reaction`, `edit`, `delete`, `poll-vote`); interactive (`button-click`, `list-select`); group/social (`group-update`, `group-join`, `group-leave`, `member-tag`, `mention`, `mention-all`); calls (`call-incoming`, `call-ended`); plus `history-sync`, `presence`, `newsletter`, `limited`. `chatType` covers `text · image · video · audio · document · sticker · poll · contact · location · live-location · event · album · group-invite · product · order · payment · buttons · list · interactive · template · unknown`.
+
+**MessageContext fields:** identity `uniqueId` (16-char upper hex, per-message) · `staticId` (16-char upper hex, **stable per room+sender** — use as convo key) · `channelId · chatId · receiverId · roomId · senderId · senderLid · senderName · senderDevice` · `timestamp · text · mentions` (resolved to PN) · `links`. Flags: `isFromMe · isGroup · isNewsletter · isBroadcast · isViewOnce · isEphemeral · isForwarded · isQuestion · isPrefix · isTagMe · isEdited · isDeleted · isPinned · isUnPinned · isBot · isSpam · isHideTags · isStatusMention · isGroupStatusMention · isStory`. Methods: `roomName() · receiverName() · replied() · message() · reply() · react() · citation`. `ctx.media` variants: media attachment · poll · contact · location · event · `album` · `group-invite` · `product` · `order` · `payment` · `link` · buttons · list · interactive · template.
+
+**Domain modules (`client.*`):**
+- `group` — create/addMember/removeMember/promote/demote/updateSubject/updateDescription/leave/metadata/tagMember/inviteCode/revokeInvite/acceptInvite/toggleEphemeral/setting · **+** `list/inviteInfo/joinRequests/approveJoin/rejectJoin/joinApproval/memberAddMode`
+- `newsletter` — create/follow/unfollow/metadata/updateName/updateDescription/updatePicture/mute/unmute/delete · **+** `react/unreact/subscribers/messages/adminCount/changeOwner/demote/removePicture`
+- `community` — create/createGroup/linkGroup/unlinkGroup/subGroups/leave/updateSubject/updateDescription/inviteCode/revokeInvite/acceptInvite · **+** `metadata/list/inviteInfo/toggleEphemeral/setting/memberAddMode/joinApproval`
+- `privacy` · `presence`
+- `profile` — `setName/setStatus/setPicture/removePicture/getPicture/getStatus`
+- `chat` — `archive/unarchive/pin/unpin/mute/unmute/markRead/markUnread/star/unstar/delete/clear`
+- `contact` — `check/exists/save/remove`
+- `business` (Business account) — `profile/catalog/collections/orderDetails/createProduct/updateProduct/deleteProduct`
+
+Message mutations on `client`: `pin(key,{duration?})` · `unpin(key)` · `setDisappearing(jid, seconds)` · `lidToPn(lid)` · `pnToLid(pn)` (both async).
+
+**Utils (from `'zaileys'`):** JID — `isJid · normalizeJid · isLidJid · isPnJid · jidToPhone · phoneToJid · jidDecode · jidEncode · jidNormalizedUser · areJidsSameUser · isJidGroup · isJidBroadcast · isJidNewsletter · isLidUser · isPnUser · getDevice`. Context/media — `computeUniqueId · computeStaticId · extractLinks · senderDeviceOf · epochSecondsToMs · loadMedia · detectMimeFromBuffer`. Misc — `chunk`.
 
 **Error classes (all carry `.code`):** `ZaileysBuilderError`, `ZaileysCommandError`, `ZaileysDomainError`, `ZaileysAutomationError`, `ZaileysStoreError`. → see [references/errors.md](references/errors.md).
 

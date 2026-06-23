@@ -183,6 +183,24 @@ Note: on a reconnecting disconnect, `formatConnectionStatus` returns `null` (no 
   ```
   With `ignoreMe: false`, gate replies on sender or a command prefix to avoid an echo loop.
 
+### Event message not visible in 1:1 chats (`event()`)
+- **Symptom:** `client.send(jid).event({ name, startAt })` resolves with a message key and throws nothing, but no event card appears in the recipient's chat. Works fine when `jid` is a group.
+- **Cause:** WhatsApp event messages are a **group** feature. There is no per-message error — the send succeeds, the client just renders nothing for a 1:1 event. (`event()` itself only validates a non-empty `name` + valid `startAt`; it does not check the target type.)
+- **Fix:** Send events to a group JID (`xxx@g.us`). For a 1:1 reminder use a plain `text()` (optionally `buttons()` with a `ReminderButton`) instead.
+  ```typescript
+  await client.send(groupJid).event({ name: 'Standup', startAt: Date.now() + 3600_000 })
+  ```
+
+### groupInvite card shows "failed to get group info" on tap
+- **Symptom:** `groupInvite()` sends successfully and the card renders, but tapping it shows "failed to get group info" / the group won't open. Often seen when the bot runs as a companion/linked device or the group is LID-addressed.
+- **Cause:** The card itself is **valid** — the underlying invite link resolves fine. WhatsApp's invite-**card** resolution flakes on companion/linked-device sessions and LID-addressed groups; this is a WhatsApp-side rendering limitation, not a malformed payload.
+- **Fix:** Share the raw invite link as a fallback (it always works), and make sure `expiresAt` is unix **seconds** (default `now + 3 days`), not milliseconds.
+  ```typescript
+  await client.send(jid).text(`Join: https://chat.whatsapp.com/${code}`)
+  // card form (expiresAt in SECONDS):
+  await client.send(jid).groupInvite({ jid: groupJid, code, expiresAt: Math.floor(Date.now() / 1000) + 86_400 })
+  ```
+
 ### How to log out vs reset the session
 - **`disconnect()`** — closes the socket cleanly, **keeps** credentials. Reconnect later without re-scanning. (Cancels the reconnect timer, detaches pipeline/commands/scheduler, closes auth signal + store.)
 - **`logout()`** — unlinks the device on WhatsApp's side **and** wipes stored creds: calls `socket.logout()`, `auth.signal.clear()`, `auth.creds.deleteCreds()`. Next run needs a fresh QR / pairing code. Emits a final `disconnect` with `reason: 'logged-out'`, `willReconnect: false`.

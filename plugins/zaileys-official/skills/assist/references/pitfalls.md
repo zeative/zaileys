@@ -2,7 +2,7 @@
 
 Common mistakes in zaileys code and the correct fix. Read this when REVIEWING zaileys code to catch bad practice. Each entry: **❌ Anti-pattern → ✅ Correct** + one-line WHY. All claims verified against `src/`.
 
-Import surface: `import { Client } from 'zaileys'`. Builder content methods: `text, image, video, audio, document, sticker, location, contact, poll, album, buttons, template, list, carousel`. Modifiers (chainable, return same state): `reply, mentions, mentionAll, disappearing, to`. Client: `connect, disconnect, logout, send, edit, delete, react, forward, broadcast, scheduleAt, command, use, on, off`.
+Import surface: `import { Client } from 'zaileys'`. Builder content methods: `text, image, video, videoNote, audio, document, sticker, location, contact, poll, album, buttons, template, list, carousel, event, groupInvite, product, requestPhoneNumber, sharePhoneNumber, limitSharing`. Modifiers (chainable, return same state): `reply, mentions, mentionAll, disappearing, to`. Client: `connect, disconnect, logout, send, edit, delete, react, forward, broadcast, scheduleAt, command, use, on, off`. Domain modules: `client.group, .privacy, .newsletter, .community, .profile, .chat, .contact, .business`.
 
 ---
 
@@ -265,6 +265,114 @@ WHY: user JID = `<digits>@s.whatsapp.net`, group JID = `<id>@g.us`. `send()` acc
 
 ---
 
+## 16. One handler per message type instead of the `message` umbrella
+
+❌
+```typescript
+client.on('text', logIt)
+client.on('image', logIt)
+client.on('video', logIt)
+client.on('audio', logIt)
+client.on('sticker', logIt)        // five registrations to catch every inbound message
+```
+✅
+```typescript
+client.on('message', (msg) => logIt(msg))   // fires once per inbound message, any chatType
+// keep type-specific handlers ONLY when you branch on type:
+client.on('text', handleCommands)
+```
+WHY: `message` is an umbrella event carrying the same `MessageContext` as the per-type events; it fires for every inbound message regardless of `chatType`. Use it for logging/middleware/analytics instead of registering (and maintaining) one handler per type. Branch on `msg.chatType` inside if you need type logic. (`src/events/types.ts` `InboundEventMap.message`, `src/events/pipeline.ts` `client.emit('message', …)`)
+
+---
+
+## 17. Building your own conversation key instead of `ctx.staticId`
+
+❌
+```typescript
+const convoKey = `${msg.roomId}:${msg.senderId}`   // breaks on device suffix / @lid drift, null roomId
+sessions.get(convoKey)
+```
+✅
+```typescript
+sessions.get(msg.staticId)            // stable per room+sender, already hashed
+```
+WHY: `staticId` is `hashHex(roomId ?? '' | senderId)` — a stable identifier for "this sender in this room" computed once per context. Hand-building `roomId:senderId` re-introduces the JID-normalization bugs (#6) and mishandles a `null` roomId (DMs). Use `staticId` as your map/cache key; use `uniqueId` to dedupe a single message. (`src/events/context.ts` `computeStaticId`, `MessageContext.staticId`)
+
+---
+
+## 18. `event()` in a 1:1 chat
+
+❌
+```typescript
+await client.send(userJid).event({ name: 'Standup', startAt: Date.now() + 3600_000 })   // no card renders in DM
+```
+✅
+```typescript
+await client.send(groupJid).event({ name: 'Standup', startAt: Date.now() + 3600_000 })   // events are a group feature
+```
+WHY: WhatsApp event messages render only in **groups** — sending one to a DM produces no visible event card. Also note `event()` requires a non-empty `name` and a valid `startAt` (Date or epoch ms); a missing/invalid one throws `INVALID_OPTIONS`. (`src/builder/content/event.ts`; see `troubleshooting.md` "event message not visible in 1:1 chats")
+
+---
+
+## 19. `groupInvite()` `expiresAt` in ms + assuming the card always resolves
+
+❌
+```typescript
+.groupInvite({ jid: groupJid, code, expiresAt: Date.now() + 86_400_000 })   // ms → absurd expiry
+```
+✅
+```typescript
+.groupInvite({ jid: groupJid, code, expiresAt: Math.floor(Date.now() / 1000) + 86_400 })   // unix SECONDS
+```
+WHY: `inviteExpiration` is unix **seconds** (default `now + 3 days`), same seconds convention as `limitedTimeOffer` (#9). Separately, the invite **card** may fail to resolve ("failed to get group info") when tapped on a companion/linked-device or LID-addressed group — the card is still valid, but resolution flakes. The raw invite **link** (`https://chat.whatsapp.com/<code>`) always works; share it as a fallback. `groupInvite()` requires a `@g.us` jid and a non-empty `code` or it throws `INVALID_OPTIONS`. (`src/builder/content/group-invite.ts`; see `troubleshooting.md`)
+
+---
+
+## 20. `videoNote()` vs `video()` / `audio()`
+
+❌
+```typescript
+await client.send(jid).video('./clip.mp4')   // regular inline video, not a round PTV bubble
+```
+✅
+```typescript
+await client.send(jid).videoNote('./round.mp4')   // round push-to-video (PTV) note
+```
+WHY: `videoNote()` is the round PTV (push-to-video) bubble — it calls `video()` with `ptv: true`. It is the video analogue of `audio()`'s push-to-talk default (#10). Use plain `video()` for a normal inline clip. (`src/builder/builder.ts` `videoNote`, `src/builder/content/video.ts` `ptv`)
+
+---
+
+## 21. `product()` without a Business account / hand-rolling business ops via raw socket
+
+❌
+```typescript
+await client.send(jid).product({ title: 'Tee', image: './t.jpg' })   // missing businessOwnerId → throws
+client.socket.getCatalog(...)                                        // reaching past the public API
+```
+✅
+```typescript
+await client.send(jid).product({ title: 'Tee', image: './t.jpg', businessOwnerId: OWNER_JID })
+const catalog = await client.business.catalog({ jid: OWNER_JID })    // typed module, connect-guarded
+```
+WHY: `product()` requires a non-empty `title` **and** a `businessOwnerId` (the WhatsApp **Business** account that owns the catalog) or it throws `INVALID_OPTIONS`; product send only works for Business accounts. Likewise the new `client.profile / .chat / .contact / .business` modules wrap the socket with connect guards (throw `NOT_CONNECTED` before connect) and typed signatures — use them instead of reaching into the raw Baileys socket. (`src/builder/content/product.ts`, `src/domain/{profile,chat,contact,business}.ts`)
+
+---
+
+## 22. Comparing mentions against `@lid`
+
+❌
+```typescript
+if (msg.mentions.includes(SELF_LID)) { /* ... */ }                  // mentions are PN-resolved, won't match @lid
+```
+✅
+```typescript
+const digitsOf = (jid: string) => (jid.split(/[:@]/)[0] ?? '').replace(/\D/g, '')
+if (msg.mentions.some((m) => digitsOf(m) === OWNER)) { /* ... */ }   // compare normalized digits
+```
+WHY: `ctx.mentions` are now resolved from `@lid` back to the phone-number JID via the session's LID map (`mapMentions`). Comparing against a raw `@lid` value fails; compare normalized digits or the `@s.whatsapp.net` JID. (`src/events/decoders/messages.ts` `mapMentions`)
+
+---
+
 ## Quick checklist for reviewers
 
 - Mass send? → must use `broadcast` / `scheduleAt`, never a bare `await` loop.
@@ -274,5 +382,9 @@ WHY: user JID = `<digits>@s.whatsapp.net`, group JID = `<id>@g.us`. `send()` acc
 - `aiRich()` / `expiresAt` ms / `audio()` without `ptt` → flag.
 - `scheduleAt` without Convex store → warn it won't survive restart.
 - Handlers → use `msg.reply`/`msg.react`/`await msg.replied()`; guard `msg.isFromMe`.
-- Owner/mention checks → normalized digits / full JIDs.
+- Owner/mention checks → normalized digits / full JIDs; mentions are PN-resolved, never compare to `@lid`.
+- Logging/middleware over all messages → use the `message` umbrella event, not one handler per type.
+- Conversation/session key → `ctx.staticId`, not a hand-built `roomId:senderId`.
+- `event()` → groups only; `groupInvite()`/`limitedTimeOffer` `expiresAt` → unix seconds; share the invite link as fallback.
+- `product()` → needs `businessOwnerId` + a Business account; profile/chat/contact/business via the modules, not the raw socket.
 - New deps → keep `engines.node >=20` compatible.

@@ -259,12 +259,18 @@ process.on('SIGTERM', () => void shutdown('SIGTERM'))
 
 ### Feature `echo` — `src/handlers/message.ts`
 
+`client.on('message', …)` is the **umbrella inbound event** — one handler fires for *every* inbound
+message type (text/image/video/audio/document/sticker/…). Prefer it over wiring many per-type handlers
+when the bot reacts to all messages the same way; use the per-type events (`text`, `image`, …) only when
+behavior truly differs by type. The callback context carries `ctx.staticId` — a stable hash of
+room+sender — use it as the **per-conversation key** for memory/state instead of building your own.
+
 ```typescript
 import type { Client } from 'zaileys'
 
 export const registerMessageHandlers = (client: Client): void => {
-  client.on('text', async (msg) => {
-    if (msg.isFromMe) return
+  client.on('message', async (msg) => {
+    if (msg.isFromMe || !msg.text) return
     await msg.react('👀')
     await msg.reply(`Echo: ${msg.text}`)
   })
@@ -387,22 +393,23 @@ import { askAgent } from '../features/ai-agent.js'
 import { remember, reset } from '../features/memory.js'
 
 export const registerMessageHandlers = (client: Client): void => {
-  client.on('text', async (msg) => {
-    if (msg.isFromMe) return
-    const jid = msg.roomId ?? msg.senderId
+  client.on('message', async (msg) => {
+    if (msg.isFromMe || !msg.text) return
+    const convoId = msg.staticId
+    const room = msg.roomId ?? msg.senderId
     const input = msg.text.trim()
     if (input.toLowerCase() === '/reset') {
-      reset(jid)
+      reset(convoId)
       await msg.reply('Memory cleared. 🧹')
       return
     }
     if (!input) return
     try {
       await msg.react('🤖')
-      await client.presence.typing(jid)
-      const answer = await askAgent(jid, input)
-      remember(jid, { role: 'user', content: input })
-      remember(jid, { role: 'assistant', content: answer })
+      await client.presence.typing(room)
+      const answer = await askAgent(convoId, input)
+      remember(convoId, { role: 'user', content: input })
+      remember(convoId, { role: 'assistant', content: answer })
       await msg.reply(answer)
     } catch (err) {
       console.error('Agent error:', err)
@@ -627,6 +634,31 @@ so later runs skip auth. To force a fresh login, delete the session.
 - `commandPrefix` in `client.ts` iff slash-commands; `pairing-code` handler + `phoneNumber` iff pairing.
 - Chosen storage's import, construction (in `client.ts`), peer dep, and env var all line up.
 - No secrets hardcoded; env read only via `config/env.ts`; `.env`/`.zaileys` gitignored.
+
+## v4.4 SURFACE (reach for these before improvising)
+
+Generated bots can use the full current API — don't hand-roll what the library provides:
+
+- **Inbound events** (`client.on(name, …)`): `message` (umbrella — all types), `text`, `image`, `video`,
+  `audio`, `document`, `sticker`, `reaction`, `edit`, `delete`, `poll-vote`, `button-click`,
+  `list-select`, `mention`, `mention-all`, `group-update`, `group-join`, `group-leave`, `member-tag`,
+  `call-incoming`, `call-ended`, `history-sync`, `presence`, `newsletter`; connection: `connect`,
+  `disconnect`, `qr`, `pairing-code`, `reconnecting`, `auth-exhausted`, `error`.
+- **Conversation key**: `ctx.staticId` (stable `hash(roomId|senderId)`) — use it to key per-conversation
+  memory/state, not an ad-hoc `roomId ?? senderId`. For send targets still use `roomId`/`senderId` JIDs.
+- **Builder content methods** (one per `send()`): `text`, `image`, `video`, `videoNote`, `audio`,
+  `document`, `sticker`, `buttons`, `carousel`, `list`, `poll`, `template`, `location`, `contact`,
+  `event`, `groupInvite`, `product`, `requestPhoneNumber`, `sharePhoneNumber`, `limitSharing`, `album`.
+  Modifiers: `reply`, `mentions`, `mentionAll`, `disappearing`, `to`. Notes: `event()` won't render in
+  1:1 DMs (group/community only); `product()` needs a Business account (`businessOwnerId`);
+  `groupInvite()` `expiresAt` is **unix SECONDS**.
+- **Typed modules** (prefer over poking the raw socket): `client.profile`
+  (`setName/setStatus/setPicture/removePicture/getPicture/getStatus`), `client.chat`
+  (`archive/unarchive/pin/unpin/mute/unmute/markRead/markUnread/star/unstar/delete/clear`),
+  `client.contact` (`check/exists/save/remove`), `client.business`
+  (`profile/catalog/collections/orderDetails/createProduct/updateProduct/deleteProduct`).
+- **Message mutations** (take a `WAMessageKey`): `client.pin(key, { duration? })`, `client.unpin(key)`,
+  plus `client.setDisappearing(to, seconds)` to toggle disappearing messages for a chat.
 
 ## DEEPER CUSTOMIZATION
 

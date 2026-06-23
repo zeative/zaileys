@@ -29,7 +29,7 @@ respect that and do not present them as live.
 2. **Identify the class** by the operation that failed, then `instanceof` + switch on `.code`:
    - building/sending/editing/forwarding a message, or `client.send()` failing → `ZaileysBuilderError`
    - command registry / middleware / handler / `ctx.edit` → `ZaileysCommandError`
-   - `client.group` / `.privacy` / `.newsletter` / `.community` → `ZaileysDomainError`
+   - `client.group` / `.privacy` / `.newsletter` / `.community` / `.profile` / `.chat` / `.contact` / `.business` → `ZaileysDomainError`
    - `client.scheduleAt` / presence / rate limiter → `ZaileysAutomationError`
    - any auth-store or message-store backend (file/sqlite/postgres/redis/convex) → `ZaileysStoreError`
 
@@ -82,11 +82,16 @@ and extend `Error`. `code` is a per-class string-literal union (TS autocompletes
 | --- | --- | --- |
 | `INVALID_OPTIONS` + msg `client not connected` | `client.send()` called before `state === 'connected'`. This is the **connect guard** — there is NO `NOT_CONNECTED` code on the builder. | Guard: `if (client.state !== 'connected') return` before sending; or send from inside `connect`/message handlers. |
 | `INVALID_OPTIONS` (other) | Catch-all validation failure (poll counts, button ids, location range, list rows, vcard, video mime, etc.). | Read `err.message` — it states the exact constraint; fix that option. |
+| `INVALID_OPTIONS` from `event()` | `event() requires a non-empty name`, or `event() <startAt\|endAt> must be a valid Date or epoch ms` (invalid/NaN date). | Pass a non-empty `name` + a valid `startAt` (`Date` or epoch **ms**). |
+| `INVALID_OPTIONS` from `groupInvite()` | `groupInvite() requires a group jid ending in @g.us`, or `... requires an invite code` (empty `code`). | Pass `jid` ending `@g.us` + non-empty `code`. `expiresAt` must be unix **seconds** (see runtime symptoms). |
+| `INVALID_OPTIONS` from `product()` | `product() requires a non-empty title`, or `product() requires businessOwnerId`. | Pass non-empty `title` + `businessOwnerId` (the business-account jid). `image` is loaded via media-loader → may throw `MEDIA_LOAD_FAILED`. |
 | `EMPTY_CONTENT` | A content method got empty input, or builder awaited with no content set (`text() requires a non-empty string`, `no content set`). | Call a content method with non-empty input before `await`: `await client.send(jid).text('hi')`. |
 | `MEDIA_LOAD_FAILED` | Media source couldn't be fetched/read/converted: non-2xx fetch, network error, missing local file, audio transcode or sticker conversion failure. | Verify URL returns 2xx / file exists & readable; ensure ffmpeg/sharp present for audio/sticker; inspect `.cause`. |
 | `USERNAME_NOT_FOUND` | `username "<x>" not found` — a `@username` couldn't resolve to a JID. | Pass a raw JID instead (`628xxx@s.whatsapp.net`), or confirm the username is reachable. |
 | `SEND_FAILED` | Socket accepted but rejected / returned no key (incl. interactive content needing `relayMessage`). `.cause` = Baileys rejection. | Transient — retry with backoff. Inspect `.cause`. For buttons/list/carousel/template ensure the socket supports `relayMessage`. |
 | `MESSAGE_NOT_FOUND` | `message not found in store for forward` — forwarded message absent from store. | Configure a `store` and ensure the source message was captured before forwarding. |
+
+New v4.4 send methods route through the same codes: `videoNote()` → `MEDIA_LOAD_FAILED` (loads media, `ptv:true`); `product()` → `INVALID_OPTIONS`/`MEDIA_LOAD_FAILED`; `event()`/`groupInvite()` → `INVALID_OPTIONS`; all relay-built (`groupInvite`, buttons/list/carousel/template) can hit `SEND_FAILED` if the socket lacks `relayMessage`. `requestPhoneNumber()`/`sharePhoneNumber()`/`limitSharing()` set static content and do not validate (no throw at build).
 
 `ZaileysStoreError` — codes `STORE_NOT_AVAILABLE · STORE_CONNECTION_FAILED · STORE_WRITE_FAILED · STORE_READ_FAILED · STORE_CORRUPTED · STORE_CLOSED` (auth + message stores, all backends)
 
@@ -102,7 +107,7 @@ and extend `Error`. `code` is a per-class string-literal union (TS autocompletes
 - `HANDLER_ERROR` → your handler threw; root error on `.cause`. `MIDDLEWARE_ERROR` → middleware threw or `next()` called multiple times. `NO_SENT_MESSAGE` → `ctx.edit` requires a prior `ctx.reply`. `DUPLICATE_COMMAND` → rename/remove the duplicate. `INVALID_COMMAND_NAME` → non-empty command spec, no empty segments.
 
 `ZaileysDomainError` — `NOT_CONNECTED · GROUP_NOT_FOUND(reserved) · NEWSLETTER_NOT_FOUND · INVALID_PARTICIPANT(reserved) · OPERATION_FAILED`
-- `NOT_CONNECTED` → wait for the `connect` event before calling `group`/`privacy`/`newsletter`/`community`. `NEWSLETTER_NOT_FOUND` → verify the channel JID. `OPERATION_FAILED` → invite code/permission issue; read `.message`.
+- `NOT_CONNECTED` → wait for the `connect` event before calling `group`/`privacy`/`newsletter`/`community`/`profile`/`chat`/`contact`/`business` (all throw it pre-connect, msg `client not connected`). `NEWSLETTER_NOT_FOUND` → verify the channel JID. `OPERATION_FAILED` → invite code/permission issue, **or** `chat.star`/`unstar` got a message key with no `remoteJid` (`message key is missing remoteJid`); read `.message`.
 
 `ZaileysAutomationError` — `NOT_CONNECTED · RATE_LIMIT_INVALID · SCHEDULE_INVALID · PRESENCE_FAILED · TASK_FAILED(reserved) · STORE_UNAVAILABLE(reserved)`
 - `SCHEDULE_INVALID` → pass a real `Date`; builder must return content and not throw. `RATE_LIMIT_INVALID` → every rate value `> 0`. `PRESENCE_FAILED` → inspect `.cause`, retry. `NOT_CONNECTED` → wait for `connect`.
@@ -129,6 +134,10 @@ lines are prefixed `[zaileys]` on **stderr** (`statusLog`, default `true`).
 | **Bun `ws` / WebSocket warnings** | Noise from Bun's `ws` shim, not zaileys (libsignal `Closing session:` is suppressed). | Benign — ignore. Keep `ZAILEYS_DEBUG` unset for quiet startup. |
 | **Bot never sees my own messages** | `ignoreMe` defaults to `true` (drops `fromMe` to avoid self-loops). | `new Client({ ignoreMe: false })`; then gate replies on sender/prefix to avoid an echo loop. |
 | **`sharp` not installed but images/stickers still work (slower)** | `sharp` is optional, probed opportunistically; falls back to bundled `jimp`. Missing `sharp` never throws. | Nothing needed. `npm i sharp` only for the faster native pipeline. ffmpeg/ffprobe are bundled. |
+| **`event()` sends OK but nothing appears in a 1:1 chat** | WhatsApp renders event messages **only in groups**, not DMs. The send succeeds; it's a client-side render rule, not a zaileys bug. | Send events to a group jid (`@g.us`). |
+| **`groupInvite()` card shows but tapping it fails ("failed to get group info")** | Card is built correctly and the invite **code is valid** (`chat.whatsapp.com/<code>` resolves). WhatsApp's invite-card resolution fails on **linked-device (companion) sessions** and/or LID-addressed groups. | Share the invite **link as text**, or test from a primary-phone session. Also ensure `expiresAt` is unix **seconds** — a milliseconds value makes WhatsApp show "Invite expired". |
+
+**LID/PN resolution:** `client.lidToPn(lid)` / `client.pnToLid(pn)` **return `null`** (never throw) when the mapping is unavailable. The `message` umbrella event and its `mentions` are **PN-resolved** — a handler keyed on raw `@lid` mentions will miss; match the resolved PN jid instead.
 
 For Deno (`--node-modules-dir`), Termux native builds, and `file-type`/Node-version
 mismatches, see `references/troubleshooting.md`.

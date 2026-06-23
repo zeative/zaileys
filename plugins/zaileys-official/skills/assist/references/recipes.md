@@ -9,7 +9,8 @@ Copy-paste cookbook of complete, verified zaileys patterns. Every block is a ful
 | Import | `import { Client } from 'zaileys'` |
 | `autoConnect` | default `true` — `connect()` is scheduled in a microtask on construction; register handlers synchronously right after `new Client()`. Set `false` to call `await client.connect()` yourself. |
 | `connect()` | EXISTS. Returns `Promise<void>` that resolves on first open, rejects if closed before opening. |
-| Builder | `client.send(jid)` → set ONE content method (`text`/`image`/`video`/`audio`/`document`/`sticker`/`location`/`contact`/`poll`/`album`/`buttons`/`template`/`list`/`carousel`) → optional modifiers (`reply`, `mentions`, `mentionAll`, `disappearing`) → `await` resolves to `WAMessageKey`. |
+| Builder | `client.send(jid)` → set ONE content method (`text`/`image`/`video`/`videoNote`/`audio`/`document`/`sticker`/`location`/`contact`/`poll`/`album`/`buttons`/`template`/`list`/`carousel`/`event`/`groupInvite`/`product`/`requestPhoneNumber`/`sharePhoneNumber`/`limitSharing`) → optional modifiers (`reply`, `mentions`, `mentionAll`, `disappearing`) → `await` resolves to `WAMessageKey`. |
+| `message` event | umbrella: `client.on('message', ctx => …)` fires ONCE for any inbound message (any `chatType`), alongside the specific `text`/`image`/… event. Good for one catch-all handler. |
 | Send result | awaiting the builder yields a `WAMessageKey`; read `key.id` for the message id. |
 | `ignoreMe` | default `true` — bot's own messages are dropped before handlers. Set `false` to receive them. |
 | JIDs | user `628xxx@s.whatsapp.net`, group `xxx@g.us`. |

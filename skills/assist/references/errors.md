@@ -28,7 +28,7 @@ import {
 | --- | --- | --- | --- |
 | `ZaileysBuilderError` | `'ZaileysBuilderError'` | message builder, content methods, send/edit/forward, album, media loader, `client.send()` connect guard | `src/builder/*`, `src/client/client.ts` |
 | `ZaileysCommandError` | `'ZaileysCommandError'` | command registry, middleware, dispatcher, `ctx.edit` | `src/command/*`, `src/client/client.ts` |
-| `ZaileysDomainError` | `'ZaileysDomainError'` | `client.group`, `client.privacy`, `client.newsletter`, `client.community` | `src/domain/*` |
+| `ZaileysDomainError` | `'ZaileysDomainError'` | `client.group`, `client.privacy`, `client.newsletter`, `client.community`, `client.profile`, `client.chat`, `client.contact`, `client.business` | `src/domain/*` |
 | `ZaileysAutomationError` | `'ZaileysAutomationError'` | `client.scheduleAt`, presence, rate limiter | `src/automation/*` |
 | `ZaileysStoreError` | `'ZaileysStoreError'` | auth stores + message stores (file/sqlite/postgres/redis/convex) | `src/auth/adapters/*`, `src/store/adapters/*`, `src/types/convex.ts` |
 
@@ -76,7 +76,10 @@ Codes (union): `MEDIA_LOAD_FAILED` `INVALID_RECIPIENT` `USERNAME_NOT_FOUND` `EMP
 | `mentions() requires at least one jid` / `invalid jid: ${jid}` | builder.ts |
 | `disappearing() requires a positive integer duration` | builder.ts |
 | `contact() requires a vcard string starting with BEGIN:VCARD` | content/contact |
-| `video() expects a video source, got mime ${mime}` | content/video |
+| `video() expects a video source, got mime ${mime}` (also covers `videoNote()`, which calls `video()` with `ptv: true`) | content/video |
+| `event() requires a non-empty name` / `event() ${field} must be a valid Date or epoch ms` (`field` = `startAt`/`endAt`) | content/event |
+| `groupInvite() requires a group jid ending in @g.us` / `groupInvite() requires an invite code` | content/group-invite |
+| `product() requires a non-empty title` / `product() requires businessOwnerId` | content/product |
 | `poll() requires a minimum of ${MIN} options` / `accepts a maximum of ${MAX}` / `poll options must be non-empty strings` / `duplicate poll options: ${o}` | content/poll |
 | `template() requires a non-empty body` / `requires at least one button` / `accepts at most ${MAX} buttons` | content/template |
 | `document() requires a non-empty fileName` | content/document |
@@ -86,6 +89,8 @@ Codes (union): `MEDIA_LOAD_FAILED` `INVALID_RECIPIENT` `USERNAME_NOT_FOUND` `EMP
 | `list() requires a non-empty buttonText` / `requires at least one section` / `each list section requires at least one row` / `list row id must be a non-empty string` / `list row title must be a non-empty string` / `duplicate list row id: ${id}` / `accepts at most ${MAX} rows total` | content/list |
 | `album() item type must be 'image' or 'video'` / `requires a minimum of ${MIN}` / `accepts a maximum of ${MAX}` | builder/album |
 | airich: `table must be a non-empty array of string rows`, `text({ rich: true }) requires non-empty markdown content`, `image/video requires at least one url`, `product/reels/post requires at least one item`, `suggest requires at least one prompt` | content/airich |
+
+> The newer no-arg/flag content methods `requestPhoneNumber()`, `sharePhoneNumber()`, and `limitSharing(enabled?)` set content directly and perform **no** option validation — they do not throw `INVALID_OPTIONS`. A bad value surfaces later as `SEND_FAILED` if the socket rejects it.
 
 ```typescript
 // Connect guard — preempt the INVALID_OPTIONS "client not connected"
@@ -122,11 +127,11 @@ Codes: `NOT_CONNECTED` `GROUP_NOT_FOUND` `NEWSLETTER_NOT_FOUND` `INVALID_PARTICI
 
 | code | meaning | how to fix |
 | --- | --- | --- |
-| `NOT_CONNECTED` | `client not connected` — thrown by `privacy`, `group`, `newsletter`, `community` modules when socket is absent. | Wait for the `connect` event before calling domain methods. |
+| `NOT_CONNECTED` | `client not connected` — thrown by `privacy`, `group`, `newsletter`, `community`, **`profile`, `chat`, `contact`, `business`** modules when socket is absent (each module's `requireSocket()`). | Wait for the `connect` event before calling domain methods. |
 | `GROUP_NOT_FOUND` | Referenced group does not exist / not accessible. *(Defined in union; no current throw site in src — reserved.)* | Verify the group JID (`xxx@g.us`) and that the account is a member. |
 | `NEWSLETTER_NOT_FOUND` | `newsletter ${jid} not found` (`src/domain/newsletter.ts`). | Verify the newsletter/channel JID is correct and reachable. |
 | `INVALID_PARTICIPANT` | A participant JID was invalid. *(Defined in union; no current throw site in src — reserved.)* | Pass valid user JIDs (`628xxx@s.whatsapp.net`). |
-| `OPERATION_FAILED` | A group operation failed: `invite code unavailable` or `invite acceptance failed` (`src/domain/group.ts`). | Check permissions/invite code validity; inspect `.message`. |
+| `OPERATION_FAILED` | A domain operation failed. Triggers: `invite code unavailable` / `invite acceptance failed` (`src/domain/group.ts`); `message key is missing remoteJid` — `client.chat` star/unstar got a `WAMessageKey` without a `remoteJid` (`src/domain/chat.ts`). | Check permissions/invite code validity; for `chat` ops pass a key with a real `remoteJid`. Inspect `.message`. |
 
 ```typescript
 if (err instanceof ZaileysDomainError && err.code === 'NOT_CONNECTED') {
@@ -257,7 +262,7 @@ Given an exception `err`:
 2. **Identify the class** via `instanceof` — pick by the operation:
    - building/sending/editing/forwarding a message, or `client.send()` failing → `ZaileysBuilderError`
    - command registration/middleware/handler/`ctx.edit` → `ZaileysCommandError`
-   - `client.group` / `.privacy` / `.newsletter` / `.community` → `ZaileysDomainError`
+   - `client.group` / `.privacy` / `.newsletter` / `.community` / `.profile` / `.chat` / `.contact` / `.business` → `ZaileysDomainError`
    - `client.scheduleAt` / presence / rate limiter → `ZaileysAutomationError`
    - any auth-store or message-store backend → `ZaileysStoreError`
 

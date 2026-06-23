@@ -80,6 +80,49 @@ without guarding `msg.isFromMe` makes the bot answer its own echoes forever.
 WHY: there is no `aiRich()` content method; rich rendering (markdown/LaTeX/directives) is
 the `rich: true` flag on `text()`. `TextOptions = { rich?, title?, footer?, sources? }`.
 
+### v4.4 API usage — MEDIUM (HIGH if it crashes)
+
+**Many per-type handlers doing the same thing → `message` umbrella event.**
+❌ `client.on('text', h); client.on('image', h); client.on('video', h)` — same body, three handlers
+✅ `client.on('message', h)` — one handler fires for every inbound message type
+WHY: `message` is the umbrella inbound event; collapse identical per-type handlers into it. Keep the
+per-type events (`text`, `image`, …) only when behavior genuinely differs by type.
+
+**Ad-hoc conversation key → `ctx.staticId`.**
+❌ `const key = msg.roomId ?? msg.senderId` to key memory/state — collides across room/sender combos
+✅ `const key = msg.staticId` — stable `hash(roomId|senderId)`, the canonical per-conversation key
+WHY: `staticId` uniquely identifies a sender within a room/group; use it for memory/state. Still use the
+real `roomId`/`senderId` JIDs as **send targets** — `staticId` is a hash, not a JID.
+
+**`groupInvite().expiresAt` in ms instead of SECONDS.**
+❌ `.groupInvite({ ..., expiresAt: Date.now() + 86_400_000 })`
+✅ `.groupInvite({ ..., expiresAt: Math.floor(Date.now() / 1000) + 86400 })`
+WHY: `expiresAt` maps straight to WhatsApp's `inviteExpiration` (Unix **seconds**); passing ms yields a
+wildly future expiry. (Defaults to ~3 days if omitted.)
+
+**`event()` sent to a 1:1 DM → won't render.**
+❌ `await client.send(userJid).event({ name: 'Meetup', ... })` — silently doesn't display in a DM
+✅ send `event()` to a group/community JID (`xxx@g.us`); use a plain message for 1:1
+WHY: event messages only render in groups/communities, not 1:1 chats.
+
+**`product()` without a Business account.**
+❌ `.product({ ... })` from a personal account / missing `businessOwnerId`
+✅ use a WhatsApp **Business** account and pass the required `businessOwnerId`
+WHY: `product()` requires `businessOwnerId` (non-optional) and a Business catalog; personal accounts can't.
+
+**Comparing mentions against `@lid`.**
+❌ `if (msg.mentions.includes('123@lid'))` — mentions are never `@lid`
+✅ `if (msg.mentions.some((j) => digitsOf(j) === OWNER))` — mentions are PN-resolved `@s.whatsapp.net`
+WHY: the decoder maps mention JIDs through `lidMap` to phone-number JIDs; comparing against a `@lid` JID
+never matches. Normalize to digits.
+
+**Poking the raw socket for profile/chat/contact/business ops → typed modules.**
+❌ `client.socket.chatModify(...)` / `client.socket.updateProfileName(...)` — untyped, version-fragile
+✅ `client.chat.archive(jid)`, `client.profile.setName(name)`, `client.contact.exists(num)`,
+   `client.business.catalog()` — typed wrappers
+WHY: v4.4 exposes typed modules `client.profile / chat / contact / business` (plus `client.pin/unpin`,
+`client.setDisappearing`); prefer them over reaching into the raw Baileys socket.
+
 ### Correctness — MEDIUM (HIGH if it crashes)
 
 **Two content methods on one builder.**
@@ -146,11 +189,22 @@ breaks supported users.
 
 - Error classes (all from `zaileys`): `ZaileysBuilderError`, `ZaileysCommandError`,
   `ZaileysDomainError`, `ZaileysAutomationError`, `ZaileysStoreError`.
-- Builder content methods: `text, image, video, audio, document, sticker, location,
-  contact, poll, album, buttons, template, list, carousel`. Modifiers: `reply, mentions,
+- Builder content methods: `text, image, video, videoNote, audio, document, sticker,
+  location, contact, poll, album, buttons, template, list, carousel, event, groupInvite,
+  product, requestPhoneNumber, sharePhoneNumber, limitSharing`. Modifiers: `reply, mentions,
   mentionAll, disappearing, to`.
+- Inbound events: `message` (umbrella — all types), `text, image, video, audio, document,
+  sticker, reaction, edit, delete, poll-vote, button-click, list-select, mention, mention-all,
+  group-update, group-join, group-leave, member-tag, call-incoming, call-ended, history-sync,
+  presence, newsletter`. Connection: `connect, disconnect, qr, pairing-code, reconnecting,
+  auth-exhausted, error`.
 - Client methods: `connect, disconnect, logout, send, edit, delete, react, forward,
-  broadcast, scheduleAt, command, use, on, off`. `autoConnect` defaults `true`.
+  broadcast, scheduleAt, pin, unpin, setDisappearing, command, use, on, off`. `autoConnect`
+  defaults `true`.
+- Typed modules: `client.profile` (setName/setStatus/setPicture/removePicture/getPicture/
+  getStatus), `client.chat` (archive/unarchive/pin/unpin/mute/unmute/markRead/markUnread/star/
+  unstar/delete/clear), `client.contact` (check/exists/save/remove), `client.business`
+  (profile/catalog/collections/orderDetails/createProduct/updateProduct/deleteProduct).
 - If the code references anything NOT in these lists, treat it as suspect and verify
   against `references/api.md` before approving.
 

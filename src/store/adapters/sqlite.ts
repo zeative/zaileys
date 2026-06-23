@@ -1,10 +1,12 @@
 import { BufferJSON } from 'baileys'
 import type { Chat, Contact, PresenceData, WAMessage, WAMessageKey } from 'baileys'
 import { ZaileysStoreError } from '../../types/store-error.js'
-import type { BaileysSocketLike, MessageStore, MessageStoreListOptions } from '../types.js'
+import type { BaileysSocketLike, MessageStore, MessageStoreListOptions, PruneOptions } from '../types.js'
+
+type RunResult = { changes: number }
 
 type DatabaseStatement = {
-  run: (...args: unknown[]) => unknown
+  run: (...args: unknown[]) => RunResult
   get: (...args: unknown[]) => unknown
   all: (...args: unknown[]) => unknown[]
 }
@@ -63,6 +65,9 @@ type PreparedSet = {
   readonly clearChats: DatabaseStatement
   readonly clearContacts: DatabaseStatement
   readonly clearPresence: DatabaseStatement
+  readonly deleteMessage: DatabaseStatement
+  readonly pruneByAge: DatabaseStatement
+  readonly pruneByAgeChat: DatabaseStatement
 }
 
 const encodeBlob = (value: unknown): Buffer => {
@@ -178,6 +183,42 @@ export class SqliteMessageStore implements MessageStore {
     const prep = await this.ensureReady()
     const row = prep.getPresence.get(jid) as { data: Buffer | Uint8Array } | undefined
     return row ? parseBlob<PresenceData>(row.data) : undefined
+  }
+
+  async deleteMessage(key: WAMessageKey): Promise<void> {
+    const prep = await this.ensureReady()
+    prep.deleteMessage.run(key.remoteJid ?? '', key.id ?? '', key.fromMe === true ? 1 : 0)
+  }
+
+  async pruneMessages(opts: PruneOptions): Promise<number> {
+    const prep = await this.ensureReady()
+    const db = this.db!
+    let removed = 0
+    const jids = opts.chatFilter
+      ? (db.prepare('SELECT DISTINCT remote_jid FROM messages').all() as Array<{ remote_jid: string }>)
+          .map((r) => r.remote_jid)
+          .filter((j) => opts.chatFilter!(j))
+      : undefined
+    if (opts.olderThan !== undefined) {
+      if (jids) {
+        for (const j of jids) removed += prep.pruneByAgeChat.run(opts.olderThan, j).changes
+      } else {
+        removed += prep.pruneByAge.run(opts.olderThan).changes
+      }
+    }
+    if (opts.maxPerChat !== undefined) {
+      const placeholder = jids ? 'WHERE remote_jid IN (' + jids.map(() => '?').join(',') + ')' : ''
+      const stmt = db.prepare(
+        `DELETE FROM messages WHERE rowid IN (
+           SELECT rowid FROM (
+             SELECT rowid, ROW_NUMBER() OVER (PARTITION BY remote_jid ORDER BY timestamp DESC) AS rn
+             FROM messages ${placeholder}
+           ) WHERE rn > ?
+         )`,
+      )
+      removed += stmt.run(...(jids ?? []), opts.maxPerChat).changes
+    }
+    return removed
   }
 
   bind(socket: BaileysSocketLike): void {
@@ -333,6 +374,11 @@ export class SqliteMessageStore implements MessageStore {
       clearChats: db.prepare('DELETE FROM chats'),
       clearContacts: db.prepare('DELETE FROM contacts'),
       clearPresence: db.prepare('DELETE FROM presence'),
+      deleteMessage: db.prepare(
+        'DELETE FROM messages WHERE remote_jid = ? AND id = ? AND from_me = ?',
+      ),
+      pruneByAge: db.prepare('DELETE FROM messages WHERE timestamp < ?'),
+      pruneByAgeChat: db.prepare('DELETE FROM messages WHERE timestamp < ? AND remote_jid = ?'),
     }
   }
 }

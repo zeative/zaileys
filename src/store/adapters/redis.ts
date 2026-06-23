@@ -293,10 +293,13 @@ export class RedisMessageStore implements MessageStore {
     const indexKeys: string[] = []
     const match = this.msgIndexKey('*')
     let cursor = 0
+    const dataPrefix = this.msgDataKey('')
     do {
       const result = await this.runRead(() => client.scan(cursor, { MATCH: match, COUNT: SCAN_BATCH }))
       cursor = Number(result.cursor)
-      for (const k of result.keys) indexKeys.push(k)
+      for (const k of result.keys) {
+        if (!k.startsWith(dataPrefix)) indexKeys.push(k)
+      }
     } while (cursor !== 0)
     for (const idxKey of indexKeys) {
       const jid = this.jidFromIndexKey(idxKey)
@@ -310,8 +313,9 @@ export class RedisMessageStore implements MessageStore {
         for (const m of old) victims.add(m)
       }
       if (opts.maxPerChat !== undefined) {
+        const max = opts.maxPerChat
         const stale = await this.runRead(() =>
-          client.zRange(idxKey, 0, -(opts.maxPerChat! + 1)),
+          client.zRange(idxKey, 0, -(max + 1)),
         )
         for (const m of stale) victims.add(m)
       }

@@ -53,13 +53,13 @@ One orchestrator that auto-routes, plus three focused skills:
 
 | Skill | Plugin command | npx command | Does |
 | ----- | -------------- | ----------- | ---- |
-| **assist** | `/zaileys-official:assist` | `/assist` | Orchestrator — auto-detects intent (build / debug / review / explain) so you don't pick a command |
-| **scaffold** | `/zaileys-official:scaffold` | `/scaffold` | Generate a complete, runnable bot from a short spec (auth, storage, features) |
-| **debug** | `/zaileys-official:debug` | `/debug` | Paste an error/symptom → error class + `.code` or runtime cause → concrete fix |
-| **review** | `/zaileys-official:review` | `/review` | Audit code against best practices, anti-patterns, and ban-safety |
+| **zaileys-assist** | `/zaileys-official:zaileys-assist` | `/zaileys-assist` | Orchestrator — auto-detects intent (build / debug / review / explain) so you don't pick a command |
+| **zaileys-scaffold** | `/zaileys-official:zaileys-scaffold` | `/zaileys-scaffold` | Generate a complete, runnable bot from a short spec (auth, storage, features) |
+| **zaileys-debug** | `/zaileys-official:zaileys-debug` | `/zaileys-debug` | Paste an error/symptom → error class + `.code` or runtime cause → concrete fix |
+| **zaileys-review** | `/zaileys-official:zaileys-review` | `/zaileys-review` | Audit code against best practices, anti-patterns, and ban-safety |
 
 <Callout type="info">
-You usually don't need to pick a command — `assist` has a broad trigger and auto-activates on any
+You usually don't need to pick a command — `zaileys-assist` has a broad trigger and auto-activates on any
 zaileys task, then routes internally. Use the focused commands when you want a specific job.
 </Callout>
 
@@ -75,18 +75,18 @@ After installing, your AI assistant can:
 
 ## What's inside
 
-Each focused skill is a self-contained `SKILL.md`. The **assist** orchestrator additionally
+Each focused skill is a self-contained `SKILL.md`. The **zaileys-assist** orchestrator additionally
 carries the deep references the whole suite draws on:
 
 | File | Purpose |
 | ---- | ------- |
-| `assist/SKILL.md` | Orchestrator: mental model, golden rules, intent routing, API cheat-sheet |
-| `assist/references/api.md` | Full API surface: `ClientOptions`, send builder, events, mutations, domain, storage, media |
-| `assist/references/recipes.md` | Best-practice, copy-paste patterns for every common bot |
-| `assist/references/errors.md` | Every error class + code → meaning → fix |
-| `assist/references/troubleshooting.md` | Runtime symptoms (QR loops, sessions, disconnects, peer deps) → fix |
-| `assist/references/pitfalls.md` | Common mistakes → the correct way |
-| `scaffold/SKILL.md` · `debug/SKILL.md` · `review/SKILL.md` | Focused task skills (project generation, error diagnosis, code review) |
+| `zaileys-assist/SKILL.md` | Orchestrator: mental model, golden rules, intent routing, API cheat-sheet |
+| `zaileys-assist/references/api.md` | Full API surface: `ClientOptions`, send builder, events, mutations, domain, storage, media |
+| `zaileys-assist/references/recipes.md` | Best-practice, copy-paste patterns for every common bot |
+| `zaileys-assist/references/errors.md` | Every error class + code → meaning → fix |
+| `zaileys-assist/references/troubleshooting.md` | Runtime symptoms (QR loops, sessions, disconnects, peer deps) → fix |
+| `zaileys-assist/references/pitfalls.md` | Common mistakes → the correct way |
+| `zaileys-scaffold/SKILL.md` · `zaileys-debug/SKILL.md` · `zaileys-review/SKILL.md` | Focused task skills (project generation, error diagnosis, code review) |
 
 <Callout type="default">
 Prefer to feed an LLM directly? The whole documentation is also available as a single file at

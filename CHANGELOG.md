@@ -1,5 +1,11 @@
 # zaileys
 
+## 4.6.2
+
+### Patch Changes
+
+- remove Lottie/WAS sticker conversion
+
 ## 4.6.1
 
 ### Patch Changes

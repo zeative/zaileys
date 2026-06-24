@@ -5,4 +5,3 @@ export * from './video.js';
 export * from './image.js';
 export * from './sticker.js';
 export * from './document.js';
-export * from './lottie.js';

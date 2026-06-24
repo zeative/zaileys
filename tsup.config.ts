@@ -34,8 +34,6 @@ export default defineConfig({
     'async-mutex',
     'valibot',
     'sharp',
-    'rlottie',
-    'fflate',
   ],
 
   outExtension({ format }) {

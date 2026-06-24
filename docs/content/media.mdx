@@ -62,11 +62,6 @@ const fromBuffer = new Media(await fs.readFile('./assets/clip.mp4'))
   native). If `sharp` is absent, Zaileys transparently falls back to the pure-JS `jimp` path and
   prints a one-line warning suggesting `npm install sharp`. Everything works either way — `sharp`
   is purely an accelerator.
-
-  **Lottie renderer** — premium / avatar stickers (`application/was`) are Lottie animations. Converting
-  them to a normal sticker needs the optional **`rlottie`** wasm engine. Install it only if you need
-  Lottie conversion; without it, every other sticker path keeps working and passing a Lottie buffer
-  throws a clear, catchable error. See [`media.sticker`](#mediasticker) below.
 </Callout>
 
 <Tabs items={['npm', 'pnpm', 'yarn', 'bun']}>
@@ -166,8 +161,7 @@ const thumb = await media.image.thumbnail()  // base64 JPEG string
 
 Turn an image, GIF, or video into a WhatsApp WebP sticker. Animated sources (GIF/video) produce
 animated stickers (capped at 6 s, 10 fps, 512×512); static images become static stickers. Already-WebP
-inputs are passed through. Premium / Lottie stickers (`application/was`) are auto-detected and
-rasterized to animated WebP (see below). EXIF pack metadata is embedded automatically.
+inputs are passed through. EXIF pack metadata is embedded automatically.
 
 ```typescript
 create(metadata?: StickerMetadataType): Promise<Buffer>
@@ -202,52 +196,6 @@ await client.send('6281234567890@s.whatsapp.net').sticker(sticker)
 const animated = await new Media('./assets/loop.gif').sticker.create({ quality: 70 })
 await client.send('6281234567890@s.whatsapp.net').sticker(animated)
 ```
-
-### Premium / Lottie stickers (`application/was`)
-
-WhatsApp's **premium** and **avatar** stickers are [Lottie](https://lottiefiles.com/) vector animations
-(mimetype `application/was`), not raster images — and WhatsApp blocks **non-premium** users from saving
-them. When you pass a Lottie / `.was` buffer to `sticker.create()` (or `client.send(jid).sticker(buf)`),
-Zaileys detects it and rasterizes the animation into a standard animated WebP sticker that **anyone can
-save**, capped at 3 s / 15 fps / 512×512.
-
-This needs the optional **`rlottie`** wasm renderer. Install it only if you want Lottie conversion:
-
-<Tabs items={['npm', 'pnpm', 'yarn', 'bun']}>
-  <Tabs.Tab>
-```bash npm i rlottie ```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash pnpm add rlottie ```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash yarn add rlottie ```
-</Tabs.Tab>
-  <Tabs.Tab>
-```bash bun add rlottie ```
-</Tabs.Tab>
-</Tabs>
-
-Without `rlottie`, passing a Lottie buffer throws a clear, catchable error (`rlottie not installed; run:
-pnpm add rlottie`) — wrap the call and fall back (e.g. `client.forward(...)`) if you can't add the dep.
-
-```typescript
-// Relay a received premium/Lottie sticker so non-premium users can save it
-client.on('sticker', async (ctx) => {
-  const buf = await ctx.media.buffer()
-  const to = ctx.roomId ?? ctx.senderId
-  try {
-    await client.send(to).sticker(buf) // auto-converted to a savable WebP
-  } catch {
-    await client.forward(ctx.message().key, to) // fallback if rlottie is absent
-  }
-})
-```
-
-<Callout type="info">
-  Conversion runs through the bundled ffmpeg, so the same ffmpeg note above applies (Termux needs a
-  system ffmpeg). Lottie stickers with external image assets are inlined automatically before rendering.
-</Callout>
 
 <Callout type="info">
   `shape` only affects static stickers. Animated stickers are always padded to a square. Both

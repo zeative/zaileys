@@ -118,10 +118,6 @@
       "optional": true
     }
   },
-  "optionalDependencies": {
-    "rlottie": "^0.1.2",
-    "fflate": "^0.8.3"
-  },
   "pnpm": {
     "onlyBuiltDependencies": [
       "better-sqlite3"

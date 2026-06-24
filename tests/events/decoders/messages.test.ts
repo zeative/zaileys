@@ -22,6 +22,7 @@ const {
   decodeAudio,
   decodeDocument,
   decodeSticker,
+  decodeMessage,
   decodeMention,
   decodeMentionAll,
 } = await import('../../../src/events/decoders/messages.js')
@@ -327,6 +328,30 @@ describe('decodeSticker', () => {
     const out = decodeSticker(mediaMsg('stickerMessage', { mimetype: 'image/webp', fileLength: 30 }), ctx)
     expect(out?.chatType).toBe('sticker')
     expect(out?.media).toBeDefined()
+  })
+  it('decodes a premium/lottie sticker wrapped in lottieStickerMessage', () => {
+    const lottie = base({
+      message: {
+        messageContextInfo: { messageSecret: 'secret' },
+        lottieStickerMessage: {
+          message: {
+            stickerMessage: {
+              mimetype: 'application/was',
+              fileLength: '31525',
+              isAnimated: true,
+              isLottie: true,
+              mediaKey: 'k',
+              url: 'https://mmg.whatsapp.net/x.enc',
+              directPath: '/v/x.enc',
+            },
+          },
+        },
+      },
+    } as unknown as Partial<WAMessage>)
+    const sticker = decodeSticker(lottie, ctx)
+    expect(sticker?.chatType).toBe('sticker')
+    expect(sticker?.media?.type).toBe('sticker')
+    expect(decodeMessage(lottie, ctx)?.chatType).toBe('sticker')
   })
   it('returns null without stickerMessage', () => {
     expect(decodeSticker(base({ message: {} }), ctx)).toBeNull()

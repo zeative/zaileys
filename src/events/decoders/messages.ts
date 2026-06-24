@@ -80,6 +80,7 @@ const WRAPPER_FIELDS = [
   'viewOnceMessageV2Extension',
   'documentWithCaptionMessage',
   'editedMessage',
+  'lottieStickerMessage',
 ] as const
 
 const unwrap = (content: Record<string, unknown>): Record<string, unknown> => {
@@ -97,6 +98,13 @@ const unwrap = (content: Record<string, unknown>): Record<string, unknown> => {
     node = next
   }
   return node
+}
+
+const unwrappedMessage = (msg: WAMessage): WAMessage => {
+  const content = asRecord(msg.message)
+  if (content == null) return msg
+  const inner = unwrap(content)
+  return inner === content ? msg : ({ ...msg, message: inner } as WAMessage)
 }
 
 const richResponseText = (content: Record<string, unknown>): string | null => {
@@ -480,12 +488,12 @@ const anyText = (msg: WAMessage): string | null => {
 }
 
 const contextInfoOf = (msg: WAMessage): WAContextInfo | null => {
-  const content = msg.message
+  const content = asRecord(unwrappedMessage(msg).message)
   if (content == null) return null
-  const ext = content.extendedTextMessage?.contextInfo
+  const ext = asRecord(content['extendedTextMessage'])?.['contextInfo'] as WAContextInfo | undefined
   if (ext != null) return ext
   for (const field of Object.values(MEDIA_FIELD)) {
-    const node = (content as Record<string, unknown>)[field]
+    const node = content[field]
     if (node != null && typeof node === 'object') {
       const ci = (node as { contextInfo?: WAContextInfo | null }).contextInfo
       if (ci != null) return ci
@@ -729,10 +737,11 @@ const buildMediaAttachment = (
   kind: MediaKind,
   ctx: DecodeContext,
 ): MediaAttachment | null => {
-  const node = mediaNodeOf(msg, kind)
+  const norm = unwrappedMessage(msg)
+  const node = mediaNodeOf(norm, kind)
   if (node === null) return null
-  const bufferFn = createDownloadFn(msg, kind, ctx.logger)
-  const streamFn = createStreamFn(msg, kind, ctx.logger)
+  const bufferFn = createDownloadFn(norm, kind, ctx.logger)
+  const streamFn = createStreamFn(norm, kind, ctx.logger)
   return {
     type: kind,
     mimetype: typeof node.mimetype === 'string' ? node.mimetype : null,

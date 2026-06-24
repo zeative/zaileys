@@ -1,5 +1,11 @@
 # zaileys
 
+## 4.6.0
+
+### Minor Changes
+
+- convert Lottie/WAS premium stickers to animated WebP
+
 ## 4.5.1
 
 ### Patch Changes

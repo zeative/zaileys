@@ -1,5 +1,11 @@
 # zaileys
 
+## 4.5.1
+
+### Patch Changes
+
+- detect premium/lottie stickers wrapped in lottieStickerMessage
+
 ## 4.5.0
 
 ### Minor Changes

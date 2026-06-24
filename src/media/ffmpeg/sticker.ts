@@ -3,6 +3,7 @@ import { BufferConverter, FFMPEG_CONSTANTS, MimeValidator, detectFileType, gener
 import { ffmpegTransform } from './transform.js';
 import { ImageProcessor } from './image.js';
 import { VideoProcessor } from './video.js';
+import { isLottieWas, LottieProcessor } from './lottie.js';
 
 export type StickerShapeType = 'circle' | 'rounded' | 'oval' | 'default';
 
@@ -19,13 +20,19 @@ export class StickerProcessor {
   static async create(input: MediaInput, metadata?: StickerMetadataType): Promise<Buffer> {
     try {
       const buffer = await BufferConverter.toBuffer(input);
+      const quality = metadata?.quality || FFMPEG_CONSTANTS.STICKER.DEFAULT_QUALITY;
+      const shape = metadata?.shape || 'default';
+
+      if (isLottieWas(buffer)) {
+        const webpBuffer = await LottieProcessor.toWebp(buffer, quality);
+        return await this.applyExif(webpBuffer, metadata);
+      }
+
       const fileType = await detectFileType(buffer);
 
       if (!fileType) throw new Error('Unable to detect file type');
 
-      const quality = metadata?.quality || FFMPEG_CONSTANTS.STICKER.DEFAULT_QUALITY;
       const isAnimated = MimeValidator.isAnimated(fileType.mime);
-      const shape = metadata?.shape || 'default';
 
       const webpBuffer = fileType.mime === 'image/webp'
         ? buffer
@@ -33,16 +40,19 @@ export class StickerProcessor {
           ? await this.processAnimated(buffer, fileType.mime, quality)
           : await ImageProcessor.resizeForSticker(buffer, quality, shape);
 
-      const exif = this.createExifMetadata(metadata);
-      const img = new webp.Image();
-      await img.load(webpBuffer);
-      img.exif = exif;
-
-      const finalBuffer = await img.save(null);
-      return Buffer.isBuffer(finalBuffer) ? finalBuffer : Buffer.from(finalBuffer as Uint8Array);
+      return await this.applyExif(webpBuffer, metadata);
     } catch (error: unknown) {
       throw new Error(`Sticker creation failed: ${error instanceof Error ? error.message : String(error)}`);
     }
+  }
+
+  private static async applyExif(webpBuffer: Buffer, metadata?: StickerMetadataType): Promise<Buffer> {
+    const exif = this.createExifMetadata(metadata);
+    const img = new webp.Image();
+    await img.load(webpBuffer);
+    img.exif = exif;
+    const finalBuffer = await img.save(null);
+    return Buffer.isBuffer(finalBuffer) ? finalBuffer : Buffer.from(finalBuffer as Uint8Array);
   }
 
   private static createExifMetadata(metadata?: StickerMetadataType): Buffer {

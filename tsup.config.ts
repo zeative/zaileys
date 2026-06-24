@@ -34,7 +34,8 @@ export default defineConfig({
     'async-mutex',
     'valibot',
     'sharp',
-    '@zaileys/media-process',
+    'rlottie',
+    'fflate',
   ],
 
   outExtension({ format }) {

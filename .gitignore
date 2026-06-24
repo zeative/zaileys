@@ -40,3 +40,7 @@ GEMINI.md
 # superpowers workflow scratch (specs, plans, sdd ledger) — local only
 docs/superpowers/
 .superpowers/
+
+# scratch reports
+.lib-lottie-report.md
+*-report.md

@@ -1,5 +1,34 @@
 # zaileys
 
+## 4.5.0
+
+### Minor Changes
+
+- enable autoDelete by default with 1-month retention
+- wire plugin loader into lifecycle
+- recursive loader with fs.watch hot-reload
+- registry with disposer-tracked load and unload
+- add unuse to remove command middleware
+- plugin types and definePlugin helper
+- wire autoDelete sweeper into lifecycle
+- add unregister to command registry
+- autodelete sweeper + generic prune fallback
+- convex adapter deleteMessage + pruneMessages
+- redis adapter deleteMessage + pruneMessages
+- postgres adapter deleteMessage + pruneMessages
+- sqlite adapter deleteMessage + pruneMessages
+- memory adapter deleteMessage + pruneMessages
+- add pruneMessages/deleteMessage contract + types
+
+### Patch Changes
+
+- convert autoDelete cutoff to epoch seconds to match stored timestamps
+- keep plugin loader alive across reconnects
+- serialize hot-reload flush and tidy disposer rollback
+- exclude msg-data keys from pruneMessages scan, drop redundant non-null assertion
+- guard redundant DISTINCT fetch + wrap pruneMessages in ZaileysStoreError
+- push the version tag explicitly (lightweight tags skip --follow-tags)
+
 ## 4.4.0
 
 ### Minor Changes

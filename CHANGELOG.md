@@ -1,5 +1,11 @@
 # zaileys
 
+## 4.6.1
+
+### Patch Changes
+
+- lossless single-pass webp for lottie stickers (crisper + faster)
+
 ## 4.6.0
 
 ### Minor Changes

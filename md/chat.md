@@ -1,0 +1,200 @@
+# Chats
+
+> Source: https://zeative.github.io/zaileys/chat
+
+# Chats
+
+`client.chat` manages per-chat state through WhatsApp's chat-modify protocol: archiving, pinning,
+muting, read/unread state, starring individual messages, and deleting or clearing a chat. It is a
+lazily-created `ChatModule` — constructed on first access and proxying every call through the live
+socket.
+
+```typescript
+
+const client = new Client({ sessionId: 'default' })
+
+client.on('connect', async () => {
+  const jid = '628xxxxxxxxxx@s.whatsapp.net'
+
+  await client.chat.pin(jid)
+  await client.chat.mute(jid, 8 * 60 * 60 * 1000) // mute 8 hours
+  await client.chat.markRead(jid)
+})
+```
+
+Every method calls an internal `requireSocket()` guard. If the client is not connected, the call
+immediately throws a `ZaileysDomainError` with code `NOT_CONNECTED` and message `client not
+connected`. Always wait for the `'connect'` event (or `await client.connect()`) before calling any
+chat method. See [Error Handling](/error-handling).
+
+**Last-message dependency.** `archive`, `unarchive`, `markRead`, `markUnread`, `delete`, and `clear`
+need the chat's last stored messages to build a valid chat-modify request. zaileys pulls them
+automatically from the [message store](/storage) — no need to pass anything. If the store has no
+record for that chat (e.g. an old chat your bot never saw), WhatsApp may ignore the modification.
+Use a persistent [store](/storage) for reliable results.
+
+## Methods at a glance
+
+| Method | Signature | Returns | Description |
+| ------ | --------- | ------- | ----------- |
+| `archive` | `archive(jid)` | `Promise<void>` | Archive the chat. |
+| `unarchive` | `unarchive(jid)` | `Promise<void>` | Unarchive the chat. |
+| `pin` | `pin(jid)` | `Promise<void>` | Pin the chat to the top of the list. |
+| `unpin` | `unpin(jid)` | `Promise<void>` | Unpin the chat. |
+| `mute` | `mute(jid, durationMs?)` | `Promise<void>` | Mute notifications. Omit `durationMs` to mute indefinitely. |
+| `unmute` | `unmute(jid)` | `Promise<void>` | Unmute the chat. |
+| `markRead` | `markRead(jid)` | `Promise<void>` | Mark the chat as read. |
+| `markUnread` | `markUnread(jid)` | `Promise<void>` | Mark the chat as unread. |
+| `star` | `star(key, starred?)` | `Promise<void>` | Star (or unstar) a specific message. |
+| `unstar` | `unstar(key)` | `Promise<void>` | Unstar a specific message. |
+| `delete` | `delete(jid)` | `Promise<void>` | Delete the entire chat. |
+| `clear` | `clear(jid)` | `Promise<void>` | Clear the chat's messages but keep it. |
+
+## `archive` / `unarchive`
+
+```typescript
+archive(jid: string): Promise<void>
+unarchive(jid: string): Promise<void>
+```
+
+Moves the chat into (or out of) the archived list. Uses the chat's last stored message automatically.
+
+```typescript
+const jid = '628xxxxxxxxxx@s.whatsapp.net'
+
+await client.chat.archive(jid)
+await client.chat.unarchive(jid)
+```
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jid` | `string` | The chat JID (`628xxxxxxxxxx@s.whatsapp.net` for users, `xxx@g.us` for groups). |
+
+## `pin` / `unpin`
+
+```typescript
+pin(jid: string): Promise<void>
+unpin(jid: string): Promise<void>
+```
+
+Pins (or unpins) the chat at the top of the chat list. WhatsApp limits the number of pinned chats.
+
+```typescript
+const jid = '628xxxxxxxxxx@s.whatsapp.net'
+
+await client.chat.pin(jid)
+await client.chat.unpin(jid)
+```
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jid` | `string` | The chat JID to pin/unpin. |
+
+This pins an entire **chat**. To pin an individual **message** inside a chat, use
+[`client.pin(key, …)`](/client#pin-unpin-and-disappearing-messages).
+
+## `mute` / `unmute`
+
+```typescript
+mute(jid: string, durationMs?: number): Promise<void>
+unmute(jid: string): Promise<void>
+```
+
+Mutes the chat's notifications for `durationMs` milliseconds. Omit `durationMs` to mute indefinitely.
+
+```typescript
+const jid = '628xxxxxxxxxx@s.whatsapp.net'
+
+await client.chat.mute(jid, 8 * 60 * 60 * 1000) // 8 hours
+await client.chat.mute(jid)                      // indefinitely
+await client.chat.unmute(jid)
+```
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jid` | `string` | The chat JID to mute/unmute. |
+| `durationMs` | `number` (optional) | Mute duration in milliseconds. Omit to mute indefinitely. |
+
+## `markRead` / `markUnread`
+
+```typescript
+markRead(jid: string): Promise<void>
+markUnread(jid: string): Promise<void>
+```
+
+Marks the chat as read or unread. Uses the chat's last stored message automatically.
+
+```typescript
+const jid = '628xxxxxxxxxx@s.whatsapp.net'
+
+await client.chat.markRead(jid)
+await client.chat.markUnread(jid)
+```
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jid` | `string` | The chat JID to mark. |
+
+## `star` / `unstar`
+
+```typescript
+star(key: WAMessageKey, starred = true): Promise<void>
+unstar(key: WAMessageKey): Promise<void>
+```
+
+Stars (or unstars) a **specific message**, identified by its `WAMessageKey` (the value returned by
+`client.send(...)` or read off an inbound message's `ctx.key`). The chat JID is derived from the
+key's `remoteJid`; if that is missing the call throws `ZaileysDomainError('OPERATION_FAILED')`.
+
+```typescript
+const key = await client.send('628xxxxxxxxxx@s.whatsapp.net').text('Important note')
+
+await client.chat.star(key)        // star it
+await client.chat.star(key, false) // unstar (same as unstar)
+await client.chat.unstar(key)      // unstar
+```
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `key` | `WAMessageKey` | The message key to star/unstar. |
+| `starred` | `boolean` (default `true`) | `true` to star, `false` to unstar. |
+
+## `delete` / `clear`
+
+```typescript
+delete(jid: string): Promise<void>
+clear(jid: string): Promise<void>
+```
+
+`delete` removes the entire chat from your chat list. `clear` keeps the chat but removes its
+messages. Both use the chat's last stored message automatically.
+
+```typescript
+const jid = '628xxxxxxxxxx@s.whatsapp.net'
+
+await client.chat.clear(jid)  // empty the chat
+await client.chat.delete(jid) // remove the chat entirely
+```
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jid` | `string` | The chat JID to delete/clear. |
+
+## Practical pattern: auto-read inbound messages
+
+```typescript
+
+const client = new Client()
+
+client.on('text', async (ctx) => {
+  // Mark each inbound chat as read as soon as it arrives
+  await client.chat.markRead(ctx.roomId)
+})
+```
+
+## See also
+
+- [Client & Lifecycle](/client) — `client.pin(key)` for pinning individual messages, plus the message store.
+- [Storage Adapters](/storage) — the message store that `archive`/`markRead`/`delete`/`clear` rely on.
+- [Privacy & Blocking](/privacy) — chat-level privacy and blocking.
+- [Error Handling](/error-handling) — `ZaileysDomainError` codes and catch patterns.

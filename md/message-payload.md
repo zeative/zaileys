@@ -1,0 +1,227 @@
+# Message Payload (MessageContext)
+
+> Source: https://zeative.github.io/zaileys/message-payload
+
+# Message Payload (`MessageContext`)
+
+Every inbound message handler receives a single **`MessageContext`** object. It is decoded by zaileys from the raw Baileys `WAMessage` into a flat, predictable shape: IDs are normalized, LIDs are resolved to phone numbers where possible, and the heavy parts (group name, replied message, media bytes) are exposed as **lazy functions** so nothing is fetched until you ask for it.
+
+```ts
+client.on('message', (ctx) => {
+  console.log(ctx.senderId, ctx.text)
+  if (ctx.isGroup) ctx.reply('hi from a group')
+})
+```
+
+The **same payload shape** is delivered to all of these events:
+
+`message` · `text` · `image` · `video` · `audio` · `document` · `sticker` · `mention` · `mention-all`
+
+> `mention` / `mention-all` extend `MessageContext` with a couple of extra fields (the mentioned jids / group members). Everything documented here still applies.
+
+---
+
+## Where it comes from
+
+The raw Baileys message is run through the zaileys decode pipeline, which:
+
+1. **Unwraps** ephemeral / view-once / caption wrappers to find the real content.
+2. **Normalizes jids** and maps **LID → phone number** (with a short timeout) so `senderId`, `roomId`, `mentions` are stable PNs.
+3. **Derives flags** from `protocolMessage`, `pinInChatMessage`, `contextInfo`, etc.
+4. **Defers** the heavy work (group metadata, media download, quoted decode) behind functions you call on demand.
+
+So plain fields are cheap to read; the function fields do real work (network/async) only when invoked.
+
+---
+
+## Identity & IDs
+
+| Field | Type | Source | Use it for |
+|---|---|---|---|
+| `uniqueId` | `string` | FNV-1a hash of `remoteJid │ messageId │ fromMe` | A fingerprint **per message**. Dedup, idempotency keys, logging. Changes if the message id / sender / direction changes. |
+| `staticId` | `string` | FNV-1a hash of `roomId │ senderId` | Stable id for a **sender-in-a-room** pair. Group per-user state, rate-limit buckets. Same across all that user's messages in that room. |
+| `channelId` | `string` | Your client config (empty string if unset) | Tag messages with your own app/tenant channel. Multi-bot routing. |
+| `chatId` | `string` | `message.key.id` | The WhatsApp **message id** (NOT a jid). Use to correlate with edits/reactions/receipts. ⚠️ Never pass this to `client.send()` as a target — use `roomId`/`senderId`. |
+
+---
+
+## Routing — who & where
+
+| Field | Type | Source | Use it for |
+|---|---|---|---|
+| `roomId` | `string \| null` | Group → normalized group jid. 1-on-1 → the other party's **phone number** (recipient if you sent it, sender if received). | **The reply target.** Always points at the conversation, regardless of direction. |
+| `receiverId` | `string` | Config receiver / your own jid, normalized to PN | The intended recipient (the account that received the message). |
+| `senderId` | `string` | `key.participant`/`remoteJid`, mapped LID → **PN** | Who sent it, as a phone-number jid (`...@s.whatsapp.net`). Primary identity for auth/owner checks. |
+| `senderLid` | `string \| null` | `key.participantAlt` / `remoteJidAlt` ending in `@lid` | The sender's LID, when WhatsApp exposes one. `null` if not available. |
+| `senderName` | `string \| null` | `message.pushName` | Display/push name. Can be `null` or spoofed — don't use for authz. |
+| `senderDevice` | `SenderDevice` | Parsed from the sender's device jid | Which client app sent it: `android` · `ios` · `web` · `desktop` · `unknown`. |
+| `isFromMe` | `boolean` | `key.fromMe === true` | `true` if your own account sent it (echo of your sends, other-device activity). |
+| `isGroup` | `boolean` | `remoteJid` is a group jid | Branch group vs DM logic. |
+| `isNewsletter` | `boolean` | `remoteJid` ends `@newsletter` | Message came from a channel/newsletter. |
+| `isBroadcast` | `boolean` | `remoteJid` ends `@broadcast` | Broadcast-list message. |
+| `isStory` | `boolean` | `remoteJid === 'status@broadcast'` | Status/story update. |
+
+---
+
+## Content
+
+| Field | Type | Source | Use it for |
+|---|---|---|---|
+| `chatType` | `ChatType` | Content inspection | What kind of message this is (see [values](#chattype-values)). Route by type. |
+| `text` | `string` | body / caption / poll name / location label, after unwrapping | The textual content. Empty string if none. Caption text for media is mirrored here too. |
+| `timestamp` | `number` | `messageTimestamp`, converted **seconds → milliseconds** | Unix **ms** epoch. Feed straight into `new Date(ctx.timestamp)`. `0` if invalid. |
+| `mentions` | `string[]` | `contextInfo.mentionedJid`, mapped to PN | Jids tagged in the message. |
+| `links` | `string[]` | Regex over `text` | URLs found in the text (trailing punctuation trimmed). |
+
+---
+
+## Flags (`is…`)
+
+All computed from the message **except `isSpam`** (reserved, always `false` for now). A flag being `false` just means that state isn't present on this message.
+
+| Field | `true` when |
+|---|---|
+| `isViewOnce` | view-once wrapper present, or media marked `viewOnce`. |
+| `isEphemeral` | ephemeral wrapper present, or `contextInfo.expiration > 0` (disappearing messages). |
+| `isForwarded` | marked forwarded, or `forwardingScore > 0`. |
+| `isQuestion` | trimmed `text` ends with `?`. |
+| `isPrefix` | `text` starts with one of your configured command **prefixes**. |
+| `isTagMe` | your jid is in `mentions` (you were @-tagged). |
+| `isEdited` | message is an edit (`editedMessage` / protocol edit). |
+| `isDeleted` | message is a revoke/delete. |
+| `isPinned` | pin-for-all action. |
+| `isUnPinned` | unpin-for-all action. |
+| `isBot` | carries bot metadata (`messageContextInfo.botMetadata`). |
+| `isSpam` | **reserved — always `false`.** |
+| `isHideTags` | hidden mentions: `mentions` exist but the text has no visible `@number`. |
+| `isStatusMention` | a status-mention message. |
+| `isGroupStatusMention` | a group-status-mention message. |
+
+> The `is*` flags reflect the **state of this specific message**. In your example most are `false` simply because it's a normal forwarded image — only `isForwarded` and `isGroup` are `true`.
+
+---
+
+## Methods (lazy / on-demand)
+
+These are **functions**, not values, so zaileys doesn't fetch metadata or download bytes unless you call them. That's why they print as `[Function]` if you `console.log` the whole object.
+
+| Method | Returns | What it does |
+|---|---|---|
+| `roomName()` | `Promise<string \| null>` | Group subject (fetches group metadata) for groups, or the other party's name for DMs. |
+| `receiverName()` | `Promise<string \| null>` | Display name of the recipient account. |
+| `replied()` | `Promise<MessageContext \| null>` | Decodes the **quoted/replied** message into a full `MessageContext`, or `null` if this isn't a reply. |
+| `message()` | `WAMessage` | The original raw Baileys message (escape hatch for anything zaileys didn't surface). Synchronous. |
+| `reply(content, opts?)` | `Promise<WAMessageKey>` | Send a text reply into this conversation (quotes the message). |
+| `react(emoji)` | `Promise<WAMessageKey>` | React to this message with an emoji. |
+
+```ts
+client.on('message', async (ctx) => {
+  const room = await ctx.roomName()
+  const quoted = await ctx.replied()
+  if (quoted) await ctx.reply(`you replied to: ${quoted.text}`)
+  await ctx.react('👍')
+})
+```
+
+### `citation`
+
+```ts
+ctx.citation.authors(): Promise<boolean>
+ctx.citation.banned():  Promise<boolean>
+```
+
+Predicates evaluated against your client's **citation config** for the current sender:
+
+- `authors()` → is the sender in your configured `authors` allow-list (array of jids or a predicate)?
+- `banned()` → is the sender in your `banned` list?
+
+Both resolve `false` when no citation config is set. Handy for owner/allow/deny gating without writing the jid check yourself.
+
+---
+
+## `media`
+
+Present only for messages that carry media or structured content. The shape depends on `type`.
+
+### Downloadable attachments (`image` · `video` · `audio` · `document` · `sticker`)
+
+| Field | Type | Notes |
+|---|---|---|
+| `type` | `'image' \| 'video' \| 'audio' \| 'document' \| 'sticker'` | |
+| `mimetype` | `string \| null` | e.g. `image/jpeg`. |
+| `caption` | `string \| null` | Same text as top-level `text` for captioned media. |
+| `fileName` | `string \| null` | Original name (documents). |
+| `fileSize` | `number \| null` | Bytes, when WhatsApp provides it. |
+| `ptt` | `boolean` | `true` for a voice note (push-to-talk audio). |
+| `buffer()` | `Promise<Buffer>` | Downloads the full media into memory. |
+| `stream()` | `Promise<Readable>` | Streams the media (for large files). |
+
+```ts
+client.on('image', async (ctx) => {
+  if (ctx.media?.type === 'image') {
+    const buf = await ctx.media.buffer()
+    // save / process buf
+  }
+})
+```
+
+### Structured media (no download)
+
+Other `chatType`s surface a typed `media` describing the content (no `buffer()`/`stream()`):
+
+`poll` · `contact` · `location` / `live-location` · `album` · `group-invite` · `product` · `order` · `payment` · `link` (preview) · `event` · `buttons` · `list` · `interactive` · `template`
+
+Each carries the fields relevant to it — e.g. `location` has `latitude`/`longitude`/`name`, `poll` has `name`/`options`/`selectableCount`, `payment` has `kind`/`amount`/`currency`, `group-invite` has `groupId`/`inviteCode`/`expiresAt`.
+
+---
+
+## `chatType` values
+
+```
+text · image · video · audio · document · sticker
+poll · contact · location · live-location · event · album
+group-invite · product · order · payment
+buttons · list · interactive · template
+unknown
+```
+
+Media types are detected first, then structured message types; anything unrecognized is `unknown`.
+
+---
+
+## `senderDevice` values
+
+Parsed from the sender's device jid:
+
+| Value | Device id |
+|---|---|
+| `android` | none / `0` |
+| `ios` | `2` |
+| `web` | `3` |
+| `desktop` | `4` |
+| `unknown` | anything else |
+
+---
+
+## Config that shapes the payload
+
+A few values come from your `Client` config rather than the raw message:
+
+| Config | Affects |
+|---|---|
+| `prefixes` | `isPrefix` |
+| `citation` (`authors` / `banned`) | `ctx.citation.*` |
+| `channelId` | `channelId` |
+| `receiverId` | `receiverId` |
+| autoMention / self jid | `isTagMe`, `senderId` resolution |
+
+---
+
+## Gotchas
+
+- **`chatId` is a message id, not a jid.** Reply with `roomId` / `senderId`, never `chatId`.
+- **`timestamp` is milliseconds.** Already converted from WhatsApp's seconds — don't multiply by 1000.
+- **`senderId` is a phone-number jid** (`@s.whatsapp.net`), resolved from LID when possible; `senderLid` holds the `@lid` form when present.
+- **Methods are lazy & mostly async.** `roomName()`, `replied()`, `media.buffer()`, `citation.*` do real work — `await` them; they show as `[Function]` when you log the object.
+- **`roomId` follows the conversation, not the direction** — safe as a reply target for both inbound and your own (`isFromMe`) messages.
+- **`isSpam` is reserved** and always `false` today.

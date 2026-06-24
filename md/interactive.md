@@ -1,0 +1,506 @@
+# Interactive Messages
+
+> Source: https://zeative.github.io/zaileys/interactive
+
+# Interactive Messages
+
+Interactive messages are the rich, tappable UI of WhatsApp: reply buttons, link/copy/call call-to-action buttons, single-select lists, product carousels, reminder and location request buttons, and more. Zaileys renders them natively — including on **personal** (non-business) accounts — because it relays each interactive message through WhatsApp's `native_flow` node for you. There is no separate "business API" requirement.
+
+Every interactive message is sent through the same fluent builder you use for [Sending Messages](/sending-messages): `client.send(jid).<method>(...)`. Taps and selections come back as the [`button-click`](/events) and [`list-select`](/events) events.
+
+All builder methods are chainable and awaited. `client.send(jid)` returns a builder; calling a content method (`.buttons()`, `.list()`, `.carousel()`, `.template()`) sets the content, and awaiting the builder sends it and resolves to the sent message's `WAMessageKey`.
+
+## At a glance
+
+| Method | Signature | Sends |
+| --- | --- | --- |
+| `.buttons()` | `buttons(buttons, opts?)` | Reply + CTA buttons (up to 10) with optional header/footer/overflow |
+| `.template()` | `template(opts)` | Header/body/footer shortcut + up to 3 reply buttons |
+| `.list()` | `list(opts)` | A `single_select` list grouped into sections (up to 10 rows total) |
+| `.carousel()` | `carousel(cards, opts?)` | Horizontal product cards (up to 10), each with its own media + buttons |
+
+---
+
+## Buttons
+
+`buttons(buttons, opts?)` accepts an array of buttons (1–10) of mixed types, plus an options object for the header, footer, and overflow behavior. Reply taps come back on the [`button-click`](/events) event; CTA buttons (url/copy/call) are handled by the WhatsApp client itself and do not emit an event.
+
+### Reply buttons (simplest)
+
+A reply button is the default. It needs a unique `id` and a `text` label. When tapped, it fires `button-click` with that `id`.
+
+```typescript
+
+const client = new Client()
+const jid = '628xxxxxxxxxx@s.whatsapp.net'
+
+await client.send(jid).buttons(
+  [
+    { id: 'yes', text: 'Yes' },
+    { id: 'no', text: 'No' },
+  ],
+  { text: 'Pick one', footer: 'tap a button' },
+)
+
+client.on('button-click', (ctx) => {
+  console.log(ctx.buttonId, ctx.buttonText) // "yes" "Yes"
+})
+```
+
+The full reply-button type is `{ type?: 'reply'; id: string; text: string }`. The `type` is optional because `reply` is the default — `{ id, text }` and `{ type: 'reply', id, text }` are equivalent.
+
+Reply button ids must be unique within a single message and non-empty — a duplicate or empty id throws `INVALID_OPTIONS`.
+
+### CTA buttons (url / copy / call)
+
+CTA (call-to-action) buttons perform a client-side action when tapped. They have **no `id`** (you do not receive an event for them) and are distinguished by their `type`. Field names matter — verify against the table below.
+
+```typescript
+await client.send(jid).buttons(
+  [
+    { type: 'url', text: 'Open GitHub', url: 'https://github.com/zeative/zaileys', webview: true },
+    { type: 'copy', text: 'Copy code', code: 'ZAILEYS-2026' },
+    { type: 'call', text: 'Call us', phone: '6287833764462' },
+  ],
+  { text: 'CTA buttons: link / copy / call', footer: 'tap any' },
+)
+```
+
+| Type | Shape | Action |
+| --- | --- | --- |
+| `url` | `{ type: 'url'; text: string; url: string; webview?: boolean }` | Opens `url`. `webview: true` opens it inside an in-app webview instead of the external browser (default `false`). |
+| `copy` | `{ type: 'copy'; text: string; code: string }` | Copies `code` to the device clipboard. |
+| `call` | `{ type: 'call'; text: string; phone: string }` | Dials `phone` (use full international format, digits only, e.g. `6287833764462`). |
+
+CTA fields are required: a `url` button without `url`, a `copy` without `code`, or a `call` without `phone` throws `INVALID_OPTIONS`. The `text` label is required on every button type.
+
+### Mixing reply and CTA buttons
+
+You can freely combine reply and CTA buttons in a single message — only the reply taps emit `button-click`.
+
+```typescript
+await client.send(jid).buttons(
+  [
+    { id: 'yes', text: 'Yes' },
+    { type: 'url', text: 'Docs', url: 'https://github.com/zeative/zaileys' },
+    { type: 'copy', text: 'Copy ID', code: 'ABC123' },
+  ],
+  { title: 'Mixed buttons', text: 'reply + url + copy in one message' },
+)
+```
+
+### Reminder buttons
+
+`reminder` sets a WhatsApp reminder for the message; `cancel-reminder` cancels one. Both take a `text` label and an optional `id` — when `id` is omitted, the button `text` is used as the id.
+
+```typescript
+await client.send(jid).buttons(
+  [
+    { type: 'reminder', text: 'Remind me', id: 'remind_1' },
+    { type: 'cancel-reminder', text: 'Cancel' },
+  ],
+  { title: '⏰ Reminder', text: 'Set or cancel a WhatsApp reminder' },
+)
+```
+
+| Type | Shape |
+| --- | --- |
+| `reminder` | `{ type: 'reminder'; text: string; id?: string }` |
+| `cancel-reminder` | `{ type: 'cancel-reminder'; text: string; id?: string }` |
+
+### Location & address request buttons
+
+`location` asks the user to share their current location; `address` opens the address form (useful for checkout / delivery flows). For `location` the `text` label is optional (a default is used when omitted); for `address` the `text` is required and `id` is optional.
+
+```typescript
+await client.send(jid).buttons(
+  [
+    { type: 'location', text: 'Share location' },
+    { type: 'address', text: 'Add address', id: 'addr_1' },
+  ],
+  { title: '📍 Checkout', text: 'Share your location or delivery address' },
+)
+```
+
+| Type | Shape |
+| --- | --- |
+| `location` | `{ type: 'location'; text?: string }` |
+| `address` | `{ type: 'address'; text: string; id?: string }` |
+
+### Header, footer & subtitle options
+
+The second argument to `buttons()` (`ButtonsContentOptions`) controls the body text, footer, and header. A text header appears when you supply `title` and/or `subtitle`; a media header appears when you supply `image` or `video`.
+
+```typescript
+await client.send(jid).buttons(
+  [
+    { id: 'go', text: 'Go' },
+    { id: 'skip', text: 'Skip' },
+  ],
+  {
+    title: '💡 Tip & Suggest',
+    subtitle: 'header subtitle line',
+    text: 'body text under the header',
+    footer: 'footer',
+  },
+)
+```
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `text` | `string` | `' '` (single space) | Body text shown above the buttons. |
+| `footer` | `string` | none | Small footer text below the body. |
+| `title` | `string` | none | Header title line (renders a text header). |
+| `subtitle` | `string` | none | Header subtitle line (renders a text header). |
+| `image` | `string \| Buffer \| URL` | none | Image media header (file path, URL, or Buffer). |
+| `video` | `string \| Buffer \| URL` | none | Video media header. |
+| `bottomSheet` | `BottomSheetOptions` | none | Collapse overflow buttons into a bottom sheet — see below. |
+| `limitedTimeOffer` | `LimitedTimeOfferOptions` | none | Render a countdown / limited-time-offer banner — see below. |
+
+### Media header
+
+Pass `image` or `video` to attach a media header. The source can be a local path, a URL, or a `Buffer` (the same `MediaSource` accepted everywhere — see [Media](/media)). Zaileys uploads the media to WhatsApp and attaches it to the header automatically.
+
+```typescript
+
+await client.send(jid).buttons(
+  [
+    { id: 'ok', text: 'OK' },
+    { id: 'no', text: 'No' },
+  ],
+  {
+    image: readFileSync('./header.png'), // or './header.png' or a URL
+    title: '🖼️ Image header',
+    text: 'interactive message with an image header',
+    footer: 'zaileys',
+  },
+)
+```
+
+Provide either `image` **or** `video`, not both — if both are present, `image` wins. Media headers require the socket to support relaying with upload; this is wired up automatically when you send through `client.send()`.
+
+### Overflow: `bottomSheet`
+
+When you have many buttons, `bottomSheet` collapses the overflow into a tap-to-open sheet so the chat stays tidy. Only the first `buttonsLimit` buttons show inline; the rest move into the sheet.
+
+```typescript
+await client.send(jid).buttons(
+  [
+    { id: 's1', text: 'Option 1' },
+    { id: 's2', text: 'Option 2' },
+    { id: 's3', text: 'Option 3' },
+    { id: 's4', text: 'Option 4' },
+    { id: 's5', text: 'Option 5' },
+  ],
+  {
+    text: 'Many options — grouped into a bottom sheet',
+    bottomSheet: { listTitle: 'All options', buttonTitle: 'View 5 options', buttonsLimit: 2 },
+  },
+)
+```
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `listTitle` | `string` | none | Title shown at the top of the opened sheet. |
+| `buttonTitle` | `string` | none | Label of the inline button that opens the sheet. |
+| `buttonsLimit` | `number` | none | Number of buttons to keep inline before collapsing the rest into the sheet. |
+| `dividers` | `number[]` | none | Indices at which to draw dividers between grouped buttons. |
+
+### `limitedTimeOffer` (countdown banner)
+
+Renders a limited-time-offer banner with a countdown above the buttons — ideal for flash sales paired with a `url` or `copy` CTA.
+
+```typescript
+await client.send(jid).buttons(
+  [
+    { type: 'url', text: 'Grab the deal', url: 'https://github.com/zeative/zaileys' },
+    { type: 'copy', text: 'Copy code', code: 'FLASH50' },
+  ],
+  {
+    title: '⚡ Flash Sale',
+    text: '50% off — ending soon!',
+    limitedTimeOffer: {
+      text: 'Offer ends in',
+      copyCode: 'FLASH50',
+      expiresAt: Math.floor(Date.now() / 1000) + 3600, // unix seconds
+    },
+  },
+)
+```
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `text` | `string` | none | Banner label (e.g. "Offer ends in"). |
+| `url` | `string` | none | URL associated with the offer. |
+| `copyCode` | `string` | none | Promo code surfaced in the banner. |
+| `expiresAt` | `number` | none | Expiry as a **Unix timestamp in seconds** (the countdown ends here). |
+
+`expiresAt` is in **seconds**, not milliseconds — use `Math.floor(Date.now() / 1000) + secondsFromNow`. Passing `Date.now()` directly (milliseconds) will produce a wildly future expiry.
+
+A message accepts at most **10 buttons** (`buttons()` throws `INVALID_OPTIONS` beyond that) and requires at least one. An empty button array also throws.
+
+---
+
+## Template
+
+`template(opts)` is a streamlined header / body / footer shortcut for reply buttons. It is built on top of `buttons()` — the `header` is bolded and prepended to the body, and buttons are limited to **3**. Use it when you just want a titled message with a couple of quick replies.
+
+```typescript
+await client.send(jid).template({
+  header: 'Zaileys',
+  body: 'Template message body',
+  footer: 'template footer',
+  buttons: [
+    { id: 't1', text: 'Action 1' },
+    { id: 't2', text: 'Action 2' },
+  ],
+})
+```
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `header` | `string` | none | Bolded line prepended to the body. |
+| `body` | `string` | **required** | Main message text. Must be non-empty. |
+| `footer` | `string` | none | Footer text. |
+| `buttons` | `ButtonDef[]` | **required** | 1–3 reply buttons, each `{ id, text }`. |
+
+`template()` buttons are plain reply buttons (`{ id, text }`) and emit `button-click` on tap. For CTA/url/copy/call buttons, use `buttons()` instead. A missing/empty `body`, an empty `buttons` array, or more than 3 buttons throws `INVALID_OPTIONS`.
+
+---
+
+## List (single_select)
+
+`list(opts)` builds a `single_select` list: a button that opens a sheet of rows grouped into sections. The user picks exactly one row, which comes back on the [`list-select`](/events) event with its `id`.
+
+```typescript
+await client.send(jid).list({
+  title: '🍔 Menu',
+  description: 'Pick your order',
+  buttonText: 'View menu',
+  footerText: 'zaileys',
+  sections: [
+    {
+      title: 'Food',
+      rows: [
+        { id: 'pizza', title: 'Pizza', description: '$6' },
+        { id: 'ramen', title: 'Ramen', description: '$5' },
+      ],
+    },
+    {
+      title: 'Drinks',
+      rows: [
+        { id: 'coffee', title: 'Coffee', description: '$2' },
+        { id: 'tea', title: 'Tea', description: '$1' },
+      ],
+    },
+  ],
+})
+
+client.on('list-select', (ctx) => {
+  console.log('selected:', ctx.rowId, ctx.title) // "pizza" "View menu"
+})
+```
+
+### `ListOptions`
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `buttonText` | `string` | **required** | Label of the button that opens the list. Must be non-empty. |
+| `title` | `string` | none | Header title shown above the body. |
+| `description` | `string` | `' '` | Body text shown above the open-list button. |
+| `footerText` | `string` | none | Footer text. |
+| `sections` | `ListSection[]` | **required** | One or more sections — see below. |
+
+### `ListSection` and rows
+
+```typescript
+type ListSection = {
+  title: string
+  rows: Array<{ id: string; title: string; description?: string }>
+}
+```
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `section.title` | `string` | — | Section heading inside the list. |
+| `row.id` | `string` | **required** | Unique id returned as `ctx.rowId` on selection. Must be non-empty and unique across all sections. |
+| `row.title` | `string` | **required** | Row label. Must be non-empty. |
+| `row.description` | `string` | none | Secondary line under the row title. |
+
+A list accepts at most **10 rows total** across all sections, requires at least one section, and each section requires at least one row. Row ids must be unique across the whole list — a duplicate id throws `INVALID_OPTIONS`.
+
+---
+
+## Carousel
+
+`carousel(cards, opts?)` sends a horizontally swipeable set of product cards (1–10). Each card has its own optional media header, title/subtitle, body, footer, and buttons. Card buttons behave exactly like `buttons()` — reply buttons emit `button-click`, CTA buttons act client-side.
+
+```typescript
+
+const pizza = readFileSync('./pizza.png')
+const ramen = readFileSync('./ramen.png')
+
+await client.send(jid).carousel(
+  [
+    {
+      title: 'Pizza Mozzarella',
+      body: '$6',
+      footer: 'zaileys',
+      image: pizza,
+      buttons: [
+        { id: 'buy_pizza', text: 'Order' },
+        { type: 'url', text: 'Detail', url: 'https://github.com/zeative/zaileys' },
+      ],
+    },
+    {
+      title: 'Ramen Kaldu',
+      body: '$5',
+      footer: 'zaileys',
+      image: ramen,
+      buttons: [
+        { id: 'buy_ramen', text: 'Order' },
+        { type: 'copy', text: 'Promo', code: 'RAMEN5' },
+      ],
+    },
+  ],
+  { text: '🛍️ Product Carousel' },
+)
+```
+
+### `CarouselCard`
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `title` | `string` | none | Card header title. |
+| `subtitle` | `string` | none | Card header subtitle. |
+| `body` | `string` | `' '` | Card body text. |
+| `footer` | `string` | none | Card footer text. |
+| `image` | `string \| Buffer \| URL` | none | Image media header for this card. |
+| `video` | `string \| Buffer \| URL` | none | Video media header for this card. |
+| `buttons` | `Array<ButtonDef \| InteractiveButton>` | none | Buttons for this card — same shapes as `buttons()`. |
+
+The `opts` argument only carries the carousel-level intro text:
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `text` | `string` | `' '` | Text shown above the card strip. |
+
+A carousel accepts at most **10 cards** and requires at least one. Each card's buttons are validated like a normal `buttons()` call (reply ids unique per card, CTA fields required, max 10 buttons per card).
+
+---
+
+## Handling responses
+
+Interactive taps and selections arrive as events on the client. See [Events](/events) for the full event list and registration patterns.
+
+Fired when a user taps a **reply** button (from `.buttons()`, `.template()`, or a carousel card). CTA buttons (url/copy/call) do **not** fire this event.
+
+```typescript
+client.on('button-click', (ctx) => {
+  console.log(ctx.buttonId)   // the reply button's `id`
+  console.log(ctx.buttonText) // the button label (may be undefined)
+  console.log(ctx.sender.jid) // who tapped it
+})
+```
+
+`ButtonClickPayload`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `key` | `WAMessageKey` | Key of the message containing the tapped button. |
+| `buttonId` | `string` | The reply button's `id`. |
+| `buttonText` | `string` (optional) | The button label, when present. |
+| `sender` | `SenderInfo` | The tapper (`jid`, `pushName`, `username`, `lid`, `pn`, `isMe`). |
+| `timestamp` | `number` | Unix timestamp of the tap. |
+
+Fired when a user picks a row from a `.list()` message.
+
+```typescript
+client.on('list-select', (ctx) => {
+  console.log(ctx.rowId)      // the selected row's `id`
+  console.log(ctx.title)      // the list's button title (may be undefined)
+  console.log(ctx.sender.jid) // who selected it
+})
+```
+
+`ListSelectPayload`:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `key` | `WAMessageKey` | Key of the message containing the list. |
+| `rowId` | `string` | The selected row's `id` (the `id` you set on the row). |
+| `title` | `string` (optional) | The list title, when present. |
+| `sender` | `SenderInfo` | The selector (`jid`, `pushName`, `username`, etc.). |
+| `timestamp` | `number` | Unix timestamp of the selection. |
+
+### Routing taps to handlers
+
+Because every reply button and list row carries the `id` you defined, a single handler can route on it:
+
+```typescript
+const actions: Record<string, () => Promise<unknown>> = {
+  yes: () => client.send(jid).text('You said yes!'),
+  no: () => client.send(jid).text('Maybe next time.'),
+}
+
+client.on('button-click', async (ctx) => {
+  await actions[ctx.buttonId]?.()
+})
+
+client.on('list-select', async (ctx) => {
+  await client.send(ctx.sender.jid).text(`You picked: ${ctx.rowId}`)
+})
+```
+
+Use stable, meaningful ids (`'order_pizza'`, `'remind_1'`) so your handlers stay readable. Ids are the contract between the message you send and the event you receive.
+
+---
+
+## Putting it together
+
+### Connect the client
+
+```typescript
+
+const client = new Client()
+client.on('qr', ({ qrString }) => console.log('Scan QR:', qrString))
+```
+
+### Send an interactive message on connect
+
+```typescript
+const TO = '628xxxxxxxxxx@s.whatsapp.net'
+
+client.on('connect', async () => {
+  await client.send(TO).buttons(
+    [
+      { id: 'yes', text: 'Yes' },
+      { id: 'no', text: 'No' },
+      { type: 'url', text: 'Docs', url: 'https://github.com/zeative/zaileys' },
+    ],
+    { title: 'Zaileys', text: 'Ready to go?', footer: 'tap a button' },
+  )
+})
+```
+
+### Handle the response
+
+```typescript
+client.on('button-click', (ctx) => {
+  console.log(`button-click → ${ctx.buttonId} from ${ctx.sender.jid}`)
+})
+```
+
+## Gotchas
+
+- **Limits throw, they don't truncate.** More than 10 buttons, more than 10 list rows, more than 10 carousel cards, or more than 3 template buttons throws `INVALID_OPTIONS` at build time — catch it or stay within bounds.
+- **Empty labels throw.** Every button needs a non-empty `text` (except `location`, where `text` is optional). Reply buttons additionally need a non-empty, unique `id`.
+- **CTA buttons emit no event.** Only reply buttons (`button-click`) and list rows (`list-select`) come back to your code; url/copy/call/reminder/location/address are handled by the WhatsApp client.
+- **`limitedTimeOffer.expiresAt` is in seconds.** Don't pass `Date.now()` (milliseconds) directly.
+
+## See also
+
+- [Events](/events) — the full event catalog, including `button-click` and `list-select`.
+- [Sending Messages](/sending-messages) — the fluent `client.send(jid)` builder, replies, mentions, and disappearing messages.
+- [Media](/media) — accepted media sources (path, URL, Buffer) for header `image`/`video` and carousel cards.
+- [Rich Responses](/rich-responses) — AI-style rich text and markdown rendering.

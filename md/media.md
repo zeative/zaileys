@@ -1,0 +1,406 @@
+# Media Processing
+
+> Source: https://zeative.github.io/zaileys/media
+
+# Media Processing
+
+Zaileys ships a standalone `Media` class for converting and transforming audio, video, images,
+stickers, and documents before you send them. It wraps `ffmpeg` plus an image backend
+(`sharp` if available, otherwise `jimp`) behind a small, namespaced facade, and every method
+returns a plain `Buffer` (or base64 string / metadata object) that feeds straight into the
+[send builder](/sending-messages).
+
+## Constructing a `Media`
+
+Import `Media` from `zaileys` and pass it your source once — every namespace below operates on
+that same input.
+
+```typescript
+
+const media = new Media(input)
+```
+
+The constructor accepts a single `MediaInput`, which is one of:
+
+| Input type    | Example                                | Notes                                                        |
+| ------------- | -------------------------------------- | ------------------------------------------------------------ |
+| `string` URL  | `'https://example.com/song.mp3'`       | Fetched over HTTP(S) with the global `fetch`.                |
+| `string` path | `'./assets/clip.mp4'`                  | Read from disk if the path points to an existing file.       |
+| `string` b64  | `'iVBORw0KGgo...'`                     | Falls back to base64 decoding when it is neither URL nor file. |
+| `Buffer`      | `await fs.readFile('./img.png')`       | Used as-is.                                                  |
+| `ArrayBuffer` | `await res.arrayBuffer()`              | Wrapped into a `Buffer`.                                     |
+
+```typescript
+
+const fromUrl = new Media('https://example.com/voice.mp3')
+const fromPath = new Media('./assets/photo.jpg')
+const fromBuffer = new Media(await fs.readFile('./assets/clip.mp4'))
+```
+
+  Resolution is lazy. Nothing is downloaded or read until you call a processing method, so
+  constructing a `Media` is cheap. The same instance can be reused across namespaces — for
+  example call both `media.thumbnail.get()` and `media.image.toJpeg()` on one `Media`.
+
+## Requirements: ffmpeg, sharp, and jimp
+
+  **ffmpeg / ffprobe** power all audio, video, and animated-sticker work. The published package
+  bundles `ffmpeg` and `ffprobe` binaries (via `@ffmpeg-installer/ffmpeg` and
+  `@ffprobe-installer/ffprobe`), so most platforms need no system install — they are added to
+  `PATH` automatically on first use. On platforms without a prebuilt binary (e.g. Termux), install
+  a system ffmpeg (`pkg install ffmpeg`). See [Installation](/installation) for details.
+
+  **Image backend** — `image.toJpeg`, `image.thumbnail`, `image.resize`, and `sticker.create`
+  (for non-animated stickers) need an image processor. `sharp` is used when installed (fast,
+  native). If `sharp` is absent, Zaileys transparently falls back to the pure-JS `jimp` path and
+  prints a one-line warning suggesting `npm install sharp`. Everything works either way — `sharp`
+  is purely an accelerator.
+
+  
+```bash npm i sharp ```
+
+  
+```bash pnpm add sharp ```
+
+  
+```bash yarn add sharp ```
+
+  
+```bash bun add sharp ```
+
+## `media.audio`
+
+Convert any audio (or the audio track of a video) into WhatsApp-friendly formats. Each method
+first validates that the source is `audio/*`.
+
+| Method            | Returns                                       | Description                                                         |
+| ----------------- | --------------------------------------------- | ------------------------------------------------------------------- |
+| `toOpus()`        | `Promise<Buffer>`                             | Opus in an Ogg container — the format WhatsApp voice notes use. Mono, 48 kHz, 48 kbps. |
+| `toMp3()`         | `Promise<Buffer>`                             | MP3 (libmp3lame). Stereo, 128 kbps.                                 |
+| `convert(type?)`  | `Promise<Buffer>`                             | Convert to `'opus'` (default) or `'mp3'`. `toOpus`/`toMp3` are thin wrappers around this. |
+| `waveform()`      | `Promise<{ waveform: Uint8Array; seconds: number }>` | A 64-sample amplitude envelope (values 0–100) plus duration in seconds, for voice-note waveform display. |
+
+```typescript
+
+const client = new Client({ /* ... */ })
+
+const media = new Media('./assets/recording.m4a')
+
+const opus = await media.audio.toOpus()
+await client.send('6281234567890@s.whatsapp.net').audio(opus, { ptt: true })
+
+const mp3 = await media.audio.toMp3()
+// or, equivalently: await media.audio.convert('mp3')
+```
+
+```typescript
+const { waveform, seconds } = await new Media('./assets/voice.ogg').audio.waveform()
+console.log(seconds)            // e.g. 7
+console.log(waveform.length)    // 64
+```
+
+## `media.video`
+
+Re-encode video for reliable WhatsApp playback or grab a poster frame. Both methods validate that
+the source is `video/*`.
+
+| Method        | Returns             | Description                                                                 |
+| ------------- | ------------------- | --------------------------------------------------------------------------- |
+| `toMp4()`     | `Promise<Buffer>`   | H.264/AAC MP4 with `+faststart`, `yuv420p`, even dimensions, `crf 28`, `ultrafast` preset. |
+| `thumbnail()` | `Promise<string>`   | A 100×100 JPEG poster frame, taken ~10% into the clip, returned base64-encoded. |
+
+```typescript
+
+const client = new Client({ /* ... */ })
+
+const mp4 = await new Media('https://example.com/clip.mov').video.toMp4()
+await client.send('6281234567890@s.whatsapp.net').video(mp4, { caption: 'Re-encoded' })
+```
+
+```typescript
+const poster = await new Media('./assets/movie.mp4').video.thumbnail()
+// `poster` is a base64 JPEG string (no data: prefix)
+```
+
+## `media.image`
+
+| Method                  | Returns             | Description                                                                                   |
+| ----------------------- | ------------------- | --------------------------------------------------------------------------------------------- |
+| `toJpeg()`              | `Promise<Buffer>`   | Convert PNG/WebP to JPEG. Other formats are returned unchanged.                               |
+| `thumbnail()`           | `Promise<string>`   | A 100×100 (cover-fit) JPEG, base64-encoded, quality 50. Animated GIFs use the first frame.    |
+| `resize(width, height)` | `Promise<Buffer>`   | Cover-fit resize to the given pixel dimensions. Output is PNG.                                 |
+
+```typescript
+
+const client = new Client({ /* ... */ })
+
+const media = new Media('./assets/banner.png')
+
+const jpeg = await media.image.toJpeg()
+await client.send('6281234567890@s.whatsapp.net').image(jpeg, { caption: 'Compressed' })
+
+const small = await media.image.resize(640, 640)
+const thumb = await media.image.thumbnail()  // base64 JPEG string
+```
+
+## `media.sticker`
+
+Turn an image, GIF, or video into a WhatsApp WebP sticker. Animated sources (GIF/video) produce
+animated stickers (capped at 6 s, 10 fps, 512×512); static images become static stickers. Already-WebP
+inputs are passed through. EXIF pack metadata is embedded automatically.
+
+```typescript
+create(metadata?: StickerMetadataType): Promise<Buffer>
+```
+
+`StickerMetadataType` options (all optional):
+
+| Option        | Type                                        | Default                                  | Description                                                 |
+| ------------- | ------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------- |
+| `packageName` | `string`                                    | `'Zaileys Library'`                      | Sticker pack name stored in EXIF.                           |
+| `authorName`  | `string`                                    | `'https://github.com/zeative/zaileys'`   | Sticker pack publisher stored in EXIF.                      |
+| `quality`     | `number`                                    | `60`                                     | WebP quality, clamped to 1–100.                             |
+| `shape`       | `'circle' \| 'rounded' \| 'oval' \| 'default'` | `'default'`                           | Crops static stickers to a shape mask. (Static only.)       |
+
+```typescript
+
+const client = new Client({ /* ... */ })
+
+const sticker = await new Media('./assets/cat.png').sticker.create({
+  packageName: 'My Pack',
+  authorName: 'Me',
+  quality: 80,
+  shape: 'rounded',
+})
+
+await client.send('6281234567890@s.whatsapp.net').sticker(sticker)
+```
+
+```typescript
+// Animated sticker from a GIF or short video
+const animated = await new Media('./assets/loop.gif').sticker.create({ quality: 70 })
+await client.send('6281234567890@s.whatsapp.net').sticker(animated)
+```
+
+  `shape` only affects static stickers. Animated stickers are always padded to a square. Both
+  static and animated paths require their image backend / ffmpeg — see the requirements callout
+  above.
+
+## `media.document`
+
+Wrap any file as a sendable document, auto-detecting its MIME type, extension, and a thumbnail
+(video poster frame or image thumbnail, empty for non-media files).
+
+```typescript
+create(): Promise<{
+  document: Buffer
+  mimetype: string
+  ext: string
+  fileName: string
+  jpegThumbnail: string
+}>
+```
+
+| Field           | Type     | Description                                                          |
+| --------------- | -------- | -------------------------------------------------------------------- |
+| `document`      | `Buffer` | The raw file bytes.                                                  |
+| `mimetype`      | `string` | Detected MIME type (e.g. `application/pdf`).                         |
+| `ext`           | `string` | Detected file extension (e.g. `pdf`).                               |
+| `fileName`      | `string` | An auto-generated unique id (override it when sending).             |
+| `jpegThumbnail` | `string` | Base64 JPEG thumbnail for media files; empty string otherwise.      |
+
+```typescript
+
+const client = new Client({ /* ... */ })
+
+const doc = await new Media('./assets/report.pdf').document.create()
+
+await client.send('6281234567890@s.whatsapp.net').document(doc.document, {
+  fileName: 'report.pdf',
+  mimetype: doc.mimetype,
+})
+```
+
+## `media.thumbnail`
+
+A convenience that detects the source type and produces a 100×100 base64 JPEG thumbnail —
+routing to the video poster-frame path for `video/*` and the image path for `image/*`.
+
+```typescript
+get(): Promise<string>
+```
+
+```typescript
+
+// Works for both images and videos
+const thumb = await new Media('./assets/whatever.mp4').thumbnail.get()
+```
+
+  `thumbnail.get()` throws `Invalid media type: expected image or video` when the source is not
+  an image or video (e.g. a PDF), or when the file type cannot be detected. Wrap it in a
+  `try/catch` if the input is untrusted.
+
+## `media.toBuffer()`
+
+Resolve the original source to a raw `Buffer` without any processing — handy for downloading a URL
+or reading a file once and reusing the bytes.
+
+```typescript
+
+const buffer = await new Media('https://example.com/file.bin').toBuffer()
+```
+
+## Feeding results into the send builder
+
+Every processing method returns a `Buffer` (or a metadata object whose `document` field is a
+`Buffer`), and the [send builder](/sending-messages) accepts a `Buffer` anywhere a `MediaSource`
+is expected. So the pattern is always: process → pass the buffer to the matching content method.
+
+```typescript
+
+const client = new Client({ /* ... */ })
+const jid = '6281234567890@s.whatsapp.net'
+
+// Image → sticker
+const sticker = await new Media('./assets/photo.jpg').sticker.create()
+await client.send(jid).sticker(sticker)
+
+// Any audio → voice note
+const opus = await new Media('./assets/song.mp3').audio.toOpus()
+await client.send(jid).audio(opus, { ptt: true })
+
+// Re-encode then send video
+const mp4 = await new Media('./assets/clip.mov').video.toMp4()
+await client.send(jid).video(mp4)
+```
+
+  You only need `Media` when you want to **transform** bytes (convert formats, build stickers,
+  generate thumbnails). To send a file as-is, hand the URL, path, or `Buffer` directly to the
+  send builder — it handles plain media uploads on its own.
+
+## Tips and gotchas
+
+- **Type validation throws.** `audio.*` requires `audio/*`, `video.*` requires `video/*`. Passing
+  a mismatched file rejects with an `Invalid file type` error.
+- **Thumbnails are base64 strings**, not buffers. `video.thumbnail`, `image.thumbnail`, and
+  `thumbnail.get` all return base64-encoded JPEG text (no `data:` prefix).
+- **Sticker `quality` is clamped** to 1–100; out-of-range values are coerced.
+- **Reuse the instance.** Building one `Media` and calling several namespaces avoids re-reading
+  the source repeatedly when you process the same file in multiple ways.
+
+## Incoming media: `ctx.media`
+
+The `Media` class above is for **outgoing** transforms. On the **incoming** side, every message
+context exposes an optional `ctx.media` — a discriminated union on `.type` that carries the rich
+payload behind a message. For attachments (`image`, `video`, `audio`, `document`, `sticker`) it
+holds the file metadata plus lazy `buffer()` / `stream()` accessors; for richer message kinds it
+holds the structured fields below. Narrow on `ctx.media?.type` to read the right shape.
+
+Beyond the attachment and the earlier structured types (`poll`, `contact`, `location`, `event`),
+these variants are also surfaced:
+
+### `type: 'album'`
+
+The album **header** message. The actual photos and videos arrive afterwards as separate
+`image` / `video` messages — this header only announces how many to expect.
+
+| Field                | Type             | Description                                              |
+| -------------------- | ---------------- | -------------------------------------------------------- |
+| `expectedImageCount` | `number \| null` | How many image messages the album will contain.         |
+| `expectedVideoCount` | `number \| null` | How many video messages the album will contain.         |
+
+### `type: 'group-invite'`
+
+A shared group-invite card.
+
+| Field        | Type             | Description                                          |
+| ------------ | ---------------- | --------------------------------------------------- |
+| `groupId`    | `string \| null` | JID of the invited group.                           |
+| `groupName`  | `string \| null` | Display name of the group.                          |
+| `inviteCode` | `string \| null` | The invite code (used to join).                     |
+| `caption`    | `string \| null` | Optional caption attached to the invite.            |
+| `expiresAt`  | `number \| null` | Expiry timestamp of the invite.                     |
+
+### `type: 'product'`
+
+A product card from a WhatsApp Business catalog.
+
+| Field             | Type             | Description                                       |
+| ----------------- | ---------------- | ------------------------------------------------- |
+| `productId`       | `string \| null` | Catalog product id.                               |
+| `title`           | `string \| null` | Product title.                                    |
+| `description`     | `string \| null` | Product description.                              |
+| `price`           | `number \| null` | Price amount.                                     |
+| `currency`        | `string \| null` | ISO currency code.                                |
+| `retailerId`      | `string \| null` | Retailer-defined SKU / id.                        |
+| `url`             | `string \| null` | Product URL.                                      |
+| `businessOwnerId` | `string \| null` | JID of the business that owns the catalog.        |
+
+### `type: 'order'`
+
+An order summary referencing one or more catalog products.
+
+| Field       | Type                                              | Description                                  |
+| ----------- | ------------------------------------------------- | -------------------------------------------- |
+| `orderId`   | `string \| null`                                  | Order id.                                    |
+| `title`     | `string \| null`                                  | Order title.                                 |
+| `itemCount` | `number \| null`                                  | Number of items in the order.                |
+| `total`     | `number \| null`                                  | Order total amount.                          |
+| `currency`  | `string \| null`                                  | ISO currency code.                           |
+| `status`    | `'inquiry' \| 'accepted' \| 'declined' \| null`   | Order status.                                |
+| `message`   | `string \| null`                                  | Attached message / note.                     |
+
+### `type: 'payment'`
+
+A payment request, send, or invite.
+
+| Field       | Type                                  | Description                                       |
+| ----------- | ------------------------------------- | ------------------------------------------------- |
+| `kind`      | `'request' \| 'send' \| 'invite'`     | Whether it requests, sends, or invites a payment. |
+| `amount`    | `number \| null`                      | Payment amount.                                   |
+| `currency`  | `string \| null`                      | ISO currency code.                                |
+| `note`      | `string \| null`                      | Attached note.                                    |
+| `expiresAt` | `number \| null`                      | Expiry timestamp.                                 |
+
+### `type: 'link'`
+
+A plain **text** message that carries a rich link preview. The `chatType` stays `'text'`, but
+`ctx.media` holds the unfurled preview.
+
+| Field         | Type             | Description                          |
+| ------------- | ---------------- | ------------------------------------ |
+| `url`         | `string \| null` | The previewed URL.                   |
+| `title`       | `string \| null` | Preview title.                       |
+| `description` | `string \| null` | Preview description.                 |
+
+```typescript
+
+const client = new Client({ /* ... */ })
+
+client.on('messages', async (ctx) => {
+  switch (ctx.media?.type) {
+    case 'album':
+      console.log(`Album incoming: ${ctx.media.expectedImageCount} images, ${ctx.media.expectedVideoCount} videos`)
+      break
+    case 'group-invite':
+      console.log(`Invite to ${ctx.media.groupName} (code ${ctx.media.inviteCode})`)
+      break
+    case 'product':
+      console.log(`${ctx.media.title} — ${ctx.media.price} ${ctx.media.currency}`)
+      break
+    case 'order':
+      console.log(`Order ${ctx.media.orderId}: ${ctx.media.itemCount} items, ${ctx.media.status}`)
+      break
+    case 'payment':
+      console.log(`Payment ${ctx.media.kind}: ${ctx.media.amount} ${ctx.media.currency}`)
+      break
+    case 'link':
+      console.log(`Link preview: ${ctx.media.title} → ${ctx.media.url}`)
+      break
+  }
+})
+```
+
+  `ctx.media` is optional and `type`-discriminated — always narrow on `ctx.media?.type` before
+  reading fields, and remember most fields are `… | null` because WhatsApp omits them freely.
+
+See also: [Sending Messages](/sending-messages) and [Installation](/installation).

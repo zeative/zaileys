@@ -197,7 +197,8 @@ async function extractLottieJson(buffer: Buffer): Promise<LottieData> {
   return JSON.parse(buffer.toString('utf8')) as LottieData;
 }
 
-async function rgbaToPng(rgba: Uint8Array, w: number, h: number, outPath: string): Promise<void> {
+/** Single ffmpeg pass: raw RGBA frames piped in -> lossless animated webp (crisp vector + no per-frame spawn delay). */
+async function encodeFramesToWebp(frames: Uint8Array[], w: number, h: number, fps: number, outPath: string): Promise<void> {
   await initializeFFmpeg();
   return new Promise((resolve, reject) => {
     const args = [
@@ -205,39 +206,20 @@ async function rgbaToPng(rgba: Uint8Array, w: number, h: number, outPath: string
       '-f', 'rawvideo',
       '-pixel_format', 'rgba',
       '-video_size', `${w}x${h}`,
-      '-i', 'pipe:0',
-      '-frames:v', '1',
-      '-f', 'image2',
-      outPath,
-    ];
-    const child = spawn(ffmpegBin, args, { stdio: ['pipe', 'ignore', 'ignore'] });
-    child.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg rawvideo exit ${code}`))));
-    child.on('error', reject);
-    child.stdin!.end(Buffer.from(rgba.buffer, rgba.byteOffset, rgba.byteLength));
-  });
-}
-
-async function assembleWebp(framesDir: string, fps: number, w: number, h: number, quality: number): Promise<string> {
-  await initializeFFmpeg();
-  const outPath = path.join(framesDir, 'out.webp');
-  const q = Math.max(1, Math.min(100, quality));
-  return new Promise((resolve, reject) => {
-    const args = [
-      '-y',
       '-framerate', String(fps),
-      '-i', path.join(framesDir, 'frame_%04d.png'),
-      '-vf', `scale=${w}:${h}:force_original_aspect_ratio=decrease,pad=${w}:${h}:(ow-iw)/2:(oh-ih)/2:color=0x00000000,format=rgba`,
+      '-i', 'pipe:0',
       '-vcodec', 'libwebp',
+      '-lossless', '1',
+      '-compression_level', '6',
       '-loop', '0',
-      '-q:v', String(q),
-      '-preset', 'default',
-      '-compression_level', String(FFMPEG_CONSTANTS.STICKER.COMPRESSION_LEVEL),
       '-an',
       outPath,
     ];
-    const child = spawn(ffmpegBin, args, { stdio: 'ignore' });
-    child.on('close', (code) => (code === 0 ? resolve(outPath) : reject(new Error(`ffmpeg webp assembly exit ${code}`))));
+    const child = spawn(ffmpegBin, args, { stdio: ['pipe', 'ignore', 'ignore'] });
+    child.on('close', (code) => (code === 0 ? resolve() : reject(new Error(`ffmpeg webp assembly exit ${code}`))));
     child.on('error', reject);
+    const blob = Buffer.concat(frames.map((f) => Buffer.from(f.buffer, f.byteOffset, f.byteLength)));
+    child.stdin!.end(blob);
   });
 }
 
@@ -272,15 +254,16 @@ export class LottieProcessor {
 
     try {
       const stride = W * H * 4;
+      const frames: Uint8Array[] = [];
       for (let f = 0; f < capFrames; f++) {
         api.lottie_render(handle, ip + f);
         const bufPtr = api.lottie_buffer(handle);
-        const rgba = new Uint8Array(api.HEAPU8.buffer.slice(bufPtr, bufPtr + stride));
-        await rgbaToPng(rgba, W, H, path.join(tempDir, `frame_${String(f).padStart(4, '0')}.png`));
+        frames.push(new Uint8Array(api.HEAPU8.buffer.slice(bufPtr, bufPtr + stride)));
       }
       api.lottie_destroy(handle);
 
-      const outPath = await assembleWebp(tempDir, targetFps, W, H, quality);
+      const outPath = path.join(tempDir, 'out.webp');
+      await encodeFramesToWebp(frames, W, H, targetFps, outPath);
       return await FileManager.safeReadFile(outPath);
     } finally {
       await fs.rm(tempDir, { recursive: true, force: true }).catch(() => undefined);

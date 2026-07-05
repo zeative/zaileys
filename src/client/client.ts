@@ -317,9 +317,18 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       async (jid) => {
         try {
           const msgs = await this.store.listMessages(jid, { limit: 1 })
+          const toSeconds = (ts: unknown): number => {
+            if (typeof ts === 'number') return ts
+            if (ts != null && typeof (ts as { toNumber?: unknown }).toNumber === 'function') {
+              return (ts as { toNumber(): number }).toNumber()
+            }
+            const n = Number(ts ?? 0)
+            return Number.isFinite(n) ? n : 0
+          }
           return msgs
             .filter((m) => m.key != null)
-            .map((m) => ({ key: m.key, messageTimestamp: Number(m.messageTimestamp ?? 0) }))
+            .map((m) => ({ key: m.key, messageTimestamp: toSeconds(m.messageTimestamp) }))
+            .filter((m) => m.messageTimestamp > 0)
         } catch {
           return []
         }

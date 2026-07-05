@@ -56,11 +56,15 @@ export class ChatModule {
   }
 
   async markRead(jid: string): Promise<void> {
-    await this.requireSocket().chatModify({ markRead: true, lastMessages: await this.last(jid) }, jid)
+    const lastMessages = await this.last(jid)
+    if (lastMessages.length === 0) return
+    await this.requireSocket().chatModify({ markRead: true, lastMessages }, jid)
   }
 
   async markUnread(jid: string): Promise<void> {
-    await this.requireSocket().chatModify({ markRead: false, lastMessages: await this.last(jid) }, jid)
+    const lastMessages = await this.last(jid)
+    if (lastMessages.length === 0) return
+    await this.requireSocket().chatModify({ markRead: false, lastMessages }, jid)
   }
 
   async star(key: WAMessageKey, starred = true): Promise<void> {

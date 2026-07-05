@@ -62,6 +62,8 @@ import {
   type ScheduledContentSnapshot,
 } from '../automation/index.js'
 import type { CitationConfig, MessageContext } from '../events/context.js'
+import { createDownloadFn } from '../events/decoders/_media-download.js'
+import type { MediaDownloadResult, MediaKind } from '../events/types.js'
 import {
   formatConnectionStatus,
   suppressLibsignalNoise,
@@ -871,6 +873,30 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     } catch {
       return null
     }
+  }
+
+  /**
+   * Download media bytes for a message stored in the message store (by key).
+   * Tries both `fromMe` variants. `null` when the message is unknown or carries no media.
+   */
+  async downloadMedia(key: WAMessageKey): Promise<MediaDownloadResult | null> {
+    const kinds: MediaKind[] = ['image', 'video', 'audio', 'document', 'sticker']
+    const fields: Record<MediaKind, string> = {
+      image: 'imageMessage',
+      video: 'videoMessage',
+      audio: 'audioMessage',
+      document: 'documentMessage',
+      sticker: 'stickerMessage',
+    }
+    for (const fromMe of [key.fromMe === true, key.fromMe !== true]) {
+      const stored = await this.store.getMessage({ ...key, fromMe }).catch(() => undefined)
+      const content = stored?.message as Record<string, unknown> | undefined
+      if (stored == null || content == null) continue
+      const kind = kinds.find((k) => content[fields[k]] != null)
+      if (kind === undefined) return null
+      return createDownloadFn(stored, kind, this.logger)()
+    }
+    return null
   }
 
   private async lookupQuoted(id: string, remoteJid: string): Promise<WAMessage | null> {

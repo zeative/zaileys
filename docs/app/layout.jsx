@@ -6,9 +6,9 @@ import 'nextra-theme-docs/style.css'
 const GA_ID = 'G-B76YYS1K85'
 const basePath = process.env.DOCS_BASE_PATH ?? '/zaileys'
 const SITE_URL = process.env.DOCS_SITE_URL ?? 'https://zeative.github.io/zaileys'
-const logoSrc = `${basePath}/zaileys-clean.png`
+const logoSrc = `${basePath}/favicon/favicon-96x96.png`
 const ogImage = 'https://repository-images.githubusercontent.com/982777390/83fdf9a5-8357-4a53-ade6-883355d77051'
-const logoUrl = `${SITE_URL}/zaileys-clean.png`
+const logoUrl = `${SITE_URL}/favicon/web-app-manifest-512x512.png`
 
 const DESCRIPTION =
   'Zaileys is a type-safe, batteries-included WhatsApp bot framework for Node.js and TypeScript built on Baileys — send messages, interactive buttons, AIRich markdown, run commands, broadcast, and persist sessions with pluggable storage.'
@@ -39,7 +39,14 @@ export const metadata = {
     'whatsapp framework',
     'multi-device whatsapp',
   ],
-  icons: { icon: logoSrc, apple: logoSrc, shortcut: logoSrc },
+  icons: {
+    icon: [
+      { url: `${basePath}/favicon/favicon.ico`, sizes: '48x48' },
+      { url: `${basePath}/favicon/favicon-96x96.png`, sizes: '96x96', type: 'image/png' },
+    ],
+    apple: `${basePath}/favicon/apple-touch-icon.png`,
+    shortcut: `${basePath}/favicon/favicon.ico`,
+  },
   manifest: `${basePath}/manifest.webmanifest`,
   alternates: { canonical: `${SITE_URL}/` },
   openGraph: {

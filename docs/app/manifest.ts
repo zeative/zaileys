@@ -16,8 +16,9 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: '#0a0a0a',
     theme_color: '#0a0a0a',
     icons: [
-      { src: `${basePath}/zaileys-clean.png`, sizes: '512x512', type: 'image/png', purpose: 'any' },
-      { src: `${basePath}/zaileys-clean.png`, sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      { src: `${basePath}/favicon/web-app-manifest-192x192.png`, sizes: '192x192', type: 'image/png', purpose: 'any' },
+      { src: `${basePath}/favicon/web-app-manifest-512x512.png`, sizes: '512x512', type: 'image/png', purpose: 'any' },
+      { src: `${basePath}/favicon/web-app-manifest-512x512.png`, sizes: '512x512', type: 'image/png', purpose: 'maskable' },
     ],
   }
 }

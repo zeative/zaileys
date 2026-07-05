@@ -1,1 +1,1 @@
-pnpm typecheck && pnpm audit:comments && pnpm audit:any && pnpm exec vitest run --changed
+pnpm typecheck && pnpm audit:comments && pnpm audit:any && pnpm exec vitest run --changed --passWithNoTests

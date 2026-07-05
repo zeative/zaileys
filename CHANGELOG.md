@@ -1,5 +1,12 @@
 # zaileys
 
+## 4.7.0
+
+### Minor Changes
+
+- add downloadMedia(key) for store-backed media downloads
+- re-export baileys message types from zaileys
+
 ## 4.6.2
 
 ### Patch Changes

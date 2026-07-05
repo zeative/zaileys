@@ -1,5 +1,11 @@
 # zaileys
 
+## 4.7.1
+
+### Patch Changes
+
+- markRead Long timestamp NaN and empty lastMessages guard
+
 ## 4.7.0
 
 ### Minor Changes

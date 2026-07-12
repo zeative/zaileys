@@ -1,6 +1,6 @@
 import { BufferJSON } from 'baileys'
 import type { AuthenticationCreds, SignalDataSet } from 'baileys'
-import type { Pool, PoolClient } from 'pg'
+import type { PgPoolClientLike, PgPoolCtorLike, PgPoolLike } from '../../types/optional-clients.js'
 import { ZaileysStoreError } from '../../types/store-error.js'
 import type {
   AuthCredsStore,
@@ -11,18 +11,18 @@ import type {
 } from '../types.js'
 
 export interface PostgresAuthStoreOptions {
-  pool?: Pool
+  pool?: PgPoolLike
   connectionString?: string
   max?: number
 }
 
-type PgModule = typeof import('pg')
+type PgModule = { Pool?: PgPoolCtorLike; default?: { Pool?: PgPoolCtorLike } }
 
 let pgModulePromise: Promise<PgModule> | undefined
 
 const loadPg = async (): Promise<PgModule> => {
   if (!pgModulePromise) {
-    pgModulePromise = import('pg').catch((err) => {
+    pgModulePromise = import('pg').then((m) => m as PgModule).catch((err) => {
       pgModulePromise = undefined
       throw new ZaileysStoreError(
         'STORE_NOT_AVAILABLE',
@@ -41,12 +41,12 @@ const CREATE_SIGNAL_SQL =
   'CREATE TABLE IF NOT EXISTS zaileys_auth_signal (type text NOT NULL, id text NOT NULL, data bytea NOT NULL, PRIMARY KEY(type, id))'
 
 export class PostgresAuthStore implements AuthStoreBundle {
-  private readonly externalPool: Pool | undefined
+  private readonly externalPool: PgPoolLike | undefined
   private readonly connectionString: string | undefined
   private readonly poolMax: number | undefined
-  private ownedPool: Pool | undefined
-  private resolvedPool: Pool | undefined
-  private readyPromise: Promise<Pool> | undefined
+  private ownedPool: PgPoolLike | undefined
+  private resolvedPool: PgPoolLike | undefined
+  private readyPromise: Promise<PgPoolLike> | undefined
   private closed = false
 
   constructor(options: PostgresAuthStoreOptions) {
@@ -69,19 +69,19 @@ export class PostgresAuthStore implements AuthStoreBundle {
     this.poolMax = options.max
   }
 
-  private async ensureReady(): Promise<Pool> {
+  private async ensureReady(): Promise<PgPoolLike> {
     if (this.closed) {
       throw new ZaileysStoreError('STORE_CLOSED', 'PostgresAuthStore is closed')
     }
     if (this.resolvedPool) return this.resolvedPool
     if (!this.readyPromise) {
       this.readyPromise = (async () => {
-        let pool: Pool
+        let pool: PgPoolLike
         if (this.externalPool) {
           pool = this.externalPool
         } else {
           const pg = await loadPg()
-          const PoolCtor = pg.Pool ?? (pg as unknown as { default: PgModule }).default?.Pool
+          const PoolCtor = pg.Pool ?? pg.default?.Pool
           if (!PoolCtor) {
             throw new ZaileysStoreError('STORE_NOT_AVAILABLE', 'pg.Pool constructor not found')
           }
@@ -149,7 +149,7 @@ export class PostgresAuthStore implements AuthStoreBundle {
         }
       }
       if (ops.length === 0) return
-      let client: PoolClient | undefined
+      let client: PgPoolClientLike | undefined
       try {
         client = await pool.connect()
         await client.query('BEGIN')
@@ -197,7 +197,7 @@ export class PostgresAuthStore implements AuthStoreBundle {
     },
     clear: async (): Promise<void> => {
       const pool = await this.ensureReady()
-      let client: PoolClient | undefined
+      let client: PgPoolClientLike | undefined
       try {
         client = await pool.connect()
         await client.query('BEGIN')

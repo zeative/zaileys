@@ -1,23 +1,23 @@
 import type { Chat, Contact, PresenceData, WAMessage, WAMessageKey } from 'baileys'
 import { BufferJSON } from 'baileys'
-import type { Pool, PoolClient } from 'pg'
+import type { PgPoolClientLike, PgPoolCtorLike, PgPoolLike } from '../../types/optional-clients.js'
 import { ZaileysStoreError } from '../../types/store-error.js'
 import type { BaileysSocketLike, MessageStore, MessageStoreListOptions, PruneOptions } from '../types.js'
 
 export interface PostgresMessageStoreOptions {
-  pool?: Pool
+  pool?: PgPoolLike
   connectionString?: string
   max?: number
 }
 
-type PgModule = typeof import('pg')
+type PgModule = { Pool?: PgPoolCtorLike; default?: { Pool?: PgPoolCtorLike } }
 type Listener = (...args: unknown[]) => void
 
 let pgModulePromise: Promise<PgModule> | undefined
 
 const loadPg = async (): Promise<PgModule> => {
   if (!pgModulePromise) {
-    pgModulePromise = import('pg').catch((err) => {
+    pgModulePromise = import('pg').then((m) => m as PgModule).catch((err) => {
       pgModulePromise = undefined
       throw new ZaileysStoreError(
         'STORE_NOT_AVAILABLE',
@@ -45,12 +45,12 @@ const reviveJson = <T>(value: unknown): T => {
 }
 
 export class PostgresMessageStore implements MessageStore {
-  private readonly externalPool: Pool | undefined
+  private readonly externalPool: PgPoolLike | undefined
   private readonly connectionString: string | undefined
   private readonly poolMax: number | undefined
-  private ownedPool: Pool | undefined
-  private resolvedPool: Pool | undefined
-  private readyPromise: Promise<Pool> | undefined
+  private ownedPool: PgPoolLike | undefined
+  private resolvedPool: PgPoolLike | undefined
+  private readyPromise: Promise<PgPoolLike> | undefined
   private boundSocket: BaileysSocketLike | undefined
   private readonly listeners: Map<string, Listener> = new Map()
   private closed = false
@@ -81,17 +81,17 @@ export class PostgresMessageStore implements MessageStore {
     }
   }
 
-  private async ensureReady(): Promise<Pool> {
+  private async ensureReady(): Promise<PgPoolLike> {
     this.assertOpen()
     if (this.resolvedPool) return this.resolvedPool
     if (!this.readyPromise) {
       this.readyPromise = (async () => {
-        let pool: Pool
+        let pool: PgPoolLike
         if (this.externalPool) {
           pool = this.externalPool
         } else {
           const pg = await loadPg()
-          const PoolCtor = pg.Pool ?? (pg as unknown as { default: PgModule }).default?.Pool
+          const PoolCtor = pg.Pool ?? pg.default?.Pool
           if (!PoolCtor) {
             throw new ZaileysStoreError('STORE_NOT_AVAILABLE', 'pg.Pool constructor not found')
           }
@@ -396,7 +396,7 @@ export class PostgresMessageStore implements MessageStore {
 
   async clear(): Promise<void> {
     const pool = await this.ensureReady()
-    let client: PoolClient | undefined
+    let client: PgPoolClientLike | undefined
     try {
       client = await pool.connect()
       await client.query('BEGIN')

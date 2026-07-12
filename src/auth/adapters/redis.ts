@@ -1,6 +1,6 @@
 import { BufferJSON } from 'baileys'
 import type { AuthenticationCreds, SignalDataSet } from 'baileys'
-import type { RedisClientType } from 'redis'
+import type { RedisClientLike } from '../../types/optional-clients.js'
 import { ZaileysStoreError } from '../../types/store-error.js'
 import type {
   AuthCredsStore,
@@ -11,7 +11,7 @@ import type {
 } from '../types.js'
 
 export interface RedisAuthStoreOptions {
-  client?: RedisClientType
+  client?: RedisClientLike
   url?: string
   namespace?: string
 }
@@ -39,10 +39,10 @@ const isPeerMissingError = (err: unknown): boolean => {
 
 export class RedisAuthStore implements AuthStoreBundle {
   private readonly namespace: string
-  private readonly externalClient: RedisClientType | undefined
+  private readonly externalClient: RedisClientLike | undefined
   private readonly url: string | undefined
-  private ownedClient: RedisClientType | undefined
-  private ready: Promise<RedisClientType> | undefined
+  private ownedClient: RedisClientLike | undefined
+  private ready: Promise<RedisClientLike> | undefined
   private closed = false
 
   constructor(options: RedisAuthStoreOptions) {
@@ -171,14 +171,14 @@ export class RedisAuthStore implements AuthStoreBundle {
     return `${this.namespace}:auth:signal-index:${String(type)}`
   }
 
-  private async ensureReady(): Promise<RedisClientType> {
+  private async ensureReady(): Promise<RedisClientLike> {
     if (!this.ready) {
       this.ready = this.connect()
     }
     return this.ready
   }
 
-  private async connect(): Promise<RedisClientType> {
+  private async connect(): Promise<RedisClientLike> {
     if (this.externalClient) {
       if (!this.externalClient.isOpen) {
         throw new ZaileysStoreError(
@@ -188,9 +188,9 @@ export class RedisAuthStore implements AuthStoreBundle {
       }
       return this.externalClient
     }
-    let mod: typeof import('redis')
+    let mod: { createClient: (options: { url?: string }) => unknown }
     try {
-      mod = await import('redis')
+      mod = (await import('redis')) as typeof mod
     } catch (err) {
       if (isPeerMissingError(err)) {
         throw new ZaileysStoreError(
@@ -205,7 +205,7 @@ export class RedisAuthStore implements AuthStoreBundle {
         { cause: err },
       )
     }
-    const created = mod.createClient({ url: this.url! }) as RedisClientType
+    const created = mod.createClient({ url: this.url! }) as RedisClientLike
     try {
       await created.connect()
     } catch (err) {

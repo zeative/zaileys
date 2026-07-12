@@ -235,6 +235,11 @@ Zaileys ships dual ESM/CJS entry points with type declarations for both module s
 
 Package managers: **npm**, **pnpm**, **yarn**, and **bun** are all supported.
 
+### Bundling & typecheck troubleshooting
+
+- **`bun build` fails with "Browser build cannot import Node.js builtin"** — Zaileys (and baileys underneath) is a Node-only library; bun's bundler defaults to a browser target. Pass the target explicitly: `bun build index.ts --target bun` (or `--target node`).
+- **`tsc` reports errors inside `node_modules` (`ws`, `thread-stream`, `whatsapp-rust-bridge`)** — upstream declaration issues, not yours. Set `"skipLibCheck": true` in your `tsconfig.json`.
+
 ## Documentation
 
 - 🌐 [**zeative.github.io/zaileys**](https://zeative.github.io/zaileys/) — full documentation site: guides, API reference, recipes

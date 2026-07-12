@@ -34,11 +34,10 @@
   ],
   "scripts": {
     "dev": "tsx --watch examples/quickstart-connect.ts",
-    "build": "tsup",
-    "prepublishOnly": "tsup",
+    "build": "tsup && tsc -p tsconfig.build.json --emitDeclarationOnly --declarationMap false",
+    "prepublishOnly": "pnpm run build",
     "release": "node scripts/release.mjs",
-    "typecheck": "tsgo --noEmit",
-    "typecheck:legacy": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
     "typecheck:audit": "tsx scripts/audit-tsgo-compat.ts",
     "audit:comments": "tsx scripts/audit-comments.ts",
     "audit:any": "tsx scripts/audit-no-any.ts",
@@ -65,7 +64,6 @@
     "@types/node": "^24.10.1",
     "@types/pg": "^8.20.0",
     "@types/qrcode-terminal": "^0.12.2",
-    "@typescript/native-preview": "7.0.0-dev.20260527.2",
     "@vitest/coverage-v8": "4.1.7",
     "better-sqlite3": "^11.10.0",
     "express": "^5.2.1",
@@ -76,7 +74,7 @@
     "size-limit": "^12.1.0",
     "tsup": "^8.5.1",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.3",
+    "typescript": "~7.0.2",
     "vitest": "^4.1.7"
   },
   "dependencies": {

@@ -12,8 +12,8 @@ describe('package: dual ESM/CJS + types build', () => {
     execSync('pnpm build', { cwd: ROOT, stdio: 'ignore' })
   }, 180_000)
 
-  it('PKG1: emits .mjs, .cjs, .d.ts and .d.cts', () => {
-    for (const f of ['index.mjs', 'index.cjs', 'index.d.ts', 'index.d.cts']) {
+  it('PKG1: emits .mjs, .cjs and .d.ts', () => {
+    for (const f of ['index.mjs', 'index.cjs', 'index.d.ts']) {
       expect(existsSync(dist(f)), `missing dist/${f}`).toBe(true)
     }
   })
@@ -46,11 +46,17 @@ describe('package: dual ESM/CJS + types build', () => {
     expect(out).toBe('function,function,function,function')
   })
 
-  it('PKG5: type declarations declare the Client class for both module systems', () => {
-    for (const f of ['index.d.ts', 'index.d.cts']) {
-      const dts = readFileSync(dist(f), 'utf8')
-      expect(dts).toContain('class Client')
+  it('PKG5: type declarations expose Client and never import optional peers', () => {
+    expect(readFileSync(dist('index.d.ts'), 'utf8')).toMatch(/export \*/)
+    const clientDecl = execFileSync('grep', ['-rl', 'class Client', '--include=*.d.ts', join(ROOT, 'dist')], { encoding: 'utf8' }).trim()
+    expect(clientDecl.length, 'no d.ts in dist declares class Client').toBeGreaterThan(0)
+    let offenders = ''
+    try {
+      offenders = execFileSync('grep', ['-rlE', "from ['\"](pg|redis|better-sqlite3|convex)['\"]", '--include=*.d.ts', join(ROOT, 'dist')], { encoding: 'utf8' }).trim()
+    } catch {
+      // grep exit code 1 = no matches = clean
     }
+    expect(offenders, `optional peer import leaked into dist typings:\n${offenders}`).toBe('')
   })
 
   it('PKG6: node builtins use the node: protocol (Deno/strict-runtime compat)', () => {

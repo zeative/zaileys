@@ -10,7 +10,9 @@ export default defineConfig({
 
   tsconfig: './tsconfig.build.json',
 
-  dts: true,
+  // d.ts emitted by tsc v7 in the build script — rollup-plugin-dts needs the
+  // legacy TS compiler API that native TS7 no longer ships.
+  dts: false,
   // No sourcemaps in the published package — they reference src/ (not published),
   // so they add ~1.2MB of dead weight for consumers without being resolvable.
   sourcemap: false,

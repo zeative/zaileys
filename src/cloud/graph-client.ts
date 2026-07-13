@@ -1,6 +1,9 @@
 import { ZaileysCloudError } from './errors.js'
 import type { CloudOptions } from './types.js'
-import { DEFAULT_GRAPH_BASE_URL, DEFAULT_GRAPH_VERSION } from './transport.js'
+
+/** Pinned default Graph API version — override via CloudOptions.apiVersion. */
+export const DEFAULT_GRAPH_VERSION = 'v23.0'
+export const DEFAULT_GRAPH_BASE_URL = 'https://graph.facebook.com'
 
 interface GraphErrorBody {
   error?: { message?: string; type?: string; code?: number; error_subcode?: number }

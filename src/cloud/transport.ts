@@ -3,10 +3,15 @@ import type { AnyMessageContent, MiscMessageGenerationOptions, WAMessage } from 
 import type { Transport } from '../transport/types.js'
 import { ZaileysCloudError } from './errors.js'
 import type { CloudOptions } from './types.js'
+import {
+  createGraphClient,
+  DEFAULT_GRAPH_BASE_URL,
+  DEFAULT_GRAPH_VERSION,
+  type GraphClient,
+} from './graph-client.js'
+import { synthesizeSentMessage, translateOutbound } from './translate/outbound.js'
 
-/** Pinned default Graph API version — override via CloudOptions.apiVersion. */
-export const DEFAULT_GRAPH_VERSION = 'v23.0'
-export const DEFAULT_GRAPH_BASE_URL = 'https://graph.facebook.com'
+export { DEFAULT_GRAPH_BASE_URL, DEFAULT_GRAPH_VERSION }
 
 export interface CloudMe {
   id: string
@@ -17,10 +22,12 @@ export class CloudTransport implements Transport {
   readonly ev = new EventEmitter()
   readonly user: { id: string }
   private readonly options: CloudOptions
+  private readonly graph: GraphClient
 
   constructor(options: CloudOptions) {
     this.options = options
     this.user = { id: options.phoneNumberId }
+    this.graph = createGraphClient(options)
   }
 
   get apiVersion(): string {
@@ -64,10 +71,24 @@ export class CloudTransport implements Transport {
   }
 
   async sendMessage(
-    _jid: string,
-    _content: AnyMessageContent,
-    _options?: MiscMessageGenerationOptions,
+    jid: string,
+    content: AnyMessageContent,
+    options?: MiscMessageGenerationOptions,
   ): Promise<WAMessage | undefined> {
-    throw new ZaileysCloudError('NOT_IMPLEMENTED', 'cloud sendMessage lands in the next slice')
+    const payload = translateOutbound(jid, content, options)
+    if (payload === null) {
+      throw new ZaileysCloudError('NOT_IMPLEMENTED', 'this content type is not supported on the cloud provider yet')
+    }
+    const res = await this.graph.post<{ messages?: Array<{ id?: string }> }>(
+      `${this.options.phoneNumberId}/messages`,
+      payload,
+    )
+    const wamid = res.messages?.[0]?.id
+    if (!wamid) {
+      throw new ZaileysCloudError('REQUEST_FAILED', 'graph send returned no message id')
+    }
+    const sent = synthesizeSentMessage(wamid, jid, content, Date.now())
+    this.ev.emit('messages.upsert', { messages: [sent], type: 'append' })
+    return sent
   }
 }

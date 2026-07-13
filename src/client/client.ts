@@ -484,6 +484,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.machine.transition('connecting')
     this.logStatus({ kind: 'connecting', sessionId: this.sessionId })
     const transport = (this.cloudTransport ??= new CloudTransport(this.cloudOptions as CloudOptions))
+    this.store.bind(transport as unknown as BaileysSocketLike)
     try {
       const me = await transport.connect()
       this.machine.transition('connected')

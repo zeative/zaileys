@@ -9,6 +9,9 @@ import type { CitationConfig } from '../events/context.js'
 import type { InboundEventMap } from '../events/types.js'
 import type { MessageStore } from '../store/types.js'
 import type { PluginsOptions } from '../plugin/types.js'
+import type { CloudOptions } from '../cloud/types.js'
+
+export type ProviderKind = 'baileys' | 'cloud'
 
 export type ConnectionState =
   | 'idle'
@@ -41,6 +44,10 @@ export interface ReconnectOptions {
 }
 
 export interface ClientOptions {
+  /** Message transport: baileys (WhatsApp Web, default) or the official Meta Cloud API. */
+  provider?: ProviderKind
+  /** Cloud API credentials/config — required when `provider: 'cloud'`. */
+  cloud?: CloudOptions
   sessionId?: string
   auth?: AuthStoreBundle
   store?: MessageStore

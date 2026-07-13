@@ -105,8 +105,10 @@ import type {
   ConnectionEventMap,
   ConnectionState,
   Logger,
+  ProviderKind,
   ReconnectOptions,
 } from './types.js'
+import { validateCloudOptions, type CloudOptions } from '../cloud/types.js'
 
 const DEFAULT_SESSION_ID = 'default'
 const DEFAULT_AUTH_TYPE: ConnectionAuthType = 'qr'
@@ -185,9 +187,13 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private pluginLoader: PluginLoader | undefined
   private waVersion?: UserFacingSocketConfig['version']
   private versionWarming?: Promise<void>
+  private readonly _provider: ProviderKind
+  private readonly cloudOptions: CloudOptions | undefined
 
   constructor(options: ClientOptions = {}) {
     super({ logger: adoptLogger(options.logger) })
+    this._provider = options.provider ?? 'baileys'
+    this.cloudOptions = this._provider === 'cloud' ? validateCloudOptions(options.cloud) : undefined
     this.sessionId = options.sessionId ?? DEFAULT_SESSION_ID
     this.logger = adoptLogger(options.logger)
     this.authType = options.authType ?? DEFAULT_AUTH_TYPE
@@ -272,6 +278,10 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       return credsMe as ConnectionEventMap['connect']['me']
     }
     return { id: '' }
+  }
+
+  get provider(): ProviderKind {
+    return this._provider
   }
 
   get state(): ConnectionState {

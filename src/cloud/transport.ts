@@ -10,6 +10,7 @@ import {
   type GraphClient,
 } from './graph-client.js'
 import { synthesizeSentMessage, translateOutbound } from './translate/outbound.js'
+import { translateInbound, type CloudWebhookPayload } from './translate/inbound.js'
 
 export { DEFAULT_GRAPH_BASE_URL, DEFAULT_GRAPH_VERSION }
 
@@ -68,6 +69,14 @@ export class CloudTransport implements Transport {
 
   async disconnect(): Promise<void> {
     this.ev.removeAllListeners()
+  }
+
+  /** Feed a verified webhook payload into the shared event pipeline. */
+  ingest(payload: unknown): void {
+    const { messages } = translateInbound(payload as CloudWebhookPayload)
+    if (messages.length > 0) {
+      this.ev.emit('messages.upsert', { messages, type: 'notify' })
+    }
   }
 
   async sendMessage(

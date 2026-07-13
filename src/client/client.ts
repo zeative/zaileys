@@ -110,6 +110,8 @@ import type {
 } from './types.js'
 import { validateCloudOptions, type CloudOptions } from '../cloud/types.js'
 import { CloudTransport } from '../cloud/transport.js'
+import { createWebhookHandler, type WebhookHandler } from '../cloud/webhook.js'
+import { ZaileysCloudError } from '../cloud/errors.js'
 
 const DEFAULT_SESSION_ID = 'default'
 const DEFAULT_AUTH_TYPE: ConnectionAuthType = 'qr'
@@ -488,12 +490,54 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     try {
       const me = await transport.connect()
       this.machine.transition('connected')
+      this.attachCloudPipeline(transport, me.id)
       this.logStatus({ kind: 'connected', id: me.id })
       this.emit('connect', { sessionId: this.sessionId, me })
     } catch (err) {
       this.machine.transition('disconnected')
       throw err
     }
+  }
+
+  private attachCloudPipeline(transport: CloudTransport, meId: string): void {
+    const selfJid = meId.includes('@') ? meId : `${meId}@s.whatsapp.net`
+    this.inboundHandle?.detach()
+    this.inboundHandle = attachInboundPipeline(this, transport as unknown as PipelineSocketLike, {
+      selfJid,
+      channelId: this.sessionId,
+      receiverId: selfJid,
+      prefixes: this.commandPrefixes,
+      logger: this.logger,
+      ...(this.citationConfig != null ? { citationConfig: this.citationConfig } : {}),
+      receiverName: () => Promise.resolve(null),
+      resolveQuoted: (id, remoteJid) => this.lookupQuoted(id, remoteJid),
+      resolveLidToPn: () => Promise.resolve(null),
+      sendReply: async (target, content, opts, quoted) =>
+        await this.send(target).text(content, opts).reply(quoted),
+      react: (key, emoji) => this.react(key, emoji),
+      ignoreMe: this.ignoreMe,
+    })
+    this.attachCommandsIfReady()
+  }
+
+  /**
+   * Framework-agnostic Meta webhook endpoint (cloud provider only): handles the GET
+   * verification challenge and signed POST deliveries, then feeds events into the client.
+   */
+  webhook(): WebhookHandler {
+    if (this._provider !== 'cloud') {
+      throw new ZaileysCloudError('CONFIG', 'webhook() is only available on the cloud provider')
+    }
+    const cloud = this.cloudOptions as CloudOptions
+    return createWebhookHandler({
+      ...(cloud.verifyToken !== undefined ? { verifyToken: cloud.verifyToken } : {}),
+      ...(cloud.appSecret !== undefined ? { appSecret: cloud.appSecret } : {}),
+      onPayload: (payload) => {
+        const transport = this.cloudTransport
+        if (!transport) return
+        transport.ingest(payload)
+      },
+    })
   }
 
   private async disconnectCloud(): Promise<void> {

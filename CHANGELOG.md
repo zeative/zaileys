@@ -1,5 +1,12 @@
 # zaileys
 
+## 4.7.2
+
+### Patch Changes
+
+- 61bb53c: Remove `pg`/`redis` type imports from published typings — consumers without the optional peer deps no longer fail typecheck (TS2307). Declarations are now emitted by TypeScript 7 directly instead of bundled, and the packaging guard fails the build if any optional peer ever leaks into `dist` typings again.
+- 2285bd7: Stop wiping a valid session on a spurious 401 (issue #54). WhatsApp sometimes emits a `logged-out` close right after a successful connect; the client now reconnects to confirm before clearing credentials. A genuine logout (the retry never re-opens) is still cleared, so no orphaned sessions are left behind.
+
 ## 4.7.1
 
 ### Patch Changes
@@ -130,19 +137,19 @@ side-by-side upgrade guide.
   GHSA-qvv5-jq5g-4cgg** message-spoofing via `protocolMessage.type`. See
   [SECURITY.md](./SECURITY.md).
 - **Typed event handlers** — `client.on('text' | 'image' | 'video' | 'audio' | 'document'
-  | 'sticker' | 'reaction' | 'edit' | 'delete' | 'poll-vote' | 'button-click' |
-  'list-select' | 'mention' | 'mention-all' | 'group-update' | 'group-join' |
-  'group-leave' | 'member-tag' | 'call-incoming' | 'call-ended' | 'history-sync' |
-  'limited' | 'presence' | 'newsletter', ...)` plus connection events (`connect`,
+| 'sticker' | 'reaction' | 'edit' | 'delete' | 'poll-vote' | 'button-click' |
+'list-select' | 'mention' | 'mention-all' | 'group-update' | 'group-join' |
+'group-leave' | 'member-tag' | 'call-incoming' | 'call-ended' | 'history-sync' |
+'limited' | 'presence' | 'newsletter', ...)` plus connection events (`connect`,
   `disconnect`, `qr`, `pairing-code`, `reconnecting`, `error`), each with a fully typed
   payload.
 - **Chainable builder** — `client.send(jid).text().reply().mentions().mentionAll()
-  .image().video().audio().document().sticker().album().buttons().list().poll()
-  .location().contact()`; awaiting returns the sent `WAMessageKey`. Mutations:
+.image().video().audio().document().sticker().album().buttons().list().poll()
+.location().contact()`; awaiting returns the sent `WAMessageKey`. Mutations:
   `client.edit(key)`, `client.delete(key, { forEveryone })`, `client.react(key, emoji)`,
   `client.forward(key, to)`.
 - **Auto-connect lifecycle** — `new Client()` connects automatically (no `await
-  connect()`); auto-reconnect with backoff; QR or pairing-code selection from config.
+connect()`); auto-reconnect with backoff; QR or pairing-code selection from config.
 - **Interactive messages** — native `buttons()` (`reply` / `url` / `copy` / `call` /
   `reminder` / `cancel-reminder` / `location` / `address`), `carousel()`, and `list()`
   (rendered via the modern nativeFlow `single_select` so they show on personal accounts),
@@ -156,7 +163,7 @@ side-by-side upgrade guide.
   `file` (default), `memory`, `sqlite`, `redis`, `postgres`, and `convex` adapters. Auth and
   message backends can differ.
 - **Message-context actions everywhere** — every inbound context exposes `msg.reply(content,
-  { rich? })` (quotes the message) and `msg.react(emoji)`, not just command contexts.
+{ rich? })` (quotes the message) and `msg.react(emoji)`, not just command contexts.
 - **Command framework** — `client.command(name, handler)`, `client.use(middleware)`,
   configurable `commandPrefix`, argument parsing, and a typed context (`ctx.args`,
   `ctx.reply`, `ctx.react`, `ctx.edit`).

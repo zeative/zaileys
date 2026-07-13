@@ -111,6 +111,9 @@ import type {
 const DEFAULT_SESSION_ID = 'default'
 const DEFAULT_AUTH_TYPE: ConnectionAuthType = 'qr'
 const QR_DEFAULT_TTL_MS = 60_000
+/** WA emits a spurious 401 right after a good connect; reconnect to confirm before wiping creds (#54). */
+const POST_OPEN_LOGOUT_MAX_RETRIES = 2
+const POST_OPEN_LOGOUT_RETRY_DELAY_MS = 3_000
 
 interface SocketCleanup {
   off: () => void
@@ -154,6 +157,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private credsLoadedAtConnect = false
   private openedThisRun = false
   private credsHintShown = false
+  private postOpenLogoutRetries = 0
   private disconnectEmittedFor = 0
   private connectAttemptSeq = 0
   private pendingDisconnectReason: DisconnectReasonDomain | undefined
@@ -789,6 +793,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     }
     this.openedThisRun = true
     this.credsHintShown = false
+    this.postOpenLogoutRetries = 0
     this.authExhausted = false
     this.authGuard.reset()
     this.reconnectStrategy.reset()
@@ -927,7 +932,20 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     const code = extractStatusCode(lastDisconnect?.error)
     const reason = mapDisconnectReason(code)
     let willReconnect = false
-    if (shouldClearAuth(reason)) {
+    /** Post-open logged-out is likely spurious; reconnect to confirm — a real logout won't re-open and clears then. */
+    const spuriousLogout =
+      reason === 'logged-out' &&
+      this.openedThisRun &&
+      !this.authExhausted &&
+      this.postOpenLogoutRetries < POST_OPEN_LOGOUT_MAX_RETRIES
+    if (spuriousLogout) {
+      this.postOpenLogoutRetries += 1
+      this.logger.warn(
+        { sessionId: this.sessionId, attempt: this.postOpenLogoutRetries },
+        'logged-out right after connect; treating as spurious and reconnecting instead of clearing session',
+      )
+    }
+    if (shouldClearAuth(reason) && !spuriousLogout) {
       try {
         await this.auth.signal.clear()
       } catch (err) {
@@ -939,14 +957,16 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         this.logger.warn(err, 'auth.creds.deleteCreds failed (post-close)')
       }
     }
-    if (!isFatalDisconnect(reason) && !this.authExhausted) {
+    if ((spuriousLogout || !isFatalDisconnect(reason)) && !this.authExhausted) {
       if (isRateLimited(reason)) {
         this.logger.warn(
           { sessionId: this.sessionId },
           'WhatsApp returned rate-limited (429); backing off before reconnect to avoid restriction',
         )
       }
-      const decision = this.reconnectStrategy.next(reason)
+      const decision = spuriousLogout
+        ? { attempt: this.postOpenLogoutRetries, delayMs: POST_OPEN_LOGOUT_RETRY_DELAY_MS }
+        : this.reconnectStrategy.next(reason)
       if (decision !== null) {
         willReconnect = true
         if (this.machine.canTransition('reconnecting')) {

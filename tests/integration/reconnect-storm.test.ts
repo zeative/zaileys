@@ -361,4 +361,54 @@ describe('integration: reconnect storm — exponential backoff sequence', () => 
     expect(c.state).toBe('disconnected')
     expect(makeWASocketMock).toHaveBeenCalledTimes(1)
   })
+
+  it('spurious 401 right after connect reconnects instead of wiping the session', async () => {
+    vi.useFakeTimers()
+    const socks = queueSockets(3)
+    const auth = new MemoryAuthStore()
+    const deleteCreds = vi.spyOn(auth.creds, 'deleteCreds')
+    const clearSignal = vi.spyOn(auth.signal, 'clear')
+    const c = new Client({ auth, qrTerminal: false, reconnect: { jitterFactor: 0 }, autoConnect: false })
+    const reasons: string[] = []
+    c.on('reconnecting', (e) => reasons.push(e.reason))
+    const p = c.connect()
+    socks[0]!.triggerConnectionUpdate({ connection: 'open' })
+    await p
+    simulateBoomDisconnect(socks[0]!, 401)
+    await tick()
+    expect(deleteCreds).not.toHaveBeenCalled()
+    expect(clearSignal).not.toHaveBeenCalled()
+    expect(reasons).toContain('logged-out')
+    expect(c.state).toBe('reconnecting')
+    // recovery confirms it was spurious
+    vi.advanceTimersByTime(5000) // > POST_OPEN_LOGOUT_RETRY_DELAY_MS (3s)
+    await tick()
+    socks[1]!.triggerConnectionUpdate({ connection: 'open' })
+    await tick()
+    expect(c.state).toBe('connected')
+  })
+
+  it('genuine logout (401 before re-open) still clears the session on the retry', async () => {
+    vi.useFakeTimers()
+    const socks = queueSockets(3)
+    const auth = new MemoryAuthStore()
+    const deleteCreds = vi.spyOn(auth.creds, 'deleteCreds')
+    const c = new Client({ auth, qrTerminal: false, reconnect: { jitterFactor: 0 }, autoConnect: false })
+    const disconnects: Array<{ willReconnect: boolean }> = []
+    c.on('disconnect', (e) => disconnects.push(e))
+    const p = c.connect()
+    socks[0]!.triggerConnectionUpdate({ connection: 'open' })
+    await p
+    // first 401 → treated as spurious, reconnect scheduled, no wipe yet
+    simulateBoomDisconnect(socks[0]!, 401)
+    await tick()
+    expect(deleteCreds).not.toHaveBeenCalled()
+    // retry socket closes with 401 before opening → real logout, creds cleared
+    vi.advanceTimersByTime(5000) // > POST_OPEN_LOGOUT_RETRY_DELAY_MS (3s)
+    await tick()
+    simulateBoomDisconnect(socks[1]!, 401)
+    await tick()
+    expect(deleteCreds).toHaveBeenCalled()
+    expect(disconnects[disconnects.length - 1]?.willReconnect).toBe(false)
+  })
 })

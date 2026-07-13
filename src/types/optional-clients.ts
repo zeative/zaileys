@@ -1,5 +1,4 @@
-// Structural stand-ins for optional peer deps (pg, redis) so their types never
-// leak into dist typings — consumers without those packages must typecheck clean.
+/** Structural stand-ins for optional peers (pg, redis) so their types never leak into dist typings. */
 
 export interface PgQueryResultLike<R = Record<string, unknown>> {
   rows: R[]

@@ -163,25 +163,36 @@ describe('Client — non-fatal disconnect schedules reconnect', () => {
 
 describe('Client — fatal disconnect wipes auth', () => {
   it.each([
-    [401, 'logged-out'],
     [403, 'forbidden'],
     [440, 'connection-replaced'],
   ] as const)('status %i -> reason %s, willReconnect false, auth cleared', async (code, _expected) => {
     const auth = memAuth()
     const { sock } = await connectAndOpen(auth)
-    const events: Array<{ reason: string; willReconnect: boolean }> = []
-    let c2: { state: string } | undefined
-    void c2
-    const disconnectEvents: Array<{ reason: string }> = []
-    sock.ev.removeAllListeners('disconnect')
-    const seen: Array<{ reason: string; willReconnect: boolean }> = []
-    void disconnectEvents
-    void events
-    void seen
     sock.triggerConnectionUpdate({ connection: 'close', lastDisconnect: { error: boomErr(code) } })
     await new Promise((r) => setTimeout(r, 5))
     expect(auth.__wipeSignal).toBeGreaterThanOrEqual(1)
     expect(auth.__wipeCreds).toBeGreaterThanOrEqual(1)
+  })
+
+  // A 401 right after a good open is likely a spurious WA logout; confirm via reconnect
+  // before wiping — a genuine logout won't re-open and gets cleared on the retry (issue #54).
+  it('post-open 401 defers the wipe until a reconnect confirms it', async () => {
+    const auth = memAuth()
+    const { c, sock } = await connectAndOpen(auth)
+    const ev: Array<{ reason: string; willReconnect: boolean }> = []
+    c.on('disconnect', (e) => ev.push(e))
+    // first 401 → spurious, reconnect scheduled, session preserved
+    sock.triggerConnectionUpdate({ connection: 'close', lastDisconnect: { error: boomErr(401) } })
+    await new Promise((r) => setTimeout(r, 20))
+    expect(auth.__wipeCreds).toBe(0)
+    expect(ev.some((e) => e.reason === 'logged-out' && e.willReconnect === true)).toBe(true)
+    // retry closes with 401 before opening → real logout, now wiped
+    await new Promise((r) => setTimeout(r, 3100)) // wait out POST_OPEN_LOGOUT_RETRY_DELAY_MS
+    sock.triggerConnectionUpdate({ connection: 'close', lastDisconnect: { error: boomErr(401) } })
+    await new Promise((r) => setTimeout(r, 20))
+    expect(auth.__wipeCreds).toBeGreaterThanOrEqual(1)
+    expect(auth.__wipeSignal).toBeGreaterThanOrEqual(1)
+    expect(ev[ev.length - 1]?.willReconnect).toBe(false)
   })
 
   it('fatal close emits disconnect with willReconnect:false', async () => {
@@ -189,9 +200,9 @@ describe('Client — fatal disconnect wipes auth', () => {
     const { c, sock } = await connectAndOpen(auth)
     const ev: Array<{ reason: string; willReconnect: boolean }> = []
     c.on('disconnect', (e) => ev.push(e))
-    sock.triggerConnectionUpdate({ connection: 'close', lastDisconnect: { error: boomErr(401) } })
+    sock.triggerConnectionUpdate({ connection: 'close', lastDisconnect: { error: boomErr(403) } })
     await new Promise((r) => setTimeout(r, 5))
-    expect(ev.some((e) => e.reason === 'logged-out' && e.willReconnect === false)).toBe(true)
+    expect(ev.some((e) => e.reason === 'forbidden' && e.willReconnect === false)).toBe(true)
   })
 })
 

@@ -94,7 +94,6 @@ async function bootWith(basePath: string) {
 
 describe('integration: fatal disconnect clears FileAuthStore', () => {
   it.each([
-    [401, 'logged-out'],
     [403, 'forbidden'],
     [440, 'connection-replaced'],
   ] as const)('status %i wipes creds.json + signal files', async (code, _reason) => {
@@ -105,6 +104,21 @@ describe('integration: fatal disconnect clears FileAuthStore', () => {
     await new Promise((r) => setTimeout(r, 20))
     const files = await listAuthFiles(basePath)
     expect(files).toHaveLength(0)
+  })
+
+  // 401 right after connect is confirmed via reconnect before wiping (issue #54):
+  // the first close preserves files, a second 401 (retry never opens) clears them.
+  it('status 401 wipes only after a reconnect confirms the logout', async () => {
+    const basePath = path.join(tmpRoot, 'session-401')
+    await seedAuthDir(basePath)
+    const { sock } = await bootWith(basePath)
+    simulateBoomDisconnect(sock, 401)
+    await new Promise((r) => setTimeout(r, 20))
+    expect((await listAuthFiles(basePath)).length).toBeGreaterThan(0)
+    await new Promise((r) => setTimeout(r, 3100)) // wait out POST_OPEN_LOGOUT_RETRY_DELAY_MS
+    simulateBoomDisconnect(sock, 401)
+    await new Promise((r) => setTimeout(r, 20))
+    expect(await listAuthFiles(basePath)).toHaveLength(0)
   })
 
   it('non-fatal 428 preserves auth files', async () => {
@@ -199,7 +213,7 @@ describe('integration: fatal disconnect clears FileAuthStore', () => {
     sockA.triggerConnectionUpdate({ connection: 'open' })
     sockB.triggerConnectionUpdate({ connection: 'open' })
     await Promise.all([pA, pB])
-    simulateBoomDisconnect(sockA, 401)
+    simulateBoomDisconnect(sockA, 440)
     await new Promise((r) => setTimeout(r, 20))
     const filesA = await listAuthFiles(pathA)
     const filesB = await listAuthFiles(pathB)

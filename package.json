@@ -67,6 +67,7 @@
     "@vitest/coverage-v8": "4.1.7",
     "better-sqlite3": "^11.10.0",
     "express": "^5.2.1",
+    "hono": "^4.12.30",
     "husky": "^9.1.7",
     "pg": "8.21.0",
     "pg-mem": "^3.0.14",

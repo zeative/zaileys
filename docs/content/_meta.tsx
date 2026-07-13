@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 
 const paths: Record<string, string> = {
   home: 'M3 9.5 12 3l9 6.5M5 9.5V21h14V9.5M9 21v-6h6v6',
+  cloud: 'M17.5 19a4.5 4.5 0 0 0 .4-9A7 7 0 0 0 4 12.5 4 4 0 0 0 6 20h11.5z',
   download: 'M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2',
   rocket: 'M5 13c-1.5 1.5-2 5-2 5s3.5-.5 5-2m4.5-8.5a8 8 0 0 1 4 4l-5 3-2-2zM15 9a2 2 0 1 0 0-.01M14 4l6 6c0 4-3 7-7 9l-3-3-3-3c2-4 5-7 9-7z',
   sliders: 'M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6',
@@ -74,6 +75,7 @@ export default {
 
   '-- core': { type: 'separator', title: 'Core Concepts' },
   client: item('cpu', 'Client & Lifecycle'),
+  'cloud-api': item('cloud', 'Official Cloud API'),
   events: item('zap', 'Events'),
   'message-payload': item('braces', 'Message Payload'),
 

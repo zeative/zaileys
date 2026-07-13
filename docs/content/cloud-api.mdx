@@ -1,0 +1,72 @@
+# Official Cloud API
+
+zaileys can run on the **official Meta WhatsApp Cloud API** instead of WhatsApp Web — same
+client, same builder, same events. Pick the provider at construction time:
+
+```ts
+import { Client } from 'zaileys'
+
+const wa = new Client({
+  provider: 'cloud',
+  cloud: {
+    accessToken: process.env.WA_TOKEN!,      // permanent / system-user token
+    phoneNumberId: process.env.WA_PHONE_ID!, // sender phone-number id (not the number itself)
+    verifyToken: process.env.WA_VERIFY!,     // webhook GET challenge
+    appSecret: process.env.WA_APP_SECRET!,   // enables webhook signature verification
+    apiVersion: 'v23.0',                     // optional, pinned default
+  },
+})
+
+wa.on('text', (m) => m.reply(`echo: ${m.text}`))
+await wa.send('628xxx').text('halo')
+```
+
+No QR, no pairing, no session files — the token authenticates you. `connect()` is a
+health-check against the Graph API and resolves immediately.
+
+## Webhook
+
+Inbound traffic arrives via Meta webhooks. `wa.webhook()` returns a framework-agnostic
+`(req: Request) => Promise<Response>` that handles the GET verification challenge and
+verifies the `X-Hub-Signature-256` HMAC on POSTs (when `appSecret` is set):
+
+```ts
+// hono
+app.all('/webhook', (c) => wa.webhook()(c.req.raw))
+
+// next.js app router (app/api/whatsapp/route.ts)
+export const GET = wa.webhook()
+export const POST = wa.webhook()
+```
+
+See `examples/cloud-express.ts`, `examples/cloud-hono.ts`, `examples/cloud-next-route.ts`.
+In the Meta app dashboard, subscribe the webhook to the `messages` field.
+
+## What works on cloud
+
+| Surface | Status |
+| --- | --- |
+| `send().text/image/video/audio/document/sticker/location/contact` | ✅ |
+| `send().buttons()` (max 3 reply buttons) / `send().list()` | ✅ |
+| `reply()`, `react()`, `forward()` | ✅ |
+| `sendTemplate(to, name, lang, components?)` | ✅ cloud-only |
+| `markRead(messageId, { typing })` | ✅ cloud-only |
+| `downloadMedia(key)` | ✅ |
+| events: `message`, `text`, `image`, …, `reaction`, `button-click`, `list-select` | ✅ |
+| `message-status` (`sent`/`delivered`/`read`/`failed`) | ✅ cloud-only |
+| commands (`commandPrefix`), middleware, plugins | ✅ |
+| `group`, `community`, `newsletter`, `privacy`, `presence`, `chat`, `contact`, `business`, `profile` | ❌ throws `ZaileysProviderError` (`UNSUPPORTED_ON_CLOUD`) |
+| `edit`, `delete`, `pin`, `setDisappearing`, stories/status | ❌ not offered by the Cloud API |
+| QR / pairing / multi-device session | — not applicable |
+
+Everything unsupported throws a **typed error** immediately — nothing fails silently.
+
+## Notes & ceilings
+
+- Business-initiated conversations require an **approved template** (`sendTemplate`) once
+  outside the 24h customer-service window — plain sends return error 131047.
+- Interactive sends return a builder-generated key id; the real `wamid` is recorded in the
+  message store (and referenced by `message-status` events).
+- Media headers on interactive buttons are not supported on cloud yet.
+- zaileys still imports baileys at module load even in cloud mode (startup cost only, no
+  runtime use); lazy loading is a planned optimization.

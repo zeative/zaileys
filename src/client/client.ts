@@ -721,7 +721,15 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   }
 
   async react(key: WAMessageKey, emoji: string): Promise<WAMessageKey> {
-    return reactToMessage(this.requireSocket() as unknown as BuilderSocketLike, key, emoji)
+    return reactToMessage(this.requireBuilderSocket(), key, emoji)
+  }
+
+  /** Cloud provider only: mark an inbound message read (optionally showing a typing indicator). */
+  async markRead(messageId: string, opts?: { typing?: boolean }): Promise<void> {
+    if (this._provider !== 'cloud' || !this.cloudTransport) {
+      throw new ZaileysCloudError('CONFIG', 'markRead(messageId) is only available on the cloud provider')
+    }
+    await this.cloudTransport.markRead(messageId, opts)
   }
 
   async forward(key: WAMessageKey, to: string): Promise<WAMessageKey> {

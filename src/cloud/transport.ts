@@ -73,6 +73,16 @@ export class CloudTransport implements Transport {
     this.ev.removeAllListeners()
   }
 
+  /** Mark an inbound message read; optionally show a typing indicator alongside. */
+  async markRead(messageId: string, opts?: { typing?: boolean }): Promise<void> {
+    await this.graph.post(`${this.options.phoneNumberId}/messages`, {
+      messaging_product: 'whatsapp',
+      status: 'read',
+      message_id: messageId,
+      ...(opts?.typing === true ? { typing_indicator: { type: 'text' } } : {}),
+    })
+  }
+
   /** Resolve a Meta media id to bytes: GET /{mediaId} -> short-lived CDN url -> authorized fetch. */
   async downloadMedia(mediaId: string): Promise<{ buffer: Buffer; mime: string; size: number } | null> {
     const meta = await this.graph.get<{ url?: string; mime_type?: string }>(mediaId)
@@ -91,9 +101,12 @@ export class CloudTransport implements Transport {
 
   /** Feed a verified webhook payload into the shared event pipeline. */
   ingest(payload: unknown): void {
-    const { messages } = translateInbound(payload as CloudWebhookPayload)
+    const { messages, reactions } = translateInbound(payload as CloudWebhookPayload)
     if (messages.length > 0) {
       this.ev.emit('messages.upsert', { messages, type: 'notify' })
+    }
+    if (reactions.length > 0) {
+      this.ev.emit('messages.reaction', reactions)
     }
   }
 

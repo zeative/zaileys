@@ -37,6 +37,13 @@ export function translateOutbound(
   if (typeof c['text'] === 'string') {
     return { ...basePayload(to, 'text', options), text: { body: c['text'] } }
   }
+  const react = c['react'] as { text?: string; key?: { id?: string } } | undefined
+  if (react && typeof react === 'object' && typeof react.key?.id === 'string') {
+    return {
+      ...basePayload(to, 'reaction', options),
+      reaction: { message_id: react.key.id, emoji: react.text ?? '' },
+    }
+  }
   return null
 }
 

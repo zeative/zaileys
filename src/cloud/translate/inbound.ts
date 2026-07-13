@@ -78,18 +78,49 @@ const translateMessage = (msg: CloudWebhookMessage, value: CloudWebhookValue): W
   } as WAMessage
 }
 
-/** Flatten a Meta webhook delivery into baileys-shaped messages the existing pipeline can decode. */
-export function translateInbound(payload: CloudWebhookPayload): { messages: WAMessage[] } {
+export interface CloudReactionItem {
+  key: { id: string; remoteJid: string; fromMe: boolean }
+  reaction: { key: { id: string; remoteJid: string; fromMe: boolean }; text: string; senderTimestampMs: number }
+  pushName?: string
+}
+
+const translateReaction = (msg: CloudWebhookMessage, value: CloudWebhookValue): CloudReactionItem | null => {
+  const reaction = msg['reaction'] as { message_id?: string; emoji?: string } | undefined
+  if (msg.type !== 'reaction' || !msg.id || !msg.from || typeof reaction?.message_id !== 'string') return null
+  const senderJid = toJid(msg.from)
+  const pushName = contactName(value, msg.from)
+  return {
+    key: { id: msg.id, remoteJid: senderJid, fromMe: false },
+    reaction: {
+      key: { id: reaction.message_id, remoteJid: senderJid, fromMe: false },
+      text: reaction.emoji ?? '',
+      senderTimestampMs: (Number(msg.timestamp ?? 0) || 0) * 1000,
+    },
+    ...(pushName ? { pushName } : {}),
+  }
+}
+
+/** Flatten a Meta webhook delivery into baileys-shaped events the existing pipeline can decode. */
+export function translateInbound(payload: CloudWebhookPayload): {
+  messages: WAMessage[]
+  reactions: CloudReactionItem[]
+} {
   const messages: WAMessage[] = []
+  const reactions: CloudReactionItem[] = []
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
       const value = change.value
       if (!value) continue
       for (const msg of value.messages ?? []) {
+        const reaction = translateReaction(msg, value)
+        if (reaction) {
+          reactions.push(reaction)
+          continue
+        }
         const translated = translateMessage(msg, value)
         if (translated) messages.push(translated)
       }
     }
   }
-  return { messages }
+  return { messages, reactions }
 }

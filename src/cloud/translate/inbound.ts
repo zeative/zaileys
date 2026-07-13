@@ -1,14 +1,31 @@
 import type { WAMessage } from 'baileys'
 import { toJid } from './outbound.js'
 
+export interface CloudInboundMedia {
+  id?: string
+  mime_type?: string
+  sha256?: string
+  caption?: string
+  filename?: string
+  voice?: boolean
+  animated?: boolean
+}
+
 export interface CloudWebhookMessage {
   from?: string
   id?: string
   timestamp?: string
   type?: string
   text?: { body?: string }
+  image?: CloudInboundMedia
+  video?: CloudInboundMedia
+  audio?: CloudInboundMedia
+  document?: CloudInboundMedia
+  sticker?: CloudInboundMedia
   [key: string]: unknown
 }
+
+const MEDIA_KINDS = ['image', 'video', 'audio', 'document', 'sticker'] as const
 
 export interface CloudWebhookValue {
   messaging_product?: string
@@ -26,10 +43,31 @@ export interface CloudWebhookPayload {
 const contactName = (value: CloudWebhookValue, waId: string | undefined): string | undefined =>
   value.contacts?.find((c) => c.wa_id === waId)?.profile?.name ?? value.contacts?.[0]?.profile?.name
 
+const mediaNode = (msg: CloudWebhookMessage): Record<string, unknown> | null => {
+  for (const kind of MEDIA_KINDS) {
+    const media = msg[kind]
+    if (msg.type === kind && media && typeof media === 'object') {
+      const m = media as CloudInboundMedia
+      return {
+        [`${kind}Message`]: {
+          ...(m.mime_type ? { mimetype: m.mime_type } : {}),
+          ...(m.caption ? { caption: m.caption } : {}),
+          ...(m.filename ? { fileName: m.filename } : {}),
+          ...(m.voice === true ? { ptt: true } : {}),
+          ...(m.id ? { cloudMediaId: m.id } : {}),
+        },
+      }
+    }
+  }
+  return null
+}
+
 const translateMessage = (msg: CloudWebhookMessage, value: CloudWebhookValue): WAMessage | null => {
   if (!msg.id || !msg.from) return null
   const message: Record<string, unknown> | null =
-    msg.type === 'text' && typeof msg.text?.body === 'string' ? { conversation: msg.text.body } : null
+    msg.type === 'text' && typeof msg.text?.body === 'string'
+      ? { conversation: msg.text.body }
+      : mediaNode(msg)
   if (message === null) return null
   const pushName = contactName(value, msg.from)
   return {

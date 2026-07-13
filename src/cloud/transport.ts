@@ -11,6 +11,7 @@ import {
 } from './graph-client.js'
 import { basePayload, synthesizeSentMessage, translateOutbound } from './translate/outbound.js'
 import { mediaMessageBody, outboundMediaOf, uploadMedia } from './media.js'
+import { detectMimeFromBuffer } from '../builder/media-loader.js'
 import { translateInbound, type CloudWebhookPayload } from './translate/inbound.js'
 
 export { DEFAULT_GRAPH_BASE_URL, DEFAULT_GRAPH_VERSION }
@@ -70,6 +71,22 @@ export class CloudTransport implements Transport {
 
   async disconnect(): Promise<void> {
     this.ev.removeAllListeners()
+  }
+
+  /** Resolve a Meta media id to bytes: GET /{mediaId} -> short-lived CDN url -> authorized fetch. */
+  async downloadMedia(mediaId: string): Promise<{ buffer: Buffer; mime: string; size: number } | null> {
+    const meta = await this.graph.get<{ url?: string; mime_type?: string }>(mediaId)
+    if (!meta.url) return null
+    let res: Response
+    try {
+      res = await fetch(meta.url, { headers: { Authorization: `Bearer ${this.options.accessToken}` } })
+    } catch (err) {
+      throw new ZaileysCloudError('REQUEST_FAILED', 'media download failed', { cause: err })
+    }
+    if (!res.ok) throw new ZaileysCloudError('REQUEST_FAILED', `media download failed (${res.status})`)
+    const buffer = Buffer.from(await res.arrayBuffer())
+    const mime = meta.mime_type ?? (await detectMimeFromBuffer(buffer))
+    return { buffer, mime, size: buffer.byteLength }
   }
 
   /** Feed a verified webhook payload into the shared event pipeline. */

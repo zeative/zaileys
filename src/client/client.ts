@@ -998,6 +998,12 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       if (stored == null || content == null) continue
       const kind = kinds.find((k) => content[fields[k]] != null)
       if (kind === undefined) return null
+      if (this._provider === 'cloud') {
+        const node = content[fields[kind]] as { cloudMediaId?: string } | undefined
+        const mediaId = node?.cloudMediaId
+        if (typeof mediaId !== 'string' || !this.cloudTransport) return null
+        return this.cloudTransport.downloadMedia(mediaId)
+      }
       return createDownloadFn(stored, kind, this.logger)()
     }
     return null

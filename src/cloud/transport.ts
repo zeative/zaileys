@@ -13,6 +13,7 @@ import { basePayload, synthesizeSentMessage, translateOutbound } from './transla
 import { mediaMessageBody, outboundMediaOf, uploadMedia } from './media.js'
 import { detectMimeFromBuffer } from '../builder/media-loader.js'
 import { translateInbound, type CloudWebhookPayload } from './translate/inbound.js'
+import { translateInteractiveProto } from './translate/interactive.js'
 
 export { DEFAULT_GRAPH_BASE_URL, DEFAULT_GRAPH_VERSION }
 
@@ -71,6 +72,34 @@ export class CloudTransport implements Transport {
 
   async disconnect(): Promise<void> {
     this.ev.removeAllListeners()
+  }
+
+  /**
+   * Relay seam used by the builder for interactive sends (buttons/list/cta). Translates the
+   * proto to a Graph interactive payload. Returns the builder's messageId per contract, but
+   * the store records the real wamid via the upsert emit.
+   */
+  relayMessage = async (
+    jid: string,
+    message: unknown,
+    options: { messageId: string; additionalNodes?: unknown[] },
+  ): Promise<string> => {
+    const interactive = translateInteractiveProto(message as Record<string, unknown>)
+    if (interactive === null) {
+      throw new ZaileysCloudError('NOT_IMPLEMENTED', 'this relay content is not supported on the cloud provider')
+    }
+    const payload = { ...basePayload(jid, 'interactive'), interactive }
+    const res = await this.graph.post<{ messages?: Array<{ id?: string }> }>(
+      `${this.options.phoneNumberId}/messages`,
+      payload,
+    )
+    const wamid = res.messages?.[0]?.id
+    if (wamid) {
+      const sent = synthesizeSentMessage(wamid, jid, { text: '' } as AnyMessageContent, Date.now())
+      ;(sent as { message: unknown }).message = message
+      this.ev.emit('messages.upsert', { messages: [sent], type: 'append' })
+    }
+    return options.messageId
   }
 
   /** Mark an inbound message read; optionally show a typing indicator alongside. */

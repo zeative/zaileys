@@ -111,7 +111,7 @@ import type {
 import { validateCloudOptions, type CloudOptions } from '../cloud/types.js'
 import { CloudTransport } from '../cloud/transport.js'
 import { createWebhookHandler, type WebhookHandler } from '../cloud/webhook.js'
-import { ZaileysCloudError } from '../cloud/errors.js'
+import { ZaileysCloudError, ZaileysProviderError } from '../cloud/errors.js'
 
 const DEFAULT_SESSION_ID = 'default'
 const DEFAULT_AUTH_TYPE: ConnectionAuthType = 'qr'
@@ -297,7 +297,13 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     return this._socket
   }
 
+  /** Web-only surfaces fail loud on the cloud provider instead of dying deeper with a vague error. */
+  private assertWebProvider(feature: string): void {
+    if (this._provider === 'cloud') throw new ZaileysProviderError(feature)
+  }
+
   get group(): GroupModule {
+    this.assertWebProvider('group')
     return (this._group ??= new GroupModule(
       () => this._socket as unknown as DomainSocketLike | undefined,
       this.operationGuard,
@@ -305,12 +311,14 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   }
 
   get privacy(): PrivacyModule {
+    this.assertWebProvider('privacy')
     return (this._privacy ??= new PrivacyModule(
       () => this._socket as unknown as DomainSocketLike | undefined,
     ))
   }
 
   get newsletter(): NewsletterModule {
+    this.assertWebProvider('newsletter')
     return (this._newsletter ??= new NewsletterModule(
       () => this._socket as unknown as DomainSocketLike | undefined,
       this.operationGuard,
@@ -318,6 +326,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   }
 
   get community(): CommunityModule {
+    this.assertWebProvider('community')
     return (this._community ??= new CommunityModule(
       () => this._socket as unknown as DomainSocketLike | undefined,
       this.operationGuard,
@@ -325,12 +334,14 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   }
 
   get profile(): ProfileModule {
+    this.assertWebProvider('profile')
     return (this._profile ??= new ProfileModule(
       () => this._socket as unknown as DomainSocketLike | undefined,
     ))
   }
 
   get chat(): ChatModule {
+    this.assertWebProvider('chat')
     return (this._chat ??= new ChatModule(
       () => this._socket as unknown as DomainSocketLike | undefined,
       async (jid) => {
@@ -356,6 +367,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   }
 
   get contact(): ContactModule {
+    this.assertWebProvider('contact')
     return (this._contact ??= new ContactModule(
       () => this._socket as unknown as DomainSocketLike | undefined,
       (input) => (isJid(input) ? input : `${input.replace(/\D/g, '')}@s.whatsapp.net`),
@@ -363,12 +375,14 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   }
 
   get business(): BusinessModule {
+    this.assertWebProvider('business')
     return (this._business ??= new BusinessModule(
       () => this._socket as unknown as DomainSocketLike | undefined,
     ))
   }
 
   get presence(): PresenceModule {
+    this.assertWebProvider('presence')
     return (this._presence ??= new PresenceModule(
       () => this._socket as unknown as AutomationSocketLike | undefined,
       this.presenceThrottle,
@@ -716,10 +730,12 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   }
 
   edit(key: WAMessageKey): EditBuilder {
+    this.assertWebProvider('edit')
     return new EditBuilder(this.requireSocket() as unknown as BuilderSocketLike, key)
   }
 
   async delete(key: WAMessageKey, opts?: DeleteOptions): Promise<void> {
+    this.assertWebProvider('delete')
     await deleteMessage(this.requireSocket() as unknown as BuilderSocketLike, key, opts)
   }
 
@@ -756,14 +772,17 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   }
 
   async pin(key: WAMessageKey, opts?: PinOptions): Promise<WAMessageKey> {
+    this.assertWebProvider('pin')
     return pinMessage(this.requireSocket() as unknown as BuilderSocketLike, key, true, opts)
   }
 
   async unpin(key: WAMessageKey): Promise<WAMessageKey> {
+    this.assertWebProvider('unpin')
     return pinMessage(this.requireSocket() as unknown as BuilderSocketLike, key, false)
   }
 
   async setDisappearing(to: string, seconds: number): Promise<void> {
+    this.assertWebProvider('setDisappearing')
     const recipient = await this.resolveRecipient(to)
     const socket = this.requireSocket() as unknown as BuilderSocketLike
     await socket.sendMessage(recipient, { disappearingMessagesInChat: seconds } as never)

@@ -109,6 +109,7 @@ import type {
   ReconnectOptions,
 } from './types.js'
 import { validateCloudOptions, type CloudOptions } from '../cloud/types.js'
+import { CloudTransport } from '../cloud/transport.js'
 
 const DEFAULT_SESSION_ID = 'default'
 const DEFAULT_AUTH_TYPE: ConnectionAuthType = 'qr'
@@ -189,6 +190,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private versionWarming?: Promise<void>
   private readonly _provider: ProviderKind
   private readonly cloudOptions: CloudOptions | undefined
+  private cloudTransport: CloudTransport | undefined
 
   constructor(options: ClientOptions = {}) {
     super({ logger: adoptLogger(options.logger) })
@@ -237,6 +239,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   }
 
   private warmVersion(): Promise<void> {
+    if (this._provider === 'cloud') return Promise.resolve()
     if (this.waVersion) return Promise.resolve()
     if (this.versionWarming) return this.versionWarming
     try {
@@ -401,6 +404,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   }
 
   connect(): Promise<void> {
+    if (this._provider === 'cloud') return this.connectCloud()
     if (this.authType === 'pairing' && !this.phoneNumber) {
       return Promise.reject(new Error('phoneNumber is required when authType is "pairing"'))
     }
@@ -475,7 +479,32 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     return promise
   }
 
+  private async connectCloud(): Promise<void> {
+    if (this.machine.state === 'connecting' || this.machine.state === 'connected') return
+    this.machine.transition('connecting')
+    this.logStatus({ kind: 'connecting', sessionId: this.sessionId })
+    const transport = (this.cloudTransport ??= new CloudTransport(this.cloudOptions as CloudOptions))
+    try {
+      const me = await transport.connect()
+      this.machine.transition('connected')
+      this.logStatus({ kind: 'connected', id: me.id })
+      this.emit('connect', { sessionId: this.sessionId, me })
+    } catch (err) {
+      this.machine.transition('disconnected')
+      throw err
+    }
+  }
+
+  private async disconnectCloud(): Promise<void> {
+    if (this.machine.state === 'idle' || this.machine.state === 'disconnected') return
+    if (this.machine.canTransition('disconnecting')) this.machine.transition('disconnecting')
+    await this.cloudTransport?.disconnect()
+    this.machine.transition('disconnected')
+    this.emit('disconnect', { sessionId: this.sessionId, reason: 'unknown', willReconnect: false })
+  }
+
   async disconnect(): Promise<void> {
+    if (this._provider === 'cloud') return this.disconnectCloud()
     if (this.machine.state === 'idle' || this.machine.state === 'disconnected') return
     this.machine.transition('disconnecting')
     if (this.reconnectTimer) {
@@ -628,19 +657,14 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   }
 
   send(to: string): MessageBuilder<'init'> {
-    const socket = this.requireSocket()
+    const socket = this.requireBuilderSocket()
     const recordSent = (message: WAMessage): void => {
       void this.store.saveMessage(message).catch((err) => this.logger.warn(err, 'recordSent failed'))
     }
-    if (isJid(to)) {
-      return MessageBuilder.create(socket as unknown as BuilderSocketLike, to, undefined, recordSent)
+    if (this._provider === 'cloud' || isJid(to)) {
+      return MessageBuilder.create(socket, to, undefined, recordSent)
     }
-    return MessageBuilder.create(
-      socket as unknown as BuilderSocketLike,
-      to,
-      (raw) => this.resolveRecipient(raw),
-      recordSent,
-    )
+    return MessageBuilder.create(socket, to, (raw) => this.resolveRecipient(raw), recordSent)
   }
 
   edit(key: WAMessageKey): EditBuilder {
@@ -684,6 +708,17 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       throw new ZaileysBuilderError('INVALID_OPTIONS', 'client not connected')
     }
     return this._socket
+  }
+
+  /** Messaging seam: baileys socket or the cloud transport, whichever the provider dictates. */
+  private requireBuilderSocket(): BuilderSocketLike {
+    if (this._provider === 'cloud') {
+      if (!this.cloudTransport || this.machine.state !== 'connected') {
+        throw new ZaileysBuilderError('INVALID_OPTIONS', 'client not connected')
+      }
+      return this.cloudTransport
+    }
+    return this.requireSocket() as unknown as BuilderSocketLike
   }
 
   private attachEmitterLogger(): void {

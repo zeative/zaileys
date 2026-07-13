@@ -102,6 +102,32 @@ export class CloudTransport implements Transport {
     return options.messageId
   }
 
+  /** Send an approved Meta message template (Cloud-only; templates are managed in Business Manager). */
+  async sendTemplate(
+    to: string,
+    name: string,
+    languageCode: string,
+    components?: Array<Record<string, unknown>>,
+  ): Promise<WAMessage> {
+    const payload = {
+      ...basePayload(to, 'template'),
+      template: {
+        name,
+        language: { code: languageCode },
+        ...(components !== undefined ? { components } : {}),
+      },
+    }
+    const res = await this.graph.post<{ messages?: Array<{ id?: string }> }>(
+      `${this.options.phoneNumberId}/messages`,
+      payload,
+    )
+    const wamid = res.messages?.[0]?.id
+    if (!wamid) throw new ZaileysCloudError('REQUEST_FAILED', 'graph template send returned no message id')
+    const sent = synthesizeSentMessage(wamid, to, { text: `template:${name}` } as AnyMessageContent, Date.now())
+    this.ev.emit('messages.upsert', { messages: [sent], type: 'append' })
+    return sent
+  }
+
   /** Mark an inbound message read; optionally show a typing indicator alongside. */
   async markRead(messageId: string, opts?: { typing?: boolean }): Promise<void> {
     await this.graph.post(`${this.options.phoneNumberId}/messages`, {

@@ -724,6 +724,20 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     return reactToMessage(this.requireBuilderSocket(), key, emoji)
   }
 
+  /** Cloud provider only: send an approved Meta message template by name + language. */
+  async sendTemplate(
+    to: string,
+    name: string,
+    languageCode: string,
+    components?: Array<Record<string, unknown>>,
+  ): Promise<WAMessageKey> {
+    if (this._provider !== 'cloud' || !this.cloudTransport) {
+      throw new ZaileysCloudError('CONFIG', 'sendTemplate() is only available on the cloud provider')
+    }
+    const sent = await this.cloudTransport.sendTemplate(to, name, languageCode, components)
+    return sent.key
+  }
+
   /** Cloud provider only: mark an inbound message read (optionally showing a typing indicator). */
   async markRead(messageId: string, opts?: { typing?: boolean }): Promise<void> {
     if (this._provider !== 'cloud' || !this.cloudTransport) {

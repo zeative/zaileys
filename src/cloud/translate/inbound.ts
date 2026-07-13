@@ -62,12 +62,40 @@ const mediaNode = (msg: CloudWebhookMessage): Record<string, unknown> | null => 
   return null
 }
 
+const interactiveNode = (msg: CloudWebhookMessage): Record<string, unknown> | null => {
+  const interactive = msg['interactive'] as
+    | {
+        type?: string
+        button_reply?: { id?: string; title?: string }
+        list_reply?: { id?: string; title?: string; description?: string }
+      }
+    | undefined
+  if (msg.type !== 'interactive' || !interactive) return null
+  if (interactive.type === 'button_reply' && interactive.button_reply?.id) {
+    return {
+      buttonsResponseMessage: {
+        selectedButtonId: interactive.button_reply.id,
+        selectedDisplayText: interactive.button_reply.title ?? '',
+      },
+    }
+  }
+  if (interactive.type === 'list_reply' && interactive.list_reply?.id) {
+    return {
+      listResponseMessage: {
+        singleSelectReply: { selectedRowId: interactive.list_reply.id },
+        title: interactive.list_reply.title ?? '',
+      },
+    }
+  }
+  return null
+}
+
 const translateMessage = (msg: CloudWebhookMessage, value: CloudWebhookValue): WAMessage | null => {
   if (!msg.id || !msg.from) return null
   const message: Record<string, unknown> | null =
     msg.type === 'text' && typeof msg.text?.body === 'string'
       ? { conversation: msg.text.body }
-      : mediaNode(msg)
+      : (mediaNode(msg) ?? interactiveNode(msg))
   if (message === null) return null
   const pushName = contactName(value, msg.from)
   return {

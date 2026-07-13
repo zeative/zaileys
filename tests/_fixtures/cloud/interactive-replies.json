@@ -1,0 +1,42 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "102290129340398",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": { "display_phone_number": "15550001111", "phone_number_id": "555" },
+            "contacts": [{ "profile": { "name": "Budi Santoso" }, "wa_id": "628111000222" }],
+            "messages": [
+              {
+                "from": "628111000222",
+                "id": "wamid.BTNREPLY01",
+                "timestamp": "1752346100",
+                "type": "interactive",
+                "interactive": {
+                  "type": "button_reply",
+                  "button_reply": { "id": "yes", "title": "Ya" }
+                },
+                "context": { "from": "15550001111", "id": "wamid.BTNPROMPT" }
+              },
+              {
+                "from": "628111000222",
+                "id": "wamid.LISTREPLY01",
+                "timestamp": "1752346200",
+                "type": "interactive",
+                "interactive": {
+                  "type": "list_reply",
+                  "list_reply": { "id": "nasgor", "title": "Nasi Goreng", "description": "pedas" }
+                },
+                "context": { "from": "15550001111", "id": "wamid.LISTPROMPT" }
+              }
+            ]
+          },
+          "field": "messages"
+        }
+      ]
+    }
+  ]
+}

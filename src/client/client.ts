@@ -517,6 +517,9 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       react: (key, emoji) => this.react(key, emoji),
       ignoreMe: this.ignoreMe,
     })
+    transport.ev.on('cloud.status', (status: unknown) => {
+      this.emit('message-status', status as ClientEventMap['message-status'])
+    })
     this.attachCommandsIfReady()
   }
 

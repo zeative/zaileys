@@ -90,12 +90,50 @@ const interactiveNode = (msg: CloudWebhookMessage): Record<string, unknown> | nu
   return null
 }
 
+const locationNode = (msg: CloudWebhookMessage): Record<string, unknown> | null => {
+  const location = msg['location'] as
+    | { latitude?: number; longitude?: number; name?: string; address?: string }
+    | undefined
+  if (msg.type !== 'location' || typeof location?.latitude !== 'number' || typeof location.longitude !== 'number') {
+    return null
+  }
+  return {
+    locationMessage: {
+      degreesLatitude: location.latitude,
+      degreesLongitude: location.longitude,
+      ...(location.name ? { name: location.name } : {}),
+      ...(location.address ? { address: location.address } : {}),
+    },
+  }
+}
+
+const contactsNode = (msg: CloudWebhookMessage): Record<string, unknown> | null => {
+  const contacts = msg['contacts'] as
+    | Array<{ name?: { formatted_name?: string }; phones?: Array<{ phone?: string; wa_id?: string }> }>
+    | undefined
+  if (msg.type !== 'contacts' || !Array.isArray(contacts) || contacts.length === 0) return null
+  const cards = contacts.map((c) => {
+    const name = c.name?.formatted_name ?? ''
+    const tels = (c.phones ?? [])
+      .filter((p) => typeof p.phone === 'string')
+      .map((p) => `TEL${p.wa_id ? `;waid=${p.wa_id}` : ''}:${p.phone}`)
+      .join('\n')
+    return {
+      displayName: name,
+      vcard: `BEGIN:VCARD\nVERSION:3.0\nFN:${name}${tels ? `\n${tels}` : ''}\nEND:VCARD`,
+    }
+  })
+  const single = cards.length === 1 ? cards[0] : undefined
+  if (single) return { contactMessage: single }
+  return { contactsArrayMessage: { displayName: `${cards.length} contacts`, contacts: cards } }
+}
+
 const translateMessage = (msg: CloudWebhookMessage, value: CloudWebhookValue): WAMessage | null => {
   if (!msg.id || !msg.from) return null
   const message: Record<string, unknown> | null =
     msg.type === 'text' && typeof msg.text?.body === 'string'
       ? { conversation: msg.text.body }
-      : (mediaNode(msg) ?? interactiveNode(msg))
+      : (mediaNode(msg) ?? interactiveNode(msg) ?? locationNode(msg) ?? contactsNode(msg))
   if (message === null) return null
   const pushName = contactName(value, msg.from)
   return {
@@ -104,6 +142,35 @@ const translateMessage = (msg: CloudWebhookMessage, value: CloudWebhookValue): W
     messageTimestamp: Number(msg.timestamp ?? 0) || 0,
     ...(pushName ? { pushName } : {}),
   } as WAMessage
+}
+
+export type CloudMessageStatus = 'sent' | 'delivered' | 'read' | 'failed'
+
+export interface CloudStatusEvent {
+  id: string
+  status: CloudMessageStatus
+  recipientId: string
+  timestamp: number
+  conversationId?: string
+  error?: { code?: number; title?: string; message?: string }
+}
+
+const translateStatus = (raw: Record<string, unknown>): CloudStatusEvent | null => {
+  const id = raw['id']
+  const status = raw['status']
+  if (typeof id !== 'string' || typeof status !== 'string') return null
+  if (status !== 'sent' && status !== 'delivered' && status !== 'read' && status !== 'failed') return null
+  const recipient = typeof raw['recipient_id'] === 'string' ? toJid(raw['recipient_id']) : ''
+  const conversation = raw['conversation'] as { id?: string } | undefined
+  const errors = raw['errors'] as Array<{ code?: number; title?: string; message?: string }> | undefined
+  return {
+    id,
+    status,
+    recipientId: recipient,
+    timestamp: Number(raw['timestamp'] ?? 0) || 0,
+    ...(conversation?.id ? { conversationId: conversation.id } : {}),
+    ...(errors?.[0] ? { error: errors[0] } : {}),
+  }
 }
 
 export interface CloudReactionItem {
@@ -132,9 +199,11 @@ const translateReaction = (msg: CloudWebhookMessage, value: CloudWebhookValue): 
 export function translateInbound(payload: CloudWebhookPayload): {
   messages: WAMessage[]
   reactions: CloudReactionItem[]
+  statuses: CloudStatusEvent[]
 } {
   const messages: WAMessage[] = []
   const reactions: CloudReactionItem[] = []
+  const statuses: CloudStatusEvent[] = []
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
       const value = change.value
@@ -148,7 +217,11 @@ export function translateInbound(payload: CloudWebhookPayload): {
         const translated = translateMessage(msg, value)
         if (translated) messages.push(translated)
       }
+      for (const raw of value.statuses ?? []) {
+        const status = translateStatus(raw)
+        if (status) statuses.push(status)
+      }
     }
   }
-  return { messages, reactions }
+  return { messages, reactions, statuses }
 }

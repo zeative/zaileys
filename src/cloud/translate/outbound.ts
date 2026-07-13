@@ -44,7 +44,53 @@ export function translateOutbound(
       reaction: { message_id: react.key.id, emoji: react.text ?? '' },
     }
   }
+  const location = c['location'] as
+    | { degreesLatitude?: number; degreesLongitude?: number; name?: string; address?: string }
+    | undefined
+  if (location && typeof location.degreesLatitude === 'number' && typeof location.degreesLongitude === 'number') {
+    return {
+      ...basePayload(to, 'location', options),
+      location: {
+        latitude: location.degreesLatitude,
+        longitude: location.degreesLongitude,
+        ...(location.name !== undefined ? { name: location.name } : {}),
+        ...(location.address !== undefined ? { address: location.address } : {}),
+      },
+    }
+  }
+  const contacts = c['contacts'] as { contacts?: Array<{ vcard?: string }> } | undefined
+  if (contacts?.contacts && Array.isArray(contacts.contacts)) {
+    const parsed = contacts.contacts
+      .map((entry) => (typeof entry.vcard === 'string' ? vcardToGraphContact(entry.vcard) : null))
+      .filter((entry): entry is Record<string, unknown> => entry !== null)
+    if (parsed.length > 0) {
+      return { ...basePayload(to, 'contacts', options), contacts: parsed }
+    }
+  }
   return null
+}
+
+/** Minimal vcard extraction (FN + TELs) — enough for the Graph contacts payload. */
+export function vcardToGraphContact(vcard: string): Record<string, unknown> | null {
+  const lines = vcard.split(/\r?\n/)
+  let formattedName = ''
+  const phones: Array<{ phone: string; wa_id?: string }> = []
+  for (const line of lines) {
+    if (line.startsWith('FN:')) formattedName = line.slice(3).trim()
+    if (line.startsWith('TEL')) {
+      const idx = line.indexOf(':')
+      if (idx > 0) {
+        const phone = line.slice(idx + 1).trim()
+        const waidMatch = /waid=([0-9]+)/.exec(line)
+        if (phone.length > 0) phones.push({ phone, ...(waidMatch?.[1] ? { wa_id: waidMatch[1] } : {}) })
+      }
+    }
+  }
+  if (formattedName.length === 0 && phones.length === 0) return null
+  return {
+    name: { formatted_name: formattedName || (phones[0]?.phone ?? 'Contact') },
+    ...(phones.length > 0 ? { phones } : {}),
+  }
 }
 
 /** Minimal baileys-shaped WAMessage so recordSent/store/reply keep working on cloud. */

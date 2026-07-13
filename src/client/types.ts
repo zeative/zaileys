@@ -10,6 +10,7 @@ import type { InboundEventMap } from '../events/types.js'
 import type { MessageStore } from '../store/types.js'
 import type { PluginsOptions } from '../plugin/types.js'
 import type { CloudOptions } from '../cloud/types.js'
+import type { CloudStatusEvent } from '../cloud/translate/inbound.js'
 
 export type ProviderKind = 'baileys' | 'cloud'
 
@@ -85,6 +86,8 @@ export type ConnectionEventMap = {
   reconnecting: { sessionId: string; attempt: number; delayMs: number; reason: DisconnectReasonDomain }
   'auth-exhausted': { sessionId: string; kind: ConnectionAuthType; attempts: number; max: number }
   error: { sessionId: string; error: Error }
+  /** Cloud provider: delivery lifecycle of outbound messages (sent/delivered/read/failed). */
+  'message-status': CloudStatusEvent
 }
 
 export type ConnectionEventName = keyof ConnectionEventMap

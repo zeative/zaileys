@@ -1,0 +1,35 @@
+{
+  "object": "whatsapp_business_account",
+  "entry": [
+    {
+      "id": "102290129340398",
+      "changes": [
+        {
+          "value": {
+            "messaging_product": "whatsapp",
+            "metadata": {
+              "display_phone_number": "15550001111",
+              "phone_number_id": "555"
+            },
+            "contacts": [
+              {
+                "profile": { "name": "Budi Santoso" },
+                "wa_id": "628111000222"
+              }
+            ],
+            "messages": [
+              {
+                "from": "628111000222",
+                "id": "wamid.HBgLNjI4MTExMDAwMjIyFQIAEhgUM0E5RkY2NDVDMkI3NDdCQzcxRkYA",
+                "timestamp": "1752345678",
+                "text": { "body": "halo bot" },
+                "type": "text"
+              }
+            ]
+          },
+          "field": "messages"
+        }
+      ]
+    }
+  ]
+}

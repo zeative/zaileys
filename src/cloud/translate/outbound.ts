@@ -15,7 +15,7 @@ export const toGraphRecipient = (to: string): string => to.split('@')[0] ?? to
 export const toJid = (recipient: string): string =>
   recipient.includes('@') ? recipient : `${recipient}@s.whatsapp.net`
 
-const base = (to: string, type: string, options?: MiscMessageGenerationOptions): GraphMessagePayload => {
+export const basePayload = (to: string, type: string, options?: MiscMessageGenerationOptions): GraphMessagePayload => {
   const payload: GraphMessagePayload = {
     messaging_product: 'whatsapp',
     recipient_type: 'individual',
@@ -35,7 +35,7 @@ export function translateOutbound(
 ): GraphMessagePayload | null {
   const c = content as Record<string, unknown>
   if (typeof c['text'] === 'string') {
-    return { ...base(to, 'text', options), text: { body: c['text'] } }
+    return { ...basePayload(to, 'text', options), text: { body: c['text'] } }
   }
   return null
 }

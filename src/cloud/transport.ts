@@ -9,7 +9,8 @@ import {
   DEFAULT_GRAPH_VERSION,
   type GraphClient,
 } from './graph-client.js'
-import { synthesizeSentMessage, translateOutbound } from './translate/outbound.js'
+import { basePayload, synthesizeSentMessage, translateOutbound } from './translate/outbound.js'
+import { mediaMessageBody, outboundMediaOf, uploadMedia } from './media.js'
 import { translateInbound, type CloudWebhookPayload } from './translate/inbound.js'
 
 export { DEFAULT_GRAPH_BASE_URL, DEFAULT_GRAPH_VERSION }
@@ -84,7 +85,17 @@ export class CloudTransport implements Transport {
     content: AnyMessageContent,
     options?: MiscMessageGenerationOptions,
   ): Promise<WAMessage | undefined> {
-    const payload = translateOutbound(jid, content, options)
+    let payload = translateOutbound(jid, content, options)
+    if (payload === null) {
+      const media = outboundMediaOf(content)
+      if (media) {
+        const mediaId = await uploadMedia(this.graph, this.options.phoneNumberId, media)
+        payload = {
+          ...basePayload(jid, media.kind, options),
+          [media.kind]: mediaMessageBody(media, mediaId),
+        }
+      }
+    }
     if (payload === null) {
       throw new ZaileysCloudError('NOT_IMPLEMENTED', 'this content type is not supported on the cloud provider yet')
     }

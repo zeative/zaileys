@@ -54,12 +54,49 @@ In the Meta app dashboard, subscribe the webhook to the `messages` field.
 | `downloadMedia(key)` | ✅ |
 | events: `message`, `text`, `image`, …, `reaction`, `button-click`, `list-select` | ✅ |
 | `message-status` (`sent`/`delivered`/`read`/`failed`) | ✅ cloud-only |
-| commands (`commandPrefix`), middleware, plugins | ✅ |
+| commands (`commandPrefix`), middleware, plugins, `broadcast()`, `scheduleAt()` | ✅ |
 | `group`, `community`, `newsletter`, `privacy`, `presence`, `chat`, `contact`, `business`, `profile` | ❌ throws `ZaileysProviderError` (`UNSUPPORTED_ON_CLOUD`) |
 | `edit`, `delete`, `pin`, `setDisappearing`, stories/status | ❌ not offered by the Cloud API |
 | QR / pairing / multi-device session | — not applicable |
 
 Everything unsupported throws a **typed error** immediately — nothing fails silently.
+
+## Management surface — `wa.cloud.*`
+
+Business tooling lives under the cloud-only `wa.cloud` namespace. WABA-scoped calls need
+`cloud.wabaId`.
+
+```ts
+// templates (CRUD + review lifecycle)
+await wa.cloud.templates.list({ status: 'APPROVED' })
+await wa.cloud.templates.create({ name, category: 'MARKETING', language: 'id', components })
+await wa.cloud.templates.delete('promo_juli')
+wa.on('template-status', (t) => console.log(t.name, t.event)) // APPROVED/REJECTED/PAUSED
+
+// business profile
+await wa.cloud.profile.get()
+await wa.cloud.profile.update({ about: 'buka 9-5', websites: ['https://…'] })
+
+// whatsapp flows
+await wa.cloud.flows.list()
+await wa.cloud.flows.send(to, { flowId, cta: 'Isi form', bodyText: '…', screen: 'BOOKING' })
+wa.on('flow-response', (f) => console.log(f.response)) // parsed nfm_reply JSON
+
+// catalog / commerce
+await wa.cloud.commerce.sendProduct(to, { catalogId, retailerId })
+await wa.cloud.commerce.sendProductList(to, { catalogId, headerText, bodyText, sections })
+wa.on('order', (o) => console.log(o.items)) // customer placed an order
+
+// misc
+await wa.cloud.sendAddressRequest(to, { bodyText: 'Alamat kirim?', countryIso: 'ID' })
+await wa.cloud.blocklist.add(['628xxx'])
+await wa.cloud.qr.create('halo!')
+await wa.cloud.analytics.conversations({ start, end })
+await wa.cloud.phone.requestCode('SMS', 'id')
+```
+
+**Campaign recipe**: `wa.cloud.templates.create()` → wait for `template-status` APPROVED →
+`broadcast()`/loop `sendTemplate()` → track `message-status` + `wa.cloud.analytics`.
 
 ## Notes & ceilings
 

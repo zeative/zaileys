@@ -3,8 +3,10 @@ name: zaileys-scaffold
 description: >-
   Use when the user wants to CREATE, BUILD, SCAFFOLD, or SET UP a NEW zaileys WhatsApp bot
   or project from scratch ("buatkan bot WhatsApp", "create a whatsapp bot", "set up zaileys",
-  "new bot project", "bikin bot zaileys"). Generates a complete, runnable zaileys project with a
-  clean, layered `src/` structure that is identical across sessions for the same spec.
+  "new bot project", "bikin bot zaileys"). Supports BOTH providers — unofficial WhatsApp Web (QR/
+  pairing) and the official Meta Cloud API (provider:'cloud', token + webhook, templates/OTP).
+  Generates a complete, runnable zaileys project with a clean, layered `src/` structure that is
+  identical across sessions for the same spec.
 ---
 
 # Scaffold a zaileys Bot Project
@@ -62,11 +64,15 @@ Fixed conventions (never vary):
    PRECEDENCE above. List existing folders/files (including intentionally pre-created empty dirs). This
    decides whether you follow the canonical layout or conform to what is already there.
 1. **Ask ONLY the gaps** (one short round; assume defaults if "just make it work"):
+   - **Provider**: 🔗 **unofficial** (default — WhatsApp Web, QR/pairing) or ☁️ **official** (Meta
+     Cloud API — token auth + webhook). Pick cloud when the user says "official"/"cloud API"/"business
+     API", needs templates/OTP/campaigns, or must message users who never texted first. Cloud changes
+     `client.ts`, adds a **webhook route**, and swaps auth for a token — see **CLOUD PROVIDER VARIANT** below.
    - **Use case** — what the bot is for. Drives which feature modules exist. Common: `echo`,
      `ai-agent`, `slash-commands`, `interactive-buttons`, `broadcast`. Use cases vary widely and are
      not limited to AI; map any new one onto the placement table (services = external I/O, features =
      domain logic, handlers = WhatsApp events).
-   - **Auth**: `qr` (default) or `pairing` (needs `phoneNumber`, E.164 digits, no `+`).
+   - **Auth** (unofficial only): `qr` (default) or `pairing` (needs `phoneNumber`, E.164 digits, no `+`).
    - **Storage**: `file` (default) / `memory` / `sqlite` / `postgres` / `redis` / `convex`.
    - For `ai-agent`: **provider** (OpenAI / Anthropic / Gemini / OpenAI-compatible) and whether to
      include conversation memory + tool calling.
@@ -74,6 +80,22 @@ Fixed conventions (never vary):
 3. **Generate** every resolved file from CANONICAL TEMPLATES, filled per the choices.
 4. **Apply the GOLDEN RULES** to every file.
 5. **Emit RUN STEPS** and point to deeper docs.
+
+## ☁️ CLOUD PROVIDER VARIANT (`provider: 'cloud'`)
+
+When the user picks the official Cloud API, keep the same layered structure but apply these deltas
+(everything else — handlers, features, commands, storage for the message store — is identical):
+
+- **`src/client.ts`** constructs `new Client({ provider: 'cloud', cloud: { accessToken, phoneNumberId, wabaId, verifyToken, appSecret } })` from env. No auth-store QR/pairing; `store` (message store) still applies.
+- **No `qr`/`pairing-code` handler.** The connection handler only logs `connect`/`disconnect`. Inbound arrives via a **webhook**, not the socket.
+- **Add a webhook entrypoint** instead of (or alongside) `src/index.ts`:
+  - Next.js → `app/api/whatsapp/route.ts` exporting `GET = POST = wa.webhook()`.
+  - Hono/Express/node:http → mount `wa.webhook()` (raw body on Express). Copy the exact mount from [recipes.md](../zaileys-assist/references/recipes.md) recipe 16.
+- **`.env.example`** carries `WA_TOKEN`, `WA_PHONE_ID`, `WA_WABA_ID`, `WA_VERIFY`, `WA_APP_SECRET` (not `SESSION_ID`/auth paths).
+- **Golden cloud rules** apply: cold sends use `wa.sendTemplate()`; never scaffold `group`/`newsletter`/poll/AIRich features on cloud (they throw `UNSUPPORTED_ON_CLOUD`); subscribe the `messages` field; keep the raw webhook body.
+
+Full cloud surface + mounts → [references/cloud.md](../zaileys-assist/references/cloud.md). Generate the
+webhook echo + template recipes verbatim from there. Everything below is the **unofficial** skeleton.
 
 ## PROJECT STRUCTURE CONTRACT
 

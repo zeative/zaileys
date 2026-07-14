@@ -75,15 +75,26 @@ way to use them in Zaileys:
   [Sending Messages](/sending-messages) and [Interactive](/interactive).
 - [Privacy & Blocking](/privacy) settings and status/stories.
 
-## Know the trade-offs
+## Gotchas & trade-offs
 
 <Callout type="warning">
 This provider is **not endorsed by Meta**. It drives WhatsApp Web, so the number carries a real risk
 of temporary or permanent bans — especially with bulk or cold messaging. Use a number you can afford
-to lose, keep volumes human, and never spam. For a compliant, unbannable business channel with
-templates and campaigns, use the **[Official Cloud API](/official)** instead — same code, different
-`provider`.
+to lose, keep volumes human, and never spam.
 </Callout>
+
+| Gotcha | Why | What to do |
+| --- | --- | --- |
+| **Ban risk** on bulk / cold sends | Unofficial automation Meta actively detects | Keep volume human, warm up new numbers, add delays; for real scale use the [Official API](/official) |
+| **Session can be lost** | Logging in elsewhere, "log out all devices", or 401 can drop the linked device | Persist auth with a durable [storage adapter](/storage); handle the `disconnect` event and re-auth |
+| **Linked-device limits** | WhatsApp caps how many devices link to one account | Don't link the same number to many bots |
+| **No delivery SLA** | It's a client session, not a business API | Don't rely on it for OTP/critical notifications — use [templates on the Official API](/official/templates) |
+| **The phone must stay reachable** | Multi-device still needs the primary account healthy | Keep the account active; a banned/deleted account kills the session |
+| **Spurious `401` right after connect** | WhatsApp sometimes emits a false logout | Zaileys already guards this — it reconnects to confirm before wiping the session |
+
+For a compliant, unbannable channel with templates, OTP, and campaigns, use the
+**[Official Cloud API](/official)** — same code, different `provider`. Compare both on
+[Choose Your Provider](/providers).
 
 Not sure which fits? See **[Choose Your Provider](/providers)** for the full comparison.
 

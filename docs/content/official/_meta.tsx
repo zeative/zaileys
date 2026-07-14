@@ -5,4 +5,5 @@ export default {
   templates: 'Templates & Campaigns',
   business: 'Business Tools',
   events: 'Events & Errors',
+  limits: 'Limits, Gotchas & Solutions',
 }

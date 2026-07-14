@@ -1,0 +1,247 @@
+---
+title: "Limits, Gotchas & Solutions — Cloud API"
+description: "Every restriction the official WhatsApp Cloud API imposes — the 24-hour window, template approval, messaging tiers, media sizes, interactive limits, rate limits, and more — each with a concrete Zaileys solution."
+---
+
+import { Callout, Tabs } from 'nextra/components'
+
+# Limits, Gotchas & Solutions
+
+The official Cloud API is powerful but **heavily policed by Meta**. This page lists every
+restriction you'll hit — with a concrete workaround for each. None of these are Zaileys limits;
+they're Meta platform rules, surfaced by Zaileys as typed errors so you can handle them cleanly.
+
+<Callout type="info">
+Rule of thumb: the Cloud API is **opt-in and template-gated**. Users must reach out first (or accept
+a template) before you can talk freely. Everything below flows from that principle.
+</Callout>
+
+## 1. You can't message someone who never texted you
+
+**The single most common gotcha.** Free-form messages (`send().text()`, media, interactive) only
+work inside the **24-hour customer-service window** that opens when a user messages you. To a cold
+contact, or after the window closes, they fail with Graph error **`131047`**.
+
+```typescript
+// ❌ user never messaged you → 131047 "re-engagement message"
+await wa.send('628xxx').text('Hi, check our promo!')
+```
+
+**✅ Solution — send an approved template.** Templates are the only business-initiated channel:
+
+```typescript
+await wa.sendTemplate('628xxx', 'promo_juli', 'id', [
+  { type: 'body', parameters: [{ type: 'text', text: 'Budi' }] },
+])
+```
+
+Once the user replies to your template, the 24-hour window opens and free-form sends work. See
+[Templates & Campaigns](/official/templates) and [Messaging → 24-hour window](/official/messaging#the-24-hour-window).
+
+## 2. Templates must be pre-approved — and params must match exactly
+
+You can't invent message layouts on the fly. Every template is submitted to Meta for review.
+
+- **`MARKETING`** / **`UTILITY`** → review can take minutes to 24h.
+- **`AUTHENTICATION`** (OTP) → usually **approved instantly**.
+
+And when sending, the number of `parameters` must **exactly** match the `{{n}}` placeholders, or you
+get error **`132000`**.
+
+```typescript
+// ❌ template body is "Halo {{1}}" but you sent 0 params → 132000
+await wa.sendTemplate(to, 'test_text', 'id')
+```
+
+**✅ Solution — introspect before sending:**
+
+```typescript
+const tpl = await wa.cloud.templates.get('test_text') // → components, {{n}} count
+// then pass exactly the right parameters
+await wa.sendTemplate(to, 'test_text', 'id', [
+  { type: 'body', parameters: [{ type: 'text', text: 'Budi' }] },
+])
+// and watch approval status:
+wa.on('template-status', (t) => console.log(t.name, t.event)) // APPROVED / REJECTED
+```
+
+## 3. Marketing has daily limits and quality tiers
+
+Meta rate-limits **business-initiated** conversations by a per-number **messaging tier** and enforces
+a **per-user marketing frequency cap**. Sending too much, or getting blocked/reported, drops your
+**quality rating** and can freeze the number.
+
+| Tier | Unique users / 24h you can start |
+| --- | --- |
+| Unverified | 250 |
+| Tier 1 | 1,000 |
+| Tier 2 | 10,000 |
+| Tier 3 | 100,000 |
+| Tier 4 | Unlimited |
+
+**✅ Solution:**
+
+```typescript
+// watch your quality + throughput
+const health = await wa.cloud.info()
+console.log(health.quality_rating, health.throughput) // 'GREEN' | 'YELLOW' | 'RED'
+
+// spread a campaign to stay under limits and protect quality
+await wa.broadcast(numbers, (b) => b, { rateLimitPerSec: 10 })
+```
+
+Keep content relevant, always honor opt-outs, and never bulk-message cold lists — a `RED` quality
+rating throttles or bans the number.
+
+## 4. Interactive messages have hard shape limits
+
+| Element | Limit |
+| --- | --- |
+| Reply buttons | **max 3** |
+| List rows (total) | 10 |
+| List sections | 10 |
+| Button / row title | 20 / 24 chars |
+| Body text | 1024 chars |
+| Header text | 60 chars |
+| Footer text | 60 chars |
+| Carousels, polls | **not supported** |
+
+```typescript
+// ❌ 4 reply buttons → throws ZaileysProviderError / Graph error
+await wa.send(to).buttons([b1, b2, b3, b4], { text: '…' })
+```
+
+**✅ Solution — use a list for more than 3 choices:**
+
+```typescript
+await wa.send(to).list({
+  title: 'Menu', buttonText: 'Choose', description: 'Pick one',
+  sections: [{ title: 'Options', rows: [{ id: 'a', title: 'A' }, { id: 'b', title: 'B' }, /* … */] }],
+})
+```
+
+Need carousels or polls? They only exist on the [unofficial provider](/unofficial).
+
+## 5. Media has size and type limits
+
+| Type | Max size | Notes |
+| --- | --- | --- |
+| Image | 5 MB | jpeg, png |
+| Video | 16 MB | mp4, 3gp (H.264 + AAC) |
+| Audio | 16 MB | aac, mp4, mpeg, amr, ogg |
+| Document | 100 MB | any |
+| Sticker | 100 KB static / 500 KB animated | webp |
+
+- **Captions** are ignored on **audio** and **sticker**.
+- A media **URL must be publicly reachable over HTTPS**; otherwise upload the bytes.
+
+```typescript
+// ✅ Zaileys handles both — pass a public URL, a local path, or a Buffer:
+await wa.send(to).image('https://cdn.example.com/a.jpg', { caption: 'ok' })
+await wa.send(to).document(fs.readFileSync('./invoice.pdf'), { fileName: 'invoice.pdf' })
+```
+
+Oversized or wrong-type media returns a Graph error (e.g. `131052` media download failed / size).
+
+## 6. Contacts need a first name
+
+A cloud contact's `name` requires `formatted_name` **and** at least one of `first_name` /
+`last_name`, or you get **`131009`**. Zaileys derives these from the vCard automatically — just
+include an `N:` line if you build it yourself.
+
+```typescript
+await wa.send(to).contact('BEGIN:VCARD\nVERSION:3.0\nFN:Budi Santoso\nN:Santoso;Budi\nTEL:+62811\nEND:VCARD')
+```
+
+## 7. Rate limits & pair limits
+
+The API caps throughput (default ~80 messages/second) and enforces a **pair rate limit** (`131056`)
+if you hammer the same recipient.
+
+**✅ Solution — back off and batch:**
+
+```typescript
+await wa.broadcast(numbers, (b) => b, {
+  rateLimitPerSec: 20,
+  onProgress: (done, total) => console.log(`${done}/${total}`),
+})
+```
+
+Zaileys' [`broadcast()`](/automation) already rate-limits; tune `rateLimitPerSec` to your tier.
+
+## 8. Access tokens expire — use a permanent one
+
+The token from the dashboard's quick-start **expires in 24 hours** (`190`). Production must use a
+**System User permanent token**.
+
+**✅ Solution:** create a System User in Business Settings with `whatsapp_business_messaging` +
+`whatsapp_business_management` and generate a non-expiring token. Store it as a secret — a leaked
+token grants full messaging access. See [Overview & Setup](/official#getting-your-credentials).
+
+## 9. One number, one platform
+
+A phone number **cannot** be on the WhatsApp Business **App** and the Cloud API at the same time.
+Registering it for the Cloud API **logs it out** of the app.
+
+**✅ Solution:** use a dedicated number for the Cloud API, or migrate deliberately with
+`wa.cloud.phone.register(pin)`.
+
+## 10. The webhook must be fast, public & signed
+
+- It must be a **public HTTPS URL** with a valid certificate.
+- Meta expects a **`200` within ~10 seconds**, or it **retries** (causing duplicate deliveries).
+- If you enable `appSecret`, the **raw body** must reach the handler — body-parsers that mutate it
+  break signature verification.
+
+**✅ Solution:** Zaileys **acks immediately** (returns `200` before your handlers finish, so a slow
+handler never triggers retries) and verifies the signature for you. On Express, keep the raw body:
+
+```typescript
+app.all('/webhook', express.raw({ type: '*/*' }), /* … */)
+```
+
+Make inbound handlers **idempotent** (dedupe by message id) in case Meta retries. See
+[Webhook](/official/webhook).
+
+## 11. Features that simply don't exist on cloud
+
+No amount of config unlocks these — they're not in the Cloud API:
+
+| Want | Reality | Do this instead |
+| --- | --- | --- |
+| Groups / communities / channels | ❌ not available | Use the [unofficial provider](/unofficial) |
+| Polls, carousels | ❌ | Unofficial provider, or a list |
+| Edit / delete / pin / disappearing | ❌ | Send a correction message |
+| Presence (others' online/typing) | ❌ | — |
+| Status / stories | ❌ | Unofficial provider |
+| Read arbitrary chat history | ❌ | Persist inbound to your own [store](/storage) |
+
+Calling any of these on the cloud provider throws `ZaileysProviderError('UNSUPPORTED_ON_CLOUD')`
+immediately — see the full [comparison](/providers).
+
+## 12. Country & category restrictions
+
+- **Address request messages** work only in **Indonesia (ID)** and **Brazil (BR)**.
+- **Authentication** templates can't contain marketing content; **marketing** templates must allow
+  opt-out. Mixing categories gets templates rejected.
+
+## Handling it all in code
+
+Every Meta rejection surfaces as a typed `ZaileysCloudError` carrying the Graph `code`:
+
+```typescript
+import { ZaileysCloudError } from 'zaileys'
+
+try {
+  await wa.send(to).text('hi')
+} catch (err) {
+  if (err instanceof ZaileysCloudError) {
+    // err.message embeds the Graph code, e.g. "(#131047) …"
+    // fall back to a template for cold contacts:
+    await wa.sendTemplate(to, 'welcome', 'en_US')
+  }
+}
+```
+
+See [Events & Errors → Error codes](/official/events#error-codes) for the full table and
+[Error Handling](/error-handling) for the shared error taxonomy.

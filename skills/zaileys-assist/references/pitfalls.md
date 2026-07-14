@@ -373,6 +373,45 @@ WHY: `ctx.mentions` are now resolved from `@lid` back to the phone-number JID vi
 
 ---
 
+## 23. ☁️ Cold free-form send on the cloud provider
+
+❌
+```typescript
+const wa = new Client({ provider: 'cloud', cloud })
+await wa.send('628xxx').text('Hi, check our promo!')   // 131047 if user never texted you / window closed
+```
+✅
+```typescript
+await wa.sendTemplate('628xxx', 'welcome', 'en_US')     // business-initiated = approved template only
+```
+WHY: the Cloud API only allows free-form messages inside the 24-hour customer-service window. Cold outreach and post-window sends must be **approved templates**. ([cloud.md](cloud.md))
+
+---
+
+## 24. ☁️ Template `parameters` that don't match `{{n}}`
+
+❌ `await wa.sendTemplate(to, 'promo', 'id')` when the body is `Halo {{1}}` → Graph `132000`.
+✅ Introspect first, then pass exactly: `await wa.cloud.templates.get('promo')` → `[{ type:'body', parameters:[{type:'text',text:'Budi'}] }]`.
+WHY: Meta rejects a template send whose parameter count differs from the placeholder count.
+
+---
+
+## 25. ☁️ `rich: true` / groups / polls on cloud
+
+❌ `wa.send(to).text(md, { rich: true })`, `wa.group.create(...)`, `wa.send(to).poll(...)` on `provider:'cloud'` → throws `UNSUPPORTED_ON_CLOUD` / `NOT_IMPLEMENTED`.
+✅ Plain text (`*bold*`/`_italic_`/`` ```mono``` `` render natively); use the **unofficial** provider for groups/polls/AIRich.
+WHY: those are WhatsApp-Web-only. The cloud provider fails loud, never silently.
+
+---
+
+## 26. ☁️ Forgetting the webhook / eating the raw body
+
+❌ Building a cloud bot and expecting `on('text')` to fire from a persistent socket — cloud has **no socket**; without `wa.webhook()` mounted, nothing arrives. ❌ `app.use(express.json())` before the handler — a body-parser mangles the raw body and breaks `X-Hub-Signature-256` verification (→ 401).
+✅ Mount `wa.webhook()` on a public URL, subscribe the `messages` field, and pass the **raw** body (`express.raw({ type: '*/*' })`). Make handlers idempotent (Meta retries).
+WHY: inbound is push-based and signature-verified. ([cloud.md](cloud.md))
+
+---
+
 ## Quick checklist for reviewers
 
 - Mass send? → must use `broadcast` / `scheduleAt`, never a bare `await` loop.
@@ -388,3 +427,4 @@ WHY: `ctx.mentions` are now resolved from `@lid` back to the phone-number JID vi
 - `event()` → groups only; `groupInvite()`/`limitedTimeOffer` `expiresAt` → unix seconds; share the invite link as fallback.
 - `product()` → needs `businessOwnerId` + a Business account; profile/chat/contact/business via the modules, not the raw socket.
 - New deps → keep `engines.node >=20` compatible.
+- ☁️ Cloud: cold/out-of-window send → must be `sendTemplate` (not `send().text`); template params match `{{n}}`; webhook mounted + raw body + idempotent; no `group`/`poll`/`rich:true` (they throw `UNSUPPORTED_ON_CLOUD`).

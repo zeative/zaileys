@@ -71,9 +71,14 @@ describe('integration: cloud location + contacts', () => {
     fetchMock.mockResolvedValueOnce(ok({ messages: [{ id: 'wamid.CT' }] }))
     const vcard = 'BEGIN:VCARD\nVERSION:3.0\nFN:Siti Aminah\nTEL;type=CELL:+62 812-0000-1111\nEND:VCARD'
     await c.send('628111').contact(vcard)
-    const body = lastBody() as { type: string; contacts: Array<{ name: { formatted_name: string }; phones?: Array<{ phone: string }> }> }
+    const body = lastBody() as {
+      type: string
+      contacts: Array<{ name: { formatted_name: string; first_name?: string; last_name?: string }; phones?: Array<{ phone: string }> }>
+    }
     expect(body.type).toBe('contacts')
     expect(body.contacts[0]?.name.formatted_name).toBe('Siti Aminah')
+    expect(body.contacts[0]?.name.first_name).toBe('Siti')
+    expect(body.contacts[0]?.name.last_name).toBe('Aminah')
     expect(body.contacts[0]?.phones?.[0]?.phone).toBe('+62 812-0000-1111')
   })
 

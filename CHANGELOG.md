@@ -1,5 +1,11 @@
 # zaileys
 
+## 4.8.1
+
+### Patch Changes
+
+- Document the official Meta WhatsApp Cloud API provider in the README — Zaileys now runs on two providers (unofficial WhatsApp Web + official Cloud API) behind one API.
+
 ## 4.8.0
 
 ### Minor Changes

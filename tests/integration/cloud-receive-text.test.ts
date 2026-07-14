@@ -88,3 +88,22 @@ describe('integration: cloud receive text', () => {
     expect(() => c.webhook()).toThrowError()
   })
 })
+
+describe('integration: cloud webhook without connect()', () => {
+  it('webhook() dispatches events even if connect() was never called', async () => {
+    // no health-check fetch — construct only, never connect
+    const c = new Client({
+      provider: 'cloud',
+      cloud: { accessToken: 'tok', phoneNumberId: '555', verifyToken: 'verify-me' },
+      autoConnect: false,
+      statusLog: false,
+    })
+    const texts: MessageContext[] = []
+    c.on('text', (m) => texts.push(m))
+    const res = await c.webhook()(post(fixture))
+    expect(res.status).toBe(200)
+    await new Promise((r) => setTimeout(r, 10))
+    expect(texts).toHaveLength(1)
+    expect(texts[0]?.text).toBe('halo bot')
+  })
+})

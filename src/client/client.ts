@@ -194,6 +194,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private readonly _provider: ProviderKind
   private readonly cloudOptions: CloudOptions | undefined
   private cloudTransport: CloudTransport | undefined
+  private cloudRuntimeReady = false
   private _cloudModule: CloudModule | undefined
 
   constructor(options: ClientOptions = {}) {
@@ -497,16 +498,25 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     return promise
   }
 
+  /** Create the cloud transport + attach the inbound pipeline exactly once — independent of connect(). */
+  private ensureCloudRuntime(): CloudTransport {
+    const transport = (this.cloudTransport ??= new CloudTransport(this.cloudOptions as CloudOptions))
+    if (!this.cloudRuntimeReady) {
+      this.cloudRuntimeReady = true
+      this.store.bind(transport as unknown as BaileysSocketLike)
+      this.attachCloudPipeline(transport, (this.cloudOptions as CloudOptions).phoneNumberId)
+    }
+    return transport
+  }
+
   private async connectCloud(): Promise<void> {
     if (this.machine.state === 'connecting' || this.machine.state === 'connected') return
     this.machine.transition('connecting')
     this.logStatus({ kind: 'connecting', sessionId: this.sessionId })
-    const transport = (this.cloudTransport ??= new CloudTransport(this.cloudOptions as CloudOptions))
-    this.store.bind(transport as unknown as BaileysSocketLike)
+    const transport = this.ensureCloudRuntime()
     try {
       const me = await transport.connect()
       this.machine.transition('connected')
-      this.attachCloudPipeline(transport, me.id)
       this.logStatus({ kind: 'connected', id: me.id })
       this.emit('connect', { sessionId: this.sessionId, me })
     } catch (err) {
@@ -561,9 +571,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       ...(cloud.verifyToken !== undefined ? { verifyToken: cloud.verifyToken } : {}),
       ...(cloud.appSecret !== undefined ? { appSecret: cloud.appSecret } : {}),
       onPayload: (payload) => {
-        const transport = this.cloudTransport
-        if (!transport) return
-        transport.ingest(payload)
+        this.ensureCloudRuntime().ingest(payload)
       },
     })
   }

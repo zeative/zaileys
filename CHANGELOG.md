@@ -1,5 +1,11 @@
 # zaileys
 
+## 4.8.3
+
+### Patch Changes
+
+- Cloud provider: parse the inbound reply `context` so `msg.replied()` resolves the quoted message on the official Cloud API (text, media, and interactive replies), matching baileys behavior.
+
 ## 4.8.2
 
 ### Patch Changes

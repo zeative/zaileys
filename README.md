@@ -27,13 +27,14 @@
 
 <div align="center">
   <p>
-    <b>Zaileys</b> is a type-safe wrapper around <a href="https://github.com/WhiskeySockets/Baileys">Baileys</a> that makes building WhatsApp bots feel effortless. Create a <code>Client</code>, listen for typed events, and send anything from plain text to interactive buttons and rich AI-style responses with a single chainable builder — authentication, reconnection, and storage are handled for you.
+    <b>Zaileys</b> is a type-safe WhatsApp framework for Node.js &amp; TypeScript with <b>two providers behind one API</b>: the <b>unofficial</b> WhatsApp Web engine (<a href="https://github.com/WhiskeySockets/Baileys">Baileys</a>) and the <b>official Meta WhatsApp Cloud API</b>. Write your bot once against a single chainable builder and typed events — then run it on either provider by flipping one option. Authentication, reconnection, and storage are handled for you.
   </p>
 </div>
 
 <div align="center">
 
 [Quick start](#quick-start) &nbsp;•&nbsp;
+[Providers](#two-providers-one-api) &nbsp;•&nbsp;
 [Why Zaileys](#why-zaileys) &nbsp;•&nbsp;
 [Install](#install) &nbsp;•&nbsp;
 [What you can build](#what-you-can-build) &nbsp;•&nbsp;
@@ -77,6 +78,43 @@ Prefer a pairing code? Provide your number:
 const client = new Client({ authType: 'pairing', phoneNumber: '6281234567890' })
 ```
 
+## Two providers, one API
+
+Zaileys runs on **either** the unofficial WhatsApp Web engine **or** the **official Meta WhatsApp Cloud API** — same `Client`, same `send(jid)…` builder, same typed events. Switch with one option; your handlers never change.
+
+```typescript
+// 🔗 Unofficial (default) — WhatsApp Web via Baileys. QR/pairing login, groups, polls, channels.
+const client = new Client()
+
+// ☁️ Official — Meta Cloud API. Token auth, no ban risk, templates/OTP/campaigns, Flows, commerce.
+const client = new Client({
+  provider: 'cloud',
+  cloud: {
+    accessToken: process.env.WA_TOKEN!,
+    phoneNumberId: process.env.WA_PHONE_ID!,
+    verifyToken: process.env.WA_VERIFY!,
+    appSecret: process.env.WA_APP_SECRET!,
+  },
+})
+
+client.on('text', (m) => m.reply(`echo: ${m.text}`))
+await client.sendTemplate('628xxx', 'welcome', 'en_US')  // cloud-only: reach users who never texted you
+
+// inbound arrives via webhook (framework-agnostic) — mount on any server:
+export const GET = client.webhook()
+export const POST = client.webhook()
+```
+
+| | 🔗 Unofficial (WhatsApp Web) | ☁️ Official (Meta Cloud API) |
+| --- | --- | --- |
+| Login | QR / pairing code, no approval | Permanent token |
+| Ban risk | Exists | None (sanctioned) |
+| Groups / channels / polls | ✅ | ❌ |
+| Templates / OTP / marketing | ❌ | ✅ |
+| Message users who never texted you | ✅ any number | ✅ via approved templates |
+
+Pick your provider → **[Choose Your Provider](https://zeative.github.io/zaileys/providers)** · **[Official Cloud API guide](https://zeative.github.io/zaileys/official)**.
+
 ## Build with AI
 
 Zaileys ships an **official Agent Skill suite** so your AI assistant writes, reviews, and
@@ -96,6 +134,7 @@ The suite has an orchestrator that auto-routes plus focused scaffold, debug, and
 
 ## Why Zaileys
 
+- **Two providers, one codebase** — the unofficial WhatsApp Web engine and the official Meta Cloud API behind the same `Client`. Switch with a single option; your handlers never change.
 - **Typed events** — `on('text' | 'image' | 'reaction' | 'button-click' | 'group-update' | …)` with fully-typed payloads and IntelliSense. No raw Baileys decoding, no `any`.
 - **One chainable builder** — `client.send(jid).text(…).reply(quoted).mentions([…])` resolves to the sent message key when awaited.
 - **Rich & interactive out of the box** — native buttons, lists, carousels, and Meta-AI-style rich responses written as plain markdown.

@@ -1,17 +1,31 @@
-# Official Cloud API
+---
+title: "Official Cloud API — Meta WhatsApp Business Platform"
+description: "Run Zaileys on the official Meta WhatsApp Cloud API: token auth, webhooks, templates, OTP, marketing campaigns, WhatsApp Flows, catalog commerce, analytics — the same Client, builder, and typed events."
+---
 
-zaileys can run on the **official Meta WhatsApp Cloud API** instead of WhatsApp Web — same
-client, same builder, same events. Pick the provider at construction time:
+import { Callout, Tabs, Steps, Cards } from 'nextra/components'
 
-```ts
+# Official · Meta Cloud API
+
+Run your bot on the **official Meta WhatsApp Business Platform** — the Graph API plus webhooks that
+Meta sanctions for businesses. No ban risk, no device linking, no QR. A permanent token
+authenticates you, inbound messages arrive over a webhook, and you get everything a real business
+channel needs: **templates, OTP, marketing campaigns, Flows, catalog commerce, and analytics**.
+
+Best of all: it's the **same Zaileys** you already know. The `send(jid)…` builder and the
+`on('text' | 'image' | …)` events are identical to the [unofficial provider](/unofficial) — you
+just flip one option.
+
+```typescript
 import { Client } from 'zaileys'
 
 const wa = new Client({
   provider: 'cloud',
   cloud: {
     accessToken: process.env.WA_TOKEN!,      // permanent / system-user token
-    phoneNumberId: process.env.WA_PHONE_ID!, // sender phone-number id (not the number itself)
-    verifyToken: process.env.WA_VERIFY!,     // webhook GET challenge
+    phoneNumberId: process.env.WA_PHONE_ID!, // sender phone-number id (not the number)
+    wabaId: process.env.WA_WABA_ID,          // WhatsApp Business Account id (for wa.cloud.*)
+    verifyToken: process.env.WA_VERIFY!,     // webhook GET challenge secret you choose
     appSecret: process.env.WA_APP_SECRET!,   // enables webhook signature verification
     apiVersion: 'v23.0',                     // optional, pinned default
   },
@@ -21,89 +35,413 @@ wa.on('text', (m) => m.reply(`echo: ${m.text}`))
 await wa.send('628xxx').text('halo')
 ```
 
-No QR, no pairing, no session files — the token authenticates you. `connect()` is a
-health-check against the Graph API and resolves immediately.
+<Callout type="info">
+New here? Read **[Choose Your Provider](/providers)** first to confirm the official API fits your
+use case — it can't do groups, channels, or polls, and requires a Meta Business account.
+</Callout>
+
+## Getting your credentials
+
+You need four things from the [Meta for Developers](https://developers.facebook.com/) dashboard.
+
+<Steps>
+
+### Create a Meta app with WhatsApp
+
+In **Meta for Developers → Create App → Business**, add the **WhatsApp** product. This creates a
+test phone number you can use immediately.
+
+### Grab the phone-number id and WABA id
+
+Under **WhatsApp → API Setup** you'll see the **Phone number ID** (`phoneNumberId`) and the
+**WhatsApp Business Account ID** (`wabaId`). Note: the phone-number *id* is a long number, not the
+actual phone number.
+
+### Create a permanent access token
+
+The temporary token expires in 24h. For production, create a **System User** in
+[Business Settings](https://business.facebook.com/settings) with the `whatsapp_business_messaging`
+and `whatsapp_business_management` permissions, and generate a **permanent token** (`accessToken`).
+
+### Set your webhook secrets
+
+Pick any string as your **verify token** (`verifyToken`) — you'll enter the same value in the Meta
+dashboard. Copy the app's **App Secret** (`appSecret`) from **App Settings → Basic**; it lets
+Zaileys verify that incoming webhooks genuinely came from Meta.
+
+</Steps>
+
+### Config reference
+
+| Field | Required | Purpose |
+| --- | :---: | --- |
+| `accessToken` | ✅ | Bearer token for all Graph API calls. |
+| `phoneNumberId` | ✅ | The sending phone-number node id. |
+| `wabaId` | For `wa.cloud.*` | WhatsApp Business Account id — needed for templates, flows, analytics, catalogs, phone numbers. |
+| `verifyToken` | For webhooks | Echoed back on the webhook GET verification challenge. |
+| `appSecret` | Recommended | Verifies the `X-Hub-Signature-256` HMAC on webhook POSTs. Omit to skip verification (not recommended). |
+| `apiVersion` | Optional | Graph API version. Defaults to a pinned stable version. |
+| `baseUrl` | Optional | Override the Graph origin (proxies / testing). |
+
+## Connecting
+
+```typescript
+await wa.connect()
+```
+
+`connect()` is a lightweight **health check** — it verifies the token and phone-number id against
+the Graph API and resolves immediately. There is no socket, no QR, no session file. `disconnect()`
+tears down the local event listeners. Reconnection and lifecycle logic from the unofficial provider
+simply don't apply.
 
 ## Webhook
 
-Inbound traffic arrives via Meta webhooks. `wa.webhook()` returns a framework-agnostic
-`(req: Request) => Promise<Response>` that handles the GET verification challenge and
-verifies the `X-Hub-Signature-256` HMAC on POSTs (when `appSecret` is set):
+The official API is **push-based**: Meta delivers inbound messages and status updates to a webhook
+URL you host. `wa.webhook()` returns a **framework-agnostic** handler —
+`(req: Request) => Promise<Response>` — that:
 
-```ts
-// hono
-app.all('/webhook', (c) => wa.webhook()(c.req.raw))
+- answers the **GET verification challenge** using your `verifyToken`, and
+- verifies the **`X-Hub-Signature-256` HMAC** on POSTs using your `appSecret` (rejecting forgeries
+  with `401`), then dispatches events into your `Client`.
 
-// next.js app router (app/api/whatsapp/route.ts)
-export const GET = wa.webhook()
-export const POST = wa.webhook()
+<Tabs items={['Next.js', 'Hono', 'Express', 'Node http']}>
+<Tabs.Tab>
+```typescript
+// app/api/whatsapp/route.ts
+import { wa } from '@/lib/wa'
+
+const handler = wa.webhook()
+export const GET = handler   // verification challenge
+export const POST = handler  // inbound messages + statuses
+```
+</Tabs.Tab>
+<Tabs.Tab>
+```typescript
+import { Hono } from 'hono'
+const app = new Hono()
+const handler = wa.webhook()
+
+// hono requests are already Web Requests
+app.all('/webhook', (c) => handler(c.req.raw))
+```
+</Tabs.Tab>
+<Tabs.Tab>
+```typescript
+import express from 'express'
+const app = express()
+const handler = wa.webhook()
+
+// IMPORTANT: keep the raw body so the signature can be verified
+app.all('/webhook', express.raw({ type: '*/*' }), async (req, res) => {
+  const url = `${req.protocol}://${req.get('host')}${req.originalUrl}`
+  const request = new Request(url, {
+    method: req.method,
+    headers: req.headers as Record<string, string>,
+    ...(req.method === 'POST' ? { body: req.body as Buffer } : {}),
+  })
+  const response = await handler(request)
+  res.status(response.status).send(await response.text())
+})
+```
+</Tabs.Tab>
+<Tabs.Tab>
+```typescript
+import { createServer } from 'node:http'
+const handler = wa.webhook()
+
+createServer(async (req, res) => {
+  const chunks: Buffer[] = []
+  for await (const c of req) chunks.push(c as Buffer)
+  const request = new Request(`http://localhost${req.url}`, {
+    method: req.method,
+    headers: req.headers as Record<string, string>,
+    ...(req.method === 'POST' ? { body: Buffer.concat(chunks) } : {}),
+  })
+  const response = await handler(request)
+  res.writeHead(response.status)
+  res.end(await response.text())
+}).listen(3000)
+```
+</Tabs.Tab>
+</Tabs>
+
+<Callout type="info">
+In the Meta dashboard under **WhatsApp → Configuration → Webhook**, set the **Callback URL** to your
+public endpoint, enter your **Verify token**, and **subscribe to the `messages` field**. Local
+development? Tunnel with `ngrok`, `cloudflared`, or `localtunnel`. Runnable examples live in
+[`examples/cloud-express.ts`](https://github.com/zeative/zaileys/blob/main/examples/cloud-express.ts),
+`cloud-hono.ts`, and `cloud-next-route.ts`.
+</Callout>
+
+## Sending messages
+
+Every send below is the **exact same builder** as the unofficial provider — internally translated to
+Graph API payloads.
+
+```typescript
+await wa.send(to).text('halo dunia')
+await wa.send(to).image('https://…/a.jpg', { caption: 'lihat ini 📸' })
+await wa.send(to).video('https://…/clip.mp4', { caption: 'demo' })
+await wa.send(to).audio('https://…/voice.mp3')
+await wa.send(to).document('https://…/invoice.pdf', { fileName: 'invoice.pdf' })
+await wa.send(to).location(-6.2, 106.8, { name: 'Monas', address: 'Jakarta' })
+await wa.send(to).contact('BEGIN:VCARD\nVERSION:3.0\nFN:Budi\nN:;Budi\nTEL:+62811\nEND:VCARD')
+
+// interactive — reply buttons (max 3) and lists
+await wa.send(to).buttons(
+  [{ id: 'yes', text: 'Ya' }, { id: 'no', text: 'Tidak' }],
+  { text: 'Setuju?', footer: 'pilih satu' },
+)
+await wa.send(to).list({
+  title: 'Menu', buttonText: 'Lihat', description: 'Pilih menu',
+  sections: [{ title: 'Makanan', rows: [{ id: 'a', title: 'Nasi Goreng' }] }],
+})
+
+// reactions, read receipts, replies
+await wa.react(msg.message().key, '🔥')
+await wa.markRead(msg.chatId, { typing: true })
+await msg.reply('siap!')
 ```
 
-See `examples/cloud-express.ts`, `examples/cloud-hono.ts`, `examples/cloud-next-route.ts`.
-In the Meta app dashboard, subscribe the webhook to the `messages` field.
+Media accepts a URL, a local path, or a `Buffer` — Zaileys uploads it to Meta's media endpoint and
+references the returned id automatically. Download inbound media with `wa.downloadMedia(key)`.
 
-## What works on cloud
+<Callout type="warning">
+Cloud-only limits: **reply buttons max out at 3**, **carousels and polls are not available**, and
+media headers on interactive buttons aren't supported. Unsupported builder calls throw a typed
+`ZaileysProviderError` — see the [comparison](/providers#messaging).
+</Callout>
 
-| Surface | Status |
-| --- | --- |
-| `send().text/image/video/audio/document/sticker/location/contact` | ✅ |
-| `send().buttons()` (max 3 reply buttons) / `send().list()` | ✅ |
-| `reply()`, `react()`, `forward()` | ✅ |
-| `sendTemplate(to, name, lang, components?)` | ✅ cloud-only |
-| `markRead(messageId, { typing })` | ✅ cloud-only |
-| `downloadMedia(key)` | ✅ |
-| events: `message`, `text`, `image`, …, `reaction`, `button-click`, `list-select` | ✅ |
-| `message-status` (`sent`/`delivered`/`read`/`failed`) | ✅ cloud-only |
-| commands (`commandPrefix`), middleware, plugins, `broadcast()`, `scheduleAt()` | ✅ |
-| `group`, `community`, `newsletter`, `privacy`, `presence`, `chat`, `contact`, `business`, `profile` | ❌ throws `ZaileysProviderError` (`UNSUPPORTED_ON_CLOUD`) |
-| `edit`, `delete`, `pin`, `setDisappearing`, stories/status | ❌ not offered by the Cloud API |
-| QR / pairing / multi-device session | — not applicable |
+## The 24-hour window
 
-Everything unsupported throws a **typed error** immediately — nothing fails silently.
+Meta gates business-initiated messaging:
+
+- A user messages you → a **24-hour customer-service window** opens → you can send **anything**
+  freely (text, media, interactive).
+- Outside the window, or to a user who **never messaged you**, you may only send an **approved
+  template**.
+
+A free-form send outside the window returns Graph error `131047` ("re-engagement message"). This is
+Meta policy, enforced server-side — Zaileys surfaces it as a typed `ZaileysCloudError`.
+
+```typescript
+// ✅ Always allowed — approved template (business-initiated)
+await wa.sendTemplate(to, 'welcome', 'en_US')
+
+// ❌ Fails with 131047 if the user never texted you / window closed
+await wa.send(to).text('hi')
+```
+
+## Templates
+
+Templates are pre-approved message blueprints — the **only** way to start a conversation with a
+user. Meta has three categories: **`MARKETING`** (promos), **`UTILITY`** (transactional notices),
+and **`AUTHENTICATION`** (OTP). All three flow through the same two APIs.
+
+### Sending a template
+
+`sendTemplate(to, name, language, components?)` — note it takes the template **name**, not its id.
+
+```typescript
+// simple template with a body variable {{1}}
+await wa.sendTemplate(to, 'promo_juli', 'id', [
+  { type: 'body', parameters: [{ type: 'text', text: 'Budi' }] },
+])
+
+// template with an image header
+await wa.sendTemplate(to, 'flash_sale', 'id', [
+  { type: 'header', parameters: [{ type: 'image', image: { link: 'https://…/banner.jpg' } }] },
+  { type: 'body', parameters: [{ type: 'text', text: '50%' }] },
+])
+```
+
+<Callout type="warning">
+The number of `parameters` must **exactly match** the `{{n}}` placeholders in the template, or Meta
+returns error `132000`. Introspect a template first with `wa.cloud.templates.get(nameOrId)` to see
+its components.
+</Callout>
+
+### OTP (one-time passwords)
+
+Authentication templates are usually **approved instantly**. Create one, then send codes:
+
+```typescript
+// 1) create the OTP template (once)
+await wa.cloud.templates.create({
+  name: 'kode_otp',
+  category: 'AUTHENTICATION',
+  language: 'id',
+  components: [
+    { type: 'BODY', add_security_recommendation: true },
+    { type: 'FOOTER', code_expiration_minutes: 5 },
+    { type: 'BUTTONS', buttons: [{ type: 'OTP', otp_type: 'COPY_CODE' }] },
+  ],
+})
+
+// 2) send a code — passed to both the body and the copy-code button
+await wa.sendTemplate(to, 'kode_otp', 'id', [
+  { type: 'body', parameters: [{ type: 'text', text: '839201' }] },
+  { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: '839201' }] },
+])
+```
+
+### Managing templates
+
+```typescript
+await wa.cloud.templates.list({ status: 'APPROVED' })   // list all
+await wa.cloud.templates.get('1783414372642659')        // by id (or name) → components
+await wa.cloud.templates.create({ name, category, language, components })
+await wa.cloud.templates.delete('promo_juli')
+
+// review lifecycle arrives on the webhook
+wa.on('template-status', (t) => console.log(t.name, t.event)) // APPROVED / REJECTED / PAUSED
+```
+
+## Marketing campaigns
+
+Combine templates with the shared `broadcast()` helper:
+
+<Steps>
+
+### Create and approve the template
+
+`wa.cloud.templates.create({ category: 'MARKETING', … })`, then wait for the `template-status`
+event (or poll `templates.get`) to reach `APPROVED`.
+
+### Broadcast to your audience
+
+```typescript
+await wa.broadcast(numbers, (b, jid) => b, {
+  rateLimitPerSec: 10,
+  onProgress: (done, total) => console.log(`${done}/${total}`),
+})
+// or loop sendTemplate for per-recipient variables:
+for (const { phone, name } of contacts) {
+  await wa.sendTemplate(phone, 'promo_juli', 'id', [
+    { type: 'body', parameters: [{ type: 'text', text: name }] },
+  ])
+}
+```
+
+### Track delivery and results
+
+```typescript
+wa.on('message-status', (s) => console.log(s.id, s.status)) // sent/delivered/read/failed
+const stats = await wa.cloud.analytics.messages({ start, end })
+```
+
+</Steps>
+
+<Callout type="info">
+Marketing templates are subject to Meta's **per-user daily marketing limit** and quality-based
+messaging tiers. Keep content relevant and honor opt-outs to protect your number's quality rating
+(check it with `wa.cloud.info()`).
+</Callout>
 
 ## Management surface — `wa.cloud.*`
 
-Business tooling lives under the cloud-only `wa.cloud` namespace. WABA-scoped calls need
-`cloud.wabaId`.
+Everything business-side lives under the cloud-only `wa.cloud` namespace. WABA-scoped calls require
+`cloud.wabaId`. Web-only surfaces (`group`, `newsletter`, …) throw `UNSUPPORTED_ON_CLOUD` on this
+provider.
 
-```ts
-// templates (CRUD + review lifecycle)
-await wa.cloud.templates.list({ status: 'APPROVED' })
-await wa.cloud.templates.create({ name, category: 'MARKETING', language: 'id', components })
-await wa.cloud.templates.delete('promo_juli')
-wa.on('template-status', (t) => console.log(t.name, t.event)) // APPROVED/REJECTED/PAUSED
+```typescript
+// Templates — see the Templates section above
+wa.cloud.templates.list() / .get(idOrName) / .create() / .delete()
 
-// business profile
+// This number's health + all numbers on the account
+await wa.cloud.info()          // display number, verified name, quality_rating, throughput
+await wa.cloud.phoneNumbers()  // every phone number under the WABA
+
+// Business profile
 await wa.cloud.profile.get()
-await wa.cloud.profile.update({ about: 'buka 9-5', websites: ['https://…'] })
+await wa.cloud.profile.update({ about: 'buka 9–17', websites: ['https://…'], vertical: 'RETAIL' })
 
-// whatsapp flows
+// WhatsApp Flows (native multi-step forms)
 await wa.cloud.flows.list()
-await wa.cloud.flows.send(to, { flowId, cta: 'Isi form', bodyText: '…', screen: 'BOOKING' })
+await wa.cloud.flows.send(to, { flowId, cta: 'Isi form', bodyText: 'Booking', screen: 'BOOKING' })
 wa.on('flow-response', (f) => console.log(f.response)) // parsed nfm_reply JSON
 
-// catalog / commerce
+// Catalog & commerce
+await wa.cloud.commerce.catalogs()
+await wa.cloud.commerce.products(catalogId)
 await wa.cloud.commerce.sendProduct(to, { catalogId, retailerId })
 await wa.cloud.commerce.sendProductList(to, { catalogId, headerText, bodyText, sections })
-wa.on('order', (o) => console.log(o.items)) // customer placed an order
+wa.on('order', (o) => console.log(o.items))  // customer placed an order
 
-// misc
+// Address requests (ID / BR)
 await wa.cloud.sendAddressRequest(to, { bodyText: 'Alamat kirim?', countryIso: 'ID' })
-await wa.cloud.blocklist.add(['628xxx'])
-await wa.cloud.qr.create('halo!')
-await wa.cloud.analytics.conversations({ start, end })
+
+// Blocklist, QR links, analytics
+await wa.cloud.blocklist.add(['628xxx']) / .remove(['628xxx']) / .list()
+await wa.cloud.qr.create('halo!') / .list() / .delete(code)
+await wa.cloud.analytics.conversations({ start, end }) / .messages({ start, end })
+
+// Phone-number registration & 2FA
+await wa.cloud.phone.register(pin)
 await wa.cloud.phone.requestCode('SMS', 'id')
+await wa.cloud.phone.verifyCode(code)
 ```
 
-**Campaign recipe**: `wa.cloud.templates.create()` → wait for `template-status` APPROVED →
-`broadcast()`/loop `sendTemplate()` → track `message-status` + `wa.cloud.analytics`.
+## Events
+
+Inbound webhooks flow through the **same typed event system** as the unofficial provider:
+
+| Event | Fires when |
+| --- | --- |
+| `message`, `text`, `image`, `video`, `audio`, `document`, `sticker` | a user sends that message type |
+| `reaction` | a user reacts to a message |
+| `button-click`, `list-select` | a user taps a reply button or picks a list row |
+| `location`, `contact` | a user shares a location or contact |
+| `flow-response` | a user completes a WhatsApp Flow (`nfm_reply`) |
+| `order` | a user places a catalog order |
+| `message-status` | your outbound message is `sent` / `delivered` / `read` / `failed` |
+| `template-status` | a template is `APPROVED` / `REJECTED` / `PAUSED` |
+
+`qr`, `pairing-code`, and reconnect events never fire on this provider.
+
+## Capability matrix
+
+| Surface | Status |
+| --- | --- |
+| text / media / location / contact / reaction / read / typing | ✅ |
+| reply, forward | ✅ |
+| buttons (reply/url, max 3), lists | ✅ |
+| `sendTemplate`, template management | ✅ cloud-only |
+| Flows, catalog/commerce, orders | ✅ cloud-only |
+| profile, blocklist, qr, analytics, phone mgmt, address request | ✅ cloud-only |
+| `message-status`, `template-status` events | ✅ cloud-only |
+| commands, middleware, plugins, `broadcast()`, `scheduleAt()`, store | ✅ shared |
+| carousels, polls, edit, delete, pin, disappearing | ❌ not in the Cloud API |
+| `group`, `community`, `newsletter`, `privacy`, `presence`, status | ❌ throws `UNSUPPORTED_ON_CLOUD` |
+| QR / pairing / session files | — not applicable |
+
+## Common error codes
+
+| Code | Meaning | Fix |
+| --- | --- | --- |
+| `131047` | Re-engagement — outside the 24h window | Send an approved template first |
+| `132000` | Parameter count mismatch | Match `parameters` to the template's `{{n}}` |
+| `100` | Invalid parameter / bad request | Check the payload shape against the docs |
+| `190` | Invalid / expired access token | Regenerate a permanent System User token |
+| `131026` | Message undeliverable | Recipient can't receive (no WhatsApp, blocked) |
+| `131056` | Pair rate limit | Slow down; respect messaging tiers |
+
+Every failure surfaces as a typed `ZaileysCloudError` with the Graph `code` — see
+[Error Handling](/error-handling).
 
 ## Notes & ceilings
 
-- Business-initiated conversations require an **approved template** (`sendTemplate`) once
-  outside the 24h customer-service window — plain sends return error 131047.
-- Interactive sends return a builder-generated key id; the real `wamid` is recorded in the
-  message store (and referenced by `message-status` events).
-- Media headers on interactive buttons are not supported on cloud yet.
-- zaileys still imports baileys at module load even in cloud mode (startup cost only, no
-  runtime use); lazy loading is a planned optimization.
+- The recipient must be a real WhatsApp number; the sender must be a registered Cloud API number.
+- Interactive sends return a builder-generated key; the real `wamid` is recorded in the message
+  store and referenced by `message-status` events.
+- Zaileys currently imports the unofficial engine at module load even in cloud mode (a small
+  startup cost, no runtime use); lazy loading is planned.
+
+## Next steps
+
+<Cards>
+  <Cards.Card icon="🧭" title="Choose Your Provider" href="/providers" arrow />
+  <Cards.Card icon="🔗" title="Unofficial provider" href="/unofficial" arrow />
+  <Cards.Card icon="⚙️" title="Configuration" href="/configuration" arrow />
+  <Cards.Card icon="📡" title="Events" href="/events" arrow />
+</Cards>

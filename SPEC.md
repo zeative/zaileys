@@ -1,235 +1,115 @@
-# SPEC — Official Meta WhatsApp Cloud API provider (zaileys DX)
+# SPEC — Update the zaileys Agent Skill suite for the official Cloud API provider
 
 ## 1. Objective
 
-Add a second transport to zaileys: the **official Meta WhatsApp Cloud API** (Graph API +
-webhooks), selectable via a `provider` option, while keeping the exact zaileys developer
-experience — same `Client`, same `send(to).text()` builder, same event names.
+The zaileys Agent Skill suite (`skills/*`, mirrored to `plugins/zaileys-official/skills/*`)
+teaches AI assistants to write, scaffold, debug, and review zaileys code. It is currently
+**100% baileys/unofficial** — it never mentions `provider: 'cloud'`, `wa.cloud.*`, `webhook()`,
+templates, OTP, or the Cloud-API pitfalls. Since zaileys 4.8.x ships a full **official Meta Cloud
+API provider**, the skill now teaches outdated, incomplete truth and will generate wrong code for
+cloud users.
 
-```ts
-import { Client } from 'zaileys'
+**Goal:** make the skill **provider-aware and correct** — so an AI using it knows both providers
+exist, picks the right one, generates valid code for each, and avoids the real Cloud-API gotchas we
+discovered and verified (24h window, template params, AIRich web-only, webhook-without-connect,
+contact first-name, `UNSUPPORTED_ON_CLOUD`).
 
-const wa = new Client({
-  provider: 'cloud',
-  cloud: {
-    accessToken: process.env.WA_TOKEN!,       // permanent / system-user token
-    phoneNumberId: process.env.WA_PHONE_ID!,  // sender phone-number id
-    wabaId: process.env.WA_WABA_ID,           // optional (some ops)
-    verifyToken: process.env.WA_VERIFY!,      // webhook GET challenge
-    appSecret: process.env.WA_APP_SECRET,     // webhook POST signature verify
-    apiVersion: 'v23.0',                      // optional, pinned default
-  },
-})
-
-wa.on('message', (m) => wa.send(m.roomId).text(`echo: ${m.text}`))
-await wa.send('628xxx').image('./a.jpg', { caption: 'hi' })
-await wa.send('628xxx').template('order_confirm', 'id_ID', [...]) // Cloud-only
-```
-
-**Target users**: businesses that need the sanctioned, ToS-safe channel (no ban risk, no
-QR device linking) — notifications, customer support, template broadcasts — but want
-zaileys ergonomics instead of raw Graph REST or a Cloud-only lib like `whatsapp-api-js`.
-
-**Why it's possible**: the builder already talks to a `BuilderSocketLike` seam
-(`sendMessage(jid, AnyMessageContent, options)`), not baileys directly. A `CloudTransport`
-that implements that seam — translating baileys message content → Graph payloads — reuses
-the entire builder/event surface untouched.
-
-### Default & compatibility
-
-- `provider` defaults to `'baileys'`. Omitting it = today's behavior, byte-for-byte.
-- baileys is **lazy-imported** only when `provider === 'baileys'`, so Cloud-only apps don't
-  pay the baileys load/deps at runtime.
+**Target users:** developers using the skill via `npx skills add zeative/zaileys` or the Claude Code
+plugin `zaileys-official@zeative`, and the AI agents that load it.
 
 ## 2. Acceptance criteria
 
-1. `new Client()` and `new Client({ provider: 'baileys' })` behave identically to v4.7.2 —
-   full existing test suite green, no signature changes.
-2. `new Client({ provider: 'cloud', cloud })` sends a text via `send(to).text()` → issues
-   `POST https://graph.facebook.com/{apiVersion}/{phoneNumberId}/messages` with the correct
-   JSON body and `Authorization: Bearer` header (asserted against a mocked fetch).
-3. Media (`image/video/audio/document/sticker`) uploads to `/{phoneNumberId}/media` then
-   references the returned media id — verified end-to-end against mock fetch.
-4. `react`, `markRead`, typing indicator, `reply` (context message id) work on cloud.
-5. Interactive `buttons`/`list` send as Graph `interactive` payloads; `template(...)` sends a
-   template message.
-6. Location + contact send work; both are parsed on inbound.
-7. `wa.webhook()` returns a framework-agnostic `(req: Request) => Promise<Response>`:
-   - GET with valid `hub.verify_token` → `200` + `hub.challenge`; invalid → `403`.
-   - POST with valid `X-Hub-Signature-256` (HMAC-SHA256 over raw body w/ `appSecret`) →
-     parsed and dispatched; invalid signature → `401`, no events emitted.
-   - Inbound `messages[]` → emits `message` + the specific event (`text`/`image`/`reaction`/
-     `button-click`/`list-select`/location/contact) with the same context shape as baileys.
-   - Inbound `statuses[]` → emits `message-status` (`sent`/`delivered`/`read`/`failed`).
-8. Web-only surfaces on the cloud provider (`group`, `newsletter`, `community`, `privacy`,
-   `presence.subscribe`, status/stories) throw a typed `ZaileysProviderError`
-   (`UNSUPPORTED_ON_CLOUD`) with a clear message — never a silent no-op or vague crash.
-9. `pnpm build` typings: consumers using only cloud don't need baileys types to compile.
-10. Docs + runnable examples for express, hono, and Next.js route handlers.
+1. The **orchestrator** (`zaileys-assist/SKILL.md`) states up front that zaileys has **two
+   providers** and routes provider-specific intents (cloud, webhook, template, OTP, campaign,
+   Flows, commerce) to the new cloud reference.
+2. A new **`references/cloud.md`** exists — the self-contained official-provider guide: config,
+   `connect()` semantics, `webhook()` (all mounts), send differences, `sendTemplate`, OTP, campaigns,
+   the full `wa.cloud.*` surface, events (`message-status`/`template-status`/`flow-response`/`order`),
+   and every limit/gotcha with its fix.
+3. **`references/errors.md`** gains the cloud error taxonomy: `ZaileysCloudError`
+   (`CONFIG`/`AUTH`/`REQUEST_FAILED`/`RATE_LIMITED`/`NOT_IMPLEMENTED`), `ZaileysProviderError`
+   (`UNSUPPORTED_ON_CLOUD`), and the common Graph codes (`131047`, `132000`, `131009`, `190`, …).
+4. **`references/pitfalls.md`** gains cloud anti-patterns → correct way (cold-send without template,
+   param count, `rich:true` on cloud, calling `group`/`newsletter` on cloud, forgetting the webhook,
+   body-parser eating the raw body).
+5. **`references/recipes.md`** gains runnable cloud recipes: cloud echo bot + webhook (Next/Hono/
+   Express), send OTP, marketing campaign, receive order/flow-response.
+6. **`references/troubleshooting.md`** gains cloud runtime symptoms (webhook 401/verify fails, events
+   not firing, `131047`).
+7. `zaileys-scaffold`, `zaileys-debug`, `zaileys-review` **SKILL.md** descriptions + bodies mention
+   the provider dimension (scaffold asks which provider; debug/review know cloud errors + guards).
+8. Every code snippet is **correct against zaileys 4.8.1** (verified API — the same we live-tested):
+   `provider:'cloud'`, `cloud:{accessToken,phoneNumberId,wabaId,verifyToken,appSecret}`,
+   `wa.webhook()`, `wa.sendTemplate(to,name,lang,components)`, `wa.cloud.*`.
+9. `npm run skill:sync` mirrors canonical `skills/*` → `plugins/zaileys-official/skills/*` with no
+   drift (byte-identical after sync).
+10. No regression to the existing (unofficial) content — it stays accurate; cloud is **added**, the
+    default provider framing (baileys) is preserved.
 
 ## 3. Commands
 
 ```bash
-pnpm build            # tsup → dist (esm+cjs) + tsc d.ts
-pnpm typecheck        # tsc --noEmit
-pnpm test             # vitest run
-pnpm audit:comments   # no // comments in src (only /** */)
-pnpm audit:any        # no `any`
-pnpm size             # size-limit
+npm run skill:sync     # mirror skills/* → plugins/zaileys-official/skills/*
+# verify no drift:
+diff -r skills plugins/zaileys-official/skills   # (minus any intentional plugin-only files)
 ```
 
-Feature verification (mock-fetch, no live Meta calls):
+Content is prose/markdown — no build/test. Verification is manual review + a diff check that the
+plugin copy matches canonical after sync, plus spot-checking snippets against
+`references/api.md` / the live 4.8.1 API.
 
-```bash
-pnpm test tests/cloud            # transport, translators, webhook, capability guards
-pnpm test tests/integration/cloud-*  # provider-switch + send/receive round-trips
-```
-
-Optional live smoke (gated, maintainer-only, real sandbox number):
-
-```bash
-WA_TOKEN=… WA_PHONE_ID=… pnpm tsx scripts/smoke-cloud.mts
-```
-
-## 4. Project structure
-
-New code isolated under `src/cloud/` + a thin transport seam. Client gains a provider switch.
+## 4. Project structure (files touched)
 
 ```
-src/transport/
-  types.ts            # Transport interface (superset the Client needs), ProviderKind
-  index.ts
-src/cloud/
-  types.ts            # CloudOptions + Graph request/response types
-  graph-client.ts     # fetch wrapper: auth header, versioned URL, retry/backoff, error → ZaileysCloudError
-  transport.ts        # CloudTransport: connect(health-check), sendMessage seam, react, markRead, typing
-  media.ts            # upload (buffer/stream/url) + download by media id
-  webhook.ts          # webhook(): GET verify + POST signature verify + dispatch to events
-  capabilities.ts     # UNSUPPORTED_ON_CLOUD guard + typed error
-  template.ts         # template() builder method payloads
-  translate/
-    outbound.ts       # AnyMessageContent → Graph message payload (text/media/interactive/location/contact)
-    inbound.ts        # Meta webhook value → zaileys message context + event kind
-src/client/client.ts  # provider switch: choose transport; lazy import('baileys') only for 'baileys'
-src/client/types.ts   # ClientOptions.provider + ClientOptions.cloud; ConnectionEventMap += message-status
-tests/cloud/…         # unit: translators, webhook parse+verify, capability guards
-tests/integration/cloud-*.test.ts   # provider switch, send round-trip vs mock fetch, webhook→event
-tests/_fixtures/cloud/…             # real Meta webhook JSON payloads (message, status, interactive, media)
-examples/cloud-express.ts, cloud-hono.ts, cloud-next-route.ts
-docs/…                # Cloud provider guide + capability matrix
-scripts/smoke-cloud.mts             # gated live smoke
-.changeset/*.md       # minor bump (additive feature)
+skills/zaileys-assist/SKILL.md               # provider-aware routing + mental model + golden rules
+skills/zaileys-assist/references/cloud.md     # NEW — official Cloud API reference
+skills/zaileys-assist/references/errors.md    # + cloud error taxonomy
+skills/zaileys-assist/references/pitfalls.md  # + cloud anti-patterns
+skills/zaileys-assist/references/recipes.md   # + cloud recipes
+skills/zaileys-assist/references/troubleshooting.md # + cloud symptoms
+skills/zaileys-assist/references/api.md        # + a short "provider" section pointing to cloud.md
+skills/zaileys-scaffold/SKILL.md              # ask provider; scaffold cloud projects
+skills/zaileys-debug/SKILL.md                 # know cloud errors
+skills/zaileys-review/SKILL.md                # know cloud guards/anti-patterns
+plugins/zaileys-official/skills/**            # regenerated via `npm run skill:sync` (do NOT hand-edit)
 ```
 
-### Transport seam (design)
+Design: **one dedicated `cloud.md`** (self-contained, load-on-demand) + **surgical provider-awareness**
+woven into the orchestrator's routing/rules and the sibling skills. Do NOT duplicate the whole
+unofficial surface per-provider — shared API stays in `api.md`; `cloud.md` documents only the
+differences and cloud-exclusive surface, cross-referencing `api.md` for shared builder/events.
 
-```ts
-// src/transport/types.ts
-export type ProviderKind = 'baileys' | 'cloud'
+## 5. Code style (content style)
 
-export interface Transport extends BuilderSocketLike {
-  readonly provider: ProviderKind
-  connect(): Promise<void>
-  disconnect(): Promise<void>
-  react(key: WAMessageKey, emoji: string): Promise<WAMessageKey>
-  markRead(id: string): Promise<void>
-  // events flow OUT via a callback the Client registers (inbound webhook / socket)
-}
-```
-
-- Baileys today = implicit transport (`this._socket`); wrap it to satisfy `Transport` with the
-  smallest adapter, no rewrite of existing baileys paths.
-- `CloudTransport.sendMessage(to, content, opts)` inspects `AnyMessageContent`
-  (`{text}`, `{image,caption}`, `{buttons}`, `{templateMessage}`, …) → builds Graph JSON →
-  POSTs → returns a synthesized `WAMessage` (`key.id = wamid`, `fromMe: true`) so
-  `recordSent`, `reply`, and the store keep working.
-
-### Capability matrix (v1)
-
-| Feature | Cloud provider |
-|---|---|
-| text / media / sticker / reaction / read receipt / typing | ✅ |
-| reply (context msg id), forward | ✅ (forward = re-send content) |
-| interactive buttons / list | ✅ |
-| template message | ✅ (Cloud-only method) |
-| location / contact (send + receive) | ✅ |
-| inbound message + status webhooks | ✅ |
-| group / newsletter / community / privacy / presence.subscribe / status(stories) | ❌ throw `UNSUPPORTED_ON_CLOUD` |
-| QR / pairing / session creds | ❌ N/A (token auth; no `qr`/`pairing-code` events) |
-
-## 5. Code style
-
-- Match existing repo conventions strictly: strict TS, **no `any`** (`audit:any`), **no `//`
-  comments** in `src` — only `/** */` TSDoc (`audit:comments` enforces both, runs in pre-commit).
-- Structural interfaces named `*Like` for duck-typed seams; typed domain errors extend the
-  existing `Zaileys*Error` family (`ZaileysCloudError`, `ZaileysProviderError`) with a stable
-  `code` union — mirror `store-error.ts` / `builder/errors.ts`.
-- No new runtime deps: use global `fetch` (Node ≥18) and `node:crypto` for HMAC. Graph types
-  are hand-written minimal shapes, not a generated SDK.
-- Pin `apiVersion` to a single default constant; make it overridable. Verify the current
-  stable Graph version against Meta's changelog at implementation time (use Context7/live docs
-  before hardcoding).
-- Keep `src/cloud/` free of baileys imports except the shared `AnyMessageContent`/`WAMessage`
-  *types* (type-only imports, no runtime coupling).
+- Match the existing skill voice: terse, table-driven routing, "verified/exact API", copy-paste
+  runnable snippets, golden rules as imperatives.
+- Mirror the docs split we already shipped: **🔗 unofficial (default)** vs **☁️ official (cloud)**;
+  for shared features point to the shared reference, don't re-teach.
+- Every cloud snippet must be **real and current** (4.8.1) — no invented methods. When unsure, check
+  `src/cloud/*` or the live docs `llms-full.txt`.
+- Keep provider defaults honest: `provider` defaults to `'baileys'`; cloud needs `cloud` creds.
+- Markdown only; keep reference files focused and load-on-demand (don't bloat SKILL.md).
 
 ## 6. Testing strategy
 
-- **Unit (no network)**:
-  - `translate/outbound`: each content kind → exact Graph body (table-driven).
-  - `translate/inbound`: fixture Meta payloads → expected event kind + context fields.
-  - `webhook`: GET challenge (valid/invalid token), POST signature verify (valid/tampered/
-    missing), malformed body → safe `400` and no emit.
-  - `capabilities`: every web-only accessor throws `UNSUPPORTED_ON_CLOUD` on cloud provider.
-  - `graph-client`: URL/versioning, auth header, error mapping, retry on 429/5xx.
-- **Integration (mock fetch)**: mock global `fetch` (vi) — assert method, URL, headers, body
-  for send/media/react/read; drive `webhook()` with fixtures → assert emitted events. Provider
-  switch: `provider:'baileys'` never touches fetch; `provider:'cloud'` never touches baileys.
-- **Regression**: existing full suite must stay green (baileys default path unchanged).
-- **Live smoke**: `scripts/smoke-cloud.mts`, opt-in via env, never in CI (mirrors
-  `smoke-baileys` policy). No secrets in the repo.
-- Fixtures are **real** Meta webhook JSON captured from the API docs / sandbox, stored under
-  `tests/_fixtures/cloud/` so parser tests reflect actual payload shapes.
+- No automated tests (prose). Verification:
+  1. **Snippet correctness** — cross-check every cloud API call against `references/api.md` additions
+     and the shipped `src/cloud/` surface / live-tested behavior.
+  2. **Sync integrity** — run `npm run skill:sync`, then `diff -r` canonical vs plugin copy = clean.
+  3. **Routing coverage** — confirm the orchestrator routes each cloud intent (webhook, template,
+     OTP, campaign, Flows, commerce, `wa.cloud.*`) to `cloud.md`.
+  4. **Regression** — the unofficial sections still read correctly and the baileys-default framing is
+     intact.
 
 ## 7. Boundaries
 
-- **Always**:
-  - Keep `provider:'baileys'` the default and 100% backward compatible — additive only,
-    `minor` semver bump.
-  - Verify webhook signatures when `appSecret` is set; reject unsigned/tampered POSTs.
-  - Throw a clear typed error for anything the Cloud API genuinely can't do — never fake it.
-  - Lazy-load baileys so Cloud-only installs don't pull it at runtime.
-- **Ask first**:
-  - Publishing to npm; changing `peerDependencies` or `exports`; adding any runtime dependency.
-  - Hardcoding a Graph `apiVersion` (confirm latest stable first).
-  - Introducing a built-in HTTP listener (`wa.listen(port)`) — v1 ships only the
-    framework-agnostic `webhook()` handler; a listener helper is a later, separate decision.
-- **Never**:
-  - Break or fork the existing baileys code paths / public API.
-  - Commit tokens, `appSecret`, or phone-number ids; no live Meta calls in tests/CI.
-  - Add `//` comments or `any` in `src` (pre-commit will reject).
-  - Store or log message bodies/tokens beyond what zaileys already does.
-
-## 8. Delivery phases (incremental, each independently shippable)
-
-1. **Seam + switch**: `Transport` interface, wrap baileys as a transport, `provider`/`cloud`
-   options, `CloudTransport` skeleton (`connect` health-check + text send). No behavior change
-   for baileys. Lands with tests for provider switch + text send.
-2. **Media + basics**: media upload/download, reaction, mark-read, typing, reply/context id.
-3. **Webhook inbound**: `webhook()` GET verify + POST signature + parse `messages`/`statuses`
-   → emit `message`/specific + `message-status`. Fixtures + parser tests.
-4. **Interactive + template**: buttons/list send + inbound `button-click`/`list-select`;
-   `template()` method.
-5. **Location + contacts + guards**: send/receive location & contact; wire
-   `UNSUPPORTED_ON_CLOUD` across web-only modules.
-6. **Docs + examples**: express/hono/next examples, Cloud guide, capability matrix, changeset,
-   gated live smoke.
+- **Always**: keep baileys the documented default; add cloud as an equal second provider; keep every
+  snippet valid against 4.8.1; run `skill:sync` after editing canonical `skills/*` so the plugin copy
+  never drifts; reuse shared references instead of duplicating.
+- **Ask first**: publishing a new skill/plugin version or npm release for this doc change; renaming or
+  restructuring existing skills; changing the plugin marketplace manifest.
+- **Never**: hand-edit `plugins/zaileys-official/skills/**` (generated — edit canonical + sync);
+  invent Cloud-API methods or parameters the library doesn't have; claim a web-only feature works on
+  cloud (e.g. AIRich, groups, polls) — state the limit + the fix; break the existing unofficial
+  guidance.
 ```
-
-## 9. Batch 2 — business & commerce layer (added 2026-07-14)
-
-Everything else the Cloud API offers, namespaced under `wa.cloud.*` (cloud-only module):
-template management (CRUD + status webhook), business profile get/update, Flows (send +
-`flow-response` event + list), catalog/product messages (+ inbound `order` event),
-blocklist, QR code messages, analytics, phone-number management (register/2FA — never
-live-smoked). WABA-scoped endpoints require `cloud.wabaId`. Same rules as batch 1: mock-fetch
-TDD per slice, typed errors, additive minor, baileys untouched.

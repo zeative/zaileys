@@ -224,3 +224,12 @@ export interface Transport extends BuilderSocketLike {
 6. **Docs + examples**: express/hono/next examples, Cloud guide, capability matrix, changeset,
    gated live smoke.
 ```
+
+## 9. Batch 2 — business & commerce layer (added 2026-07-14)
+
+Everything else the Cloud API offers, namespaced under `wa.cloud.*` (cloud-only module):
+template management (CRUD + status webhook), business profile get/update, Flows (send +
+`flow-response` event + list), catalog/product messages (+ inbound `order` event),
+blocklist, QR code messages, analytics, phone-number management (register/2FA — never
+live-smoked). WABA-scoped endpoints require `cloud.wabaId`. Same rules as batch 1: mock-fetch
+TDD per slice, typed errors, additive minor, baileys untouched.

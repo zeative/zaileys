@@ -2,6 +2,7 @@ import { Footer, Layout, Navbar } from 'nextra-theme-docs'
 import { Head } from 'nextra/components'
 import { getPageMap } from 'nextra/page-map'
 import 'nextra-theme-docs/style.css'
+import './components/cards.css'
 import { ProviderSwitch } from './components/provider-switch.jsx'
 
 const GA_ID = 'G-B76YYS1K85'

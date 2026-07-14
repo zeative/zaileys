@@ -3,7 +3,7 @@ title: "Official Cloud API — Overview & Setup"
 description: "Run Zaileys on the official Meta WhatsApp Cloud API. Token auth, webhooks, templates, campaigns, Flows, commerce, analytics — the same Client, builder, and typed events as the unofficial provider."
 ---
 
-import { Callout, Tabs, Steps, Cards } from 'nextra/components'
+import { Callout, Tabs, Steps } from 'nextra/components'
 
 # Official · Meta Cloud API
 
@@ -40,13 +40,13 @@ can't do groups, channels, or polls, and needs a Meta Business account.
 
 ## What's on this section
 
-<Cards>
-  <Cards.Card title="Webhook" href="/official/webhook" arrow>Receive inbound messages & statuses.</Cards.Card>
-  <Cards.Card title="Messaging" href="/official/messaging" arrow>Send text, media, interactive — cloud caveats.</Cards.Card>
-  <Cards.Card title="Templates & Campaigns" href="/official/templates" arrow>OTP, marketing, utility, broadcast.</Cards.Card>
-  <Cards.Card title="Business Tools" href="/official/business" arrow>Flows, commerce, profile, analytics.</Cards.Card>
-  <Cards.Card title="Events & Errors" href="/official/events" arrow>Webhook events and Graph error codes.</Cards.Card>
-</Cards>
+<LinkCards items={[
+  { href: '/official/webhook', title: 'Webhook', body: 'Receive inbound messages & statuses.' },
+  { href: '/official/messaging', title: 'Messaging', body: 'Send text, media, interactive — cloud caveats.' },
+  { href: '/official/templates', title: 'Templates & Campaigns', body: 'OTP, marketing, utility, broadcast.' },
+  { href: '/official/business', title: 'Business Tools', body: 'Flows, commerce, profile, analytics.' },
+  { href: '/official/events', title: 'Events & Errors', body: 'Webhook events and Graph error codes.' },
+]} />
 
 ## Shared vs cloud-only
 

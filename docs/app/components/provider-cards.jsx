@@ -1,6 +1,6 @@
 import Link from 'next/link'
 
-const CARDS = [
+const PROVIDERS = [
   {
     href: '/unofficial',
     icon: '🔗',
@@ -17,55 +17,36 @@ const CARDS = [
   },
 ]
 
-/** Two tidy, theme-aware provider cards for the landing and comparison pages. */
+function Card({ href, icon, title, body, badge }) {
+  return (
+    <Link href={href} className="zl-card">
+      <span className="zl-card__head">
+        {icon ? <span className="zl-card__icon">{icon}</span> : null}
+        <span className="zl-card__title">{title}</span>
+      </span>
+      {body ? <p className="zl-card__desc">{body}</p> : null}
+      {badge ? <span className="zl-card__badge">{badge} →</span> : null}
+    </Link>
+  )
+}
+
+/** The two big provider cards on the landing and comparison pages. */
 export function ProviderCards() {
   return (
-    <div
-      style={{
-        display: 'grid',
-        gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
-        gap: '0.9rem',
-        margin: '1.5rem 0',
-      }}
-    >
-      {CARDS.map((c) => (
-        <Link
-          key={c.href}
-          href={c.href}
-          style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '0.55rem',
-            padding: '1.15rem',
-            borderRadius: 14,
-            textDecoration: 'none',
-            color: 'inherit',
-            border: '1px solid var(--x-color-neutral-200)',
-            background: 'var(--x-color-neutral-50)',
-            transition: 'border-color .15s, transform .15s',
-          }}
-          className="x:hover:!border-[var(--x-color-primary-400)] x:hover:-translate-y-0.5"
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-            <span style={{ fontSize: '1.5rem', lineHeight: 1 }}>{c.icon}</span>
-            <span style={{ fontWeight: 700, fontSize: '1.02rem' }}>{c.title}</span>
-          </div>
-          <p style={{ margin: 0, fontSize: '0.9rem', lineHeight: 1.55, opacity: 0.8 }}>{c.body}</p>
-          <span
-            style={{
-              alignSelf: 'flex-start',
-              marginTop: 'auto',
-              fontSize: '0.72rem',
-              fontWeight: 600,
-              padding: '0.15rem 0.55rem',
-              borderRadius: 999,
-              color: 'var(--x-color-primary-600)',
-              background: 'color-mix(in srgb, var(--x-color-primary-600) 12%, transparent)',
-            }}
-          >
-            {c.badge} →
-          </span>
-        </Link>
+    <div className="zl-cards">
+      {PROVIDERS.map((c) => (
+        <Card key={c.href} {...c} />
+      ))}
+    </div>
+  )
+}
+
+/** Generic tidy link-card grid: <LinkCards items={[{ href, title, body?, badge?, icon? }]} />. */
+export function LinkCards({ items = [] }) {
+  return (
+    <div className="zl-cards">
+      {items.map((c) => (
+        <Card key={c.href} {...c} />
       ))}
     </div>
   )

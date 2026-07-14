@@ -156,7 +156,7 @@ export class CloudTransport implements Transport {
 
   /** Feed a verified webhook payload into the shared event pipeline. */
   ingest(payload: unknown): void {
-    const { messages, reactions, statuses } = translateInbound(payload as CloudWebhookPayload)
+    const { messages, reactions, statuses, templateStatuses } = translateInbound(payload as CloudWebhookPayload)
     if (messages.length > 0) {
       this.ev.emit('messages.upsert', { messages, type: 'notify' })
     }
@@ -165,6 +165,9 @@ export class CloudTransport implements Transport {
     }
     for (const status of statuses) {
       this.ev.emit('cloud.status', status)
+    }
+    for (const tpl of templateStatuses) {
+      this.ev.emit('cloud.template-status', tpl)
     }
   }
 

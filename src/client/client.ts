@@ -536,6 +536,9 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     transport.ev.on('cloud.status', (status: unknown) => {
       this.emit('message-status', status as ClientEventMap['message-status'])
     })
+    transport.ev.on('cloud.template-status', (tpl: unknown) => {
+      this.emit('template-status', tpl as ClientEventMap['template-status'])
+    })
     this.attachCommandsIfReady()
   }
 

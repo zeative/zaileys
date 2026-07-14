@@ -40,6 +40,29 @@ export interface CloudWebhookPayload {
   entry?: Array<{ id?: string; changes?: Array<{ value?: CloudWebhookValue; field?: string }> }>
 }
 
+export interface CloudTemplateStatusEvent {
+  event: string
+  id: string
+  name: string
+  language?: string
+  reason?: string
+}
+
+const translateTemplateStatus = (value: Record<string, unknown>): CloudTemplateStatusEvent | null => {
+  const event = value['event']
+  const name = value['message_template_name']
+  if (typeof event !== 'string' || typeof name !== 'string') return null
+  return {
+    event,
+    id: String(value['message_template_id'] ?? ''),
+    name,
+    ...(typeof value['message_template_language'] === 'string'
+      ? { language: value['message_template_language'] }
+      : {}),
+    ...(typeof value['reason'] === 'string' ? { reason: value['reason'] } : {}),
+  }
+}
+
 const contactName = (value: CloudWebhookValue, waId: string | undefined): string | undefined =>
   value.contacts?.find((c) => c.wa_id === waId)?.profile?.name ?? value.contacts?.[0]?.profile?.name
 
@@ -200,14 +223,21 @@ export function translateInbound(payload: CloudWebhookPayload): {
   messages: WAMessage[]
   reactions: CloudReactionItem[]
   statuses: CloudStatusEvent[]
+  templateStatuses: CloudTemplateStatusEvent[]
 } {
   const messages: WAMessage[] = []
   const reactions: CloudReactionItem[] = []
   const statuses: CloudStatusEvent[] = []
+  const templateStatuses: CloudTemplateStatusEvent[] = []
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
       const value = change.value
       if (!value) continue
+      if (change.field === 'message_template_status_update') {
+        const tpl = translateTemplateStatus(value as Record<string, unknown>)
+        if (tpl) templateStatuses.push(tpl)
+        continue
+      }
       for (const msg of value.messages ?? []) {
         const reaction = translateReaction(msg, value)
         if (reaction) {
@@ -223,5 +253,5 @@ export function translateInbound(payload: CloudWebhookPayload): {
       }
     }
   }
-  return { messages, reactions, statuses }
+  return { messages, reactions, statuses, templateStatuses }
 }

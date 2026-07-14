@@ -188,6 +188,49 @@ if (err instanceof ZaileysStoreError) {
 
 ---
 
+## ☁️ ZaileysCloudError (cloud provider)
+
+Thrown by the official Cloud API provider (`provider:'cloud'`). Codes: `CONFIG` `AUTH`
+`REQUEST_FAILED` `RATE_LIMITED` `NOT_IMPLEMENTED`. Graph API rejections are wrapped as
+`REQUEST_FAILED`/`RATE_LIMITED`/`AUTH` with the Meta code embedded in `.message` (e.g. `(#131047) …`).
+
+| code | meaning | how to fix |
+| --- | --- | --- |
+| `CONFIG` | Missing/invalid cloud config. `provider 'cloud' requires cloud.accessToken` / `…phoneNumberId`; `this operation needs cloud.wabaId`; `webhook() is only available on the cloud provider`; `sendTemplate()/markRead()/wa.cloud requires provider:'cloud'`. | Provide the missing field. WABA-scoped ops (`wa.cloud.*` templates/flows/analytics/phoneNumbers) need `cloud.wabaId`. |
+| `AUTH` | Token rejected (Graph 401/403, code `190`). | Use a **permanent System User** token with `whatsapp_business_messaging`+`whatsapp_business_management`; the dashboard quick-start token expires in 24h. |
+| `RATE_LIMITED` | Graph 429 / pair rate limit (`131056`) after bounded retries. | Slow down; use `broadcast({ rateLimitPerSec })`; respect your messaging tier. |
+| `NOT_IMPLEMENTED` | Content type not supported on cloud — e.g. AIRich (`rich:true`), an unsupported interactive layout. | Send plain text / a supported layout. AIRich is WhatsApp-Web-only. |
+| `REQUEST_FAILED` | Any other Graph error — code is in `.message`. See the Graph-code table below. | Read the `(#code)` and act. |
+
+### Common Graph error codes (inside `REQUEST_FAILED.message`)
+
+| Graph code | meaning | fix |
+| --- | --- | --- |
+| `131047` | Re-engagement — outside the 24-hour window / user never texted you | Send an approved template: `wa.sendTemplate(to, name, lang, components)` |
+| `132000` | Template parameter count ≠ `{{n}}` placeholders | `wa.cloud.templates.get(name)` to see components; match `parameters` exactly |
+| `131009` | Contact `name` missing first/last | Include an `N:` line in the vCard (zaileys derives it; only fails on hand-built vCards) |
+| `131026` | Message undeliverable | Recipient has no WhatsApp / blocked you |
+| `190` | Access token invalid/expired | Regenerate a permanent token |
+
+## ☁️ ZaileysProviderError (`UNSUPPORTED_ON_CLOUD`)
+
+Thrown immediately when a **WhatsApp-Web-only** surface is used on `provider:'cloud'`:
+`group`/`community`/`newsletter`/`privacy`/`presence`/`chat`/`contact`/`business`/`profile` modules,
+and `edit`/`delete`/`pin`/`unpin`/`setDisappearing`. `.feature` names the offending surface. Fix: use
+the unofficial provider for those, or the `wa.cloud.*` equivalent for account/business ops.
+
+```typescript
+import { ZaileysCloudError, ZaileysProviderError } from 'zaileys'
+try { await wa.send(to).text('hi') }
+catch (err) {
+  if (err instanceof ZaileysCloudError && err.message.includes('131047')) {
+    await wa.sendTemplate(to, 'welcome', 'en_US') // cold contact → template
+  }
+}
+```
+
+---
+
 ## The `error` event
 
 Background failures that occur outside an `await` you control — chiefly **auto-connect** failures — surface via the client `error` event, not a throw.

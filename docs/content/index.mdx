@@ -3,7 +3,7 @@ title: "The WhatsApp Framework for Node.js & TypeScript — Unofficial + Officia
 description: "Zaileys is a type-safe, batteries-included WhatsApp framework for Node.js and TypeScript. One API, two providers: the unofficial WhatsApp Web engine (Baileys) and the official Meta Cloud API — same Client, same builder, same typed events."
 ---
 
-import { Callout, Tabs, Steps, Cards } from 'nextra/components'
+import { Callout, Tabs, Steps } from 'nextra/components'
 
 # Zaileys
 
@@ -13,17 +13,7 @@ Zaileys is a type-safe, batteries-included WhatsApp framework for Node.js and Ty
 bot **once** against a single chainable builder and fully-typed events — then run it on either
 provider by flipping one option:
 
-<Cards>
-  <Cards.Card icon="🔗" title="Unofficial · WhatsApp Web" href="/unofficial" arrow>
-    Powered by [Baileys](https://github.com/WhiskeySockets/Baileys). Log in with a QR or pairing
-    code, no Meta approval. Full personal-account power: groups, communities, channels, polls,
-    stickers, presence, edit/delete. **Default provider.**
-  </Cards.Card>
-  <Cards.Card icon="☁️" title="Official · Meta Cloud API" href="/official" arrow>
-    The sanctioned Graph API + webhooks. No ban risk, no device linking. Templates, OTP, marketing
-    campaigns, Flows, catalog commerce, analytics — everything a business channel needs.
-  </Cards.Card>
-</Cards>
+<ProviderCards />
 
 The `send(jid).text()` builder, the `on('text' | 'image' | 'reaction' | …)` events, commands,
 middleware, plugins, storage, `broadcast()` and `scheduleAt()` — **all identical across both

@@ -591,6 +591,112 @@ process.on('SIGTERM', () => void shutdown('SIGTERM'))
 
 ---
 
+## 16. ☁️ Cloud API echo bot + webhook (official provider)
+
+```typescript
+// lib/wa.ts — one shared client
+import { Client } from 'zaileys'
+export const wa = new Client({
+  provider: 'cloud',
+  cloud: {
+    accessToken: process.env['WA_TOKEN']!,
+    phoneNumberId: process.env['WA_PHONE_ID']!,
+    wabaId: process.env['WA_WABA_ID'],
+    verifyToken: process.env['WA_VERIFY']!,
+    appSecret: process.env['WA_APP_SECRET']!,
+  },
+})
+wa.on('text', async (m) => {
+  await wa.markRead(m.chatId, { typing: true })
+  await m.reply(`echo: ${m.text}`)
+})
+wa.on('message-status', (s) => console.log(s.id, s.status))
+```
+
+```typescript
+// Next.js — app/api/whatsapp/route.ts
+import { wa } from '@/lib/wa'
+const handler = wa.webhook()
+export const GET = handler
+export const POST = handler
+```
+
+```typescript
+// Hono
+import { Hono } from 'hono'
+const app = new Hono()
+app.all('/webhook', (c) => wa.webhook()(c.req.raw))
+```
+
+```typescript
+// Express — keep the RAW body for signature verification
+import express from 'express'
+const app = express()
+const handler = wa.webhook()
+app.all('/webhook', express.raw({ type: '*/*' }), async (req, res) => {
+  const request = new Request(`${req.protocol}://${req.get('host')}${req.originalUrl}`, {
+    method: req.method,
+    headers: req.headers as Record<string, string>,
+    ...(req.method === 'POST' ? { body: req.body as Buffer } : {}),
+  })
+  const r = await handler(request)
+  res.status(r.status).send(await r.text())
+})
+app.listen(3000)
+```
+
+In the Meta dashboard: set the Callback URL + Verify token, subscribe the `messages` field.
+
+## 17. ☁️ Send an OTP
+
+```typescript
+// once — AUTHENTICATION templates are usually approved instantly
+await wa.cloud.templates.create({
+  name: 'kode_otp', category: 'AUTHENTICATION', language: 'id',
+  components: [
+    { type: 'BODY', add_security_recommendation: true },
+    { type: 'FOOTER', code_expiration_minutes: 5 },
+    { type: 'BUTTONS', buttons: [{ type: 'OTP', otp_type: 'COPY_CODE' }] },
+  ],
+})
+// per login
+const code = String(Math.floor(100000 + Math.random() * 900000))
+await wa.sendTemplate(to, 'kode_otp', 'id', [
+  { type: 'body', parameters: [{ type: 'text', text: code }] },
+  { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: code }] },
+])
+```
+
+## 18. ☁️ Marketing campaign (create → approve → broadcast → track)
+
+```typescript
+await wa.cloud.templates.create({
+  name: 'promo_juli', category: 'MARKETING', language: 'id',
+  components: [{ type: 'BODY', text: 'Halo {{1}}, diskon 50%!', example: { body_text: [['Budi']] } }],
+})
+wa.on('template-status', async (t) => {
+  if (t.name === 'promo_juli' && t.event === 'APPROVED') {
+    for (const { phone, name } of contacts) {
+      await wa.sendTemplate(phone, 'promo_juli', 'id', [{ type: 'body', parameters: [{ type: 'text', text: name }] }])
+    }
+  }
+})
+wa.on('message-status', (s) => console.log(s.id, s.status)) // sent/delivered/read/failed
+```
+
+## 19. ☁️ Receive orders & flow responses
+
+```typescript
+wa.on('order', (o) => {
+  for (const i of o.items) console.log(i.productRetailerId, i.quantity, i.price, i.currency)
+})
+wa.on('flow-response', (f) => console.log('flow submitted:', f.response))
+await wa.cloud.commerce.sendProduct(to, { catalogId: 'CAT1', retailerId: 'SKU-1', bodyText: 'Best seller' })
+await wa.cloud.flows.send(to, { flowId: 'FLOW1', cta: 'Isi form', bodyText: 'Booking', screen: 'BOOKING' })
+```
+
+---
+
 ## Diagnostics
 
 | Symptom | Cause | Fix |

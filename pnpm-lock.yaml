@@ -60,6 +60,9 @@ importers:
       '@commitlint/config-conventional':
         specifier: ^20.5.0
         version: 20.5.0
+      '@hono/node-server':
+        specifier: ^2.0.8
+        version: 2.0.8(hono@4.12.30)
       '@size-limit/file':
         specifier: ^12.1.0
         version: 12.1.0(size-limit@12.1.0(jiti@2.6.1))
@@ -768,6 +771,12 @@ packages:
 
   '@hapi/hoek@9.3.0':
     resolution: {integrity: sha512-/c6rf4UJlmHlC9b5BaNvzAcFv7HZ2QHaV0D4/HNlBdvFnvQq8RI4kYdhyPCl7Xj+oWvTWQ8ujhqS53LIgAe6KQ==}
+
+  '@hono/node-server@2.0.8':
+    resolution: {integrity: sha512-GuCWzLxwg218fy1JaHculFsdcuY12hxit83V+algozTPnwhNjLrRL/Alg9OYjLZLoUZ1rw/S4CdTMsnkSKCmFA==}
+    engines: {node: '>=20'}
+    peerDependencies:
+      hono: ^4
 
   '@img/sharp-darwin-arm64@0.33.0':
     resolution: {integrity: sha512-070tEheekI1LJWTGPC9WlQEa5UoKTXzzlORBHMX4TbfUxMiL336YHR8vBEUNsjse0RJCX8dZ4ZXwT595aEF1ug==}
@@ -4102,6 +4111,10 @@ snapshots:
       '@hapi/hoek': 9.3.0
 
   '@hapi/hoek@9.3.0': {}
+
+  '@hono/node-server@2.0.8(hono@4.12.30)':
+    dependencies:
+      hono: 4.12.30
 
   '@img/sharp-darwin-arm64@0.33.0':
     optionalDependencies:

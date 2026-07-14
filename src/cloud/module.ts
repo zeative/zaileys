@@ -57,6 +57,22 @@ export class CloudModule {
     return waba
   }
 
+  /** This sender's phone-number node: display number, verified name, quality rating, throughput. */
+  async info(): Promise<Record<string, unknown>> {
+    return this.graph.get<Record<string, unknown>>(
+      `${this.options.phoneNumberId}?fields=id,display_phone_number,verified_name,quality_rating,throughput,code_verification_status,platform_type`,
+    )
+  }
+
+  /** All phone numbers registered under the WhatsApp Business Account. */
+  async phoneNumbers(): Promise<Array<Record<string, unknown>>> {
+    const waba = this.requireWaba()
+    const res = await this.graph.get<{ data?: Array<Record<string, unknown>> }>(
+      `${waba}/phone_numbers?fields=id,display_phone_number,verified_name,quality_rating`,
+    )
+    return res.data ?? []
+  }
+
   /** Request the user's shipping address (interactive address_message; ID/BR only per Meta). */
   async sendAddressRequest(
     to: string,
@@ -74,6 +90,22 @@ export class CloudModule {
   }
 
   readonly commerce = {
+    catalogs: async (): Promise<Array<{ id: string; name: string }>> => {
+      const waba = this.requireWaba()
+      const res = await this.graph.get<{ data?: Array<{ id: string; name: string }> }>(
+        `${waba}/product_catalogs?fields=id,name`,
+      )
+      return res.data ?? []
+    },
+    products: async (
+      catalogId: string,
+      limit = 50,
+    ): Promise<Array<{ id: string; retailer_id: string; name: string; price?: string; availability?: string }>> => {
+      const res = await this.graph.get<{
+        data?: Array<{ id: string; retailer_id: string; name: string; price?: string; availability?: string }>
+      }>(`${catalogId}/products?fields=id,retailer_id,name,price,availability&limit=${limit}`)
+      return res.data ?? []
+    },
     sendProduct: async (
       to: string,
       opts: { catalogId: string; retailerId: string; bodyText?: string; footerText?: string },
@@ -122,6 +154,18 @@ export class CloudModule {
       const suffix = qs.size > 0 ? `?${qs.toString()}` : ''
       const res = await this.graph.get<{ data?: CloudTemplate[] }>(`${waba}/message_templates${suffix}`)
       return res.data ?? []
+    },
+    get: async (idOrName: string): Promise<CloudTemplate | null> => {
+      const fields = 'id,name,status,category,language,components,quality_score'
+      if (/^\d+$/.test(idOrName)) {
+        const t = await this.graph.get<CloudTemplate>(`${idOrName}?fields=${fields}`)
+        return t.id ? t : null
+      }
+      const waba = this.requireWaba()
+      const res = await this.graph.get<{ data?: CloudTemplate[] }>(
+        `${waba}/message_templates?name=${encodeURIComponent(idOrName)}&fields=${fields}`,
+      )
+      return res.data?.[0] ?? null
     },
     create: async (template: {
       name: string

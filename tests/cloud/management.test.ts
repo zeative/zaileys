@@ -119,3 +119,19 @@ describe('wa.cloud.phone', () => {
     expect(body()).toEqual({ code: '000111' })
   })
 })
+
+describe('wa.cloud info + phoneNumbers', () => {
+  it('info() reads the phone-number node with health fields', async () => {
+    fetchMock.mockResolvedValueOnce(ok({ id: '555', display_phone_number: '+62 855', quality_rating: 'GREEN' }))
+    const i = await wa().info()
+    expect(i['quality_rating']).toBe('GREEN')
+    expect(call()[0]).toContain('/555?fields=id,display_phone_number,verified_name,quality_rating,throughput')
+  })
+
+  it('phoneNumbers() lists numbers under the waba', async () => {
+    fetchMock.mockResolvedValueOnce(ok({ data: [{ id: '555', display_phone_number: '+62 855' }] }))
+    const n = await wa().phoneNumbers()
+    expect(n).toHaveLength(1)
+    expect(call()[0]).toContain('/WABA1/phone_numbers?fields=')
+  })
+})

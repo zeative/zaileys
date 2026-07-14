@@ -94,3 +94,30 @@ describe('wa.cloud.templates', () => {
     expect(events[0]).toMatchObject({ event: 'APPROVED', name: 'promo_juli', language: 'id' })
   })
 })
+
+describe('wa.cloud.templates.get', () => {
+  it('get(name) resolves via waba filter', async () => {
+    fetchMock.mockResolvedValueOnce(
+      ok({ data: [{ id: '9', name: 'promo', status: 'APPROVED', language: 'id', components: [{ type: 'BODY' }] }] }),
+    )
+    const t = await cloudClient().cloud.templates.get('promo')
+    expect(t?.name).toBe('promo')
+    expect(t?.components).toHaveLength(1)
+    expect((fetchMock.mock.calls[0] as [string])[0]).toContain('/WABA1/message_templates?name=promo')
+  })
+
+  it('get(numericId) fetches the node directly', async () => {
+    fetchMock.mockResolvedValueOnce(
+      ok({ id: '1783414372642659', name: '17_juni', status: 'APPROVED', language: 'id', components: [] }),
+    )
+    const t = await cloudClient().cloud.templates.get('1783414372642659')
+    expect(t?.name).toBe('17_juni')
+    expect((fetchMock.mock.calls[0] as [string])[0]).toContain('/1783414372642659?fields=')
+  })
+
+  it('get(missing) returns null', async () => {
+    fetchMock.mockResolvedValueOnce(ok({ data: [] }))
+    const t = await cloudClient().cloud.templates.get('nope')
+    expect(t).toBeNull()
+  })
+})

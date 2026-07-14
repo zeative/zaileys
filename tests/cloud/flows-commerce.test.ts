@@ -185,3 +185,21 @@ describe('address request', () => {
     expect(b.interactive.action.parameters.country).toBe('ID')
   })
 })
+
+describe('wa.cloud.commerce reads', () => {
+  it('catalogs() lists product catalogs under the waba', async () => {
+    fetchMock.mockResolvedValueOnce(ok({ data: [{ id: 'CAT1', name: 'Toko' }] }))
+    const c = new Client({ provider: 'cloud', cloud: { accessToken: 'tok', phoneNumberId: '555', wabaId: 'WABA1', apiVersion: 'v23.0' }, autoConnect: false, statusLog: false })
+    const cats = await c.cloud.commerce.catalogs()
+    expect(cats).toEqual([{ id: 'CAT1', name: 'Toko' }])
+    expect((fetchMock.mock.calls[0] as [string])[0]).toContain('/WABA1/product_catalogs?fields=')
+  })
+
+  it('products() lists items in a catalog', async () => {
+    fetchMock.mockResolvedValueOnce(ok({ data: [{ id: 'p1', retailer_id: 'SKU-1', name: 'Kopi' }] }))
+    const c = new Client({ provider: 'cloud', cloud: { accessToken: 'tok', phoneNumberId: '555', wabaId: 'WABA1', apiVersion: 'v23.0' }, autoConnect: false, statusLog: false })
+    const prods = await c.cloud.commerce.products('CAT1')
+    expect(prods[0]?.retailer_id).toBe('SKU-1')
+    expect((fetchMock.mock.calls[0] as [string])[0]).toContain('/CAT1/products?fields=')
+  })
+})

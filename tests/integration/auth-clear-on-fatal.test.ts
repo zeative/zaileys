@@ -81,6 +81,17 @@ async function listAuthFiles(basePath: string): Promise<string[]> {
   return out
 }
 
+/** Poll until the auth dir is empty (or timeout) — the async wipe races a fixed sleep under load. */
+async function waitForEmpty(basePath: string, timeoutMs = 4000): Promise<string[]> {
+  const deadline = Date.now() + timeoutMs
+  let files = await listAuthFiles(basePath)
+  while (files.length > 0 && Date.now() < deadline) {
+    await new Promise((r) => setTimeout(r, 15))
+    files = await listAuthFiles(basePath)
+  }
+  return files
+}
+
 async function bootWith(basePath: string) {
   const sock = makeIntegrationSocket({ user: { id: 'fatal@s.whatsapp.net' } })
   makeWASocketMock.mockReturnValue(sock)
@@ -101,9 +112,7 @@ describe('integration: fatal disconnect clears FileAuthStore', () => {
     await seedAuthDir(basePath)
     const { sock } = await bootWith(basePath)
     simulateBoomDisconnect(sock, code)
-    await new Promise((r) => setTimeout(r, 20))
-    const files = await listAuthFiles(basePath)
-    expect(files).toHaveLength(0)
+    expect(await waitForEmpty(basePath)).toHaveLength(0)
   })
 
   // 401 right after connect is confirmed via reconnect before wiping (issue #54):
@@ -117,8 +126,7 @@ describe('integration: fatal disconnect clears FileAuthStore', () => {
     expect((await listAuthFiles(basePath)).length).toBeGreaterThan(0)
     await new Promise((r) => setTimeout(r, 3100)) // wait out POST_OPEN_LOGOUT_RETRY_DELAY_MS
     simulateBoomDisconnect(sock, 401)
-    await new Promise((r) => setTimeout(r, 20))
-    expect(await listAuthFiles(basePath)).toHaveLength(0)
+    expect(await waitForEmpty(basePath)).toHaveLength(0)
   })
 
   it('non-fatal 428 preserves auth files', async () => {
@@ -148,9 +156,7 @@ describe('integration: fatal disconnect clears FileAuthStore', () => {
     sock.triggerConnectionUpdate({ connection: 'open' })
     await p
     simulateBoomDisconnect(sock, 500)
-    await new Promise((r) => setTimeout(r, 100))
-    const files = await listAuthFiles(basePath)
-    expect(files).toHaveLength(0)
+    expect(await waitForEmpty(basePath)).toHaveLength(0)
     expect(reconnecting).toHaveBeenCalled()
     await c.disconnect().catch(() => undefined)
   })
@@ -160,9 +166,7 @@ describe('integration: fatal disconnect clears FileAuthStore', () => {
     await seedAuthDir(basePath)
     const { c } = await bootWith(basePath)
     await c.logout()
-    await new Promise((r) => setTimeout(r, 10))
-    const files = await listAuthFiles(basePath)
-    expect(files).toHaveLength(0)
+    expect(await waitForEmpty(basePath)).toHaveLength(0)
   })
 
   it('graceful disconnect preserves auth files', async () => {
@@ -214,11 +218,8 @@ describe('integration: fatal disconnect clears FileAuthStore', () => {
     sockB.triggerConnectionUpdate({ connection: 'open' })
     await Promise.all([pA, pB])
     simulateBoomDisconnect(sockA, 440)
-    await new Promise((r) => setTimeout(r, 20))
-    const filesA = await listAuthFiles(pathA)
-    const filesB = await listAuthFiles(pathB)
-    expect(filesA).toHaveLength(0)
-    expect(filesB.length).toBeGreaterThan(0)
+    expect(await waitForEmpty(pathA)).toHaveLength(0)
+    expect((await listAuthFiles(pathB)).length).toBeGreaterThan(0)
     await cB.disconnect()
   })
 

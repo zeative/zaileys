@@ -211,10 +211,22 @@ No amount of config unlocks these — they're not in the Cloud API:
 | --- | --- | --- |
 | Groups / communities / channels | ❌ not available | Use the [unofficial provider](/unofficial) |
 | Polls, carousels | ❌ | Unofficial provider, or a list |
+| AIRich rich bubble (`rich: true`), rendered tables | ❌ WhatsApp-Web-only proto | Send plain text (see below); `rich: true` throws a clear error on cloud |
 | Edit / delete / pin / disappearing | ❌ | Send a correction message |
 | Presence (others' online/typing) | ❌ | — |
 | Status / stories | ❌ | Unofficial provider |
 | Read arbitrary chat history | ❌ | Persist inbound to your own [store](/storage) |
+
+<Callout type="info">
+**Text formatting still works.** WhatsApp's native markup — `*bold*`, `_italic_`, `~strikethrough~`,
+and `` ```monospace``` `` — renders on **both** providers because it's plain-text formatting, not a
+proto feature. Only the fancy AIRich "Meta-AI" bubble (tables, source cards, `rich: true`) is
+web-only. On cloud, just send the markdown as text:
+
+```typescript
+await wa.send(to).text('*Order confirmed* ✅\n_Total:_ Rp150.000\n```INV-2026-07```')
+```
+</Callout>
 
 Calling any of these on the cloud provider throws `ZaileysProviderError('UNSUPPORTED_ON_CLOUD')`
 immediately — see the full [comparison](/providers).

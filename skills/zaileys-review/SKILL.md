@@ -2,9 +2,10 @@
 name: zaileys-review
 description: >-
   Use to REVIEW / AUDIT / CHECK existing zaileys (Node.js/TypeScript WhatsApp framework
-  on Baileys) code against best practices, anti-patterns, and ban-safety — triggers on
+  WhatsApp framework) code against best practices, anti-patterns, and ban-safety — triggers on
   "review my bot", "cek kode", "is this correct", "best practice?", or before
-  shipping/deploying a zaileys bot.
+  shipping/deploying a zaileys bot. Covers BOTH providers: unofficial WhatsApp Web and the
+  official Meta Cloud API (webhook signatures, template-gating, 24h window, idempotency).
 ---
 
 # zaileys — code review & audit
@@ -185,10 +186,34 @@ when a voice note is intended.
 WHY: `package.json` declares `engines.node >=20.0.0` and tests Node 20/22/24; raising the floor
 breaks supported users.
 
+### ☁️ Cloud provider (`provider: 'cloud'`) — HIGH
+
+Only audit these when the code sets `provider: 'cloud'`. Reference: [cloud.md](../zaileys-assist/references/cloud.md).
+
+**Cold / out-of-window send must be a template.**
+❌ `await wa.send(newLead).text('Hi!')` → Graph `131047`.
+✅ `await wa.sendTemplate(newLead, 'welcome', 'en_US', components)`.
+WHY: the Cloud API only allows free-form messages inside the 24-hour window; cold outreach must be an approved template.
+
+**Webhook must verify signatures on a raw body.**
+❌ `app.use(express.json()); app.post('/webhook', wa.webhook())` — parsed body breaks `X-Hub-Signature-256` (401).
+✅ `express.raw({ type: '*/*' })` before the handler; set `cloud.appSecret`; subscribe the `messages` field.
+WHY: inbound is push + HMAC-verified; a body-parser corrupts the signature.
+
+**Inbound handlers must be idempotent.**
+❌ Charging/creating on every webhook POST. ✅ Dedupe by message id — Meta retries when you don't ack in ~10s (zaileys acks immediately).
+
+**No web-only surfaces on cloud.**
+❌ `wa.group.*`, `wa.newsletter.*`, `wa.send().poll()`, `rich: true`, `wa.edit/delete/pin` on cloud → `UNSUPPORTED_ON_CLOUD`. ✅ Use the unofficial provider, or `wa.cloud.*` for account/business ops.
+
+**Template params match `{{n}}`; secrets from env.**
+❌ Wrong param count (`132000`); hardcoded `accessToken`/`appSecret`. ✅ `wa.cloud.templates.get()` to verify; all `cloud.*` from `process.env`, permanent System User token (not the 24h quick-start token).
+
 ## Quick verification cues
 
+- Providers: `provider: 'baileys'` (default) or `'cloud'`. Cloud-only: `wa.webhook()`, `wa.sendTemplate()`, `wa.markRead(id, {typing})`, `wa.cloud.*` (templates/profile/info/phoneNumbers/flows/commerce/blocklist/qr/analytics/phone). Cloud events: `message-status`, `template-status`, `flow-response`, `order`. Web-only on cloud throws `ZaileysProviderError('UNSUPPORTED_ON_CLOUD')`.
 - Error classes (all from `zaileys`): `ZaileysBuilderError`, `ZaileysCommandError`,
-  `ZaileysDomainError`, `ZaileysAutomationError`, `ZaileysStoreError`.
+  `ZaileysDomainError`, `ZaileysAutomationError`, `ZaileysStoreError`, `ZaileysCloudError`, `ZaileysProviderError`.
 - Builder content methods: `text, image, video, videoNote, audio, document, sticker,
   location, contact, poll, album, buttons, template, list, carousel, event, groupInvite,
   product, requestPhoneNumber, sharePhoneNumber, limitSharing`. Modifiers: `reply, mentions,

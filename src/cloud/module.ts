@@ -1,6 +1,22 @@
+import type { WAMessageKey } from 'baileys'
 import { ZaileysCloudError } from './errors.js'
 import { createGraphClient, type GraphClient } from './graph-client.js'
+import type { CloudTransport } from './transport.js'
 import type { CloudOptions } from './types.js'
+
+export interface FlowSendOptions {
+  flowId?: string
+  flowName?: string
+  cta: string
+  bodyText: string
+  headerText?: string
+  footerText?: string
+  screen: string
+  flowToken?: string
+  data?: Record<string, unknown>
+  mode?: 'draft' | 'published'
+  action?: 'navigate' | 'data_exchange'
+}
 
 export interface CloudTemplate {
   id: string
@@ -25,10 +41,12 @@ export interface CloudBusinessProfile {
 export class CloudModule {
   private readonly graph: GraphClient
   private readonly options: CloudOptions
+  private readonly getTransport: () => CloudTransport
 
-  constructor(options: CloudOptions) {
+  constructor(options: CloudOptions, getTransport: () => CloudTransport) {
     this.options = options
     this.graph = createGraphClient(options)
+    this.getTransport = getTransport
   }
 
   private requireWaba(): string {
@@ -37,6 +55,62 @@ export class CloudModule {
       throw new ZaileysCloudError('CONFIG', 'this operation needs cloud.wabaId (WhatsApp Business Account id)')
     }
     return waba
+  }
+
+  /** Request the user's shipping address (interactive address_message; ID/BR only per Meta). */
+  async sendAddressRequest(
+    to: string,
+    opts: { bodyText: string; countryIso: string; values?: Record<string, unknown> },
+  ): Promise<WAMessageKey> {
+    const sent = await this.getTransport().sendInteractive(to, {
+      type: 'address_message',
+      body: { text: opts.bodyText },
+      action: {
+        name: 'address_message',
+        parameters: { country: opts.countryIso, ...(opts.values ? { values: opts.values } : {}) },
+      },
+    })
+    return sent.key
+  }
+
+  readonly commerce = {
+    sendProduct: async (
+      to: string,
+      opts: { catalogId: string; retailerId: string; bodyText?: string; footerText?: string },
+    ): Promise<WAMessageKey> => {
+      const sent = await this.getTransport().sendInteractive(to, {
+        type: 'product',
+        ...(opts.bodyText ? { body: { text: opts.bodyText } } : {}),
+        ...(opts.footerText ? { footer: { text: opts.footerText } } : {}),
+        action: { catalog_id: opts.catalogId, product_retailer_id: opts.retailerId },
+      })
+      return sent.key
+    },
+    sendProductList: async (
+      to: string,
+      opts: {
+        catalogId: string
+        headerText: string
+        bodyText: string
+        footerText?: string
+        sections: Array<{ title: string; productIds: string[] }>
+      },
+    ): Promise<WAMessageKey> => {
+      const sent = await this.getTransport().sendInteractive(to, {
+        type: 'product_list',
+        header: { type: 'text', text: opts.headerText },
+        body: { text: opts.bodyText },
+        ...(opts.footerText ? { footer: { text: opts.footerText } } : {}),
+        action: {
+          catalog_id: opts.catalogId,
+          sections: opts.sections.map((s) => ({
+            title: s.title,
+            product_items: s.productIds.map((id) => ({ product_retailer_id: id })),
+          })),
+        },
+      })
+      return sent.key
+    },
   }
 
   readonly templates = {
@@ -88,6 +162,31 @@ export class CloudModule {
         `${waba}/flows`,
       )
       return res.data ?? []
+    },
+    send: async (to: string, opts: FlowSendOptions): Promise<WAMessageKey> => {
+      if (!opts.flowId && !opts.flowName) {
+        throw new ZaileysCloudError('CONFIG', 'flows.send needs flowId or flowName')
+      }
+      const sent = await this.getTransport().sendInteractive(to, {
+        type: 'flow',
+        ...(opts.headerText ? { header: { type: 'text', text: opts.headerText } } : {}),
+        body: { text: opts.bodyText },
+        ...(opts.footerText ? { footer: { text: opts.footerText } } : {}),
+        action: {
+          name: 'flow',
+          parameters: {
+            flow_message_version: '3',
+            ...(opts.flowId ? { flow_id: opts.flowId } : {}),
+            ...(opts.flowName ? { flow_name: opts.flowName } : {}),
+            flow_cta: opts.cta,
+            ...(opts.flowToken ? { flow_token: opts.flowToken } : {}),
+            ...(opts.mode ? { mode: opts.mode } : {}),
+            flow_action: opts.action ?? 'navigate',
+            flow_action_payload: { screen: opts.screen, ...(opts.data ? { data: opts.data } : {}) },
+          },
+        },
+      })
+      return sent.key
     },
   }
 

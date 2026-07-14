@@ -196,6 +196,76 @@ const translateStatus = (raw: Record<string, unknown>): CloudStatusEvent | null 
   }
 }
 
+export interface CloudFlowResponseEvent {
+  id: string
+  name: string
+  body?: string
+  response: Record<string, unknown>
+  senderId: string
+  senderName?: string
+  timestamp: number
+}
+
+export interface CloudOrderEvent {
+  id: string
+  catalogId: string
+  text?: string
+  items: Array<{ productRetailerId: string; quantity: number; price: number; currency: string }>
+  senderId: string
+  senderName?: string
+  timestamp: number
+}
+
+const translateFlowResponse = (msg: CloudWebhookMessage, value: CloudWebhookValue): CloudFlowResponseEvent | null => {
+  const interactive = msg['interactive'] as
+    | { type?: string; nfm_reply?: { name?: string; body?: string; response_json?: string } }
+    | undefined
+  if (msg.type !== 'interactive' || interactive?.type !== 'nfm_reply' || !msg.id || !msg.from) return null
+  const nfm = interactive.nfm_reply
+  let response: Record<string, unknown> = {}
+  try {
+    response = JSON.parse(nfm?.response_json ?? '{}') as Record<string, unknown>
+  } catch {
+    response = {}
+  }
+  const pushName = contactName(value, msg.from)
+  return {
+    id: msg.id,
+    name: nfm?.name ?? 'flow',
+    ...(nfm?.body ? { body: nfm.body } : {}),
+    response,
+    senderId: toJid(msg.from),
+    ...(pushName ? { senderName: pushName } : {}),
+    timestamp: Number(msg.timestamp ?? 0) || 0,
+  }
+}
+
+const translateOrder = (msg: CloudWebhookMessage, value: CloudWebhookValue): CloudOrderEvent | null => {
+  const order = msg['order'] as
+    | {
+        catalog_id?: string
+        text?: string
+        product_items?: Array<{ product_retailer_id?: string; quantity?: number; item_price?: number; currency?: string }>
+      }
+    | undefined
+  if (msg.type !== 'order' || !order || !msg.id || !msg.from) return null
+  const pushName = contactName(value, msg.from)
+  return {
+    id: msg.id,
+    catalogId: order.catalog_id ?? '',
+    ...(order.text ? { text: order.text } : {}),
+    items: (order.product_items ?? []).map((p) => ({
+      productRetailerId: p.product_retailer_id ?? '',
+      quantity: p.quantity ?? 0,
+      price: p.item_price ?? 0,
+      currency: p.currency ?? '',
+    })),
+    senderId: toJid(msg.from),
+    ...(pushName ? { senderName: pushName } : {}),
+    timestamp: Number(msg.timestamp ?? 0) || 0,
+  }
+}
+
 export interface CloudReactionItem {
   key: { id: string; remoteJid: string; fromMe: boolean }
   reaction: { key: { id: string; remoteJid: string; fromMe: boolean }; text: string; senderTimestampMs: number }
@@ -224,11 +294,15 @@ export function translateInbound(payload: CloudWebhookPayload): {
   reactions: CloudReactionItem[]
   statuses: CloudStatusEvent[]
   templateStatuses: CloudTemplateStatusEvent[]
+  flowResponses: CloudFlowResponseEvent[]
+  orders: CloudOrderEvent[]
 } {
   const messages: WAMessage[] = []
   const reactions: CloudReactionItem[] = []
   const statuses: CloudStatusEvent[] = []
   const templateStatuses: CloudTemplateStatusEvent[] = []
+  const flowResponses: CloudFlowResponseEvent[] = []
+  const orders: CloudOrderEvent[] = []
   for (const entry of payload.entry ?? []) {
     for (const change of entry.changes ?? []) {
       const value = change.value
@@ -244,6 +318,16 @@ export function translateInbound(payload: CloudWebhookPayload): {
           reactions.push(reaction)
           continue
         }
+        const flowResponse = translateFlowResponse(msg, value)
+        if (flowResponse) {
+          flowResponses.push(flowResponse)
+          continue
+        }
+        const order = translateOrder(msg, value)
+        if (order) {
+          orders.push(order)
+          continue
+        }
         const translated = translateMessage(msg, value)
         if (translated) messages.push(translated)
       }
@@ -253,5 +337,5 @@ export function translateInbound(payload: CloudWebhookPayload): {
       }
     }
   }
-  return { messages, reactions, statuses, templateStatuses }
+  return { messages, reactions, statuses, templateStatuses, flowResponses, orders }
 }

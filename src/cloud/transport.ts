@@ -102,6 +102,21 @@ export class CloudTransport implements Transport {
     return options.messageId
   }
 
+  /** Post a raw interactive object to /messages; shared by flows/commerce/address sends. */
+  async sendInteractive(to: string, interactive: Record<string, unknown>): Promise<WAMessage> {
+    const payload = { ...basePayload(to, 'interactive'), interactive }
+    const res = await this.graph.post<{ messages?: Array<{ id?: string }> }>(
+      `${this.options.phoneNumberId}/messages`,
+      payload,
+    )
+    const wamid = res.messages?.[0]?.id
+    if (!wamid) throw new ZaileysCloudError('REQUEST_FAILED', 'graph interactive send returned no message id')
+    const sent = synthesizeSentMessage(wamid, to, { text: '' } as AnyMessageContent, Date.now())
+    ;(sent as { message: unknown }).message = { interactiveMessage: interactive }
+    this.ev.emit('messages.upsert', { messages: [sent], type: 'append' })
+    return sent
+  }
+
   /** Send an approved Meta message template (Cloud-only; templates are managed in Business Manager). */
   async sendTemplate(
     to: string,
@@ -156,7 +171,9 @@ export class CloudTransport implements Transport {
 
   /** Feed a verified webhook payload into the shared event pipeline. */
   ingest(payload: unknown): void {
-    const { messages, reactions, statuses, templateStatuses } = translateInbound(payload as CloudWebhookPayload)
+    const { messages, reactions, statuses, templateStatuses, flowResponses, orders } = translateInbound(
+      payload as CloudWebhookPayload,
+    )
     if (messages.length > 0) {
       this.ev.emit('messages.upsert', { messages, type: 'notify' })
     }
@@ -168,6 +185,12 @@ export class CloudTransport implements Transport {
     }
     for (const tpl of templateStatuses) {
       this.ev.emit('cloud.template-status', tpl)
+    }
+    for (const flow of flowResponses) {
+      this.ev.emit('cloud.flow-response', flow)
+    }
+    for (const order of orders) {
+      this.ev.emit('cloud.order', order)
     }
   }
 

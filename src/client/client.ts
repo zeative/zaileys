@@ -539,6 +539,12 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     transport.ev.on('cloud.template-status', (tpl: unknown) => {
       this.emit('template-status', tpl as ClientEventMap['template-status'])
     })
+    transport.ev.on('cloud.flow-response', (flow: unknown) => {
+      this.emit('flow-response', flow as ClientEventMap['flow-response'])
+    })
+    transport.ev.on('cloud.order', (order: unknown) => {
+      this.emit('order', order as ClientEventMap['order'])
+    })
     this.attachCommandsIfReady()
   }
 
@@ -753,7 +759,10 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     if (this._provider !== 'cloud') {
       throw new ZaileysCloudError('CONFIG', "wa.cloud requires provider: 'cloud'")
     }
-    return (this._cloudModule ??= new CloudModule(this.cloudOptions as CloudOptions))
+    return (this._cloudModule ??= new CloudModule(
+      this.cloudOptions as CloudOptions,
+      () => (this.cloudTransport ??= new CloudTransport(this.cloudOptions as CloudOptions)),
+    ))
   }
 
   /** Cloud provider only: send an approved Meta message template by name + language. */

@@ -10,7 +10,12 @@ import type { InboundEventMap } from '../events/types.js'
 import type { MessageStore } from '../store/types.js'
 import type { PluginsOptions } from '../plugin/types.js'
 import type { CloudOptions } from '../cloud/types.js'
-import type { CloudStatusEvent, CloudTemplateStatusEvent } from '../cloud/translate/inbound.js'
+import type {
+  CloudFlowResponseEvent,
+  CloudOrderEvent,
+  CloudStatusEvent,
+  CloudTemplateStatusEvent,
+} from '../cloud/translate/inbound.js'
 
 export type ProviderKind = 'baileys' | 'cloud'
 
@@ -90,6 +95,10 @@ export type ConnectionEventMap = {
   'message-status': CloudStatusEvent
   /** Cloud provider: template review lifecycle (APPROVED/REJECTED/PAUSED...). */
   'template-status': CloudTemplateStatusEvent
+  /** Cloud provider: WhatsApp Flow completion (nfm_reply) with parsed response payload. */
+  'flow-response': CloudFlowResponseEvent
+  /** Cloud provider: catalog order placed by the customer. */
+  order: CloudOrderEvent
 }
 
 export type ConnectionEventName = keyof ConnectionEventMap

@@ -1,5 +1,11 @@
 # zaileys
 
+## 4.8.2
+
+### Patch Changes
+
+- Rewrite the Agent Skill suite to be provider-aware — the bundled AI skills now teach the official Meta Cloud API provider (`provider: 'cloud'`, `wa.webhook()`, `sendTemplate`, `wa.cloud.*`, cloud events, the 24-hour window, and cloud error codes) alongside the unofficial WhatsApp Web provider, including a new cloud reference, cloud recipes, anti-patterns, and troubleshooting.
+
 ## 4.8.1
 
 ### Patch Changes

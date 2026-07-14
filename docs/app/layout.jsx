@@ -3,7 +3,6 @@ import { Head } from 'nextra/components'
 import { getPageMap } from 'nextra/page-map'
 import 'nextra-theme-docs/style.css'
 import './components/cards.css'
-import { ProviderSwitch } from './components/provider-switch.jsx'
 
 const GA_ID = 'G-B76YYS1K85'
 const basePath = process.env.DOCS_BASE_PATH ?? '/zaileys'
@@ -134,7 +133,6 @@ const navbar = (
     projectLink="https://github.com/zeative/zaileys"
     chatLink="https://discord.gg/KBHhTTVUc5"
   >
-    <ProviderSwitch />
     <a
       href="https://chat.whatsapp.com/GlQfvc83mSH3F6ov06vuCt"
       target="_blank"

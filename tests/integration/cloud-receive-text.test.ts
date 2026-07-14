@@ -107,3 +107,35 @@ describe('integration: cloud webhook without connect()', () => {
     expect(texts[0]?.text).toBe('halo bot')
   })
 })
+
+describe('integration: cloud inbound quoted/context parsing', () => {
+  function reply(quotedId: string) {
+    return post(JSON.stringify({
+      object: 'whatsapp_business_account',
+      entry: [{ id: 'W', changes: [{ field: 'messages', value: {
+        messaging_product: 'whatsapp', metadata: { phone_number_id: '555' },
+        contacts: [{ profile: { name: 'Budi' }, wa_id: '628111000222' }],
+        messages: [{ from: '628111000222', id: 'wamid.REPLY', timestamp: '1752350000',
+          type: 'text', text: { body: 'setuju' }, context: { from: '555', id: quotedId } }],
+      } }] }],
+    }))
+  }
+
+  it('a reply carries context.id → msg.replied() resolves the stored original', async () => {
+    const c = await connectedClient()
+    // bot sends a message first → stored under its wamid
+    fetchMock.mockResolvedValueOnce(new Response(JSON.stringify({ messages: [{ id: 'wamid.ORIG' }] }), { status: 200 }))
+    await c.send('628111000222').text('pertanyaan?')
+    await new Promise((r) => setTimeout(r, 5))
+
+    let quoted: MessageContext | null = null
+    const done = new Promise<void>((resolve) => {
+      c.on('text', async (m) => { if (m.text === 'setuju') { quoted = await m.replied(); resolve() } })
+    })
+    await c.webhook()(reply('wamid.ORIG'))
+    await done
+    expect(quoted).not.toBeNull()
+    expect(quoted?.chatId).toBe('wamid.ORIG')
+    expect(quoted?.text).toBe('pertanyaan?')
+  })
+})

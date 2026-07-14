@@ -151,13 +151,38 @@ const contactsNode = (msg: CloudWebhookMessage): Record<string, unknown> | null 
   return { contactsArrayMessage: { displayName: `${cards.length} contacts`, contacts: cards } }
 }
 
+/**
+ * Attach a baileys-shaped contextInfo (from Meta's `context: { id, from }`) so the decoder can
+ * resolve the quoted message via the store — enables `msg.replied()` on cloud replies. A stub
+ * `quotedMessage` is required to enter the decoder's resolve branch (it looks up by stanzaId).
+ */
+const applyQuotedContext = (
+  message: Record<string, unknown>,
+  msg: CloudWebhookMessage,
+): Record<string, unknown> => {
+  const context = msg['context'] as { id?: string; from?: string } | undefined
+  if (!context?.id) return message
+  const contextInfo = {
+    stanzaId: context.id,
+    ...(context.from ? { participant: toJid(context.from) } : {}),
+    quotedMessage: {},
+  }
+  if (typeof message['conversation'] === 'string') {
+    return { extendedTextMessage: { text: message['conversation'], contextInfo } }
+  }
+  const key = Object.keys(message)[0]
+  if (key) (message[key] as Record<string, unknown>)['contextInfo'] = contextInfo
+  return message
+}
+
 const translateMessage = (msg: CloudWebhookMessage, value: CloudWebhookValue): WAMessage | null => {
   if (!msg.id || !msg.from) return null
-  const message: Record<string, unknown> | null =
+  const node: Record<string, unknown> | null =
     msg.type === 'text' && typeof msg.text?.body === 'string'
       ? { conversation: msg.text.body }
       : (mediaNode(msg) ?? interactiveNode(msg) ?? locationNode(msg) ?? contactsNode(msg))
-  if (message === null) return null
+  if (node === null) return null
+  const message = applyQuotedContext(node, msg)
   const pushName = contactName(value, msg.from)
   return {
     key: { id: msg.id, remoteJid: toJid(msg.from), fromMe: false },

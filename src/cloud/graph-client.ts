@@ -17,6 +17,7 @@ export interface GraphClient {
   get<T>(path: string): Promise<T>
   post<T>(path: string, body: unknown): Promise<T>
   postForm<T>(path: string, form: FormData): Promise<T>
+  delete<T = unknown>(path: string, body?: unknown): Promise<T>
   url(path: string): string
 }
 
@@ -68,5 +69,12 @@ export function createGraphClient(options: CloudOptions, deps?: GraphClientDeps)
     post: <T>(path: string, body: unknown) =>
       request<T>(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
     postForm: <T>(path: string, form: FormData) => request<T>(path, { method: 'POST', body: form }),
+    delete: <T>(path: string, body?: unknown) =>
+      request<T>(path, {
+        method: 'DELETE',
+        ...(body !== undefined
+          ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }
+          : {}),
+      }),
   }
 }

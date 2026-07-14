@@ -110,6 +110,7 @@ import type {
 } from './types.js'
 import { validateCloudOptions, type CloudOptions } from '../cloud/types.js'
 import { CloudTransport } from '../cloud/transport.js'
+import { CloudModule } from '../cloud/module.js'
 import { createWebhookHandler, type WebhookHandler } from '../cloud/webhook.js'
 import { ZaileysCloudError, ZaileysProviderError } from '../cloud/errors.js'
 
@@ -193,6 +194,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private readonly _provider: ProviderKind
   private readonly cloudOptions: CloudOptions | undefined
   private cloudTransport: CloudTransport | undefined
+  private _cloudModule: CloudModule | undefined
 
   constructor(options: ClientOptions = {}) {
     super({ logger: adoptLogger(options.logger) })
@@ -741,6 +743,14 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
 
   async react(key: WAMessageKey, emoji: string): Promise<WAMessageKey> {
     return reactToMessage(this.requireBuilderSocket(), key, emoji)
+  }
+
+  /** Cloud provider only: management surface (templates, profile, flows, blocklist, qr, analytics, phone). */
+  get cloud(): CloudModule {
+    if (this._provider !== 'cloud') {
+      throw new ZaileysCloudError('CONFIG', "wa.cloud requires provider: 'cloud'")
+    }
+    return (this._cloudModule ??= new CloudModule(this.cloudOptions as CloudOptions))
   }
 
   /** Cloud provider only: send an approved Meta message template by name + language. */

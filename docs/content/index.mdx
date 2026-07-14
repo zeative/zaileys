@@ -19,7 +19,7 @@ provider by flipping one option:
     code, no Meta approval. Full personal-account power: groups, communities, channels, polls,
     stickers, presence, edit/delete. **Default provider.**
   </Cards.Card>
-  <Cards.Card icon="☁️" title="Official · Meta Cloud API" href="/cloud-api" arrow>
+  <Cards.Card icon="☁️" title="Official · Meta Cloud API" href="/official" arrow>
     The sanctioned Graph API + webhooks. No ban risk, no device linking. Templates, OTP, marketing
     campaigns, Flows, catalog commerce, analytics — everything a business channel needs.
   </Cards.Card>
@@ -79,7 +79,7 @@ export const POST = client.webhook()
 ```
 
 The event handlers are **byte-for-byte the same** as the unofficial tab. Only construction and the
-webhook wiring differ. See the [Official Cloud API](/cloud-api) guide.
+webhook wiring differ. See the [Official Cloud API](/official) guide.
 </Tabs.Tab>
 </Tabs>
 
@@ -104,9 +104,9 @@ client.on('pairing-code', ({ code }) => console.log('Enter this code on your pho
 | --- | --- |
 | Build a personal-account bot, prototype, or automate your own number fast | **[Unofficial](/unofficial)** (WhatsApp Web) |
 | Use groups, communities, channels, polls, presence, edit/delete | **[Unofficial](/unofficial)** — these don't exist on the Cloud API |
-| Run a compliant business channel with no ban risk | **[Official](/cloud-api)** (Meta Cloud API) |
-| Send OTP, marketing, or utility **template** messages at scale | **[Official](/cloud-api)** |
-| Message users who never texted you first (business-initiated) | **[Official](/cloud-api)** — via approved templates |
+| Run a compliant business channel with no ban risk | **[Official](/official)** (Meta Cloud API) |
+| Send OTP, marketing, or utility **template** messages at scale | **[Official](/official)** |
+| Message users who never texted you first (business-initiated) | **[Official](/official)** — via approved templates |
 
 Full side-by-side breakdown, ToS notes, and a migration guide on **[Choose Your Provider](/providers)**.
 
@@ -296,8 +296,8 @@ Legend — 🔗 Unofficial (WhatsApp Web) · ☁️ Official (Meta Cloud API) ·
 | Rich responses           | 🔗 | Markdown → Meta-AI-style messages (code, tables, images, directives)  | [Rich Responses](/rich-responses)      |
 | Command framework        | 🔗☁️ | `client.command()` routers, aliases, configurable prefixes, middleware | [Commands](/commands)                  |
 | Automation               | 🔗☁️ | Rate-limited `broadcast()`, `scheduleAt()`, presence control          | [Automation](/automation)              |
-| Templates & campaigns    | ☁️ | Template CRUD, OTP/marketing/utility sends, `message-status` tracking | [Official Cloud API](/cloud-api)       |
-| Flows & commerce         | ☁️ | WhatsApp Flows, catalog products, orders, analytics                  | [Official Cloud API](/cloud-api)       |
+| Templates & campaigns    | ☁️ | Template CRUD, OTP/marketing/utility sends, `message-status` tracking | [Official Cloud API](/official)       |
+| Flows & commerce         | ☁️ | WhatsApp Flows, catalog products, orders, analytics                  | [Official Cloud API](/official)       |
 | Groups & channels        | 🔗 | Groups, communities, newsletters (channels), presence, edit/delete   | [Groups](/groups)                      |
 | Storage adapters         | 🔗☁️ | `file`, `memory`, `sqlite`, `redis`, `postgres`, `convex` for auth & messages | [Storage](/storage)          |
 | Cross-runtime            | 🔗☁️ | Dual ESM/CJS, full types; Node, Bun, Deno, Termux                    | [Runtimes](/runtimes)                  |

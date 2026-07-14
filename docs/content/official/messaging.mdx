@@ -1,0 +1,95 @@
+---
+title: "Cloud API Messaging — Sending & Caveats"
+description: "Send text, media, interactive, location, and contacts on the WhatsApp Cloud API with the same Zaileys builder — plus the cloud-specific caveats, limits, and read/typing helpers."
+---
+
+import { Callout } from 'nextra/components'
+
+# Messaging
+
+Sending on the official provider uses the **exact same builder** as the unofficial one — Zaileys
+translates it to Graph API payloads for you. So this page does **not** re-teach the builder; it links
+you to the shared docs and details only what's **different on cloud**.
+
+## Shared — documented in the main guide
+
+| You want to… | Read |
+| --- | --- |
+| Send text, and the chainable builder basics | [Sending Messages](/sending-messages) |
+| Send image / video / audio / document / sticker | [Media](/media) |
+| Send buttons and lists | [Interactive](/interactive) |
+| Understand the inbound message payload (`msg.text`, `msg.senderId`, `msg.reply()`…) | [Message Payload](/message-payload) |
+| React, quote-reply, forward | [Sending Messages](/sending-messages) |
+
+```typescript
+// identical to the unofficial provider:
+await wa.send(to).text('halo dunia')
+await wa.send(to).image('https://…/a.jpg', { caption: 'lihat ini 📸' })
+await wa.send(to).document('https://…/invoice.pdf', { fileName: 'invoice.pdf' })
+await wa.send(to).location(-6.2, 106.8, { name: 'Monas', address: 'Jakarta' })
+await wa.send(to).buttons([{ id: 'yes', text: 'Ya' }], { text: 'Setuju?' })
+await msg.reply('siap!')
+await wa.react(msg.message().key, '🔥')
+```
+
+Media accepts a URL, a local path, or a `Buffer` — Zaileys uploads it to Meta's media endpoint and
+references the returned id automatically. Download inbound media with `wa.downloadMedia(key)`.
+
+## Cloud-only differences
+
+### Limits on interactive & message types
+
+<Callout type="warning">
+- **Reply buttons max out at 3** (Meta hard limit). More throws a typed error.
+- **Carousels and polls are not available** on the Cloud API.
+- **Media headers on interactive buttons** aren't supported yet.
+- **Albums** must be sent as individual media messages.
+
+Every unsupported builder call throws `ZaileysProviderError('UNSUPPORTED_ON_CLOUD')` immediately —
+see the [feature comparison](/providers#messaging).
+</Callout>
+
+### `markRead` takes a message id
+
+Because there's no chat-level cursor, the cloud `markRead` marks a **single message** and can show a
+typing indicator in the same call:
+
+```typescript
+wa.on('text', async (msg) => {
+  await wa.markRead(msg.chatId, { typing: true }) // mark read + show "typing…"
+  await msg.reply('got it')
+})
+```
+
+### The 24-hour window
+
+You can only send **free-form** messages inside Meta's customer-service window:
+
+- A user messages you → a **24-hour window** opens → send anything freely.
+- Outside the window, or to a user who never texted you → only **approved templates**.
+
+```typescript
+// ✅ always allowed (business-initiated)
+await wa.sendTemplate(to, 'welcome', 'en_US')
+
+// ❌ fails with Graph error 131047 outside the window
+await wa.send(to).text('hi')
+```
+
+This is Meta policy, enforced server-side. See [Templates & Campaigns](/official/templates) for how
+to open conversations, and [Events & Errors](/official/events#error-codes) for `131047`.
+
+### Contacts need a first name
+
+A cloud contact's `name` requires a `formatted_name` **and** at least one of `first_name` /
+`last_name`. Zaileys derives them from the vCard's `FN:`/`N:` fields automatically, so this just
+works — but if you build the vCard yourself, include an `N:` line:
+
+```typescript
+await wa.send(to).contact('BEGIN:VCARD\nVERSION:3.0\nFN:Budi Santoso\nN:Santoso;Budi\nTEL:+62811\nEND:VCARD')
+```
+
+### Delivery tracking
+
+Outbound messages emit a cloud-only [`message-status`](/official/events) event as they progress
+through `sent` → `delivered` → `read` (or `failed`).

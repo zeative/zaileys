@@ -1,0 +1,137 @@
+---
+title: "Business Tools — wa.cloud.* Reference"
+description: "The complete wa.cloud.* reference for the WhatsApp Cloud API in Zaileys: account info, business profile, WhatsApp Flows, catalog commerce, address requests, blocklist, QR links, analytics, and phone-number management."
+---
+
+import { Callout } from 'nextra/components'
+
+# Business Tools — `wa.cloud.*`
+
+Everything business-side lives under the cloud-only `wa.cloud` namespace. WABA-scoped calls require
+`cloud.wabaId` and throw `ZaileysCloudError('CONFIG')` without it. On the unofficial provider,
+accessing `wa.cloud` throws — it's cloud-exclusive.
+
+## Account & profile
+
+| Method | Returns |
+| --- | --- |
+| `wa.cloud.info()` | This number's node: `display_phone_number`, `verified_name`, `quality_rating`, `throughput`, verification status, platform type. |
+| `wa.cloud.phoneNumbers()` | Every phone number registered under the WABA. |
+| `wa.cloud.profile.get()` | Business profile: about, address, description, email, websites, vertical. |
+| `wa.cloud.profile.update(fields)` | Update any profile field. |
+
+```typescript
+const health = await wa.cloud.info()
+console.log(health.quality_rating) // 'GREEN' | 'YELLOW' | 'RED'
+
+await wa.cloud.profile.update({
+  about: 'Open 9–5',
+  websites: ['https://example.com'],
+  vertical: 'RETAIL',
+})
+```
+
+## WhatsApp Flows
+
+Flows are native multi-step forms (booking, surveys, lead capture) rendered inside WhatsApp.
+
+| Method / event | Purpose |
+| --- | --- |
+| `wa.cloud.flows.list()` | List Flows on the WABA. |
+| `wa.cloud.flows.send(to, opts)` | Send a Flow as an interactive message. |
+| `wa.on('flow-response', cb)` | Fired when a user completes a Flow (parsed `nfm_reply`). |
+
+```typescript
+await wa.cloud.flows.send(to, {
+  flowId: 'FLOW123',
+  cta: 'Isi form',
+  bodyText: 'Booking konsultasi',
+  screen: 'BOOKING',
+  flowToken: 'session-1',   // optional, echoed back
+  data: { slot: 'pagi' },   // optional initial screen data
+})
+
+wa.on('flow-response', (f) => {
+  console.log(f.response) // parsed JSON the user submitted
+})
+```
+
+`flows.send` accepts `flowId` **or** `flowName`, plus optional `headerText`, `footerText`, `mode`
+(`draft`/`published`), and `action` (`navigate`/`data_exchange`).
+
+## Catalog & commerce
+
+| Method / event | Purpose |
+| --- | --- |
+| `wa.cloud.commerce.catalogs()` | List product catalogs on the WABA. |
+| `wa.cloud.commerce.products(catalogId)` | List products in a catalog. |
+| `wa.cloud.commerce.sendProduct(to, opts)` | Send a single product card. |
+| `wa.cloud.commerce.sendProductList(to, opts)` | Send a multi-section product list. |
+| `wa.on('order', cb)` | Fired when a customer places an order. |
+
+```typescript
+await wa.cloud.commerce.sendProduct(to, { catalogId: 'CAT1', retailerId: 'SKU-1', bodyText: 'Best seller' })
+
+await wa.cloud.commerce.sendProductList(to, {
+  catalogId: 'CAT1',
+  headerText: 'Catalog',
+  bodyText: 'Pick a product',
+  sections: [{ title: 'Popular', productIds: ['SKU-1', 'SKU-2'] }],
+})
+
+wa.on('order', (o) => {
+  console.log(o.catalogId, o.items) // [{ productRetailerId, quantity, price, currency }]
+})
+```
+
+## Address requests
+
+Ask the user for a shipping address with a native address form (Meta supports **ID** and **BR**):
+
+```typescript
+await wa.cloud.sendAddressRequest(to, { bodyText: 'Alamat pengiriman?', countryIso: 'ID' })
+```
+
+## Blocklist
+
+```typescript
+await wa.cloud.blocklist.add(['628xxx', '628yyy'])
+await wa.cloud.blocklist.remove(['628xxx'])
+const blocked = await wa.cloud.blocklist.list()
+```
+
+## QR code links
+
+Generate a scannable QR / short link that opens a chat with a pre-filled message:
+
+```typescript
+const { code, prefilled_message } = await wa.cloud.qr.create('Hi, I want info!')
+await wa.cloud.qr.list()
+await wa.cloud.qr.delete(code)
+```
+
+## Analytics
+
+```typescript
+// conversation analytics (billing categories, counts)
+await wa.cloud.analytics.conversations({ start, end, granularity: 'DAILY' })
+
+// messaging analytics (sent/delivered volumes)
+await wa.cloud.analytics.messages({ start, end, granularity: 'DAY' })
+```
+
+`start` / `end` are Unix timestamps (seconds). Both are WABA-scoped.
+
+## Phone-number management
+
+<Callout type="warning">
+These touch **live number registration** — use with care. They are not exercised by the test suite's
+live smoke.
+</Callout>
+
+```typescript
+await wa.cloud.phone.register(pin)             // register for Cloud API messaging (2FA pin)
+await wa.cloud.phone.deregister()
+await wa.cloud.phone.requestCode('SMS', 'id')  // request a verification code
+await wa.cloud.phone.verifyCode(code)
+```

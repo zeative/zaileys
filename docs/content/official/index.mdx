@@ -1,0 +1,124 @@
+---
+title: "Official Cloud API — Overview & Setup"
+description: "Run Zaileys on the official Meta WhatsApp Cloud API. Token auth, webhooks, templates, campaigns, Flows, commerce, analytics — the same Client, builder, and typed events as the unofficial provider."
+---
+
+import { Callout, Tabs, Steps, Cards } from 'nextra/components'
+
+# Official · Meta Cloud API
+
+Run your bot on the **official Meta WhatsApp Business Platform** — the Graph API plus webhooks Meta
+sanctions for businesses. No ban risk, no device linking, no QR. A permanent token authenticates
+you, inbound messages arrive over a webhook, and you unlock everything a real business channel
+needs: **templates, OTP, marketing, Flows, catalog commerce, and analytics**.
+
+It's the **same Zaileys**. The `send(jid)…` builder and `on('text' | 'image' | …)` events are
+identical to the [unofficial provider](/unofficial) — you flip one option.
+
+```typescript
+import { Client } from 'zaileys'
+
+const wa = new Client({
+  provider: 'cloud',
+  cloud: {
+    accessToken: process.env.WA_TOKEN!,
+    phoneNumberId: process.env.WA_PHONE_ID!,
+    wabaId: process.env.WA_WABA_ID,
+    verifyToken: process.env.WA_VERIFY!,
+    appSecret: process.env.WA_APP_SECRET!,
+  },
+})
+
+wa.on('text', (m) => m.reply(`echo: ${m.text}`))
+await wa.send('628xxx').text('halo')
+```
+
+<Callout type="info">
+Not sure this is the right provider? Read **[Choose Your Provider](/providers)** — the Cloud API
+can't do groups, channels, or polls, and needs a Meta Business account.
+</Callout>
+
+## What's on this section
+
+<Cards>
+  <Cards.Card title="Webhook" href="/official/webhook" arrow>Receive inbound messages & statuses.</Cards.Card>
+  <Cards.Card title="Messaging" href="/official/messaging" arrow>Send text, media, interactive — cloud caveats.</Cards.Card>
+  <Cards.Card title="Templates & Campaigns" href="/official/templates" arrow>OTP, marketing, utility, broadcast.</Cards.Card>
+  <Cards.Card title="Business Tools" href="/official/business" arrow>Flows, commerce, profile, analytics.</Cards.Card>
+  <Cards.Card title="Events & Errors" href="/official/events" arrow>Webhook events and Graph error codes.</Cards.Card>
+</Cards>
+
+## Shared vs cloud-only
+
+Most of Zaileys works the same on both providers — **don't relearn it here**. This section only
+documents what's **exclusive to the Cloud API**. For shared functionality, follow the links to the
+main (unofficial) docs:
+
+| Topic | Where it's documented |
+| --- | --- |
+| The `Client`, events model, message payload | [Client](/client) · [Events](/events) · [Message Payload](/message-payload) |
+| Sending text, media, location, contact | [Sending Messages](/sending-messages) · [Media](/media) |
+| Buttons, lists (cloud caveats noted) | [Interactive](/interactive) → cloud notes in [Messaging](/official/messaging) |
+| Commands, middleware, plugins | [Commands](/commands) · [Plugins](/plugins) |
+| Broadcast & schedule | [Automation](/automation) |
+| Storage adapters, message store | [Storage](/storage) |
+
+Cloud-**exclusive** surfaces (documented in this section): templates, OTP, campaigns, `message-status`,
+Flows, catalog commerce, business profile, blocklist, QR links, analytics, phone management, and the
+webhook.
+
+## Getting your credentials
+
+You need four values from the [Meta for Developers](https://developers.facebook.com/) dashboard.
+
+<Steps>
+
+### Create a Meta app with WhatsApp
+
+**Meta for Developers → Create App → Business**, then add the **WhatsApp** product. You get a test
+number to use immediately.
+
+### Grab the phone-number id and WABA id
+
+Under **WhatsApp → API Setup**: the **Phone number ID** (`phoneNumberId`) and the **WhatsApp Business
+Account ID** (`wabaId`). The phone-number *id* is a long number, not the actual phone number.
+
+### Create a permanent access token
+
+The temporary token expires in 24h. For production, create a **System User** in
+[Business Settings](https://business.facebook.com/settings) with `whatsapp_business_messaging` and
+`whatsapp_business_management` permissions, and generate a **permanent token** (`accessToken`).
+
+### Set your webhook secrets
+
+Choose any string as your **verify token** (`verifyToken`) — you'll enter the same value in the Meta
+dashboard. Copy the **App Secret** (`appSecret`) from **App Settings → Basic** so Zaileys can verify
+incoming webhooks are genuinely from Meta.
+
+</Steps>
+
+### Config reference
+
+| Field | Required | Purpose |
+| --- | :---: | --- |
+| `accessToken` | ✅ | Bearer token for all Graph API calls. |
+| `phoneNumberId` | ✅ | The sending phone-number node id. |
+| `wabaId` | For `wa.cloud.*` | WhatsApp Business Account id — needed for templates, flows, analytics, catalogs, phone numbers. |
+| `verifyToken` | For webhooks | Echoed on the webhook GET verification challenge. |
+| `appSecret` | Recommended | Verifies the `X-Hub-Signature-256` HMAC on webhook POSTs. |
+| `apiVersion` | Optional | Graph API version. Defaults to a pinned stable version. |
+| `baseUrl` | Optional | Override the Graph origin (proxies / testing). |
+
+## Connecting
+
+```typescript
+await wa.connect()
+```
+
+`connect()` is a lightweight **health check** — it validates the token and phone-number id against
+the Graph API and resolves immediately. There's no socket, no QR, no session file. `disconnect()`
+tears down local listeners. QR/pairing/reconnect events never fire on this provider.
+
+<Callout type="default">
+Next: wire up the **[Webhook](/official/webhook)** so inbound messages reach your handlers.
+</Callout>

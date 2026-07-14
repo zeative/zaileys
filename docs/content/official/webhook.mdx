@@ -1,0 +1,110 @@
+---
+title: "Cloud API Webhook — Receiving Messages"
+description: "Mount the framework-agnostic Zaileys webhook to receive inbound WhatsApp Cloud API messages and status updates, with GET verification and HMAC signature validation."
+---
+
+import { Callout, Tabs } from 'nextra/components'
+
+# Webhook
+
+The official API is **push-based**: Meta delivers inbound messages and status updates to a webhook
+URL you host. `wa.webhook()` returns a **framework-agnostic** handler —
+`(req: Request) => Promise<Response>` — that does two jobs:
+
+1. Answers the **GET verification challenge** using your `verifyToken`.
+2. Verifies the **`X-Hub-Signature-256` HMAC** on POSTs using your `appSecret` (rejecting forgeries
+   with `401`), then dispatches events into your `Client`.
+
+Once mounted, inbound traffic flows through the **same typed events** as everywhere else — `text`,
+`image`, `reaction`, `button-click`, and the cloud-only `message-status`, `template-status`,
+`flow-response`, and `order`. See [Events & Errors](/official/events).
+
+## Mounting the handler
+
+<Tabs items={['Next.js', 'Hono', 'Express', 'Node http']}>
+<Tabs.Tab>
+```typescript
+// app/api/whatsapp/route.ts
+import { wa } from '@/lib/wa'
+
+const handler = wa.webhook()
+export const GET = handler   // verification challenge
+export const POST = handler  // inbound messages + statuses
+```
+</Tabs.Tab>
+<Tabs.Tab>
+```typescript
+import { Hono } from 'hono'
+const app = new Hono()
+const handler = wa.webhook()
+
+// hono requests are already Web Requests
+app.all('/webhook', (c) => handler(c.req.raw))
+```
+</Tabs.Tab>
+<Tabs.Tab>
+```typescript
+import express from 'express'
+const app = express()
+const handler = wa.webhook()
+
+// IMPORTANT: keep the raw body so the signature can be verified
+app.all('/webhook', express.raw({ type: '*/*' }), async (req, res) => {
+  const url = `${req.protocol}://${req.get('host')}${req.originalUrl}`
+  const request = new Request(url, {
+    method: req.method,
+    headers: req.headers as Record<string, string>,
+    ...(req.method === 'POST' ? { body: req.body as Buffer } : {}),
+  })
+  const response = await handler(request)
+  res.status(response.status).send(await response.text())
+})
+```
+</Tabs.Tab>
+<Tabs.Tab>
+```typescript
+import { createServer } from 'node:http'
+const handler = wa.webhook()
+
+createServer(async (req, res) => {
+  const chunks: Buffer[] = []
+  for await (const c of req) chunks.push(c as Buffer)
+  const request = new Request(`http://localhost${req.url}`, {
+    method: req.method,
+    headers: req.headers as Record<string, string>,
+    ...(req.method === 'POST' ? { body: Buffer.concat(chunks) } : {}),
+  })
+  const response = await handler(request)
+  res.writeHead(response.status)
+  res.end(await response.text())
+}).listen(3000)
+```
+</Tabs.Tab>
+</Tabs>
+
+## Registering it with Meta
+
+<Callout type="info">
+In the Meta dashboard under **WhatsApp → Configuration → Webhook**, set the **Callback URL** to your
+public endpoint, enter the same **Verify token** you put in `cloud.verifyToken`, and **subscribe to
+the `messages` field**. Developing locally? Tunnel with `ngrok`, `cloudflared`, or `localtunnel`.
+</Callout>
+
+Runnable examples:
+[`cloud-express.ts`](https://github.com/zeative/zaileys/blob/main/examples/cloud-express.ts),
+[`cloud-hono.ts`](https://github.com/zeative/zaileys/blob/main/examples/cloud-hono.ts),
+[`cloud-next-route.ts`](https://github.com/zeative/zaileys/blob/main/examples/cloud-next-route.ts).
+
+## Responses at a glance
+
+| Request | Condition | Response |
+| --- | --- | --- |
+| `GET` | `hub.verify_token` matches | `200` + `hub.challenge` |
+| `GET` | token mismatch | `403` |
+| `POST` | valid `X-Hub-Signature-256` (or no `appSecret` set) | `200`, events dispatched |
+| `POST` | invalid / missing signature (with `appSecret` set) | `401`, nothing dispatched |
+| `POST` | malformed body | `400` |
+
+The handler always returns `200` after a successful signature check even if your event handler
+throws — Meta retries aggressively on non-`200`, so Zaileys acks first and surfaces handler errors
+through the `error` event instead.

@@ -78,7 +78,7 @@ export default {
   '-- providers': { type: 'separator', title: 'Providers' },
   providers: item('compare', 'Choose Your Provider'),
   unofficial: item('link', 'Unofficial · WhatsApp Web'),
-  'cloud-api': item('cloud', 'Official · Meta Cloud API'),
+  official: item('cloud', 'Official · Meta Cloud API'),
 
   '-- core': { type: 'separator', title: 'Core Concepts' },
   client: item('cpu', 'Client & Lifecycle'),

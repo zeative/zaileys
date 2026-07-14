@@ -1,0 +1,75 @@
+---
+title: "Cloud API Events & Error Codes"
+description: "The webhook events and Graph API error codes you'll encounter on the WhatsApp Cloud API with Zaileys, including cloud-only events like message-status, template-status, flow-response, and order."
+---
+
+import { Callout } from 'nextra/components'
+
+# Events & Errors
+
+## Events
+
+Inbound webhooks flow through the **same typed event system** as the unofficial provider — see
+[Events](/events) for the shared model, handler signatures, and payload shapes. The table below adds
+the **cloud-only** events and notes which shared events the Cloud API can emit.
+
+| Event | Provider | Fires when |
+| --- | --- | --- |
+| `message`, `text`, `image`, `video`, `audio`, `document`, `sticker` | shared | a user sends that message type |
+| `reaction` | shared | a user reacts to a message |
+| `button-click`, `list-select` | shared | a user taps a reply button or picks a list row |
+| `location`, `contact` | shared | a user shares a location or contact |
+| `flow-response` | ☁️ cloud-only | a user completes a WhatsApp Flow (`nfm_reply`) — carries parsed `response` |
+| `order` | ☁️ cloud-only | a user places a catalog order — carries `items` |
+| `message-status` | ☁️ cloud-only | your outbound message is `sent` / `delivered` / `read` / `failed` |
+| `template-status` | ☁️ cloud-only | a template becomes `APPROVED` / `REJECTED` / `PAUSED` |
+
+```typescript
+wa.on('message-status', (s) => console.log(s.id, s.status, s.recipientId))
+wa.on('template-status', (t) => console.log(t.name, t.event))
+wa.on('flow-response', (f) => console.log(f.response))
+wa.on('order', (o) => console.log(o.items))
+```
+
+<Callout type="info">
+`qr`, `pairing-code`, and reconnect events never fire on the cloud provider — authentication is
+token-based and there is no socket lifecycle.
+</Callout>
+
+### `message-status` payload
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `id` | `string` | The `wamid` of your outbound message. |
+| `status` | `'sent' \| 'delivered' \| 'read' \| 'failed'` | Delivery stage. |
+| `recipientId` | `string` | Recipient JID. |
+| `timestamp` | `number` | Unix seconds. |
+| `error?` | `{ code, title, message }` | Present on `failed`. |
+
+## Error codes
+
+Every failure surfaces as a typed `ZaileysCloudError` carrying the Graph `code`. The most common:
+
+| Code | Meaning | Fix |
+| --- | --- | --- |
+| `131047` | Re-engagement — outside the 24h window | Send an approved [template](/official/templates) first |
+| `132000` | Parameter count mismatch | Match `parameters` to the template's `{{n}}` |
+| `131026` | Message undeliverable | Recipient can't receive (no WhatsApp, blocked) |
+| `131056` | Pair rate limit | Slow down; respect messaging tiers |
+| `100` | Invalid parameter / bad request | Check the payload shape |
+| `190` | Invalid / expired access token | Regenerate a permanent System User token |
+| `133xxx` | Registration errors | See [phone management](/official/business#phone-number-management) |
+
+```typescript
+import { ZaileysCloudError } from 'zaileys'
+
+try {
+  await wa.send(to).text('hi')
+} catch (err) {
+  if (err instanceof ZaileysCloudError && err.code === 'REQUEST_FAILED') {
+    // err.message includes the Graph code, e.g. "(#131047) …"
+  }
+}
+```
+
+See [Error Handling](/error-handling) for the full error taxonomy shared across both providers.

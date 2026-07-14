@@ -1,0 +1,146 @@
+---
+title: "Templates & Campaigns — OTP, Marketing, Utility"
+description: "Send and manage WhatsApp message templates on the Cloud API with Zaileys: OTP authentication, marketing and utility templates, template CRUD, the template-status event, and broadcast campaigns."
+---
+
+import { Callout, Steps } from 'nextra/components'
+
+# Templates & Campaigns
+
+Templates are pre-approved message blueprints — and the **only** way to start a conversation with a
+user who is outside your [24-hour window](/official/messaging#the-24-hour-window). Meta has three
+categories, all handled by the same two functions:
+
+- **`MARKETING`** — promos, announcements, offers.
+- **`UTILITY`** — transactional notices (order confirmed, appointment reminder).
+- **`AUTHENTICATION`** — one-time passwords (OTP).
+
+## Sending a template
+
+`sendTemplate(to, name, language, components?)` — it takes the template **name**, not its id.
+
+```typescript
+// template with a body variable {{1}}
+await wa.sendTemplate(to, 'promo_juli', 'id', [
+  { type: 'body', parameters: [{ type: 'text', text: 'Budi' }] },
+])
+
+// template with an image header
+await wa.sendTemplate(to, 'flash_sale', 'id', [
+  { type: 'header', parameters: [{ type: 'image', image: { link: 'https://…/banner.jpg' } }] },
+  { type: 'body', parameters: [{ type: 'text', text: '50%' }] },
+])
+```
+
+<Callout type="warning">
+The number of `parameters` must **exactly match** the `{{n}}` placeholders, or Meta returns error
+`132000`. Introspect a template first with `wa.cloud.templates.get(nameOrId)` to see its components.
+</Callout>
+
+### `sendTemplate(to, name, language, components?)`
+
+| Parameter | Type | Notes |
+| --- | --- | --- |
+| `to` | `string` | Recipient phone number (bare digits or JID). |
+| `name` | `string` | The approved template's **name**. |
+| `language` | `string` | Language/locale code, e.g. `id`, `en_US`. |
+| `components` | `array?` | Header/body/button parameter objects; omit for static templates. |
+
+Returns the sent message key. Delivery is tracked via the [`message-status`](/official/events) event.
+
+## OTP (one-time passwords)
+
+Authentication templates are usually **approved instantly**. Create one, then send codes:
+
+```typescript
+// 1) create the OTP template (once)
+await wa.cloud.templates.create({
+  name: 'kode_otp',
+  category: 'AUTHENTICATION',
+  language: 'id',
+  components: [
+    { type: 'BODY', add_security_recommendation: true },
+    { type: 'FOOTER', code_expiration_minutes: 5 },
+    { type: 'BUTTONS', buttons: [{ type: 'OTP', otp_type: 'COPY_CODE' }] },
+  ],
+})
+
+// 2) send a code — passed to both the body and the copy-code button
+await wa.sendTemplate(to, 'kode_otp', 'id', [
+  { type: 'body', parameters: [{ type: 'text', text: '839201' }] },
+  { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: '839201' }] },
+])
+```
+
+## Managing templates
+
+| Method | Purpose |
+| --- | --- |
+| `wa.cloud.templates.list({ status?, limit? })` | List all templates on the WABA. |
+| `wa.cloud.templates.get(nameOrId)` | Fetch one template with its components (accepts a name **or** numeric id). |
+| `wa.cloud.templates.create({ name, category, language, components })` | Submit a new template for review. |
+| `wa.cloud.templates.delete(name, id?)` | Delete a template by name. |
+
+```typescript
+await wa.cloud.templates.list({ status: 'APPROVED' })
+const tpl = await wa.cloud.templates.get('1783414372642659') // → components, category, language
+await wa.cloud.templates.delete('promo_juli')
+```
+
+### The `template-status` event
+
+Template review results arrive on the webhook:
+
+```typescript
+wa.on('template-status', (t) => {
+  console.log(t.name, t.event) // APPROVED / REJECTED / PAUSED / …
+})
+```
+
+<Callout type="info">
+Requires `cloud.wabaId`. All template management is WABA-scoped and throws
+`ZaileysCloudError('CONFIG')` if `wabaId` is missing.
+</Callout>
+
+## Marketing campaigns
+
+Combine templates with the shared [`broadcast()`](/automation) helper:
+
+<Steps>
+
+### Create and approve the template
+
+`wa.cloud.templates.create({ category: 'MARKETING', … })`, then wait for the `template-status`
+event (or poll `templates.get`) to reach `APPROVED`.
+
+### Broadcast to your audience
+
+```typescript
+// per-recipient variables — loop sendTemplate:
+for (const { phone, name } of contacts) {
+  await wa.sendTemplate(phone, 'promo_juli', 'id', [
+    { type: 'body', parameters: [{ type: 'text', text: name }] },
+  ])
+}
+
+// or a static template to many numbers with rate limiting:
+await wa.broadcast(numbers, (b) => b, {
+  rateLimitPerSec: 10,
+  onProgress: (done, total) => console.log(`${done}/${total}`),
+})
+```
+
+### Track delivery and results
+
+```typescript
+wa.on('message-status', (s) => console.log(s.id, s.status)) // sent/delivered/read/failed
+const stats = await wa.cloud.analytics.messages({ start, end })
+```
+
+</Steps>
+
+<Callout type="info">
+Marketing templates are subject to Meta's **per-user daily marketing limit** and quality-based
+messaging tiers. Keep content relevant and honor opt-outs to protect your quality rating — check it
+any time with `wa.cloud.info()`.
+</Callout>

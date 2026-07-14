@@ -15,7 +15,7 @@ engine underneath with a single `provider` option.
   <Cards.Card icon="🔗" title="Unofficial · WhatsApp Web" href="/unofficial" arrow>
     The default. Baileys under the hood. QR / pairing login, personal-account superpowers.
   </Cards.Card>
-  <Cards.Card icon="☁️" title="Official · Meta Cloud API" href="/cloud-api" arrow>
+  <Cards.Card icon="☁️" title="Official · Meta Cloud API" href="/official" arrow>
     Graph API + webhooks. Token auth, business-grade, no ban risk, templates & campaigns.
   </Cards.Card>
 </Cards>
@@ -142,7 +142,7 @@ The Cloud API enforces Meta's customer-service window:
 - Outside the window, or to someone who never texted you → only **approved templates**.
 
 This is a Meta rule, not a Zaileys limit. Plain sends outside the window return error `131047`.
-See [Official Cloud API → The 24-hour window](/cloud-api#the-24-hour-window) for the full flow.
+See [Official Cloud API → The 24-hour window](/official/messaging#the-24-hour-window) for the full flow.
 
 ## Terms of service
 
@@ -159,7 +159,7 @@ Because the builder and events are shared, migration is mostly configuration:
 
 1. **Swap construction** — add `provider: 'cloud'` and the `cloud` credentials.
 2. **Add a webhook** — the official provider is push-based; expose `client.webhook()` on a public
-   URL. See [Official Cloud API → Webhook](/cloud-api#webhook).
+   URL. See [Official Cloud API → Webhook](/official/webhook).
 3. **Replace social-graph calls** — `client.group.*`, `client.newsletter.*`, etc. don't exist on
    cloud; guard them or gate that feature behind `client.provider === 'baileys'`.
 4. **Gate first contact behind templates** — cold outreach must use `sendTemplate()`.
@@ -176,6 +176,6 @@ if (client.provider === 'baileys') {
 
 <Cards>
   <Cards.Card icon="🔗" title="Unofficial provider guide" href="/unofficial" arrow />
-  <Cards.Card icon="☁️" title="Official Cloud API guide" href="/cloud-api" arrow />
+  <Cards.Card icon="☁️" title="Official Cloud API guide" href="/official" arrow />
   <Cards.Card icon="⚙️" title="Configuration reference" href="/configuration" arrow />
 </Cards>

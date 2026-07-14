@@ -2,10 +2,12 @@
 name: zaileys-debug
 description: >-
   Use when a zaileys app throws an ERROR/exception/stack trace (or a `.code` like
-  EMPTY_CONTENT, INVALID_OPTIONS, SEND_FAILED, STORE_NOT_AVAILABLE) or hits a runtime
-  PROBLEM ("kenapa error", "not working", "failed to", reconnect loop, QR keeps
-  regenerating, "Cannot find module", session invalid/corrupted) and wants it diagnosed
-  and fixed. The zaileys (Node/TS WhatsApp framework on Baileys) error doctor.
+  EMPTY_CONTENT, INVALID_OPTIONS, SEND_FAILED, STORE_NOT_AVAILABLE, UNSUPPORTED_ON_CLOUD,
+  or a Graph code like 131047/132000) or hits a runtime PROBLEM ("kenapa error", "not
+  working", "failed to", reconnect loop, QR keeps regenerating, "Cannot find module",
+  session invalid/corrupted, webhook 401/403, template rejected) and wants it diagnosed
+  and fixed. Covers BOTH providers — unofficial WhatsApp Web and the official Meta Cloud
+  API. The zaileys (Node/TS WhatsApp framework) error doctor.
 ---
 
 # zaileys — debug (diagnose & fix)
@@ -68,6 +70,23 @@ try {
     if (err.code === 'STORE_NOT_AVAILABLE') {/* install the peer dep named in err.message */}
     if (err.code === 'STORE_CORRUPTED')     {/* wipe session, re-auth */}
   } else throw err
+}
+```
+
+**☁️ Cloud provider adds two classes** — `ZaileysCloudError` (codes `CONFIG`/`AUTH`/`REQUEST_FAILED`/
+`RATE_LIMITED`/`NOT_IMPLEMENTED`; Graph code embedded in `.message` like `(#131047)`) and
+`ZaileysProviderError` (`UNSUPPORTED_ON_CLOUD`, `.feature` = the offending surface). Full taxonomy +
+Graph-code table → [references/errors.md](../zaileys-assist/references/errors.md) and
+[references/cloud.md](../zaileys-assist/references/cloud.md).
+
+```typescript
+import { ZaileysCloudError, ZaileysProviderError } from 'zaileys'
+if (err instanceof ZaileysProviderError) {/* web-only surface on cloud → use unofficial or wa.cloud.* */}
+if (err instanceof ZaileysCloudError) {
+  if (err.message.includes('131047')) {/* cold/out-of-window → wa.sendTemplate() */}
+  if (err.message.includes('132000')) {/* template param count ≠ {{n}} */}
+  if (err.code === 'AUTH')            {/* token expired → permanent System User token */}
+  if (err.code === 'CONFIG')          {/* missing cloud.* field (e.g. wabaId) */}
 }
 ```
 
@@ -136,6 +155,10 @@ lines are prefixed `[zaileys]` on **stderr** (`statusLog`, default `true`).
 | **`sharp` not installed but images/stickers still work (slower)** | `sharp` is optional, probed opportunistically; falls back to bundled `jimp`. Missing `sharp` never throws. | Nothing needed. `npm i sharp` only for the faster native pipeline. ffmpeg/ffprobe are bundled. |
 | **`event()` sends OK but nothing appears in a 1:1 chat** | WhatsApp renders event messages **only in groups**, not DMs. The send succeeds; it's a client-side render rule, not a zaileys bug. | Send events to a group jid (`@g.us`). |
 | **`groupInvite()` card shows but tapping it fails ("failed to get group info")** | Card is built correctly and the invite **code is valid** (`chat.whatsapp.com/<code>` resolves). WhatsApp's invite-card resolution fails on **linked-device (companion) sessions** and/or LID-addressed groups. | Share the invite **link as text**, or test from a primary-phone session. Also ensure `expiresAt` is unix **seconds** — a milliseconds value makes WhatsApp show "Invite expired". |
+
+| **☁️ Cloud: `on('text')` never fires** | No `wa.webhook()` mounted or `messages` field not subscribed. Cloud has no socket — `connect()` alone won't deliver inbound. | Mount `wa.webhook()` on a public HTTPS URL; subscribe `messages`. Webhook works even without `connect()`. |
+| **☁️ Cloud: webhook 403 (GET) / 401 (POST)** | 403 = verify token mismatch; 401 = bad signature (raw body was mutated by a parser). | Match `cloud.verifyToken` to the dashboard; on Express use `express.raw({ type:'*/*' })`; check `cloud.appSecret`. |
+| **☁️ Cloud: every send `(#131047)`** | Outside the 24h window / recipient never texted you. | `wa.sendTemplate(to, name, lang, components)`. |
 
 **LID/PN resolution:** `client.lidToPn(lid)` / `client.pnToLid(pn)` **return `null`** (never throw) when the mapping is unavailable. The `message` umbrella event and its `mentions` are **PN-resolved** — a handler keyed on raw `@lid` mentions will miss; match the resolved PN jid instead.
 

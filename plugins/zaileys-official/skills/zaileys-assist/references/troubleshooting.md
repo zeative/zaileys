@@ -246,3 +246,19 @@ Note: on a reconnecting disconnect, `formatConnectionStatus` returns `null` (no 
 ZAILEYS_DEBUG=trace npx tsx index.ts 2>&1 | tee zaileys-debug.log
 ```
 Report at github.com/zeative/zaileys with the log + runtime (Node/Bun/Deno) version.
+
+## ☁️ Cloud provider (official Meta Cloud API)
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| Webhook GET returns 403 | `hub.verify_token` ≠ your `cloud.verifyToken` | Set the same string in the Meta dashboard **Verify token** and `cloud.verifyToken`. |
+| Webhook POST returns 401 | `X-Hub-Signature-256` invalid — the raw body was mutated | Don't run a body-parser before `wa.webhook()`; on Express use `express.raw({ type: '*/*' })`. Verify `cloud.appSecret` matches the app. |
+| `on('text')` never fires on cloud | No webhook mounted, or `messages` field not subscribed | Mount `wa.webhook()` on a public URL; subscribe the **`messages`** field in the dashboard. Cloud has **no socket** — `connect()` alone won't deliver inbound (but the webhook works even without `connect()`). |
+| Every send fails `(#131047)` | Outside the 24-hour window / recipient never messaged you | Use `wa.sendTemplate(to, name, lang, components)`; free-form only works inside the window. |
+| `(#132000) parameters does not match` | Template `parameters` count ≠ `{{n}}` | `wa.cloud.templates.get(name)` to inspect; pass exactly the right params. |
+| `ZaileysCloudError code AUTH` / `(#190)` | Token expired (24h quick-start token) | Create a **permanent System User** token. |
+| `ZaileysProviderError UNSUPPORTED_ON_CLOUD` | Called a web-only surface (`group`/`newsletter`/`edit`/poll/AIRich…) on cloud | Use the unofficial provider, or the `wa.cloud.*` equivalent. |
+| `ZaileysCloudError CONFIG … wabaId` | A `wa.cloud.*` op needs the WhatsApp Business Account id | Set `cloud.wabaId`. |
+| Duplicate inbound handling | Meta retried the webhook (you didn't ack in ~10s) | zaileys acks immediately; make your handlers **idempotent** (dedupe by message id). |
+
+Full cloud reference: [cloud.md](cloud.md).

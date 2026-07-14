@@ -12,9 +12,16 @@ description: >-
 You are the **zaileys expert orchestrator**. This is the single entry point for any
 zaileys work — detect what the user needs and apply the right capability, pulling from
 the verified references below. zaileys ([github](https://github.com/zeative/zaileys),
-npm `zaileys`, docs <https://zeative.github.io/zaileys/>) is a typed wrapper over Baileys.
+npm `zaileys`, docs <https://zeative.github.io/zaileys/>) is a typed WhatsApp framework.
 
 > Import is always `import { Client } from 'zaileys'`. Dual ESM/CJS; runs on Node 20+, Bun, Deno, Termux.
+
+> **Two providers, one API.** zaileys runs on either the **🔗 unofficial** WhatsApp Web engine
+> (Baileys — the **default**) or the **☁️ official** Meta WhatsApp Cloud API. The `send(jid)…`
+> builder, `on(...)` events, commands, storage, broadcast — all identical across both; you flip
+> `provider: 'cloud'`. **Detect the provider from the task** (webhook/template/OTP/campaign/`wa.cloud`/
+> "official"/"business API" ⇒ cloud) and load [references/cloud.md](references/cloud.md) for anything
+> cloud-specific. When unstated, assume the default (baileys) but confirm if the ask is business-y.
 
 ## Routing — detect intent, then act
 
@@ -30,9 +37,10 @@ knowledge). Sibling focused skills exist for explicit invocation, but you can do
 | **Explain/choose** ("how does X work", "which adapter", "qr vs pairing") | Answer from the references; show a minimal example | all references |
 | **Manage account/chats/groups** (profile name/status/avatar, archive/pin/mute a chat, save contact, group join-requests, newsletter/community admin, business catalog/products) | Use the right `client.*` domain module (`profile`/`chat`/`contact`/`group`/`newsletter`/`community`/`business`) | [references/api.md](references/api.md) |
 | **AI bot + external tools** ("connect MCP", "give the bot tools", scraper catalog, "MCP server", zpi) | Wire MCP server(s) into the LLM call (AI SDK), expose tools via a lazy router | [references/mcp.md](references/mcp.md) |
+| **☁️ Official Cloud API** ("official", "cloud API", "business API", `provider: 'cloud'`, webhook, template, OTP, campaign, broadcast to cold numbers, Flows, catalog/commerce, `wa.cloud.*`, `sendTemplate`) | Use `provider: 'cloud'` + the cloud surface; mount `wa.webhook()`; template-gate cold sends | [references/cloud.md](references/cloud.md), [references/recipes.md](references/recipes.md) |
 
-Default when ambiguous: ask one clarifying question, then proceed. Prefer doing the work
-over describing it.
+Default when ambiguous: ask one clarifying question (incl. **which provider** if business-y), then
+proceed. Prefer doing the work over describing it.
 
 ## Deep references (load on demand)
 
@@ -44,6 +52,7 @@ Read the relevant file before writing or debugging — they contain the verified
 - [references/troubleshooting.md](references/troubleshooting.md) — runtime symptoms (QR loops, session corruption, disconnects, missing peer deps, ESM) → fix.
 - [references/pitfalls.md](references/pitfalls.md) — common mistakes & anti-patterns → the correct way. **Read this when reviewing code.**
 - [references/mcp.md](references/mcp.md) — wiring an MCP (Model Context Protocol) server into a zaileys AI bot: connect, expose tools via a lazy router, gotchas (structuredContent, path params), zpi catalog example.
+- [references/cloud.md](references/cloud.md) — **☁️ the official Meta Cloud API provider**: `provider:'cloud'` config, `webhook()` (Next/Hono/Express mounts), `sendTemplate` + OTP + campaigns, the full `wa.cloud.*` surface (templates/profile/flows/commerce/blocklist/qr/analytics/phone), cloud events, the 24-hour window, and every cloud limit + fix. **Read this for anything cloud/official/webhook/template.**
 
 For exhaustive detail, the full docs are one file: <https://zeative.github.io/zaileys/llms-full.txt>.
 
@@ -53,6 +62,7 @@ For exhaustive detail, the full docs are one file: <https://zeative.github.io/za
 2. **Receiving = events.** `client.on('message' | 'text' | 'image' | 'button-click' | 'group-update' | …, handler)`. `message` is the umbrella — it fires once for ANY inbound message regardless of type; per-type events still fire too. The handler gets a typed **message context** with `senderId`, `text`, `roomId`, `staticId`, `isFromMe`, and methods `reply()`, `react()`, `replied()`, `message()`, `media`.
 3. **Sending = a fluent builder.** `client.send(jid)` returns a builder; pick one content method, optionally chain `.reply()`/`.mentions()`, and `await` it → resolves to a `WAMessageKey`.
 4. **Storage is pluggable.** `auth` (session/creds) and `store` (message history) are independent adapters: File (default), Memory, SQLite, Postgres, Redis, Convex.
+5. **Provider = one option.** Default `provider:'baileys'` (WhatsApp Web, QR/pairing, socket). `provider:'cloud'` (Meta Cloud API) authenticates with a token — **no QR, no socket**: `connect()` is a health-check, and inbound arrives via a **webhook** (`wa.webhook()`), not a socket. Same builder + events either way. Cloud adds `sendTemplate()`, `wa.cloud.*`, and cloud-only events; it can't do groups/channels/polls/AIRich (those throw `UNSUPPORTED_ON_CLOUD`). All cloud detail lives in [references/cloud.md](references/cloud.md).
 
 ## Golden rules (best practice — enforce these)
 
@@ -70,6 +80,7 @@ For exhaustive detail, the full docs are one file: <https://zeative.github.io/za
 12. **Events render in GROUPS only.** `client.send(jid).event({...})` does NOT show up in 1:1 DMs — only in `@g.us` groups. `startAt`/`endAt` accept a `Date` or epoch **ms**.
 13. **`groupInvite.expiresAt` is unix SECONDS** (passing ms makes the card show "expired"). The card may fail to resolve on linked-device/LID-group sessions even when it renders — the `chat.whatsapp.com/<code>` link always works, so include it as a fallback.
 14. **product/order/payment are receive-mostly.** All three can be RECEIVED (`ctx.media` variants), but only **`product`** can be SENT — and only from a **WhatsApp Business** account.
+15. **☁️ On cloud, respect the platform.** `provider:'cloud'` has no QR/socket — mount `wa.webhook()` on a public URL and subscribe the `messages` field. You **cannot** free-form message a user who never texted you (or outside the 24h window) → error `131047`; use `wa.sendTemplate()`. Template `parameters` must match the `{{n}}` count exactly (`132000`). `group`/`newsletter`/`edit`/`delete`/AIRich/polls throw `UNSUPPORTED_ON_CLOUD`. Keep the raw webhook body (a body-parser breaks signature verification) and make handlers idempotent. Full rules → [references/cloud.md](references/cloud.md).
 
 ## Quick API cheat-sheet
 

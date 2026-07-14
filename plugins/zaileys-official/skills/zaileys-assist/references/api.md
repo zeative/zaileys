@@ -1,6 +1,27 @@
 # zaileys API Reference
 
-Dense, source-verified API surface for implementing zaileys (WhatsApp client over baileys). Import: `import { Client } from 'zaileys'`. JIDs: user `628xxx@s.whatsapp.net`, group `xxx@g.us`, newsletter `xxx@newsletter`.
+Dense, source-verified API surface for implementing zaileys. Import: `import { Client } from 'zaileys'`. JIDs: user `628xxx@s.whatsapp.net`, group `xxx@g.us`, newsletter `xxx@newsletter`.
+
+## Providers (🔗 unofficial / ☁️ official)
+
+zaileys has **two providers** behind one `Client`. `provider` defaults to `'baileys'`.
+
+| | 🔗 `provider: 'baileys'` (default) | ☁️ `provider: 'cloud'` |
+|---|---|---|
+| Engine | WhatsApp Web (Baileys) | Meta WhatsApp **Cloud API** (Graph + webhooks) |
+| Auth | QR / pairing code | `cloud: { accessToken, phoneNumberId, wabaId?, verifyToken?, appSecret? }` |
+| Inbound | socket events | `wa.webhook()` handler (push) |
+| Exclusive | groups, channels, communities, polls, presence, edit/delete, AIRich | templates/OTP, campaigns, Flows, commerce, `wa.cloud.*`, `message-status` |
+
+**Everything below (the send builder, events, message context, commands, storage, automation) is
+shared and works on BOTH providers** — except the surfaces flagged **🔗 unofficial-only** below,
+which throw `ZaileysProviderError('UNSUPPORTED_ON_CLOUD')` on cloud:
+`client.group` / `newsletter` / `community` / `privacy` / `presence` / `chat` / `contact` /
+`business` / `profile`, and `client.edit` / `delete` / `pin` / `unpin` / `setDisappearing`, plus
+carousels, polls, and AIRich (`rich: true`).
+
+For the full cloud surface (webhook, `sendTemplate`, `wa.cloud.*`, cloud events, limits) →
+**[cloud.md](cloud.md)**.
 
 ## Quick start
 
@@ -22,6 +43,8 @@ client.on('text', async (msg) => { if (msg.text === 'ping') await msg.reply('pon
 
 | option | type | default | note |
 |---|---|---|---|
+| `provider` | `'baileys' \| 'cloud'` | `'baileys'` | `'cloud'` requires `cloud` (see [cloud.md](cloud.md)) |
+| `cloud` | `CloudOptions` | — | `{accessToken,phoneNumberId,wabaId?,verifyToken?,appSecret?,apiVersion?,baseUrl?}`; required for `provider:'cloud'` |
 | `sessionId` | `string` | `'default'` | namespaces auth dir + scheduler |
 | `authType` | `'qr' \| 'pairing'` | `'qr'` | `'pairing'` REQUIRES `phoneNumber` (else `connect()` rejects) |
 | `phoneNumber` | `string` | — | digits only, no `+`; required for pairing |
@@ -342,6 +365,8 @@ client.command('add user', async (ctx) => { /* multi-word path */ })
 ---
 
 ## Domain namespaces
+
+> **🔗 unofficial-only.** All modules below (`group`/`profile`/`chat`/`contact`/`business`/`privacy`/`newsletter`/`community`/`presence`) throw `ZaileysProviderError('UNSUPPORTED_ON_CLOUD')` on `provider:'cloud'`. The cloud equivalent for account/business ops is `wa.cloud.*` — see [cloud.md](cloud.md).
 
 ### `client.group` (GroupModule)
 

@@ -47,23 +47,27 @@ import { PluginRegistry, PluginLoader, type PluginHost } from '../plugin/index.j
 import type { PluginsOptions } from '../plugin/types.js'
 import {
   AutoDeleteSweeper,
+  AutoRejectCallModule,
   createOperationGuard,
   PresenceModule,
   RateLimiter,
   runBroadcast,
   Scheduler,
   type AutoDeleteOptions,
+  type AutoRejectCallOptions,
   type AutomationSocketLike,
+  type CallSocketLike,
   type BroadcastOptions,
   type BroadcastResult,
   type OperationGuard,
   type PresenceThrottleOptions,
   type ScheduleHandle,
   type ScheduledContentSnapshot,
+  ZaileysAutomationError,
 } from '../automation/index.js'
 import type { CitationConfig, MessageContext } from '../events/context.js'
 import { createDownloadFn } from '../events/decoders/_media-download.js'
-import type { MediaDownloadResult, MediaKind } from '../events/types.js'
+import type { CallPayload, MediaDownloadResult, MediaKind } from '../events/types.js'
 import {
   formatConnectionStatus,
   suppressLibsignalNoise,
@@ -185,6 +189,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private _presence?: PresenceModule
   private _scheduler?: Scheduler
   private readonly autoDeleteOptions: AutoDeleteOptions | undefined
+  private readonly autoRejectCall: AutoRejectCallModule
   private autoDeleteSweeper: AutoDeleteSweeper | undefined
   private readonly pluginsOptions: PluginsOptions | undefined
   private pluginRegistry: PluginRegistry | undefined
@@ -222,6 +227,18 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.commandPrefixes = normalizePrefixes(options.commandPrefix)
     this.citationConfig = options.citation
     this.ignoreMe = options.ignoreMe ?? true
+    this.autoRejectCall = new AutoRejectCallModule(
+      () => this._socket as unknown as CallSocketLike | undefined,
+      options.autoRejectCall === true
+        ? { enabled: true }
+        : options.autoRejectCall === false || options.autoRejectCall === undefined
+          ? {}
+          : options.autoRejectCall,
+      this.logger,
+    )
+    if (this._provider === 'baileys' && this.autoRejectCall.enabled) {
+      this.on('call-incoming', (call) => void this.autoRejectCall.handle(call))
+    }
     this.autoDeleteOptions =
       options.autoDelete === false
         ? undefined
@@ -760,6 +777,26 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
 
   async react(key: WAMessageKey, emoji: string): Promise<WAMessageKey> {
     return reactToMessage(this.requireBuilderSocket(), key, emoji)
+  }
+
+  /**
+   * Reject an incoming call (🔗 unofficial only — the Cloud API has no calls). Pass the
+   * `call-incoming` payload directly, or the raw `callId` + caller jid.
+   */
+  async rejectCall(call: Extract<CallPayload, { kind: 'incoming' }>): Promise<void>
+  async rejectCall(callId: string, from: string): Promise<void>
+  async rejectCall(
+    callOrId: Extract<CallPayload, { kind: 'incoming' }> | string,
+    from?: string,
+  ): Promise<void> {
+    this.assertWebProvider('rejectCall')
+    if (typeof callOrId === 'string') {
+      if (typeof from !== 'string' || from.length === 0) {
+        throw new ZaileysAutomationError('NOT_CONNECTED', 'rejectCall(callId, from) requires the caller jid')
+      }
+      return this.autoRejectCall.reject(callOrId, from)
+    }
+    return this.autoRejectCall.reject(callOrId.callId, callOrId.from)
   }
 
   /** Cloud provider only: management surface (templates, profile, flows, blocklist, qr, analytics, phone). */

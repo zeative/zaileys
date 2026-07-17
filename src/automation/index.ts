@@ -27,3 +27,5 @@ export {
 export type { ScheduledJobRecord } from '../store/types.js'
 export { AutoDeleteSweeper, genericPrune } from './auto-delete.js'
 export type { AutoDeleteOptions } from './auto-delete.js'
+export { AutoRejectCallModule } from './auto-reject-call.js'
+export type { AutoRejectCallOptions, CallAllowList, CallSocketLike } from './auto-reject-call.js'

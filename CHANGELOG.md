@@ -1,5 +1,11 @@
 # zaileys
 
+## 4.8.5
+
+### Patch Changes
+
+- 23d3f6a: Fix the docs site search: the Pagefind index was never generated, so the search box failed with "Failed to load search index. TypeError: Importing a module script failed." The docs build now indexes the static export into `_pagefind/` after `next build`.
+
 ## 4.8.4
 
 ### Patch Changes

@@ -1,153 +1,156 @@
-# Plan — Auto-reject calls (`autoRejectCall` config + `client.rejectCall()` method)
+# Plan — WhatsApp Calling (official provider)
 
-Team ask: auto-reject incoming WhatsApp calls, **toggleable via `Client` config**, and **expose the
-method** so it can be called manually. Then update docs.
+## Feasibility verdict (investigated, not assumed)
 
-## Findings (read-only investigation)
+**YES — but only on the ☁️ official provider, and only the signaling layer.**
 
-- **Primitive exists**: baileys exposes `rejectCall(callId: string, callFrom: string): Promise<void>`
-  (`node_modules/baileys/lib/Socket/index.d.ts:66`). No wrapper in zaileys today (`grep rejectCall src/` = 0).
-- **Call events already wired**: `call-incoming` / `call-ended` emit `CallPayload`
-  (`{ callId, from, isGroup, isVideo, timestamp, status }`) — `src/events/decoders/calls.ts`,
-  `src/events/pipeline.ts:274`.
-- **Toggle pattern to mirror**: `autoDelete?: AutoDeleteOptions | false` in `ClientOptions` →
-  `AutoDeleteSweeper` module in `src/automation/`, constructed in the Client ctor, started on connect,
-  stopped on close. `PresenceModule` shows the options+method shape.
-- **Provider dimension (blast radius)**: calls are **WhatsApp-Web-only**. The Cloud API provider has no
-  call events, so `rejectCall()` must throw `ZaileysProviderError('UNSUPPORTED_ON_CLOUD')` like
-  `edit`/`delete`/`pin`, and `autoRejectCall` must be inert on cloud (never wired).
+| Path | Verdict | Evidence |
+| --- | --- | --- |
+| 🔗 **Unofficial (baileys)** — place/answer calls | ❌ **Not possible** | baileys' entire call surface is `rejectCall(callId, callFrom)`. No `offerCall`/`placeCall`/`acceptCall`, and **no WebRTC/SRTP media stack** (grep of `node_modules/baileys` = signaling-receive + reject only). Building it = reverse-engineering WhatsApp's E2E call transport — a separate research project, not a zaileys feature. |
+| ☁️ **Official (Cloud API Calling)** | ✅ **Possible & GA** | Meta's **WhatsApp Business Calling API** is generally available: users can call the business (global), businesses can call users (permission-gated, blocked in US/CA/EG/VN/NG). Architecture = **webhook-driven signaling + SDP exchange** — the exact model zaileys already implements for messaging. |
 
-## Design (decided)
+### The honest boundary (read before approving)
 
-```ts
-// config — OFF by default (rejecting calls is destructive; must be opt-in)
-new Client({ autoRejectCall: true })
-new Client({ autoRejectCall: { enabled: true, allow: ['628owner@s.whatsapp.net'], onReject: (call) => … } })
+The Calling API splits in two:
 
-// method — accepts the event payload OR raw ids
-await client.rejectCall(call)               // call = CallPayload from 'call-incoming'
-await client.rejectCall(callId, from)
-```
+1. **Signaling** — the WhatsApp-specific part: a `calls` webhook delivers an **SDP offer**; you reply via
+   `POST /{phoneNumberId}/calls` with an action (`pre_accept` / `accept` / `reject` / `terminate`, plus
+   business-initiated connect) and your **SDP answer**. This is HTTP + webhook → **100% zaileys territory**,
+   and it reuses everything we already built (graph client, webhook handler, event pipeline).
+2. **Media** — the actual audio (OPUS over WebRTC/SRTP). This needs a media stack (`werift`,
+   `node-datachannel`, or a SIP/media server). **zaileys will NOT bundle a WebRTC stack** — that's a
+   different library's job and would drag a huge native dep into a messaging framework.
 
-`AutoRejectCallOptions = { enabled?: boolean; allow?: string[] | ((jid: string) => boolean | Promise<boolean>); onReject?: (call) => void | Promise<void> }`
-— `allow` = whitelist (skip rejecting these callers, mirrors the `citation` predicate style);
-`onReject` = post-reject hook (e.g. send "sorry, calls not supported"). Keep it lean — no
-video/voice/group sub-filters until asked (`isVideo`/`isGroup` are already on the payload, so users
-can filter inside `allow`).
+**So v1 ships**: zaileys owns signaling + call control + permissions, and **hands you the SDP offer** so you
+plug in whatever media stack you want (documented recipe with `werift`). Without a media stack you can still
+do everything that doesn't need audio: **detect calls, reject them, terminate them, manage permissions** —
+which is what most bots actually want.
+
+<!-- If the team wants zaileys to also carry audio end-to-end, that's a separate, much bigger project
+     (bundled WebRTC + jitter buffer + codec plumbing). Not in this plan. -->
 
 ## Dependency graph
 
 ```
-        ┌──────────────────────────────────────┐
-        │ T1 automation/auto-reject-call.ts    │  module: options, allow-predicate, reject+hook
-        │    + unit tests                       │  (pure, socket injected)
-        └───────────────┬──────────────────────┘
-                        ▼
-        ┌──────────────────────────────────────┐
-        │ T2 Client wiring                      │  ClientOptions.autoRejectCall, ctor, attach on
-        │    + client.rejectCall() + guard      │  connect (baileys only), web-only guard, exports
-        └───────────────┬──────────────────────┘
-                ┌───────┴────────┐
-                ▼                ▼
-        ┌───────────────┐  ┌──────────────────┐
-        │ T3 docs site  │  │ T4 skill suite   │   (independent of each other)
-        └───────┬───────┘  └────────┬─────────┘
-                └────────┬──────────┘
-                         ▼
-                 ┌───────────────┐
-                 │ T5 changeset  │  minor + release-ready
-                 └───────────────┘
+        ┌──────────────────────────────────────────────────┐
+        │ T0 SPIKE — verify the real Calling API surface     │  BLOCKS EVERYTHING
+        │ exact endpoints, actions, payload + webhook shapes │  (no invented API)
+        └───────────────────────┬──────────────────────────┘
+                                ▼
+        ┌──────────────────────────────────────────────────┐
+        │ T1 inbound: `calls` webhook → typed call events    │  (SDP offer surfaced)
+        └───────────────────────┬──────────────────────────┘
+                    ┌───────────┴───────────┐
+                    ▼                       ▼
+        ┌──────────────────────┐  ┌──────────────────────────┐
+        │ T2 call control       │  │ T3 business-initiated     │
+        │ preAccept/accept/     │  │ initiate + call           │
+        │ reject/terminate      │  │ permissions               │
+        └───────────┬──────────┘  └────────────┬─────────────┘
+                    └───────────┬──────────────┘
+                                ▼
+                 ┌──────────────────────────────┐
+                 │ T4 docs + skill + changeset   │  (incl. werift media recipe)
+                 └──────────────────────────────┘
 ```
 
-- **T1 blocks T2** (Client constructs the module).
-- **T3 / T4 need T2** (document the shipped API); independent of each other.
-- **T5** last.
+- **T0 blocks all** — every later task depends on verified request/response shapes.
+- **T2 / T3** both need T1's event + types; independent of each other.
+- **T4** last.
 
 ## Phases & checkpoints
 
-- **Phase A = T1 + T2.** → 🚩 CP1: feature works + guarded; full suite green; typecheck clean.
-- **Phase B = T3 + T4.** → 🚩 CP2: docs site builds; skill synced (`diff -r` clean).
-- **Phase C = T5.** → 🚩 CP3: changeset in; ready to release (publish = user's call).
+- **Phase A = T0.** → 🚩 **CP1 (hard gate)**: the real API surface documented from Meta docs + a live probe
+  against our sandbox WABA. **If the shapes can't be verified, STOP and report** — do not invent payloads.
+- **Phase B = T1.** → 🚩 CP2: an inbound call fires a typed event carrying the SDP; suite green.
+- **Phase C = T2 + T3.** → 🚩 CP3: full call control + permissions; suite green.
+- **Phase D = T4.** → 🚩 CP4: docs/skill/changeset; ready to release.
 
 ---
 
 ## Tasks
 
-### T1 — `src/automation/auto-reject-call.ts` + unit tests
+### T0 — SPIKE: verify the Calling API surface (blocking)
 
-Module owning the policy. Socket + logger injected (testable, no Client dependency).
+Read Meta's Calling API docs **and probe the live Graph API** with the sandbox WABA in `.env`
+(`WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID`, `META_WABA_ID`) — read-only calls first.
 
-```ts
-export interface AutoRejectCallOptions { enabled?: boolean; allow?: …; onReject?: … }
-export interface CallSocketLike { rejectCall(callId: string, callFrom: string): Promise<void> }
-export class AutoRejectCallModule {
-  constructor(getSocket: () => CallSocketLike | undefined, options: AutoRejectCallOptions, logger?)
-  reject(callId: string, from: string): Promise<void>     // raw reject (used by the public method)
-  handle(call: CallPayload): Promise<void>                 // policy: allow-check → reject → onReject
-}
-```
+Capture, verbatim:
+- `POST /{phoneNumberId}/calls` — exact body per action (`pre_accept`/`accept`/`reject`/`terminate`,
+  business-initiated connect), incl. `call_id` and the `session: { sdp_type, sdp }` shape.
+- Call **permissions**: request + status endpoints, and how a permission is requested from a user.
+- The `calls` **webhook** payload (connect/terminate/status), incl. where the SDP offer lives.
+- Enablement prerequisites: `calls` webhook field subscription, call features toggle on the number,
+  business-initiated country blocks + rate limits (sandbox 25/day vs prod 1/day).
 
-- *Accept*: `handle()` rejects a call when enabled; **skips** when the caller matches `allow`
-  (array or predicate); runs `onReject` **after** a successful reject; a throwing `onReject` or
-  `rejectCall` is logged, never crashes the client; `reject()` throws a typed error when there's no
-  socket (not connected).
-- *Verify*: `tests/automation/auto-reject-call.test.ts` — enabled/disabled, allow-array, allow-predicate
-  (sync+async), onReject called once with the payload, reject failure swallowed+logged, no-socket error.
+- *Accept*: a written, source-cited surface note (`tasks/calling-api-notes.md`) with **zero invented
+  fields**; every shape traced to a Meta doc URL or a live response.
+- *Verify*: `curl`/probe transcript for at least: read call settings on our number, and the docs URL for
+  each endpoint. Flag anything unverifiable as **UNKNOWN** rather than guessing.
 
-### T2 — Client wiring + public `rejectCall()` + guards
+🚩 **CP1 — hard gate.** Report findings. If Meta's docs contradict this plan (e.g. media can't be
+delegated), re-plan before writing code.
 
-- `ClientOptions.autoRejectCall?: boolean | AutoRejectCallOptions` (default **off**), normalized in the
-  ctor (`true` → `{ enabled: true }`).
-- Construct the module; **attach to `call-incoming` only on the baileys provider** when enabled
-  (wire where the inbound pipeline is attached; detach on close alongside the other handles).
-- Public method `client.rejectCall(callOrId: CallPayload | string, from?: string): Promise<void>` —
-  `assertWebProvider('rejectCall')` first (throws `UNSUPPORTED_ON_CLOUD` on cloud), then delegate.
-- Export `AutoRejectCallOptions` from `src/automation/index.ts` (and thus the package root).
-- *Accept*: `new Client({ autoRejectCall: true })` auto-rejects an emitted `call-incoming`;
-  default (unset) does **not** reject; `client.rejectCall(call)` and `client.rejectCall(id, from)` both
-  work; on `provider:'cloud'` the method throws `UNSUPPORTED_ON_CLOUD` and the config is never wired;
-  handlers detach on disconnect (no double-reject after reconnect).
-- *Verify*: `tests/client/auto-reject-call.test.ts` with the existing mock socket
-  (`makeIntegrationSocket` + `triggerCall`-style ev emit): toggle on/off, both method arities, cloud
-  guard, allow-list end-to-end. Then `pnpm test` (full suite) + `npx tsc --noEmit`.
+### T1 — Inbound: `calls` webhook → typed events
 
-🚩 **CP1** — feature + guard done; 2482+ tests green; typecheck clean.
+- Extend `src/cloud/translate/inbound.ts` to parse the `calls` change field.
+- Surface via the **existing** `call-incoming` / `call-ended` events (unified DX) with cloud-only optional
+  fields (`sdp`, `session`, `direction`, `callStatus`), so `client.on('call-incoming')` works on **both**
+  providers; add a cloud `call-status` event if the spike shows a distinct status stream.
+- Webhook already verifies signature + dispatches — reuse untouched.
+- *Accept*: a real `calls` webhook fixture → typed event with the SDP offer intact; existing message/status
+  webhooks unaffected.
+- *Verify*: `tests/cloud/webhook-calls.test.ts` (fixture → event), full suite green.
 
-### T3 — Docs site
+🚩 **CP2**.
 
-- `docs/content/configuration.mdx` — add the `autoRejectCall` row/section (type, default `false`,
-  options table, examples incl. `allow` + `onReject`).
-- `docs/content/events.mdx` — under the call events, cross-link auto-reject + `client.rejectCall()`.
-- `docs/content/api-reference.mdx` — add `rejectCall` to the client-methods list.
-- `docs/content/providers.mdx` + `docs/content/official/limits.mdx` — mark calls / `rejectCall` as
-  **🔗 unofficial-only** (they don't exist on the Cloud API).
-- *Verify*: `cd docs && npm run build` → clean; `out/index.html` present.
+### T2 — Call control: `wa.cloud.calls.*`
 
-### T4 — Skill suite (canonical `skills/*`, then sync)
+`preAccept(callId, sdp)` · `accept(callId, sdp)` · `reject(callId)` · `terminate(callId)` — thin, typed
+wrappers over the verified `POST /{phoneNumberId}/calls` actions, on the existing graph client.
 
-- `references/api.md` — `autoRejectCall` in the ClientOptions table; `rejectCall` in client methods;
-  flag as unofficial-only.
-- `references/recipes.md` — a short "auto-reject calls" recipe (config + manual + notify-caller hook).
-- `zaileys-review/SKILL.md` quick-cues — `rejectCall` in the method list.
-- `npm run skill:sync` → `diff -r skills plugins/zaileys-official/skills` clean.
-- *Verify*: snippets match the shipped API exactly (grep against `src/`); diff clean.
+- Also: make the existing **`client.rejectCall()` work on cloud** (today it throws `UNSUPPORTED_ON_CLOUD`)
+  by routing to `wa.cloud.calls.reject()` — one API, both providers. Update the guard + its test.
+- *Accept*: each method issues the exact verified body; `rejectCall` no longer throws on cloud;
+  `autoRejectCall` works on the cloud provider too (wire it for both once calls exist there).
+- *Verify*: `tests/cloud/calls.test.ts` (mock fetch, assert exact bodies) + update
+  `tests/client/auto-reject-call.test.ts` cloud expectations; full suite.
 
-🚩 **CP2** — docs build green; skill synced.
+### T3 — Business-initiated calls + permissions
 
-### T5 — Changeset
+- `wa.cloud.calls.initiate(to, { sdp })` (or the verified equivalent) + `wa.cloud.calls.permissions.request(to)` /
+  `.get(to)`.
+- Surface the country/rate limits from T0 as typed errors + doc'd ceilings.
+- *Accept*: exact bodies; a permission-denied path surfaces a clear `ZaileysCloudError`.
+- *Verify*: `tests/cloud/calls-permissions.test.ts`.
 
-- `.changeset/*.md` **minor** (additive feature): config `autoRejectCall` + `client.rejectCall()`.
-- *Verify*: `npx changeset version` dry-sane (do NOT version/publish without the user's go-ahead).
+🚩 **CP3**.
 
-🚩 **CP3** — ready to release.
+### T4 — Docs + skill + changeset
+
+- Docs: new `official/calling.mdx` (setup/enablement, inbound flow, control actions, permissions, limits,
+  **and an explicit "you supply the media stack" section** + a `werift` answer-SDP recipe). Update
+  `providers.mdx` (calls: 🔗 reject-only / ☁️ full signaling), `official/limits.mdx`, `events.mdx`.
+- Skill: `references/cloud.md` (calls section), `recipes.md` (answer-a-call recipe), api.md cues; `skill:sync`.
+- Changeset: **minor**.
+- *Verify*: `docs && npm run build` clean; `diff -r skills plugins/.../skills` clean.
+
+🚩 **CP4** — ready to release (publish on the user's go-ahead).
 
 ## Risks
 
-- **Destructive default** — auto-rejecting calls without opt-in would surprise users. Mitigate: default
-  **off**; `true` must be explicit.
-- **Double-reject / leaks after reconnect** — the `call-incoming` handler must be detached with the
-  other pipeline handles. Mitigate: attach/detach beside the existing `inboundHandle` lifecycle; test
-  reconnect.
-- **Provider drift** — calls are web-only; forgetting the guard means a confusing cloud crash.
-  Mitigate: `assertWebProvider` + a cloud-guard test (T2), docs/skill flagged (T3/T4).
-- **Hook failures** — a user `onReject` that throws must not kill the client. Mitigate: catch+log (T1).
+- **Inventing API** (highest) — the reference doc 404'd during research; shapes are only partly confirmed.
+  Mitigate: **T0 is a hard gate**; anything unverified ships as UNKNOWN, not a guess.
+- **Media expectation gap** — the team may expect zaileys to carry audio. Mitigate: the boundary is stated
+  up front here and will be loud in the docs; ship the `werift` recipe so it's usable, not theoretical.
+- **Enablement friction** — calling must be toggled on the number; business-initiated needs ≥2,000 daily
+  messaging limit + permission, and is blocked in US/CA/EG/VN/NG. Mitigate: document; test inbound first
+  (GA globally, no permission needed).
+- **Can't live-test audio** — our sandbox may not have calling enabled. Mitigate: fixture-driven tests for
+  signaling; flag live-call verification as a separate manual step for the user.
+
+## Sources
+
+- [Meta — WhatsApp Cloud API Calling](https://developers.facebook.com/docs/whatsapp/cloud-api/calling)
+- [WhatsApp Business Calling API overview (2026)](https://hyperleap.ai/whatsapp-business-api/calling-api)
+- [Integrating WhatsApp Calling API with WebRTC](https://medium.com/@arslan.ali1396/how-to-integrate-whatsapp-calling-api-in-your-web-app-using-webrtc-5c073041e819)

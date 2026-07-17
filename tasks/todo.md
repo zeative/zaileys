@@ -1,18 +1,21 @@
-# Todo — Auto-reject calls (`autoRejectCall` + `client.rejectCall()`)
+# Todo — WhatsApp Calling (official provider)
 
-Plan: [plan.md](plan.md). Default **off** (opt-in). Calls are 🔗 unofficial-only — cloud must throw
-`UNSUPPORTED_ON_CLOUD`. 🚩 = review checkpoint.
+Plan: [plan.md](plan.md). **Verdict**: possible on ☁️ official only (Cloud Calling API, GA). zaileys owns
+**signaling**; the **media stack (audio) is the user's** — we hand over the SDP. 🔗 baileys can only reject.
 
-## Phase A — Feature
-- [ ] T1 `src/automation/auto-reject-call.ts` — options, `allow` predicate/array, `reject()`, `handle()` (+ onReject hook, failures logged not thrown) + unit tests
-- [ ] T2 Client wiring — `ClientOptions.autoRejectCall` (`boolean | AutoRejectCallOptions`, default off), attach on `call-incoming` (baileys only), public `client.rejectCall(call | id, from?)` + `assertWebProvider` guard, export type + tests
-- [ ] 🚩 CP1: feature works + cloud guard; full suite + typecheck green
+## Phase A — Spike (hard gate)
+- [ ] T0 verify the real Calling API surface (endpoints, actions, bodies, `calls` webhook shape, permissions, limits) from Meta docs + live probe with the sandbox WABA → `tasks/calling-api-notes.md`, **zero invented fields**
+- [ ] 🚩 CP1 **GATE**: report findings; re-plan if docs contradict. Do NOT write code on guessed payloads.
 
-## Phase B — Docs
-- [ ] T3 docs site — `configuration.mdx` (option), `events.mdx` (cross-link), `api-reference.mdx` (method), `providers.mdx` + `official/limits.mdx` (unofficial-only); `npm run build` clean
-- [ ] T4 skill suite — `references/api.md` (option+method), `references/recipes.md` (recipe), `zaileys-review` cues; `npm run skill:sync` + `diff -r` clean
-- [ ] 🚩 CP2: docs build green; skill synced
+## Phase B — Inbound
+- [ ] T1 parse the `calls` webhook → typed `call-incoming` / `call-ended` (+ SDP, direction, status) on cloud; fixture test
+- [ ] 🚩 CP2: inbound call fires a typed event with the SDP; suite green
 
-## Phase C — Release prep
-- [ ] T5 changeset (**minor**) — additive feature
-- [ ] 🚩 CP3: ready to release (publish only on user's go-ahead)
+## Phase C — Control
+- [ ] T2 `wa.cloud.calls.preAccept/accept/reject/terminate` + make `client.rejectCall()` + `autoRejectCall` work on cloud (drop the guard)
+- [ ] T3 business-initiated `calls.initiate()` + `calls.permissions.request/get` + typed limit errors
+- [ ] 🚩 CP3: full control + permissions; suite green
+
+## Phase D — Ship
+- [ ] T4 docs (`official/calling.mdx` incl. **"you supply the media stack"** + werift recipe, providers/limits/events) + skill (`cloud.md`, recipes) + `skill:sync` + **minor** changeset
+- [ ] 🚩 CP4: docs build + skill diff clean; ready to release

@@ -224,7 +224,7 @@ WHY: inbound is push + HMAC-verified; a body-parser corrupts the signature.
   presence, newsletter`. Connection: `connect, disconnect, qr, pairing-code, reconnecting,
   auth-exhausted, error`.
 - Client methods: `connect, disconnect, logout, send, edit, delete, react, forward,
-  broadcast, scheduleAt, pin, unpin, setDisappearing, command, use, on, off`. `autoConnect`
+  broadcast, scheduleAt, pin, unpin, setDisappearing, rejectCall, command, use, on, off`. `autoConnect`
   defaults `true`.
 - Typed modules: `client.profile` (setName/setStatus/setPicture/removePicture/getPicture/
   getStatus), `client.chat` (archive/unarchive/pin/unpin/mute/unmute/markRead/markUnread/star/

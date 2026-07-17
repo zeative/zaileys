@@ -60,6 +60,7 @@ client.on('text', async (msg) => { if (msg.text === 'ping') await msg.reply('pon
 | `commandPrefix` | `string \| string[]` | — | enables `.command()`; empty/undefined ⇒ commands disabled |
 | `citation` | `CitationConfig` | — | `{authors?, banned?}`: each `string[] \| (jid)=>boolean\|Promise<boolean>` |
 | `ignoreMe` | `boolean` | `true` | drop self-authored inbound messages |
+| `autoRejectCall` | `boolean \| AutoRejectCallOptions` | `false` (off) | 🔗 **unofficial-only**. `true` = reject every incoming call. Object: `{ enabled?, allow?: string[] \| (jid)=>boolean\|Promise<boolean>, onReject?: (call)=>void\|Promise<void> }`. `allow` entries match full jid or digits; `allow`/`onReject` throws are logged, never fatal |
 
 ### Properties & lifecycle methods
 
@@ -325,6 +326,13 @@ Programmatic `AIRichPart` union also supports `product`/`reels`/`post` with full
 ---
 
 ## Mutations
+
+`client.rejectCall(call | callId, from?)` → `Promise<void>` — 🔗 **unofficial-only** (throws `UNSUPPORTED_ON_CLOUD` on cloud). Accepts the `call-incoming` payload OR raw `(callId, from)`. Throws `ZaileysAutomationError('NOT_CONNECTED')` if the socket is gone. Pair with the `autoRejectCall` option for hands-off rejecting.
+
+```typescript
+client.on('call-incoming', (call) => client.rejectCall(call))
+```
+
 
 | method | signature | note |
 |---|---|---|

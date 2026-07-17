@@ -697,6 +697,34 @@ await wa.cloud.flows.send(to, { flowId: 'FLOW1', cta: 'Isi form', bodyText: 'Boo
 
 ---
 
+## 20. 🔗 Auto-reject incoming calls (unofficial only)
+
+```typescript
+// hands-off: reject every call, tell the caller why, let the owner through
+const client = new Client({
+  autoRejectCall: {
+    enabled: true,
+    allow: [process.env['OWNER']!],                    // full jid or bare digits both match
+    onReject: async (call) => {
+      await client.send(call.from).text('Maaf, nomor ini tidak menerima telepon 🙏')
+    },
+  },
+})
+
+// shorthand — reject everything, no hook
+const client = new Client({ autoRejectCall: true })
+
+// manual: decide per call (leave the option off)
+client.on('call-incoming', async (call) => {
+  if (call.isVideo || call.isGroup) await client.rejectCall(call)
+})
+```
+
+`allow` / `onReject` failures are caught + logged (never crash the client). `client.rejectCall()`
+throws on failure so you can handle it. Cloud provider has no calls → `UNSUPPORTED_ON_CLOUD`.
+
+---
+
 ## Diagnostics
 
 | Symptom | Cause | Fix |

@@ -214,6 +214,7 @@ No amount of config unlocks these — they're not in the Cloud API:
 | AIRich rich bubble (`rich: true`), rendered tables | ❌ WhatsApp-Web-only proto | Send plain text (see below); `rich: true` throws a clear error on cloud |
 | Edit / delete / pin / disappearing | ❌ | Send a correction message |
 | Presence (others' online/typing) | ❌ | — |
+| Calls / auto-reject calls | ❌ no call events in the Cloud API | Use the [unofficial provider](/unofficial) (`autoRejectCall`, `client.rejectCall()`) |
 | Status / stories | ❌ | Unofficial provider |
 | Read arbitrary chat history | ❌ | Persist inbound to your own [store](/storage) |
 

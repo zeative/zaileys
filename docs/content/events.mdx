@@ -112,6 +112,12 @@ See [Interactive Messages](/interactive) for how to send buttons, lists, templat
 | --- | --- | --- |
 | `call-incoming` | `CallPayload` (`kind: 'incoming'`) | An incoming call. `{ callId, from, isGroup, isVideo, timestamp, status?, kind }`. |
 | `call-ended` | `CallPayload` (`kind: 'ended'`) | A call ended. Same shape as above with `kind: 'ended'`. |
+
+<Callout type="info">
+🔗 Calls are **unofficial-provider only**. To hang up automatically, set
+[`autoRejectCall`](/configuration#autorejectcall); to do it yourself, call
+`client.rejectCall(call)` (or `client.rejectCall(callId, from)`) from a `call-incoming` handler.
+</Callout>
 | `presence` | `PresencePayload` | A contact's presence changed. `{ jid, participant?, status }` where `status` is `available \| unavailable \| composing \| recording \| paused`. |
 | `history-sync` | `HistorySyncPayload` | A history sync batch progressed. `{ syncType, status: 'complete' \| 'paused', explicit }`. |
 | `newsletter` | `NewsletterPayload` | A newsletter/channel event (reaction, view, participants, settings). `{ newsletterId, timestamp, action, ... }`. |

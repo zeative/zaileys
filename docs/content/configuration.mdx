@@ -42,6 +42,7 @@ const client = new Client({ sessionId: 'default' })
 | `operationGuard` | `OperationGuardOptions` | on (spaces group/community/newsletter ops) | Serializes and rate-limits sensitive group / community / newsletter operations per category so rapid bulk actions don't trip a ban. |
 | `presence` | `PresenceThrottleOptions` | on (drops duplicate presence) | Drops repeated presence updates (typing / recording / online) for the same chat within a short window. |
 | `scheduleRateLimitPerSec` | `number` | `1` (`0` disables) | Max scheduled messages dispatched per second, smoothing out a backlog of overdue jobs so they don't all fire at once. |
+| `autoRejectCall` | `boolean \| AutoRejectCallOptions` | `false` (off) | 🔗 **Unofficial only.** Auto-reject incoming WhatsApp calls. `true` rejects every call; pass an object for an allow-list and an `onReject` hook. |
 | `autoDelete` | `AutoDeleteOptions \| false` | `on (1-month retention)` | Periodically prune old messages from the local store. See [Auto-Delete](/auto-delete). |
 | `plugins` | `PluginsOptions` | `undefined` | Load and hot-reload plugins from a folder. See [Plugins](/plugins). |
 | `autoConnect` | `boolean` | `true` | When `true`, the constructor calls `connect()` on the next microtask. Set `false` to connect manually. |
@@ -525,6 +526,59 @@ const client = new Client({
   Do not set `auth` or `logger` here — the client forces them and your values are ignored. Use the
   top-level `auth` / `store` / `logger` options instead. `markOnlineOnConnect`, `syncFullHistory`,
   and `qrTimeout` are merely internal defaults you *can* override here if you really need to.
+</Callout>
+
+## `autoRejectCall`
+
+<Callout type="info">
+🔗 **Unofficial provider only.** The official [Cloud API](/official) has no call events — calling
+`client.rejectCall()` there throws `ZaileysProviderError('UNSUPPORTED_ON_CLOUD')`, and this option is
+never wired.
+</Callout>
+
+Auto-reject incoming voice/video calls. **Off by default** — rejecting calls is opt-in.
+
+```typescript
+// reject every incoming call
+const client = new Client({ autoRejectCall: true })
+```
+
+| Field | Type | Default | Description |
+| --- | --- | --- | --- |
+| `enabled` | `boolean` | `false` | Turn auto-rejecting on. Passing `autoRejectCall: true` is shorthand for `{ enabled: true }`. |
+| `allow` | `string[] \| (jid: string) => boolean \| Promise<boolean>` | `undefined` | Callers to let ring. Array entries match the full jid **or** its digits. A predicate may be async. |
+| `onReject` | `(call) => void \| Promise<void>` | `undefined` | Runs **after** a call was successfully rejected — e.g. to tell the caller why. |
+
+```typescript
+const client = new Client({
+  autoRejectCall: {
+    enabled: true,
+    allow: ['628owner@s.whatsapp.net'],            // owner may still call
+    onReject: async (call) => {
+      await client.send(call.from).text('Maaf, nomor ini tidak menerima telepon 🙏')
+    },
+  },
+})
+```
+
+The `call` passed to `onReject` is the same `call-incoming` payload:
+`{ kind, callId, from, isGroup, isVideo, timestamp, status }` — so you can branch on `isVideo` /
+`isGroup` inside your hook or inside `allow`.
+
+### Rejecting manually
+
+Leave the option off and drive it yourself from the [`call-incoming`](/events) event:
+
+```typescript
+client.on('call-incoming', async (call) => {
+  if (call.isVideo) await client.rejectCall(call)   // pass the payload…
+  else await client.rejectCall(call.callId, call.from) // …or the raw ids
+})
+```
+
+<Callout type="default">
+`onReject` and `allow` failures are caught and logged — a throwing hook never crashes the client.
+`client.rejectCall()` **does** throw (e.g. `NOT_CONNECTED`) so you can handle it.
 </Callout>
 
 ## `autoDelete`

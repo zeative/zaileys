@@ -1,0 +1,162 @@
+# Choose Your Provider — Unofficial vs Official WhatsApp API
+
+> Source: https://zeative.github.io/zaileys/providers
+
+# Choose Your Provider
+
+Zaileys speaks WhatsApp through **two interchangeable providers**. You write your bot against one
+API — the same `Client`, the same `send(jid)…` builder, the same typed events — and choose the
+engine underneath with a single `provider` option.
+
+<ProviderCards />
+
+## The 30-second decision
+
+**Building for yourself or a community?** Use the **unofficial** provider — it's the default,
+needs zero approval, and unlocks groups, channels, and polls.
+**Building a business channel?** Use the **official** provider — it's compliant, unbannable, and
+does templates, OTP, and marketing at scale.
+
+| Question | Unofficial 🔗 | Official ☁️ |
+| --- | --- | --- |
+| Meta approval / Business verification needed? | No | Yes (Meta Business + WABA) |
+| How do you log in? | Scan QR or pairing code | Permanent access token |
+| Risk of getting the number banned? | Exists (it's a linked device) | None (sanctioned API) |
+| Can you use **groups / communities / channels**? | ✅ Yes | ❌ No (not in the Cloud API) |
+| Can you message someone who never texted you? | ✅ Yes (any number) | ⚠️ Only via approved **templates** |
+| OTP / marketing / utility **templates**? | ❌ No | ✅ Yes |
+| Runs without a public server / webhook? | ✅ Yes (persistent socket) | ❌ No (needs a webhook URL) |
+| Best for | Personal bots, prototypes, automation, communities | Notifications, support, campaigns, OTP |
+
+## Switching is one option
+
+Everything else in your code stays the same.
+
+```typescript
+const client = new Client()
+// or explicitly:
+const client = new Client({ provider: 'baileys' })
+```
+
+```typescript
+const client = new Client({
+  provider: 'cloud',
+  cloud: {
+    accessToken: process.env.WA_TOKEN!,
+    phoneNumberId: process.env.WA_PHONE_ID!,
+    verifyToken: process.env.WA_VERIFY!,   // for the webhook GET challenge
+    appSecret: process.env.WA_APP_SECRET!, // for webhook signature verification
+  },
+})
+```
+
+`provider` defaults to `'baileys'`, so existing code keeps working untouched.
+
+## Full feature comparison
+
+Legend — ✅ supported · ❌ not available · ⚠️ conditional.
+
+### Messaging
+
+| Feature | Unofficial 🔗 | Official ☁️ |
+| --- | :---: | :---: |
+| Text | ✅ | ✅ |
+| Image / Video / Audio / Document / Sticker | ✅ | ✅ |
+| Location | ✅ | ✅ |
+| Contact (vCard) | ✅ | ✅ |
+| Reply (quote) | ✅ | ✅ |
+| Reactions | ✅ | ✅ |
+| Forward | ✅ | ✅ (re-send) |
+| Mentions | ✅ | ⚠️ inside 24h window |
+| Buttons (reply / url / copy / call) | ✅ | ✅ (reply/url, max 3) |
+| Lists | ✅ | ✅ |
+| Carousels | ✅ | ❌ |
+| Polls | ✅ | ❌ |
+| Album | ✅ | ⚠️ send items individually |
+| AIRich rich bubble (`rich: true`, tables, sources) | ✅ | ❌ (WhatsApp-Web-only proto) |
+| Basic text formatting (`*bold*` `_italic_` `~strike~` `` ```mono``` ``) | ✅ | ✅ (native WhatsApp markup) |
+| Edit / Delete / Pin | ✅ | ❌ |
+| Disappearing messages | ✅ | ❌ |
+| Mark as read | ✅ | ✅ |
+| Typing / recording indicator | ✅ | ✅ (on read) |
+
+### Business & campaigns
+
+| Feature | Unofficial 🔗 | Official ☁️ |
+| --- | :---: | :---: |
+| Message templates (OTP / marketing / utility) | ❌ | ✅ |
+| Template management (create / list / delete) | ❌ | ✅ |
+| `message-status` (sent / delivered / read / failed) | ⚠️ receipts | ✅ |
+| WhatsApp Flows | ❌ | ✅ |
+| Catalog & product messages | ⚠️ read only | ✅ send + orders |
+| Address request messages | ❌ | ✅ (ID/BR) |
+| Business profile management | ⚠️ limited | ✅ |
+| Blocklist API | ⚠️ privacy module | ✅ |
+| QR code links | ❌ | ✅ |
+| Conversation / messaging analytics | ❌ | ✅ |
+| Phone-number registration & 2FA | — | ✅ |
+
+### Social graph
+
+| Feature | Unofficial 🔗 | Official ☁️ |
+| --- | :---: | :---: |
+| Groups (create, manage, participants) | ✅ | ❌ |
+| Communities | ✅ | ❌ |
+| Newsletters (channels) | ✅ | ❌ |
+| Presence subscribe (online/typing of others) | ✅ | ❌ |
+| Calls (`call-incoming`, `rejectCall`, `autoRejectCall`) | ✅ | ❌ |
+| Status / stories | ✅ | ❌ |
+| Privacy settings | ✅ | ❌ |
+
+On the official provider, every unsupported surface throws a typed
+`ZaileysProviderError('UNSUPPORTED_ON_CLOUD')` **immediately** — never a silent no-op. You always
+know exactly what a provider can and can't do.
+
+### Shared across both
+
+Commands & middleware, plugins, `broadcast()`, `scheduleAt()`, the message store, `downloadMedia()`,
+all storage adapters, and the entire typed event system work **identically** on both providers.
+
+## The 24-hour window (official only)
+
+The Cloud API enforces Meta's customer-service window:
+
+- A user messages you → a **24-hour window** opens → you can send anything freely.
+- Outside the window, or to someone who never texted you → only **approved templates**.
+
+This is a Meta rule, not a Zaileys limit. Plain sends outside the window return error `131047`.
+See [Official Cloud API → The 24-hour window](/official/messaging#the-24-hour-window) for the full flow.
+
+## Terms of service
+
+The **unofficial** provider automates WhatsApp Web through Baileys, which is not endorsed by Meta.
+Numbers can be temporarily or permanently banned. Use a number you can afford to lose, avoid bulk
+cold messaging, and never use it to spam. For anything customer-facing and mission-critical, the
+**official** provider is the compliant choice.
+
+## Migrating between providers
+
+Because the builder and events are shared, migration is mostly configuration:
+
+1. **Swap construction** — add `provider: 'cloud'` and the `cloud` credentials.
+2. **Add a webhook** — the official provider is push-based; expose `client.webhook()` on a public
+   URL. See [Official Cloud API → Webhook](/official/webhook).
+3. **Replace social-graph calls** — `client.group.*`, `client.newsletter.*`, etc. don't exist on
+   cloud; guard them or gate that feature behind `client.provider === 'baileys'`.
+4. **Gate first contact behind templates** — cold outreach must use `sendTemplate()`.
+
+```typescript
+if (client.provider === 'baileys') {
+  await client.group.create('Team', [jid])
+} else {
+  await client.sendTemplate(to, 'welcome', 'en_US')
+}
+```
+
+## Next steps
+
+<Cards>
+  <Cards.Card icon="🔗" title="Unofficial provider guide" href="/unofficial" arrow />
+  <Cards.Card icon="☁️" title="Official Cloud API guide" href="/official" arrow />
+  <Cards.Card icon="⚙️" title="Configuration reference" href="/configuration" arrow />
+</Cards>

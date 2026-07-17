@@ -1,0 +1,340 @@
+# Troubleshooting & FAQ
+
+> Source: https://zeative.github.io/zaileys/troubleshooting
+
+# Troubleshooting & FAQ
+
+Answers to the problems you are most likely to hit when running a `zaileys` bot — invalid sessions, reconnect loops, pairing failures, missing optional dependencies, and runtime quirks. Every fix below is taken directly from the messages the library actually prints. For broader background see [Error Handling](/error-handling), [Installation](/installation), [Getting Started](/getting-started), and [Runtime Support](/runtimes).
+
+## Connection & session
+
+### QR keeps regenerating / "session looks invalid or corrupted"
+
+If the connection authenticates and then immediately drops in a loop — and the QR keeps redrawing — your saved credentials are corrupted. `zaileys` detects this and prints a hint inside the reconnect log:
+
+```text
+[zaileys] Connection lost (bad-session). Reconnecting in 1.0s (attempt 1)...
+[zaileys] The saved session looks invalid or corrupted (connection keeps closing before it authenticates). Delete the auth folder (default: ./.zaileys) and run again to scan a fresh QR / request a new pairing code.
+```
+
+The fix is exactly what the message says — delete the auth folder and start over.
+
+The default file auth store writes to **`./.zaileys/auth/<sessionId>`** (the `sessionId` is `default` unless you set one). Deleting the whole `./.zaileys` folder is the simplest reset and forces a fresh QR / pairing code on the next run.
+
+```bash
+rm -rf ./.zaileys
+# or just one session:
+rm -rf ./.zaileys/auth/default
+```
+
+```powershell
+Remove-Item -Recurse -Force .\.zaileys
+# or just one session:
+Remove-Item -Recurse -Force .\.zaileys\auth\default
+```
+
+If you set a custom `sessionId`, delete that subfolder instead:
+
+```typescript
+
+const client = new Client({ sessionId: 'mybot' })
+// auth lives at ./.zaileys/auth/mybot
+```
+
+### Connection keeps closing / reconnect loop
+
+`zaileys` reconnects automatically with exponential backoff and jitter. A healthy reconnect log looks like this and is **not** an error — the library is recovering on its own:
+
+```text
+[zaileys] Connection lost (connection-closed). Reconnecting in 1.0s (attempt 1)...
+[zaileys] Connection lost (connection-lost). Reconnecting in 2.1s (attempt 2)...
+```
+
+The disconnect reason in the parentheses tells you whether reconnecting will help. These are the reasons `zaileys` reports:
+
+| Reason | Reconnects automatically? | What it means |
+| --- | --- | --- |
+| `connection-closed` | Yes | Socket closed; transient. |
+| `connection-lost` | Yes | Network dropped; transient. |
+| `restart-required` | Yes | WhatsApp asked for a fresh socket. |
+| `unavailable-service` | Yes | WhatsApp service temporarily unavailable. |
+| `multi-device-mismatch` | Yes | Device list out of sync. |
+| `rate-limited` | Yes (long fixed backoff) | WhatsApp returned HTTP 429. Non-fatal, but zaileys waits `rateLimitedDelayMs` (default 5 min) instead of the exponential ladder. See [Account restricted / banned](#account-restricted--banned-your-account-is-restricted-right-now). |
+| `bad-session` | Yes (but creds are suspect) | Triggers the "invalid/corrupted" hint above. |
+| `logged-out` | No (fatal) | You unlinked the device — re-authenticate. |
+| `connection-replaced` | No (fatal) | Another session took over this account. |
+| `forbidden` | No (fatal) | Account/number blocked from connecting. |
+| `unknown` | Yes | Unmapped close code. |
+
+`logged-out`, `connection-replaced`, and `forbidden` are fatal — the library stops retrying and emits a final `disconnect` with `willReconnect: false`. For everything else it backs off and retries.
+
+You can observe and tune this. Defaults: `enabled: true`, `maxAttempts: Infinity`, `initialDelayMs: 3000`, `maxDelayMs: 60000`, `jitterFactor: 0.2`, `rateLimitedDelayMs: 300000`.
+
+```typescript
+
+const client = new Client({
+  reconnect: {
+    enabled: true,
+    maxAttempts: 10,
+    initialDelayMs: 1000,
+    maxDelayMs: 30_000,
+    jitterFactor: 0.2,
+  },
+})
+
+client.on('reconnecting', ({ attempt, delayMs, reason }) => {
+  console.log(`retry #${attempt} in ${delayMs}ms (${reason})`)
+})
+
+client.on('disconnect', ({ reason, willReconnect }) => {
+  if (!willReconnect) console.error(`fatal disconnect: ${reason}`)
+})
+```
+
+If you are stuck in a `bad-session` loop, no amount of retrying will help — delete the auth folder (see the previous question). If the reason is `connection-replaced`, you have the same account linked elsewhere; only one socket can hold the session at a time.
+
+### Pairing code rejected / "phoneNumber must be E.164"
+
+Pairing-code auth requires a valid phone number in **E.164** format (digits with country code, no `+`, spaces, dashes, or parentheses). `zaileys` strips those characters for you, but validates the result is 8–15 digits. Bad input throws before a code is even requested:
+
+```text
+Error: phoneNumber is required when authType is "pairing"
+Error: phoneNumber must be E.164 with country code
+```
+
+Pass the number with its country code:
+
+```typescript
+
+const client = new Client({
+  authType: 'pairing',
+  phoneNumber: '628123456789', // Indonesia: 62 + number, no leading 0
+})
+
+client.on('pairing-code', ({ code }) => {
+  console.log('Enter this in WhatsApp > Linked devices > Link with phone number:')
+  console.log(code)
+})
+```
+
+When the code is generated you will see:
+
+```text
+[zaileys] Pairing code: ABCD-1234 — enter it in WhatsApp > Linked devices > Link with phone number.
+```
+
+If WhatsApp rejects the request itself (e.g. number not on WhatsApp, rate-limited), the error is wrapped:
+
+```text
+Error: failed to request pairing code: <reason from WhatsApp>
+```
+
+Common mistakes: leaving the local leading `0` (write `62812...`, not `0812...`), using a number not registered on WhatsApp, or requesting too many codes in a short window. Wait a few minutes and try again, and double-check the digits.
+
+### Account restricted / banned ("Your account is restricted right now")
+
+If WhatsApp shows *"Your account is restricted right now"* (or you keep getting HTTP 429 / `rate-limited` disconnects), the account has been throttled or temporarily banned. The two things that trigger this:
+
+1. **Spamming pairing codes / QR refreshes.** A reconnect loop that never finishes authenticating keeps creating a fresh socket, and each one re-emits a QR or requests a brand-new pairing code. With no cap that becomes a flood, and WhatsApp answers with `rate-overlimit` and a restriction.
+2. **Rapid bulk operations.** Mass-joining or mass-creating groups, bulk-adding members, or blasting messages — especially on a fresh number — looks automated and abusive.
+
+`zaileys` now defends against both **by default**:
+
+- [`authGuard`](/configuration#authguard) caps QR (`maxQrAttempts`, default 5) and pairing (`maxPairingAttempts`, default 3) regeneration, with an escalating `pairingCooldownMs` between pairing requests. When the budget is spent it **stops** and emits an [`auth-exhausted`](/events) event instead of looping.
+- [`operationGuard`](/configuration#operationguard) serializes and spaces out group / community / newsletter operations per category.
+- The reconnect backoff is safer: `initialDelayMs` defaults to `3000` (no instant reconnect storms), and a `rate-limited` (429) disconnect uses the fixed [`rateLimitedDelayMs`](/configuration#reconnect) (default 5 minutes) instead of the exponential ladder.
+
+If you are already restricted:
+
+**Stop the bot and wait out the timer** — restrictions are usually time-based (often a few hours). Do **not** keep restarting / retrying; every fresh connection attempt while restricted prolongs the block and can escalate it.
+
+- Keep `authGuard` **on**. Disabling it (`{ enabled: false }`) is what re-creates the spam loop.
+- For pairing, use a valid registered number (E.164, no leading `0`) and do **not** restart the process in a tight loop — fix *why* auth isn't completing first.
+- Avoid mass group joins / creates / member-adds and high-volume sends, particularly on new numbers. Leave `operationGuard` on so those calls stay spaced out.
+- When you do reconnect, do it once and let the built-in backoff handle retries; don't wrap `connect()` in your own retry loop.
+
+See [Configuration](/configuration) for `authGuard`, `operationGuard`, `presence`, and the `reconnect` defaults referenced here.
+
+## Module & dependency errors
+
+### "Cannot find module" sharp / better-sqlite3 / pg / redis / convex
+
+`zaileys` keeps heavy database drivers as **optional peer dependencies** — install only the one your storage adapter needs. When a driver is missing, the matching auth/store adapter throws a clear `ZaileysStoreError` with code `STORE_NOT_AVAILABLE`:
+
+| Adapter / feature | Missing-dependency message | Install |
+| --- | --- | --- |
+| SQLite auth/store | `better-sqlite3 belum terpasang. Run: pnpm add better-sqlite3` | `better-sqlite3` |
+| Postgres auth/store | `pg is not installed. Run: pnpm add pg` | `pg` |
+| Redis auth/store | `redis peer dependency missing. Run: pnpm add redis` | `redis` |
+| Convex auth/store | `convex peer dependency missing` | `convex` |
+
+Install the driver that matches your adapter:
+
+```bash
+npm install better-sqlite3   # or: pg | redis | convex
+```
+
+```bash
+pnpm add better-sqlite3      # or: pg | redis | convex
+```
+
+```bash
+yarn add better-sqlite3      # or: pg | redis | convex
+```
+
+```bash
+bun add better-sqlite3       # or: pg | redis | convex
+```
+
+See [Storage Adapters](/storage) for which adapter uses which driver. The default file-based auth store needs none of these.
+
+`sharp` is a special case: it is **fully optional and not a peer dependency** of Zaileys. Sticker/image processing tries `sharp` first and silently falls back to the bundled `jimp` engine if it is not installed — so a missing `sharp` never throws, it just uses the fallback. Install `sharp` only if you want its faster image pipeline: `pnpm add sharp`.
+
+### `npm install` fails building `sharp` (Termux / Android / Alpine)
+
+The install aborts with something like:
+
+```text
+npm error code 1
+npm error path .../node_modules/sharp
+npm error command failed
+npm error command sh -c node install/check.js || npm run build
+npm error sharp: Attempting to build from source via node-gyp
+npm error sharp: Please add node-addon-api to your dependencies
+```
+
+This is **not** a Zaileys bug. `sharp` is declared as a peer dependency by **Baileys** (`"sharp": "*"`), and Baileys does not mark it optional in `peerDependenciesMeta`, so npm 7+ auto-installs it. On platforms with no prebuilt `sharp` binary — **Termux/Android**, and some Alpine/musl images — npm tries to compile it from source and fails (no `libvips`, missing build tools).
+
+Zaileys never requires `sharp`: image and sticker processing fall back to the bundled pure-JS `jimp` path automatically. Install with `--legacy-peer-deps` so npm skips Baileys' `sharp` peer:
+
+```bash
+npm install zaileys --legacy-peer-deps
+```
+
+```bash
+# pnpm does not run dependency build scripts unless approved, so the sharp build never fires
+pnpm add zaileys
+```
+
+```bash
+# Yarn does not auto-install peer dependencies, so sharp is skipped
+yarn add zaileys
+```
+
+If you genuinely want the native `sharp` accelerator on Termux, install the build toolchain first (`pkg install python make clang`) and then `npm install zaileys` — but the `jimp` fallback works fine without it.
+
+### ESM / `require()` errors ("require is not defined", "ERR_REQUIRE_ESM", "Cannot use import statement")
+
+`zaileys` ships both ESM (`dist/index.mjs`) and CommonJS (`dist/index.cjs`) builds, so both import styles work — but they must match your project setup.
+
+```typescript
+// ESM (recommended) — "type": "module" in package.json, or .mjs / .ts
+```
+
+```javascript
+// CommonJS — plain .js without "type": "module", or .cjs
+const { Client } = require('zaileys')
+```
+
+If you get `ERR_REQUIRE_ESM` or `Cannot use import statement outside a module`, your file extension and `package.json` `type` field disagree. Either add `"type": "module"` to `package.json` and use `import`, or keep CommonJS and use `require`. The library requires **Node.js >= 20**. For TypeScript, run with [`tsx`](https://tsx.is) which handles both: `npx tsx index.ts`.
+
+See [Installation](/installation) for full setup and [Runtime Support](/runtimes) for Bun/Deno specifics.
+
+### Bun: `ws` / WebSocket warnings (safe to ignore)
+
+When running under Bun you may see noisy warnings from the underlying `ws` package, or a one-off `Closing session:` line from libsignal. These are harmless and do not affect the connection — `zaileys` already suppresses the libsignal `Closing session:` noise on `console.info` for you.
+
+```text
+# Bun ws-related warnings like these are safe to ignore:
+[ws] ...experimental... / addon not found
+Closing session: <id>   # suppressed by zaileys
+```
+
+These warnings come from Bun's compatibility layer around `ws`, not from `zaileys`. They are noise only — the WebSocket still connects. If you want a completely quiet startup, keep `ZAILEYS_DEBUG` unset (logging defaults to `silent`). See [Runtime Support](/runtimes) for the full Bun/Deno notes.
+
+## Behavior & lifecycle
+
+### Messages from myself aren't received (`ignoreMe`)
+
+By default `zaileys` **ignores your own outgoing messages** (`fromMe`) so your bot does not react to itself. This is controlled by the `ignoreMe` option, which defaults to `true`. If you need to process messages you send (e.g. a self-note bot or testing from your own number), turn it off:
+
+```typescript
+
+const client = new Client({
+  ignoreMe: false, // default is true — set false to receive your own messages
+})
+
+client.on('messages', (msg) => {
+  console.log('got message, fromMe =', msg /* includes your own now */)
+})
+```
+
+With `ignoreMe: false`, make sure your handlers do not reply to their own replies — that can create an echo loop. Gate replies on the sender or a command prefix. See [Events](/events) and [Commands](/commands).
+
+### How do I log out / reset the session?
+
+Two different operations, depending on what you want:
+
+- **`disconnect()`** — closes the socket cleanly and keeps your credentials, so you can reconnect later without re-scanning.
+- **`logout()`** — unlinks the device on WhatsApp's side **and** wipes the stored credentials (clears the signal store and deletes creds). The next run will need a fresh QR / pairing code.
+
+```typescript
+
+const client = new Client()
+
+// Temporary: stop the socket, keep the session.
+await client.disconnect()
+
+// Permanent: unlink the device and clear stored credentials.
+await client.logout()
+```
+
+If you cannot start the app to call `logout()` (e.g. the session is already corrupt), just delete the auth folder manually — that is the offline equivalent of a reset:
+
+```bash
+rm -rf ./.zaileys/auth/default   # replace 'default' with your sessionId
+```
+
+`logout()` only removes credentials from the configured auth store. If you use a database adapter (SQLite/Postgres/Redis/Convex), it clears the rows there instead of a folder. See [Storage Adapters](/storage).
+
+### How do I enable debug logging? (`ZAILEYS_DEBUG`)
+
+`zaileys` logs are **silent by default**. Enable them with the `ZAILEYS_DEBUG` environment variable. Set it to `1` for `info`-level logs, or to any pino level name (`fatal`, `error`, `warn`, `info`, `debug`, `trace`) for finer control.
+
+```bash
+ZAILEYS_DEBUG=1 node index.js          # info level
+ZAILEYS_DEBUG=debug npx tsx index.ts   # verbose
+ZAILEYS_DEBUG=trace npx tsx index.ts   # everything
+```
+
+```powershell
+$env:ZAILEYS_DEBUG=1; node index.js
+$env:ZAILEYS_DEBUG="debug"; npx tsx index.ts
+```
+
+You can also pass your own logger or level directly to the client instead of relying on the env var:
+
+```typescript
+
+const client = new Client({
+  logger: {
+    debug: (...a) => console.debug('[debug]', ...a),
+    info: (...a) => console.info('[info]', ...a),
+    warn: (...a) => console.warn('[warn]', ...a),
+    error: (...a) => console.error('[error]', ...a),
+    fatal: (...a) => console.error('[fatal]', ...a),
+  },
+})
+```
+
+The friendly `[zaileys] ...` status lines (connecting, QR, pairing code, reconnecting, disconnect) are separate from `ZAILEYS_DEBUG` and are controlled by the `statusLog` option (default `true`). Set `statusLog: false` to silence them. `ZAILEYS_DEBUG` controls the low-level pino logs. See [Configuration](/configuration).
+
+## Still stuck?
+
+If a `disconnect` is fatal, the auth folder is clean, and the right driver is installed but it still won't connect, capture a full log and open an issue.
+
+```bash
+ZAILEYS_DEBUG=trace npx tsx index.ts 2>&1 | tee zaileys-debug.log
+```
+
+Then report it at [github.com/zeative/zaileys](https://github.com/zeative/zaileys) with the log and your runtime (Node/Bun/Deno) version. For typed error handling in code, see [Error Handling](/error-handling).

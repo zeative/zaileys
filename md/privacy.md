@@ -1,0 +1,275 @@
+# Privacy
+
+> Source: https://zeative.github.io/zaileys/privacy
+
+# Privacy
+
+`client.privacy` is the zaileys namespace for WhatsApp privacy controls. It lets you read and write
+account-level privacy settings, manage your block list, and configure the default disappearing-message
+timer for new chats.
+
+```typescript
+
+const client = new Client()
+
+client.on('connect', async () => {
+  await client.privacy.set({ lastSeen: 'contacts', readReceipts: false })
+})
+```
+
+**NOT_CONNECTED guard.** Every `client.privacy` method calls an internal `requireSocket()`. If the
+client is not yet connected, the call throws a `ZaileysDomainError` with code `NOT_CONNECTED` and
+message `client not connected`. Always wait for the `'connect'` event (or `await client.connect()`)
+before using this namespace. See [Error Handling](/error-handling).
+
+## Methods at a glance
+
+| Method | Signature | Returns | Description |
+| ------ | --------- | ------- | ----------- |
+| `set` | `set(config): Promise<void>` | `void` | Update one or more privacy settings. Only provided keys are changed. |
+| `get` | `get(): Promise<PrivacySettings>` | `{ [key: string]: string }` | Fetch the current privacy settings from WhatsApp. |
+| `block` | `block(jid): Promise<void>` | `void` | Block a contact. |
+| `unblock` | `unblock(jid): Promise<void>` | `void` | Unblock a contact. |
+| `blocklist` | `blocklist(): Promise<string[]>` | `string[]` | Return the list of all blocked JIDs. |
+| `disappearingMode` | `disappearingMode(seconds): Promise<void>` | `void` | Set the default disappearing-messages timer for **new** chats. |
+
+---
+
+## `set(config)`
+
+```typescript
+set(config: PrivacyConfig & { readReceipts?: WAReadReceiptsValue | boolean }): Promise<void>
+```
+
+Updates account privacy settings. Each key in `config` is independent — only keys that are present
+are sent to WhatsApp. You can update a single setting or several at once.
+
+### Privacy fields
+
+| Field | Type | Allowed values | Description |
+| ----- | ---- | -------------- | ----------- |
+| `lastSeen` | `WAPrivacyValue` | `'all'` \| `'contacts'` \| `'contact_blacklist'` \| `'none'` | Who can see your Last Seen timestamp. |
+| `online` | `WAPrivacyOnlineValue` | `'all'` \| `'match_last_seen'` | Who can see when you are currently online. |
+| `profile` | `WAPrivacyValue` | `'all'` \| `'contacts'` \| `'contact_blacklist'` \| `'none'` | Who can see your profile picture. |
+| `status` | `WAPrivacyValue` | `'all'` \| `'contacts'` \| `'contact_blacklist'` \| `'none'` | Who can see your text status. |
+| `readReceipts` | `WAReadReceiptsValue \| boolean` | `'all'` \| `'none'` \| `true` \| `false` | Whether read receipts (blue ticks) are sent. `true` maps to `'all'`, `false` maps to `'none'`. |
+| `groupAdd` | `WAPrivacyGroupAddValue` | `'all'` \| `'contacts'` \| `'contact_blacklist'` | Who can add you to groups. |
+
+`readReceipts` accepts either the string union (`'all'` / `'none'`) or a plain boolean for
+convenience — `true` is equivalent to `'all'` and `false` is equivalent to `'none'`.
+
+`'contact_blacklist'` means the setting applies to everyone **except** contacts on your block list.
+It is available on `lastSeen`, `profile`, `status`, and `groupAdd`.
+
+### Example
+
+```typescript
+// Update several settings at once
+await client.privacy.set({
+  lastSeen: 'contacts',
+  online: 'match_last_seen',
+  profile: 'contacts',
+  status: 'contacts',
+  readReceipts: false,   // boolean false → 'none' (blue ticks off)
+  groupAdd: 'contacts',
+})
+
+// Update a single setting
+await client.privacy.set({ readReceipts: true })  // turn blue ticks back on
+
+// Use the string form directly
+await client.privacy.set({ readReceipts: 'none', lastSeen: 'nobody' })
+```
+
+`'nobody'` is **not** part of `WAPrivacyValue` in this version of the library. The correct value
+for hiding from everyone is `'none'`. Use the exact values from the table above.
+
+---
+
+## `get()`
+
+```typescript
+get(): Promise<PrivacySettings>
+```
+
+Fetches the current account privacy settings from WhatsApp. Returns a `PrivacySettings` object,
+which is a plain key-value map of `{ [key: string]: string }`.
+
+### Example
+
+```typescript
+const settings = await client.privacy.get()
+console.log(settings)
+// Example output:
+// {
+//   lastSeen: 'contacts',
+//   online: 'match_last_seen',
+//   profile: 'contacts',
+//   status: 'all',
+//   readReceipts: 'all',
+//   groupAdd: 'contacts',
+// }
+```
+
+The exact keys returned by `get()` mirror what WhatsApp reports for the logged-in account. Use
+`set()` with the matching field names to update them.
+
+---
+
+## `block(jid)`
+
+```typescript
+block(jid: string): Promise<void>
+```
+
+Blocks a contact. The `jid` must be a full WhatsApp JID in the format
+`628xxxxxxxxxx@s.whatsapp.net`.
+
+### Example
+
+```typescript
+await client.privacy.block('628123456789@s.whatsapp.net')
+console.log('Contact blocked')
+```
+
+---
+
+## `unblock(jid)`
+
+```typescript
+unblock(jid: string): Promise<void>
+```
+
+Unblocks a previously-blocked contact.
+
+### Example
+
+```typescript
+await client.privacy.unblock('628123456789@s.whatsapp.net')
+console.log('Contact unblocked')
+```
+
+---
+
+## `blocklist()`
+
+```typescript
+blocklist(): Promise<string[]>
+```
+
+Returns the full list of JIDs you have blocked.
+
+### Example
+
+```typescript
+const blocked = await client.privacy.blocklist()
+console.log('Blocked contacts:', blocked)
+// ['628111111111@s.whatsapp.net', '628222222222@s.whatsapp.net']
+
+// Check if a specific contact is blocked
+const jid = '628123456789@s.whatsapp.net'
+if (blocked.includes(jid)) {
+  console.log(`${jid} is currently blocked`)
+}
+```
+
+---
+
+## `disappearingMode(seconds)`
+
+```typescript
+disappearingMode(seconds: number): Promise<void>
+```
+
+Sets the default disappearing-messages timer for **new** chats. Existing chats are not affected.
+Common values are `86400` (24 hours), `604800` (7 days), and `7776000` (90 days). Pass `0` to
+disable disappearing messages for new chats.
+
+### Example
+
+```typescript
+// New chats will have messages disappear after 7 days
+await client.privacy.disappearingMode(604800)
+
+// Disable disappearing messages for new chats
+await client.privacy.disappearingMode(0)
+```
+
+To set a disappearing-message timer on a specific **group** (not account-wide), use
+[`client.group.toggleEphemeral(groupId, seconds)`](/client#clientgroup). This method only changes
+the account-level default applied to new individual chats.
+
+---
+
+## Error handling
+
+Every `client.privacy` method throws `ZaileysDomainError` on failure. The most common code is
+`NOT_CONNECTED` when you call a method before the client has connected.
+
+```typescript
+
+const client = new Client({ autoConnect: false })
+
+try {
+  // Called before connect() — throws immediately
+  await client.privacy.get()
+} catch (err) {
+  if (err instanceof ZaileysDomainError) {
+    console.error(err.code, err.message)
+    // NOT_CONNECTED  client not connected
+  }
+}
+```
+
+Always use the `'connect'` event or `await client.connect()` before calling any privacy method:
+
+```typescript
+client.on('connect', async () => {
+  const settings = await client.privacy.get()
+  console.log('Current privacy settings:', settings)
+})
+```
+
+See [Error Handling](/error-handling) for the full `ZaileysDomainError` code reference.
+
+---
+
+## Complete example
+
+```typescript
+
+const client = new Client({ sessionId: 'privacy-demo' })
+
+client.on('connect', async () => {
+  // Apply a baseline privacy configuration
+  await client.privacy.set({
+    lastSeen: 'contacts',
+    online: 'match_last_seen',
+    profile: 'contacts',
+    status: 'contacts',
+    readReceipts: false,
+    groupAdd: 'contacts',
+  })
+
+  // Set new-chat default to 7-day disappearing messages
+  await client.privacy.disappearingMode(604800)
+
+  // Block a contact
+  await client.privacy.block('628999999999@s.whatsapp.net')
+
+  // Print the updated settings and block list
+  const settings = await client.privacy.get()
+  console.log('Privacy settings:', settings)
+
+  const blocked = await client.privacy.blocklist()
+  console.log('Blocked contacts:', blocked)
+})
+```
+
+---
+
+## See also
+
+- [Client & Lifecycle](/client) — the `client.privacy` namespace in context, all domain namespaces.
+- [Error Handling](/error-handling) — `ZaileysDomainError` codes and catching patterns.
+- [Configuration](/configuration) — `ClientOptions` reference.

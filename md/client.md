@@ -1,0 +1,571 @@
+# Client & Lifecycle
+
+> Source: https://zeative.github.io/zaileys/client
+
+# Client & Lifecycle
+
+The `Client` is the single entry point to zaileys. You construct one per WhatsApp session, it
+manages the connection to WhatsApp Web, emits [events](/events) for everything that happens, and
+exposes helpers for sending and mutating messages plus high-level domain operations (groups,
+presence, privacy, newsletters, communities).
+
+```typescript
+
+const client = new Client({ sessionId: 'default' })
+
+client.on('connect', ({ me }) => console.log('ready as', me.id))
+```
+
+By default the constructor **connects automatically** (`autoConnect: true`). You can also drive the
+lifecycle yourself by passing `autoConnect: false` and calling `client.connect()` when you are
+ready. See [Connection lifecycle](#connection-lifecycle).
+
+## Constructing the client
+
+`new Client(options?)` accepts a single optional options object. Every field has a sensible
+default, so `new Client()` is valid and produces a QR-login session stored under
+`./.zaileys/auth/default`.
+
+| Option | Type | Default | Description |
+| ------ | ---- | ------- | ----------- |
+| `sessionId` | `string` | `'default'` | Logical session name. Used as the default auth folder (`./.zaileys/auth/<sessionId>`) and reported on every event payload. Run multiple clients with distinct ids for multi-account. |
+| `authType` | `'qr' \| 'pairing'` | `'qr'` | Login method. `'pairing'` requires `phoneNumber`. |
+| `phoneNumber` | `string` | — | Phone number in international format (digits only, e.g. `628123456789`). Required when `authType` is `'pairing'`. |
+| `autoConnect` | `boolean` | `true` | Connect automatically on construction. Set `false` to call `connect()` manually. |
+| `cacheSignal` | `boolean` | `true` | Wrap the auth store in an in-memory signal-key cache for faster session reads. |
+| `qrTerminal` | `boolean` | `true` | Print the QR code to the terminal on `'qr'` (QR login only). |
+| `statusLog` | `boolean` | `true` | Write human-readable connection status lines to `stderr` and suppress noisy libsignal logs. |
+| `commandPrefix` | `string \| string[]` | — | Prefix(es) that enable the [command framework](/commands) (e.g. `'/'` or `['/', '!']`). |
+| `ignoreMe` | `boolean` | `true` | Drop inbound messages sent by the bot's own account so handlers don't react to themselves. |
+| `citation` | `CitationConfig` | — | Configure citation/quoted-message enrichment on inbound events. See [Events](/events). |
+| `reconnect` | `ReconnectOptions` | see below | Auto-reconnect backoff tuning. |
+| `auth` | `AuthStoreBundle` | `FileAuthStore` | Credential/signal store. Defaults to file storage. See [Storage Adapters](/storage). |
+| `store` | `MessageStore` | `MemoryMessageStore` | Message store used for `forward()`, quoted lookups and scheduling. See [Storage Adapters](/storage). |
+| `logger` | `Logger` (Pino-compatible) | quiet | Structured logger. Must implement `debug/info/warn/error/fatal`. |
+| `baileys` | `Partial<UserFacingSocketConfig>` | `{}` | Escape hatch merged into the underlying Baileys socket config. |
+
+For the full breakdown of `authType`, storage adapters, and logging, see the dedicated
+[Configuration](/configuration) page. This page focuses on the lifecycle and the methods the client
+exposes.
+
+### `reconnect` (ReconnectOptions)
+
+| Option | Type | Default | Description |
+| ------ | ---- | ------- | ----------- |
+| `enabled` | `boolean` | `true` | Whether to auto-reconnect after a non-fatal disconnect. |
+| `maxAttempts` | `number` | `Infinity` | Max consecutive reconnect attempts before giving up. |
+| `initialDelayMs` | `number` | `1000` | Delay before the first reconnect attempt. |
+| `maxDelayMs` | `number` | `60000` | Upper bound for the exponential backoff delay. |
+| `jitterFactor` | `number` | `0.2` | Random jitter (±20% by default) applied to each delay to avoid thundering-herd reconnects. |
+
+```typescript
+
+const client = new Client({
+  sessionId: 'support-bot',
+  authType: 'qr',
+  ignoreMe: true,
+  reconnect: { maxAttempts: 10, initialDelayMs: 2000, maxDelayMs: 30_000 },
+})
+```
+
+### Pairing-code login
+
+When `authType` is `'pairing'` you must supply `phoneNumber`. zaileys emits a `pairing-code` event
+with the code to enter on your phone (Linked Devices → Link with phone number) instead of a QR.
+
+```typescript
+
+const client = new Client({
+  authType: 'pairing',
+  phoneNumber: '628123456789',
+})
+
+client.on('pairing-code', ({ code, expiresAt }) => {
+  console.log('Enter this code on WhatsApp:', code, '(expires', new Date(expiresAt), ')')
+})
+```
+
+`connect()` rejects immediately with `phoneNumber is required when authType is "pairing"` if you
+choose pairing without a phone number.
+
+## Connection lifecycle
+
+Internally the client runs a small state machine. The current state is readable via `client.state`:
+
+```typescript
+type ConnectionState =
+  | 'idle'
+  | 'connecting'
+  | 'qr-pending'
+  | 'pairing-pending'
+  | 'connected'
+  | 'reconnecting'
+  | 'disconnecting'
+  | 'disconnected'
+```
+
+The typical happy path is `idle → connecting → qr-pending/pairing-pending → connected`. A drop goes
+`connected → reconnecting → connecting → connected` (with backoff), and a clean shutdown goes
+`connected → disconnecting → disconnected`.
+
+```mermaid
+stateDiagram-v2
+    [*] --> idle
+    idle --> connecting: connect()
+    connecting --> qr_pending: no creds (QR)
+    connecting --> pairing_pending: no creds (pairing code)
+    qr_pending --> connected: scanned
+    pairing_pending --> connected: paired
+    connecting --> connected: creds restored
+    connected --> reconnecting: dropped
+    reconnecting --> connecting: backoff retry
+    connected --> disconnecting: disconnect()
+    disconnecting --> disconnected
+    disconnected --> [*]
+```
+
+### `connect()`
+
+```typescript
+connect(): Promise<void>
+```
+
+Opens the WhatsApp socket and resolves once the connection is **open** (`'connect'` event fired). If
+the session has no stored credentials, this is when the QR or pairing code is produced.
+
+### Construct with `autoConnect: false`
+
+```typescript
+
+const client = new Client({ sessionId: 'manual', autoConnect: false })
+```
+
+### Wire up your listeners first
+
+```typescript
+client.on('qr', ({ qrString }) => console.log('Scan QR:', qrString))
+client.on('connect', ({ me }) => console.log('connected as', me.id))
+```
+
+### Call `connect()` and await it
+
+```typescript
+await client.connect()
+console.log('state is now', client.state) // 'connected'
+```
+
+`connect()` is idempotent. Calling it while `connecting` or `connected` resolves immediately without
+opening a second socket; calling it from `disconnected`/`reconnecting` re-opens the session.
+
+### Auto-connect
+
+With the default `autoConnect: true`, the constructor schedules `connect()` on the next microtask.
+This means you can attach listeners synchronously right after construction and they will be in place
+before the socket opens:
+
+```typescript
+
+const client = new Client() // connects automatically
+
+// These run on the same tick, before the queued connect() fires
+client.on('qr', ({ qrString }) => console.log(qrString))
+client.on('text', (ctx) => console.log(ctx.text))
+```
+
+If auto-connect fails, the client logs the error and emits an `'error'` event **only if** you have
+an `'error'` listener attached, so an unhandled rejection never crashes your process silently.
+
+### Reconnection
+
+After a non-fatal disconnect (network blip, `restart-required`, etc.) zaileys reconnects
+automatically using exponential backoff with jitter, governed by the `reconnect` options. Each retry
+emits a `reconnecting` event:
+
+```typescript
+client.on('reconnecting', ({ attempt, delayMs, reason }) => {
+  console.log(`reconnect #${attempt} in ${delayMs}ms (reason: ${reason})`)
+})
+```
+
+Fatal reasons (`logged-out`, `forbidden`, `connection-replaced`, `bad-session`, …) do **not**
+trigger a reconnect; for credential-invalidating reasons the stored auth is cleared automatically so
+the next `connect()` starts a fresh login.
+
+If you keep seeing `reconnecting` without ever reaching `connect`, your stored session is likely
+corrupt. zaileys hints at this in the status log after a couple of failed attempts — delete the
+session's auth folder (`./.zaileys/auth/<sessionId>`) and re-scan. See [Troubleshooting](/troubleshooting).
+
+### `disconnect()`
+
+```typescript
+disconnect(): Promise<void>
+```
+
+Gracefully tears down the session: cancels any pending reconnect timer, detaches the inbound
+pipeline and command dispatcher, disposes the scheduler, ends the socket, and closes the auth and
+message stores. The session credentials are **kept**, so a later `connect()` resumes without
+re-scanning.
+
+```typescript
+await client.disconnect()
+console.log(client.state) // 'disconnected'
+```
+
+### `logout()`
+
+```typescript
+logout(): Promise<void>
+```
+
+Like `disconnect()`, but also logs out on WhatsApp's side and **deletes** the stored credentials and
+signal keys. The next `connect()` requires a fresh QR/pairing login.
+
+```typescript
+await client.logout() // unlinks the device and clears local auth
+```
+
+### Read-only accessors
+
+| Accessor | Type | Description |
+| -------- | ---- | ----------- |
+| `client.sessionId` | `string` | The resolved session id. |
+| `client.state` | `ConnectionState` | Current lifecycle state. |
+| `client.socket` | `BaileysSocket \| undefined` | The underlying Baileys socket (advanced escape hatch). |
+| `client.store` | `MessageStore` | The active message store. |
+| `client.auth` | `AuthStoreBundle` | The active auth store bundle. |
+
+## Listening to events: `on` / `off`
+
+`Client` is a typed event emitter. Connection events (`connect`, `disconnect`, `qr`,
+`pairing-code`, `reconnecting`, `error`) and inbound message events (`message`, `text`, …) share the
+same fully-typed API. See [Events](/events) for the complete catalog.
+
+```typescript
+client.on('connect', ({ me }) => console.log('me:', me.id))
+
+const onText = (ctx) => console.log(ctx.text)
+client.on('text', onText)
+client.off('text', onText) // detach when done
+```
+
+## Commands & middleware: `command` / `use`
+
+When you set `commandPrefix`, the client activates the [command framework](/commands). Register
+handlers with `command(spec, handler)` and global middleware with `use(middleware)`. Both return
+`this`, so they chain.
+
+```typescript
+
+const client = new Client({ commandPrefix: ['/', '!'] })
+
+const logging: Middleware = async (ctx, next) => {
+  console.log(`[command] ${ctx.command} from ${ctx.senderId}`)
+  await next()
+}
+
+client
+  .use(logging)
+  .command('ping', async (ctx) => {
+    await ctx.reply('pong')
+  })
+  .command('help|h|?', async (ctx) => {
+    await ctx.reply('Commands: /ping, /help')
+  })
+```
+
+The dispatcher attaches itself once the client is connected and at least one command is registered.
+Registering commands before `connect()` is fine — they wire up automatically on open. Full details
+on `ctx`, argument parsing, and flags live in [Commands](/commands).
+
+## Sending & mutating messages
+
+`client.send(jid)` opens a fluent [message builder](/sending-messages). Awaiting a terminal builder
+call resolves to a Baileys `WAMessageKey`, which the mutation helpers below consume to act on that
+exact message.
+
+The recipient may be a full JID (`628123456789@s.whatsapp.net`, group `xxx@g.us`) or a bare
+phone-number/username that zaileys resolves to a JID for you.
+
+```typescript
+const key = await client.send('628123456789@s.whatsapp.net').text('Original')
+```
+
+| Method | Signature | Description |
+| ------ | --------- | ----------- |
+| `send` | `send(to: string): MessageBuilder` | Open a builder for a recipient JID or resolvable handle. See [Sending Messages](/sending-messages). |
+| `edit` | `edit(key: WAMessageKey): EditBuilder` | Edit a previously-sent message. Returns a builder; await its terminal call. |
+| `react` | `react(key, emoji: string): Promise<WAMessageKey>` | React to a message. Pass an empty string `''` to remove the reaction. |
+| `delete` | `delete(key, opts?: { forEveryone?: boolean }): Promise<void>` | Delete a message. `forEveryone` defaults to `true`. |
+| `forward` | `forward(key, to: string): Promise<WAMessageKey>` | Forward a stored message to another recipient. |
+| `broadcast` | `broadcast(jids, build, opts?): Promise<BroadcastResult>` | Send one built message to many recipients. See [Automation](/automation). |
+| `scheduleAt` | `scheduleAt(date, build): Promise<ScheduleHandle>` | Schedule a message for a future time. See [Automation](/automation). |
+
+```typescript
+
+const client = new Client()
+const jid = '628123456789@s.whatsapp.net'
+const otherJid = '628987654321@s.whatsapp.net'
+
+const key = await client.send(jid).text('Original')
+
+await client.edit(key).text('Edited text')   // edit in place
+await client.react(key, '👍')                 // add reaction
+await client.react(key, '')                    // remove reaction
+await client.delete(key, { forEveryone: true }) // unsend for everyone
+await client.forward(key, otherJid)            // forward to another chat
+```
+
+**`delete` semantics:** with `forEveryone: true` (the default) the message is unsent for all
+participants. With `forEveryone: false` only your own copy is deleted (the helper forces
+`fromMe: true` on the key).
+
+**`forward` requires the message store:** the source message is looked up by key in
+`client.store`. If it isn't there (e.g. an old message that was never stored), `forward` throws
+`MESSAGE_NOT_FOUND`. Use a persistent [store](/storage) if you forward older messages.
+
+### Pin, unpin, and disappearing messages
+
+Beyond editing and reacting, the client can pin an individual message in its chat and set the
+chat's disappearing-messages timer.
+
+| Method | Signature | Description |
+| ------ | --------- | ----------- |
+| `pin` | `pin(key, opts?: { duration?: number }): Promise<WAMessageKey>` | Pin a message in its chat. `duration` is in seconds (default `86400`). |
+| `unpin` | `unpin(key): Promise<WAMessageKey>` | Unpin a previously pinned message. |
+| `setDisappearing` | `setDisappearing(jid, seconds): Promise<void>` | Set the disappearing-messages timer for a chat. `0` turns it off. |
+
+```typescript
+const key = await client.send(jid).text('Pinned announcement')
+
+await client.pin(key)                       // pin for 24h (default)
+await client.pin(key, { duration: 604800 }) // pin for 7 days
+await client.unpin(key)                      // unpin
+
+await client.setDisappearing(jid, 86400) // messages vanish after 24h
+await client.setDisappearing(jid, 0)     // turn disappearing off
+```
+
+**Pin durations.** WhatsApp offers three pin windows, in seconds: `86400` (24 hours), `604800`
+(7 days), and `2592000` (30 days). `pin` defaults to `86400` when `duration` is omitted. This pins an
+individual **message** — to pin an entire **chat**, use [`client.chat.pin(jid)`](/chat#pin--unpin).
+
+### Resolve LID ↔ phone
+
+WhatsApp addresses some users by a privacy-preserving LID (`@lid`) instead of their phone number.
+These two methods resolve between the two using WhatsApp's LID mapping. They require a connected
+socket and may hit the network, so they return a `Promise` and resolve to `null` when the mapping
+is unknown.
+
+| Method | Signature | Description |
+| ------ | --------- | ----------- |
+| `lidToPn` | `lidToPn(lid: string): Promise<string \| null>` | Resolve a `@lid` JID to its phone-number JID. `null` if unknown. |
+| `pnToLid` | `pnToLid(pn: string): Promise<string \| null>` | Resolve a phone-number JID to its `@lid` JID. `null` if unknown. |
+
+```typescript
+const pn = await client.lidToPn('12345@lid')             // '628123@s.whatsapp.net' | null
+const lid = await client.pnToLid('628123@s.whatsapp.net') // '12345@lid' | null
+```
+
+For pure, offline JID inspection (decode, normalize, predicates) use the
+[JID helpers](/utilities#jid-helpers) instead — those need no socket.
+
+## Domain namespaces
+
+Higher-level WhatsApp operations are grouped under lazy namespaces on the client. Each is created on
+first access and proxies to the live socket.
+
+| Namespace | Purpose |
+| --------- | ------- |
+| `client.profile.*` | Your name/status/avatar and reading another JID's picture/status. See [Profile](/profile). |
+| `client.chat.*` | Per-chat state: archive, pin, mute, read/unread, star, delete, clear. See [Chats](/chat). |
+| `client.contact.*` | Check numbers on WhatsApp and save/remove contacts. See [Contacts](/contacts). |
+| `client.business.*` | WhatsApp Business: profiles, catalogs, collections, orders, products. See [Business & Catalog](/business). |
+| `client.group.*` | Create/leave groups, manage participants, subject/description, invites, settings. |
+| `client.presence.*` | Typing/recording indicators and online/offline presence. |
+| `client.privacy.*` | Privacy settings, block list, disappearing-messages default. |
+| `client.newsletter.*` | WhatsApp Channels (newsletters): create/follow/manage. |
+| `client.community.*` | Communities: create, link/unlink groups, invites. |
+
+**NOT_CONNECTED guard.** Every domain method (and `presence`) calls an internal `requireSocket()`.
+If the client is not connected, the call throws a `ZaileysDomainError`/`ZaileysAutomationError` with
+code `NOT_CONNECTED` and message `client not connected`. Always wait for the `'connect'` event (or
+`await client.connect()`) before using these namespaces. The mutation helpers (`send`/`edit`/…) use
+the same guard but throw a `ZaileysBuilderError` with code `INVALID_OPTIONS` (`client not connected`).
+See [Error Handling](/error-handling).
+
+### `client.group`
+
+| Method | Signature | Description |
+| ------ | --------- | ----------- |
+| `create` | `create(subject, participants: string[]): Promise<GroupMetadata>` | Create a group. |
+| `metadata` | `metadata(groupId): Promise<GroupMetadata>` | Fetch group metadata (subject, participants, …). |
+| `addMember` | `addMember(groupId, jids: string[]): Promise<ParticipantUpdateResult[]>` | Add participants. |
+| `removeMember` | `removeMember(groupId, jids: string[]): Promise<ParticipantUpdateResult[]>` | Remove participants. |
+| `promote` | `promote(groupId, jids: string[]): Promise<ParticipantUpdateResult[]>` | Promote to admin. |
+| `demote` | `demote(groupId, jids: string[]): Promise<ParticipantUpdateResult[]>` | Demote from admin. |
+| `updateSubject` | `updateSubject(groupId, subject): Promise<void>` | Change the group name. |
+| `updateDescription` | `updateDescription(groupId, description?): Promise<void>` | Change/clear the description. |
+| `leave` | `leave(groupId): Promise<void>` | Leave the group. |
+| `tagMember` | `tagMember(groupId, jid, label): Promise<void>` | Apply a member label. |
+| `inviteCode` | `inviteCode(groupId): Promise<string>` | Get the current invite code. |
+| `revokeInvite` | `revokeInvite(groupId): Promise<string>` | Revoke and regenerate the invite code. |
+| `acceptInvite` | `acceptInvite(code): Promise<string>` | Join via invite code; returns the group JID. |
+| `toggleEphemeral` | `toggleEphemeral(groupId, seconds): Promise<void>` | Set disappearing-message timer (0 disables). |
+| `setting` | `setting(groupId, 'announcement' \| 'not_announcement' \| 'locked' \| 'unlocked'): Promise<void>` | Restrict who can send (`announcement`) or edit group info (`locked`). |
+
+```typescript
+const groupJid = '120363000000000000@g.us'
+
+const meta = await client.group.metadata(groupJid)
+console.log(meta.subject, meta.participants.length)
+
+await client.group.addMember(groupJid, ['628111111111@s.whatsapp.net'])
+await client.group.promote(groupJid, ['628111111111@s.whatsapp.net'])
+await client.group.setting(groupJid, 'announcement') // only admins can send
+
+const code = await client.group.inviteCode(groupJid)
+console.log('Join link: https://chat.whatsapp.com/' + code)
+```
+
+### `client.presence`
+
+| Method | Signature | Description |
+| ------ | --------- | ----------- |
+| `online` | `online(): Promise<void>` | Mark yourself available. |
+| `offline` | `offline(): Promise<void>` | Mark yourself unavailable. |
+| `typing` | `typing(jid, ms?): Promise<void>` | Show "typing…" in a chat. If `ms` is given, auto-clears after that many ms. |
+| `recording` | `recording(jid, ms?): Promise<void>` | Show "recording audio…". Auto-clears after `ms` if given. |
+
+```typescript
+const jid = '628123456789@s.whatsapp.net'
+
+await client.presence.online()
+await client.presence.typing(jid, 3000) // typing… auto-clears after 3s
+await client.send(jid).text('Done thinking!')
+```
+
+A failed presence update throws a `ZaileysAutomationError` with code `PRESENCE_FAILED`.
+
+### `client.privacy`
+
+| Method | Signature | Description |
+| ------ | --------- | ----------- |
+| `set` | `set(config: PrivacyConfig & { readReceipts?: WAReadReceiptsValue \| boolean }): Promise<void>` | Update one or more privacy settings. Only provided keys are changed. |
+| `get` | `get(): Promise<PrivacySettings>` | Fetch current privacy settings. |
+| `block` | `block(jid): Promise<void>` | Block a contact. |
+| `unblock` | `unblock(jid): Promise<void>` | Unblock a contact. |
+| `blocklist` | `blocklist(): Promise<string[]>` | List blocked JIDs. |
+| `disappearingMode` | `disappearingMode(seconds): Promise<void>` | Set the default disappearing-messages timer for new chats. |
+
+`PrivacyConfig` keys: `lastSeen`, `online`, `profile`, `status` (`WAPrivacyValue`), `groupAdd`
+(`WAPrivacyGroupAddValue`), and `readReceipts` (a `WAReadReceiptsValue`, or a `boolean` which maps to
+`'all'`/`'none'`).
+
+```typescript
+await client.privacy.set({
+  lastSeen: 'contacts',
+  online: 'match_last_seen',
+  readReceipts: false, // → 'none'
+  groupAdd: 'contacts',
+})
+
+const settings = await client.privacy.get()
+console.log(settings)
+
+await client.privacy.block('628999999999@s.whatsapp.net')
+console.log(await client.privacy.blocklist())
+```
+
+### `client.newsletter`
+
+WhatsApp Channels. A newsletter JID looks like `xxxxxxxxxxxx@newsletter`.
+
+| Method | Signature | Description |
+| ------ | --------- | ----------- |
+| `create` | `create(name, opts?: { description?, picture?: Buffer }): Promise<NewsletterMetadata>` | Create a channel; optionally set description and picture. |
+| `metadata` | `metadata(jid): Promise<NewsletterMetadata>` | Fetch channel metadata (throws `NEWSLETTER_NOT_FOUND` if missing). |
+| `follow` | `follow(jid): Promise<void>` | Follow a channel. |
+| `unfollow` | `unfollow(jid): Promise<void>` | Unfollow a channel. |
+| `updateName` | `updateName(jid, name): Promise<void>` | Rename the channel. |
+| `updateDescription` | `updateDescription(jid, description): Promise<void>` | Update the description. |
+| `updatePicture` | `updatePicture(jid, picture: Buffer): Promise<void>` | Update the channel picture. |
+| `mute` | `mute(jid): Promise<void>` | Mute notifications. |
+| `unmute` | `unmute(jid): Promise<void>` | Unmute notifications. |
+| `delete` | `delete(jid): Promise<void>` | Delete the channel. |
+
+```typescript
+const channel = await client.newsletter.create('zaileys updates', {
+  description: 'Release notes and tips',
+})
+console.log('created channel', channel.id)
+
+await client.newsletter.updateDescription(channel.id, 'Now with scheduling!')
+await client.newsletter.follow('120363111111111111@newsletter')
+```
+
+### `client.community`
+
+Communities group multiple chats under one umbrella. A community is identified by a group-style JID.
+
+| Method | Signature | Description |
+| ------ | --------- | ----------- |
+| `create` | `create(subject, body): Promise<GroupMetadata>` | Create a community with name and announcement body. |
+| `createGroup` | `createGroup(subject, participants: string[], communityId): Promise<GroupMetadata>` | Create a group directly inside a community. |
+| `linkGroup` | `linkGroup(communityId, groupId): Promise<void>` | Link an existing group into the community. |
+| `unlinkGroup` | `unlinkGroup(communityId, groupId): Promise<void>` | Unlink a group. |
+| `subGroups` | `subGroups(communityId): Promise<LinkedGroup[]>` | List the community's linked groups. |
+| `leave` | `leave(communityId): Promise<void>` | Leave the community. |
+| `updateSubject` | `updateSubject(communityId, subject): Promise<void>` | Rename the community. |
+| `updateDescription` | `updateDescription(communityId, description?): Promise<void>` | Update the description. |
+| `inviteCode` | `inviteCode(communityId): Promise<string \| undefined>` | Get the invite code. |
+| `revokeInvite` | `revokeInvite(communityId): Promise<string \| undefined>` | Revoke and regenerate the invite code. |
+| `acceptInvite` | `acceptInvite(code): Promise<string \| undefined>` | Join via invite code. |
+
+```typescript
+const community = await client.community.create('Devs', 'Welcome to the dev community')
+
+await client.community.linkGroup(community.id, '120363000000000000@g.us')
+const groups = await client.community.subGroups(community.id)
+console.log('linked groups:', groups.map((g) => g.subject))
+```
+
+## A complete lifecycle example
+
+```typescript
+
+const client = new Client({ sessionId: 'demo', autoConnect: false })
+
+client.on('qr', ({ qrString }) => console.log('Scan QR:', qrString))
+client.on('reconnecting', ({ attempt, delayMs }) =>
+  console.log(`reconnecting #${attempt} in ${delayMs}ms`),
+)
+client.on('error', ({ error }) => console.error('client error:', error.message))
+
+client.on('connect', async ({ me }) => {
+  console.log('connected as', me.id)
+  await client.presence.online()
+})
+
+client.on('text', async (ctx) => {
+  if (ctx.text?.toLowerCase() === 'ping') {
+    const key = await client.send(ctx.roomId).text('pong')
+    await client.react(key, '🏓')
+  }
+})
+
+await client.connect()
+
+// later, on shutdown:
+process.on('SIGINT', async () => {
+  await client.disconnect()
+  process.exit(0)
+})
+```
+
+## Next steps
+
+- [Configuration](/configuration) — auth types, storage adapters, logging, and the `baileys` escape hatch.
+- [Sending Messages](/sending-messages) — the full message builder API behind `client.send()`.
+- [Events](/events) — every event the client emits and the rich message context object.
+- [Commands](/commands) — the command framework enabled by `commandPrefix`.
+- [Automation](/automation) — `broadcast()` and `scheduleAt()` in depth.

@@ -1,0 +1,541 @@
+# Community
+
+> Source: https://zeative.github.io/zaileys/community
+
+# Community
+
+`client.community` exposes the `CommunityModule`, which covers every operation you can perform on a
+WhatsApp Community from zaileys. A WhatsApp Community is essentially a group-of-groups: one parent
+entity (the community) links multiple regular group chats under it, giving members a shared
+announcement space and a directory of sub-groups. Community JIDs use the same `xxx@g.us` format as
+regular groups.
+
+```typescript
+
+const client = new Client()
+
+client.on('connect', async () => {
+  const community = await client.community.create('Devs Hub', 'Welcome to the hub')
+  console.log('Community created:', community.id)
+})
+```
+
+**NOT_CONNECTED guard.** Every `client.community` method calls `requireSocket()` internally. If
+the client is not yet connected, the call throws `ZaileysDomainError` with code `NOT_CONNECTED`
+and message `client not connected`. Always call community methods from inside a `connect` handler
+or after `await client.connect()`. See [Error Handling](/error-handling).
+
+## Methods at a glance
+
+| Method | Returns | Description |
+| ------ | ------- | ----------- |
+| `create(subject, body)` | `Promise<GroupMetadata>` | Create a new community. |
+| `createGroup(subject, participants, communityId)` | `Promise<GroupMetadata>` | Create a sub-group directly inside a community. |
+| `linkGroup(communityId, groupId)` | `Promise<void>` | Link an existing group into the community. |
+| `unlinkGroup(communityId, groupId)` | `Promise<void>` | Unlink a group from the community. |
+| `subGroups(communityId)` | `Promise<LinkedGroup[]>` | List the community's linked groups. |
+| `leave(communityId)` | `Promise<void>` | Leave the community. |
+| `updateSubject(communityId, subject)` | `Promise<void>` | Rename the community. |
+| `updateDescription(communityId, description?)` | `Promise<void>` | Update (or clear) the community description. |
+| `inviteCode(communityId)` | `Promise<string \| undefined>` | Get the current invite code. |
+| `revokeInvite(communityId)` | `Promise<string \| undefined>` | Revoke and regenerate the invite code. |
+| `acceptInvite(code)` | `Promise<string \| undefined>` | Join a community via invite code. |
+| `metadata(communityId)` | `Promise<GroupMetadata>` | Fetch community metadata. |
+| `list()` | `Promise<GroupMetadata[]>` | Communities you participate in. |
+| `inviteInfo(code)` | `Promise<GroupMetadata>` | Resolve an invite code to its metadata (preview). |
+| `toggleEphemeral(communityId, seconds)` | `Promise<void>` | Set the disappearing-message default (`0` disables). |
+| `setting(communityId, value)` | `Promise<void>` | Update the announcement restriction. |
+| `memberAddMode(communityId, adminsOnly)` | `Promise<void>` | Toggle whether only admins can add members. |
+| `joinApproval(communityId, enabled)` | `Promise<void>` | Toggle "admin approval to join". |
+
+**Ban-safety — `operationGuard` is active by default.** `create` and `createGroup` share the
+`community.create` category (minimum interval **120 seconds**). `acceptInvite` uses
+`community.join` (minimum interval **30 seconds**). The guard serialises concurrent calls in the
+same category and inserts the required wait between them so rapid community creation or bulk joins
+never fire faster than WhatsApp tolerates. Disabling or bypassing the guard increases the
+risk of a temporary account restriction. See [Configuration](/configuration#operationguard) and
+[Troubleshooting](/troubleshooting).
+
+## `create`
+
+```typescript
+create(subject: string, body: string): Promise<GroupMetadata>
+```
+
+Creates a new community. `subject` becomes the community name; `body` is the announcement text
+shown to members when they join.
+
+Returns `GroupMetadata` — the full metadata object for the newly created community, including its
+`id` (a `xxx@g.us` JID).
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subject` | `string` | Community name. |
+| `body` | `string` | Announcement body shown on join. |
+
+```typescript
+const community = await client.community.create(
+  'Devs Hub',
+  'A space for developers using zaileys.',
+)
+
+console.log('Community id:', community.id)
+// e.g. "120363000000000001@g.us"
+```
+
+## `createGroup`
+
+```typescript
+createGroup(subject: string, participants: string[], communityId: string): Promise<GroupMetadata>
+```
+
+Creates a new regular group and immediately links it into the specified community. Participants
+are added at creation time. Returns `GroupMetadata` for the new group.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `subject` | `string` | Group name. |
+| `participants` | `string[]` | Array of user JIDs (`628xxxxxxxxxx@s.whatsapp.net`) to add. |
+| `communityId` | `string` | Community JID (`xxx@g.us`). |
+
+```typescript
+const communityId = '120363000000000001@g.us'
+
+const group = await client.community.createGroup(
+  'Backend Team',
+  [
+    '628111111111@s.whatsapp.net',
+    '628222222222@s.whatsapp.net',
+  ],
+  communityId,
+)
+
+console.log('Sub-group created:', group.id)
+```
+
+## `linkGroup`
+
+```typescript
+linkGroup(communityId: string, groupId: string): Promise<void>
+```
+
+Links an existing group into the community. The group must exist and the bot must have the
+necessary permissions in both the group and the community.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `communityId` | `string` | Community JID (`xxx@g.us`). |
+| `groupId` | `string` | Group JID to link (`xxx@g.us`). |
+
+```typescript
+const communityId = '120363000000000001@g.us'
+const groupId = '120363000000000002@g.us'
+
+await client.community.linkGroup(communityId, groupId)
+console.log('Group linked.')
+```
+
+## `unlinkGroup`
+
+```typescript
+unlinkGroup(communityId: string, groupId: string): Promise<void>
+```
+
+Removes a group from the community without deleting the group itself. The group continues to
+exist as a standalone group.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `communityId` | `string` | Community JID (`xxx@g.us`). |
+| `groupId` | `string` | Group JID to unlink (`xxx@g.us`). |
+
+```typescript
+await client.community.unlinkGroup(communityId, groupId)
+console.log('Group unlinked.')
+```
+
+## `subGroups`
+
+```typescript
+subGroups(communityId: string): Promise<LinkedGroup[]>
+```
+
+Returns the list of groups currently linked to the community. Each entry is a `LinkedGroup`
+object.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `communityId` | `string` | Community JID (`xxx@g.us`). |
+
+### `LinkedGroup` shape
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `id` | `string \| undefined` | Group JID. |
+| `subject` | `string` | Group name. |
+| `creation` | `number \| undefined` | Unix timestamp of group creation. |
+| `owner` | `string \| undefined` | JID of the group owner. |
+| `size` | `number \| undefined` | Number of members. |
+
+```typescript
+const communityId = '120363000000000001@g.us'
+
+const groups = await client.community.subGroups(communityId)
+
+for (const g of groups) {
+  console.log(g.subject, '—', g.size, 'members')
+}
+```
+
+## `leave`
+
+```typescript
+leave(communityId: string): Promise<void>
+```
+
+Leaves the community. The bot's account is removed from the community and all its sub-groups
+that were joined through it.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `communityId` | `string` | Community JID (`xxx@g.us`). |
+
+```typescript
+await client.community.leave('120363000000000001@g.us')
+```
+
+## `updateSubject`
+
+```typescript
+updateSubject(communityId: string, subject: string): Promise<void>
+```
+
+Renames the community. Requires admin rights in the community.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `communityId` | `string` | Community JID (`xxx@g.us`). |
+| `subject` | `string` | New community name. |
+
+```typescript
+await client.community.updateSubject('120363000000000001@g.us', 'Devs Hub v2')
+```
+
+## `updateDescription`
+
+```typescript
+updateDescription(communityId: string, description?: string): Promise<void>
+```
+
+Updates the community description. Passing `undefined` (or calling with only one argument)
+clears the description.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `communityId` | `string` | Community JID (`xxx@g.us`). |
+| `description` | `string \| undefined` | New description. Omit or pass `undefined` to clear. |
+
+```typescript
+// Set a new description
+await client.community.updateDescription(
+  '120363000000000001@g.us',
+  'Open community for zaileys developers.',
+)
+
+// Clear the description
+await client.community.updateDescription('120363000000000001@g.us')
+```
+
+## `inviteCode`
+
+```typescript
+inviteCode(communityId: string): Promise<string | undefined>
+```
+
+Returns the current invite code string for the community, or `undefined` if none is available.
+Append the code to `https://chat.whatsapp.com/` to form a sharable link.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `communityId` | `string` | Community JID (`xxx@g.us`). |
+
+```typescript
+const code = await client.community.inviteCode('120363000000000001@g.us')
+
+if (code) {
+  console.log('Invite link: https://chat.whatsapp.com/' + code)
+}
+```
+
+## `revokeInvite`
+
+```typescript
+revokeInvite(communityId: string): Promise<string | undefined>
+```
+
+Invalidates the current invite code and issues a new one. Returns the new code, or `undefined`
+on failure. Use this when the existing link has been shared too broadly.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `communityId` | `string` | Community JID (`xxx@g.us`). |
+
+```typescript
+const newCode = await client.community.revokeInvite('120363000000000001@g.us')
+
+if (newCode) {
+  console.log('New invite link: https://chat.whatsapp.com/' + newCode)
+}
+```
+
+## `acceptInvite`
+
+```typescript
+acceptInvite(code: string): Promise<string | undefined>
+```
+
+Joins a community using an invite code. Returns the community JID on success, or `undefined`.
+
+`acceptInvite` is guarded by the `community.join` category with a **30-second** minimum interval.
+Joining multiple communities in quick succession will be automatically spaced by the
+`operationGuard`. See [Configuration](/configuration#operationguard).
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `code` | `string` | The invite code (just the code portion, not the full URL). |
+
+```typescript
+// Extract just the code from a full URL if needed
+const url = 'https://chat.whatsapp.com/AbCdEfGhIjKlMnOpQrStUv'
+const code = url.split('/').pop()!
+
+const communityId = await client.community.acceptInvite(code)
+console.log('Joined community:', communityId)
+```
+
+## `metadata`
+
+```typescript
+metadata(communityId: string): Promise<GroupMetadata>
+```
+
+Fetches the metadata for a community: subject, description, participant list, and related fields.
+This is the primary read operation for community state.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `communityId` | `string` | Community JID (`xxx@g.us`). |
+
+```typescript
+const meta = await client.community.metadata('120363000000000001@g.us')
+console.log(meta.subject, '—', meta.participants.length, 'members')
+```
+
+**Returns:** `GroupMetadata`.
+
+## `list`
+
+```typescript
+list(): Promise<GroupMetadata[]>
+```
+
+Returns the metadata for every community the bot currently participates in.
+
+```typescript
+const communities = await client.community.list()
+console.log('You are in', communities.length, 'communities')
+
+for (const c of communities) {
+  console.log(c.subject, '—', c.id)
+}
+```
+
+**Returns:** `GroupMetadata[]`.
+
+## `inviteInfo`
+
+```typescript
+inviteInfo(code: string): Promise<GroupMetadata>
+```
+
+Resolves a community invite code to its metadata **without joining**. Use this to preview a
+community before calling `acceptInvite`. The `code` is the raw fragment (the part after
+`https://chat.whatsapp.com/`).
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `code` | `string` | The invite code (just the code portion, not the full URL). |
+
+```typescript
+const info = await client.community.inviteInfo('AbCdEfGhIjKlMnOpQrStUv')
+console.log('Community:', info.subject)
+```
+
+**Returns:** `GroupMetadata`.
+
+## `toggleEphemeral`
+
+```typescript
+toggleEphemeral(communityId: string, seconds: number): Promise<void>
+```
+
+Sets the default disappearing-message timer for the community. Pass `0` to disable. Common values
+are `86400` (24 hours), `604800` (7 days), and `7776000` (90 days). Requires admin rights.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `communityId` | `string` | Community JID (`xxx@g.us`). |
+| `seconds` | `number` | Timer in seconds. `0` disables disappearing messages. |
+
+```typescript
+// Enable 7-day disappearing messages by default
+await client.community.toggleEphemeral('120363000000000001@g.us', 604800)
+
+// Disable
+await client.community.toggleEphemeral('120363000000000001@g.us', 0)
+```
+
+## `setting`
+
+```typescript
+setting(communityId: string, setting: 'announcement' | 'not_announcement'): Promise<void>
+```
+
+Applies the announcement restriction to the community. Requires admin rights.
+
+| Value | Effect |
+| ----- | ------ |
+| `'announcement'` | Only admins can post in the community announcement space. |
+| `'not_announcement'` | All members can post. |
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `communityId` | `string` | Community JID (`xxx@g.us`). |
+| `setting` | `'announcement' \| 'not_announcement'` | The restriction to apply. |
+
+```typescript
+// Only admins can post
+await client.community.setting('120363000000000001@g.us', 'announcement')
+
+// Re-open for all members
+await client.community.setting('120363000000000001@g.us', 'not_announcement')
+```
+
+## `memberAddMode`
+
+```typescript
+memberAddMode(communityId: string, adminsOnly: boolean): Promise<void>
+```
+
+Toggles who can add new members to the community. When `adminsOnly` is `true`, only admins can add
+members; when `false`, any member can. Requires admin rights.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `communityId` | `string` | Community JID (`xxx@g.us`). |
+| `adminsOnly` | `boolean` | `true` to restrict adding members to admins only. |
+
+```typescript
+// Only admins can add members
+await client.community.memberAddMode('120363000000000001@g.us', true)
+
+// Any member can add members
+await client.community.memberAddMode('120363000000000001@g.us', false)
+```
+
+## `joinApproval`
+
+```typescript
+joinApproval(communityId: string, enabled: boolean): Promise<void>
+```
+
+Toggles the community's "admin approval to join" mode. When enabled, users who follow the invite
+link must be approved by an admin before joining. Requires admin rights.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `communityId` | `string` | Community JID (`xxx@g.us`). |
+| `enabled` | `boolean` | `true` to require admin approval, `false` to allow direct joins. |
+
+```typescript
+// Require admin approval
+await client.community.joinApproval('120363000000000001@g.us', true)
+
+// Allow direct joins
+await client.community.joinApproval('120363000000000001@g.us', false)
+```
+
+## Complete example
+
+The following example creates a community, creates two sub-groups inside it, lists them, then
+updates the community name.
+
+```typescript
+
+const client = new Client({ sessionId: 'community-bot' })
+
+client.on('connect', async () => {
+  // 1. Create the community
+  const community = await client.community.create(
+    'Devs Hub',
+    'Central space for all zaileys developers.',
+  )
+  console.log('Community:', community.id)
+
+  // 2. Create sub-groups inside it
+  const backend = await client.community.createGroup(
+    'Backend',
+    ['628111111111@s.whatsapp.net'],
+    community.id,
+  )
+  const frontend = await client.community.createGroup(
+    'Frontend',
+    ['628222222222@s.whatsapp.net'],
+    community.id,
+  )
+  console.log('Groups created:', backend.id, frontend.id)
+
+  // 3. List linked groups
+  const groups = await client.community.subGroups(community.id)
+  console.log('Sub-groups:', groups.map((g) => g.subject))
+
+  // 4. Rename the community
+  await client.community.updateSubject(community.id, 'Devs Hub v2')
+
+  // 5. Get an invite link
+  const code = await client.community.inviteCode(community.id)
+  if (code) {
+    console.log('Share:', 'https://chat.whatsapp.com/' + code)
+  }
+})
+```
+
+## Error handling
+
+All `client.community` methods throw `ZaileysDomainError` on failure. The most common codes are:
+
+| Code | When it occurs |
+| ---- | -------------- |
+| `NOT_CONNECTED` | Method called before the client has connected. |
+
+```typescript
+
+try {
+  await client.community.create('Test', 'body')
+} catch (err) {
+  if (err instanceof ZaileysDomainError && err.code === 'NOT_CONNECTED') {
+    console.error('Connect the client first.')
+  } else {
+    throw err
+  }
+}
+```
+
+See [Error Handling](/error-handling) for the full error hierarchy and all codes.
+
+## See also
+
+- [Groups](/groups) — create and manage regular WhatsApp groups.
+- [Newsletter](/newsletter) — WhatsApp Channels (newsletters).
+- [Configuration](/configuration#operationguard) — tune or disable `operationGuard` intervals.
+- [Troubleshooting](/troubleshooting) — what to do when operations are being rate-limited.

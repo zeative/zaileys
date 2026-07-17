@@ -18,6 +18,7 @@ const paths: Record<string, string> = {
   megaphone: 'M3 11v2a1 1 0 0 0 1 1h2l9 5V5L6 10H4a1 1 0 0 0-1 1zM19 8a5 5 0 0 1 0 8',
   eye: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7-10-7-10-7zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z',
   users: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8',
+  layers: 'M12 2 2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5',
   network: 'M12 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM5 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19 22a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM12 8v4M6.5 16.5 11 12M17.5 16.5 13 12',
   rss: 'M4 11a9 9 0 0 1 9 9M4 4a16 16 0 0 1 16 16M5 19a1 1 0 1 0 0-.01',
   shield: 'M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10zM9 12l2 2 4-4',
@@ -113,6 +114,7 @@ export default {
   'auto-delete': item('trash', 'Auto-Delete'),
 
   '-- advanced': { type: 'separator', title: 'Advanced' },
+  'multi-account': item('layers', 'Multiple Accounts'),
   plugins: item('plug', 'Plugins'),
   utilities: item('wrench', 'Utilities'),
   'error-handling': item('alert', 'Error Handling'),

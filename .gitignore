@@ -44,3 +44,7 @@ docs/superpowers/
 # scratch reports
 .lib-lottie-report.md
 *-report.md
+
+# planning scratch — local only, not shipped
+/spec/
+/tasks/

@@ -559,6 +559,7 @@ const decodeQuotedContext = async (
   parentRemoteJid: string,
   parentSender?: SenderInfo,
   parentRoomName?: () => Promise<string | null>,
+  parentFromMe?: boolean,
 ): Promise<MessageContext | null> => {
   try {
     if (contextInfo == null) return null
@@ -583,22 +584,38 @@ const decodeQuotedContext = async (
     if (typeof quoted.key.remoteJid !== 'string' || quoted.key.remoteJid.length === 0) return null
 
     const author = quoted.key.participant
-    const isSelf =
-      typeof author === 'string' &&
-      ((ctx.selfJid.length > 0 && normalizedEquals(author, ctx.selfJid)) ||
-        (ctx.selfLid != null && normalizedEquals(author, ctx.selfLid)))
     const parentIsGroup = isGroupJid(parentRemoteJid)
 
     let pushName = quoted.sender?.pushName
-    if (isSelf) {
-      quoted.key.fromMe = true
-      if (ctx.selfJid.length > 0) quoted.key.participant = ctx.selfJid
-      if (ctx.selfLid != null) quoted.key.participantAlt = ctx.selfLid
-      if (pushName == null) pushName = ctx.selfName
-    } else if (parentSender != null && (!parentIsGroup || sameAuthor(quoted.sender, parentSender))) {
-      if (parentSender.pn != null) quoted.key.participant = parentSender.pn
-      if (parentSender.lid != null) quoted.key.participantAlt = parentSender.lid
-      if (pushName == null) pushName = parentSender.pushName
+
+    if (!parentIsGroup && (author == null || author.length === 0)) {
+      if (parentFromMe === true) {
+        quoted.key.participant = parentRemoteJid
+        if (pushName == null && parentSender != null && sameAuthor({ jid: parentRemoteJid }, parentSender)) {
+          pushName = parentSender.pushName
+        }
+      } else {
+        quoted.key.fromMe = true
+        if (ctx.selfJid.length > 0) quoted.key.participant = ctx.selfJid
+        if (ctx.selfLid != null) quoted.key.participantAlt = ctx.selfLid
+        if (pushName == null) pushName = ctx.selfName
+      }
+    } else {
+      const isSelf =
+        typeof author === 'string' &&
+        ((ctx.selfJid.length > 0 && normalizedEquals(author, ctx.selfJid)) ||
+          (ctx.selfLid != null && normalizedEquals(author, ctx.selfLid)))
+
+      if (isSelf) {
+        quoted.key.fromMe = true
+        if (ctx.selfJid.length > 0) quoted.key.participant = ctx.selfJid
+        if (ctx.selfLid != null) quoted.key.participantAlt = ctx.selfLid
+        if (pushName == null) pushName = ctx.selfName
+      } else if (parentSender != null && sameAuthor(quoted.sender, parentSender)) {
+        if (parentSender.pn != null) quoted.key.participant = parentSender.pn
+        if (parentSender.lid != null) quoted.key.participantAlt = parentSender.lid
+        if (pushName == null) pushName = parentSender.pushName
+      }
     }
 
     const qm = contextInfo.quotedMessage as WAMessage['message']
@@ -680,7 +697,7 @@ const buildContext = (
     ctx.resolveReceiverName ?? (() => Promise.resolve(null))
 
   const resolveReplied = (): Promise<MessageContext | null> =>
-    decodeQuotedContext(contextInfo, ctx, jid, sender, resolveRoomName)
+    decodeQuotedContext(contextInfo, ctx, jid, sender, resolveRoomName, key.fromMe === true)
 
   const replyTarget = jid.length > 0 ? jid : (sender.pn ?? sender.jid)
   const reply = (content: string, opts?: TextOptions): Promise<WAMessageKey> => {

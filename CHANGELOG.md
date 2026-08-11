@@ -1,5 +1,11 @@
 # zaileys
 
+## 4.9.0
+
+### Minor Changes
+
+- Add custom sticker pack and author metadata configuration support via `ClientOptions.sticker` and `StickerOptions`, with aliases (`pack`, `author`, `packname`, `publisher`).
+
 ## 4.8.5
 
 ### Patch Changes

@@ -11,6 +11,7 @@ import type { InboundEventMap } from '../events/types.js'
 import type { MessageStore } from '../store/types.js'
 import type { PluginsOptions } from '../plugin/types.js'
 import type { CloudOptions } from '../cloud/types.js'
+import type { StickerMetadataType } from '../media/ffmpeg/sticker.js'
 import type {
   CloudFlowResponseEvent,
   CloudOrderEvent,
@@ -84,6 +85,8 @@ export interface ClientOptions {
   autoDelete?: AutoDeleteOptions | false
   /** Load and manage plugins from a directory. */
   plugins?: PluginsOptions
+  /** Global default sticker metadata configuration (pack name, author, etc). */
+  sticker?: StickerMetadataType
 }
 
 export type ConnectionEventMap = {

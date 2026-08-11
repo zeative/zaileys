@@ -45,6 +45,7 @@ import {
 } from '../command/index.js'
 import { PluginRegistry, PluginLoader, type PluginHost } from '../plugin/index.js'
 import type { PluginsOptions } from '../plugin/types.js'
+import { StickerProcessor } from '../media/index.js'
 import {
   AutoDeleteSweeper,
   AutoRejectCallModule,
@@ -244,6 +245,9 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         ? undefined
         : { maxAgeMs: 30 * 24 * 60 * 60 * 1000, ...options.autoDelete }
     this.pluginsOptions = options.plugins
+    if (options.sticker) {
+      StickerProcessor.setDefaultMetadata(options.sticker)
+    }
     this.attachEmitterLogger()
     if (options.autoConnect ?? true) {
       queueMicrotask(() => {

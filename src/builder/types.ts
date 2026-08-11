@@ -1,5 +1,7 @@
 import type { WAMessage, WAMessageKey } from 'baileys'
 
+import type { StickerMetadataType } from '../media/ffmpeg/sticker.js'
+
 export type BuilderState = 'init' | 'content-set'
 
 export type MediaSource = string | Buffer | URL
@@ -32,7 +34,7 @@ export type DocumentOptions = {
   caption?: string
 }
 
-export type StickerOptions = {
+export type StickerOptions = StickerMetadataType & {
   animated?: boolean
 }
 

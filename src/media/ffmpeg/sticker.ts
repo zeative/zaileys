@@ -9,6 +9,10 @@ export type StickerShapeType = 'circle' | 'rounded' | 'oval' | 'default';
 export interface StickerMetadataType {
   packageName?: string;
   authorName?: string;
+  pack?: string;
+  author?: string;
+  packname?: string;
+  publisher?: string;
   quality?: number;
   shape?: StickerShapeType;
 }
@@ -16,6 +20,23 @@ export interface StickerMetadataType {
 type FileExtension = 'gif' | 'mp4' | 'tmp';
 
 export class StickerProcessor {
+  private static defaultMetadata: StickerMetadataType = {
+    packageName: 'Zaileys Library',
+    authorName: 'https://github.com/zeative/zaileys',
+  };
+
+  static setDefaultMetadata(metadata?: StickerMetadataType): void {
+    if (!metadata) return;
+    StickerProcessor.defaultMetadata = {
+      ...StickerProcessor.defaultMetadata,
+      ...metadata,
+    };
+  }
+
+  static getDefaultMetadata(): StickerMetadataType {
+    return { ...StickerProcessor.defaultMetadata };
+  }
+
   static async create(input: MediaInput, metadata?: StickerMetadataType): Promise<Buffer> {
     try {
       const buffer = await BufferConverter.toBuffer(input);
@@ -46,10 +67,28 @@ export class StickerProcessor {
   }
 
   private static createExifMetadata(metadata?: StickerMetadataType): Buffer {
+    const pack =
+      metadata?.pack ??
+      metadata?.packageName ??
+      metadata?.packname ??
+      StickerProcessor.defaultMetadata.pack ??
+      StickerProcessor.defaultMetadata.packageName ??
+      StickerProcessor.defaultMetadata.packname ??
+      'Zaileys Library';
+
+    const author =
+      metadata?.author ??
+      metadata?.authorName ??
+      metadata?.publisher ??
+      StickerProcessor.defaultMetadata.author ??
+      StickerProcessor.defaultMetadata.authorName ??
+      StickerProcessor.defaultMetadata.publisher ??
+      'https://github.com/zeative/zaileys';
+
     const json = {
       'sticker-pack-id': generateId(),
-      'sticker-pack-name': metadata?.packageName || 'Zaileys Library',
-      'sticker-pack-publisher': metadata?.authorName || 'https://github.com/zeative/zaileys',
+      'sticker-pack-name': pack,
+      'sticker-pack-publisher': author,
       emojis: ['\u{1F913}'],
       'android-app-store-link': 'https://play.google.com/store/apps/details?id=com.marsvard.stickermakerforwhatsapp',
       'ios-app-store-link': 'https://itunes.apple.com/app/sticker-maker-studio/id1443326857',

@@ -16,7 +16,7 @@ export const buildStickerContent = async (
   const { buffer } = await loadMedia(src)
   let webp: Buffer
   try {
-    webp = await new Media(buffer).sticker.create()
+    webp = await new Media(buffer).sticker.create(opts)
   } catch (err) {
     throw new ZaileysBuilderError('MEDIA_LOAD_FAILED', `sticker() conversion failed: ${(err as Error).message}`, {
       cause: err,

@@ -171,10 +171,39 @@ create(metadata?: StickerMetadataType): Promise<Buffer>
 
 | Option        | Type                                        | Default                                  | Description                                                 |
 | ------------- | ------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------- |
-| `packageName` | `string`                                    | `'Zaileys Library'`                      | Sticker pack name stored in EXIF.                           |
-| `authorName`  | `string`                                    | `'https://github.com/zeative/zaileys'`   | Sticker pack publisher stored in EXIF.                      |
+| `packageName` | `string`                                    | `'Zaileys Library'`                      | Sticker pack name stored in EXIF (aliases: `pack`, `packname`). |
+| `authorName`  | `string`                                    | `'https://github.com/zeative/zaileys'`   | Sticker pack publisher stored in EXIF (aliases: `author`, `publisher`). |
+| `pack`        | `string`                                    | —                                        | Convenient alias for `packageName`.                         |
+| `author`      | `string`                                    | —                                        | Convenient alias for `authorName`.                          |
 | `quality`     | `number`                                    | `60`                                     | WebP quality, clamped to 1–100.                             |
 | `shape`       | `'circle' \| 'rounded' \| 'oval' \| 'default'` | `'default'`                           | Crops static stickers to a shape mask. (Static only.)       |
+
+### Global Client Sticker Defaults
+
+You can configure global default sticker metadata when initializing the `Client`:
+
+```typescript
+import { Client } from 'zaileys'
+
+const client = new Client({
+  // Global default metadata for all stickers
+  sticker: {
+    pack: 'My Bot Sticker Pack',
+    author: 'My Bot',
+  },
+})
+```
+
+### Passing Metadata in MessageBuilder
+
+You can also pass custom pack and author metadata per-sticker directly in `.sticker()`:
+
+```typescript
+await client.send('6281234567890@s.whatsapp.net').sticker(imageBuffer, {
+  pack: 'Custom Pack',
+  author: 'Custom Author',
+})
+```
 
 ```typescript
 import { Client, Media } from 'zaileys'
@@ -182,8 +211,8 @@ import { Client, Media } from 'zaileys'
 const client = new Client({ /* ... */ })
 
 const sticker = await new Media('./assets/cat.png').sticker.create({
-  packageName: 'My Pack',
-  authorName: 'Me',
+  pack: 'My Pack',
+  author: 'Me',
   quality: 80,
   shape: 'rounded',
 })

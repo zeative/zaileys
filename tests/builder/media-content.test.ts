@@ -354,6 +354,13 @@ describe('sticker()', () => {
     expect(captured().content.isAnimated).toBe(true)
   })
 
+  it('passes sticker pack and author metadata options to Media.sticker.create', async () => {
+    const { socket } = makeSocket()
+    const opts = { pack: 'Custom Pack', author: 'Custom Author' }
+    await MessageBuilder.create(socket, RECIPIENT).sticker(pngBuffer, opts)
+    expect(stickerCreateMock).toHaveBeenCalledWith(opts)
+  })
+
   it('loads sticker from a file path', async () => {
     const { socket, captured } = makeSocket()
     await MessageBuilder.create(socket, RECIPIENT).sticker(JPEG_PATH)

@@ -282,7 +282,7 @@ export const runMessageStoreContract = (
         expect(mList.length).toBe(300)
         expect(cList.length).toBe(300)
         expect(uList.length).toBe(300)
-      }, 30000)
+      })
 
       it('F6: listMessages returns immutable copies', async () => {
         const jid = 'immut@s.whatsapp.net'

@@ -26,7 +26,7 @@ vi.mock('../../src/media/ffmpeg/core.js', async () => {
 import { ImageProcessor } from '../../src/media/ffmpeg/image.js'
 
 const PNG_1x1 = Buffer.from(
-  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M8AAAMBAQDJ/pLvAAAAAElFTkSuQmCC',
   'base64',
 )
 

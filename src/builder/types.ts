@@ -164,6 +164,14 @@ export type GroupStatusOptions = {
   font?: GroupStatusFont | number
 }
 
+/** A message to repost as a group status — a `MessageContext` or a raw `WAMessage`. */
+export type GroupStatusSource = WAMessage | { message: () => WAMessage }
+
+export type GroupStatusRepostOptions = {
+  /** Replaces the original caption. Ignored for voice notes, which have none. */
+  caption?: string
+}
+
 export type BuilderContext = {
   recipient: string
   quoted?: WAMessage | WAMessageKey

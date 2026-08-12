@@ -1,7 +1,7 @@
-import type { AnyMessageContent } from 'baileys'
+import { getContentType, normalizeMessageContent, proto, type AnyMessageContent, type WAMessage } from 'baileys'
 import { ZaileysBuilderError } from '../errors.js'
 import { RELAY_CONTENT_KEY, RELAY_REQUIRE_GROUP_KEY } from './buttons.js'
-import type { GroupStatusFont, GroupStatusOptions } from '../types.js'
+import type { GroupStatusFont, GroupStatusOptions, GroupStatusRepostOptions, GroupStatusSource } from '../types.js'
 
 const MAX_ARGB = 0xffffffff
 
@@ -74,8 +74,55 @@ export const buildGroupStatusContent = (text: string, opts?: GroupStatusOptions)
   if (opts?.font !== undefined) {
     extendedTextMessage['font'] = resolveStatusFont(opts.font)
   }
-  return {
-    [RELAY_CONTENT_KEY]: { groupStatusMessageV2: { message: { extendedTextMessage } } },
+  return wrapStatus({ extendedTextMessage })
+}
+
+const wrapStatus = (message: Record<string, unknown>): AnyMessageContent =>
+  ({
+    [RELAY_CONTENT_KEY]: { groupStatusMessageV2: { message } },
     [RELAY_REQUIRE_GROUP_KEY]: 'groupStatus()',
-  } as unknown as AnyMessageContent
+  }) as unknown as AnyMessageContent
+
+const REPOSTABLE = ['conversation', 'extendedTextMessage', 'imageMessage', 'videoMessage', 'audioMessage'] as const
+
+const CAPTIONABLE = new Set(['extendedTextMessage', 'imageMessage', 'videoMessage'])
+
+const toWAMessage = (source: GroupStatusSource): WAMessage =>
+  typeof (source as { message?: unknown }).message === 'function'
+    ? (source as { message: () => WAMessage }).message()
+    : (source as WAMessage)
+
+/**
+ * Reposts an existing message as a group status. Media is carried by copying its pointers
+ * (`url`, `directPath`, `mediaKey`), never by downloading and re-uploading the bytes.
+ */
+export const buildGroupStatusRepost = (
+  source: GroupStatusSource,
+  opts?: GroupStatusRepostOptions,
+): AnyMessageContent => {
+  const original = toWAMessage(source)
+  const content = original?.message == null ? null : normalizeMessageContent(original.message)
+  const key = content == null ? undefined : getContentType(content)
+  if (content == null || key === undefined) {
+    throw new ZaileysBuilderError('EMPTY_CONTENT', 'groupStatus() source has no repostable content')
+  }
+  if (!REPOSTABLE.includes(key as (typeof REPOSTABLE)[number])) {
+    throw new ZaileysBuilderError(
+      'INVALID_OPTIONS',
+      `groupStatus() cannot repost ${key}; supported: ${REPOSTABLE.join(', ')}`,
+    )
+  }
+  const copy = proto.Message.decode(proto.Message.encode(content).finish()) as unknown as Record<string, unknown>
+  if (key === 'conversation') {
+    copy['extendedTextMessage'] = { text: copy['conversation'] }
+    delete copy['conversation']
+  }
+  const nodeKey = key === 'conversation' ? 'extendedTextMessage' : key
+  const node = copy[nodeKey] as Record<string, unknown>
+  delete node['viewOnce']
+  node['contextInfo'] = {}
+  if (opts?.caption !== undefined && CAPTIONABLE.has(nodeKey)) {
+    node[nodeKey === 'extendedTextMessage' ? 'text' : 'caption'] = opts.caption
+  }
+  return wrapStatus({ [nodeKey]: node })
 }

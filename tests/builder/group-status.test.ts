@@ -1,6 +1,8 @@
+import type { WAMessage } from 'baileys'
 import { describe, expect, it } from 'vitest'
 import {
   buildGroupStatusContent,
+  buildGroupStatusRepost,
   parseStatusArgb,
   resolveStatusFont,
 } from '../../src/builder/content/group-status.js'
@@ -9,10 +11,13 @@ import { ZaileysBuilderError } from '../../src/builder/errors.js'
 
 type ExtendedText = { text: string; backgroundArgb?: number; font?: number }
 
-const statusOf = (content: unknown): ExtendedText =>
-  (content as Record<string, { groupStatusMessageV2: { message: { extendedTextMessage: ExtendedText } } }>)[
+const innerOf = (content: unknown): Record<string, Record<string, unknown>> =>
+  (content as Record<string, { groupStatusMessageV2: { message: Record<string, Record<string, unknown>> } }>)[
     RELAY_CONTENT_KEY
-  ]!.groupStatusMessageV2.message.extendedTextMessage
+  ]!.groupStatusMessageV2.message
+
+const statusOf = (content: unknown): ExtendedText =>
+  innerOf(content)['extendedTextMessage'] as unknown as ExtendedText
 
 const expectError = (fn: () => unknown, code: string) => {
   try {
@@ -114,5 +119,114 @@ describe('buildGroupStatusContent', () => {
     expectError(() => buildGroupStatusContent(''), 'EMPTY_CONTENT')
     expectError(() => buildGroupStatusContent('   '), 'EMPTY_CONTENT')
     expectError(() => buildGroupStatusContent(undefined as unknown as string), 'EMPTY_CONTENT')
+  })
+})
+
+const MEDIA_KEY = Buffer.alloc(32, 7)
+const FILE_ENC_SHA = Buffer.alloc(32, 2)
+
+const msg = (content: Record<string, unknown>): WAMessage =>
+  ({ key: { id: 'SRC1', remoteJid: '1@s.whatsapp.net', fromMe: false }, message: content }) as unknown as WAMessage
+
+const imageSource = (extra: Record<string, unknown> = {}): WAMessage =>
+  msg({
+    imageMessage: {
+      url: 'https://mmg.whatsapp.net/v/t62/abc',
+      directPath: '/v/t62/abc',
+      mediaKey: MEDIA_KEY,
+      fileEncSha256: FILE_ENC_SHA,
+      fileLength: 12345,
+      mimetype: 'image/jpeg',
+      caption: 'asli',
+      ...extra,
+    },
+  })
+
+describe('buildGroupStatusRepost', () => {
+  it('copies the media pointers byte-identically without re-upload', () => {
+    const node = innerOf(buildGroupStatusRepost(imageSource()))['imageMessage']!
+    expect(node['directPath']).toBe('/v/t62/abc')
+    expect(node['url']).toBe('https://mmg.whatsapp.net/v/t62/abc')
+    expect(Buffer.from(node['mediaKey'] as Uint8Array)).toEqual(MEDIA_KEY)
+    expect(Buffer.from(node['fileEncSha256'] as Uint8Array)).toEqual(FILE_ENC_SHA)
+  })
+
+  it('marks the reposted content as group-only', () => {
+    const content = buildGroupStatusRepost(imageSource()) as unknown as Record<string, unknown>
+    expect(content[RELAY_REQUIRE_GROUP_KEY]).toBe('groupStatus()')
+  })
+
+  it('strips viewOnce from the copy', () => {
+    const node = innerOf(buildGroupStatusRepost(imageSource({ viewOnce: true })))['imageMessage']!
+    expect(node['viewOnce']).toBeFalsy()
+  })
+
+  it('resets inherited contextInfo so quote chains do not leak', () => {
+    const source = imageSource({
+      contextInfo: { stanzaId: 'QUOTED1', forwardingScore: 4, isForwarded: true },
+    })
+    const node = innerOf(buildGroupStatusRepost(source))['imageMessage']!
+    const ctx = node['contextInfo'] as Record<string, unknown> | undefined
+    expect(ctx?.['stanzaId']).toBeFalsy()
+    expect(ctx?.['forwardingScore']).toBeFalsy()
+    expect(ctx?.['isForwarded']).toBeFalsy()
+  })
+
+  it('does not mutate the source message', () => {
+    const source = imageSource({ viewOnce: true })
+    buildGroupStatusRepost(source)
+    const original = (source.message as unknown as Record<string, Record<string, unknown>>)['imageMessage']!
+    expect(original['viewOnce']).toBe(true)
+    expect(original['caption']).toBe('asli')
+  })
+
+  it('overrides the caption when asked', () => {
+    const node = innerOf(buildGroupStatusRepost(imageSource(), { caption: 'baru' }))['imageMessage']!
+    expect(node['caption']).toBe('baru')
+  })
+
+  it('normalises a plain conversation into extendedTextMessage', () => {
+    const node = innerOf(buildGroupStatusRepost(msg({ conversation: 'halo' })))
+    expect((node['extendedTextMessage'] as Record<string, unknown>)['text']).toBe('halo')
+    expect(node['conversation']).toBeUndefined()
+  })
+
+  it('accepts video and voice notes', () => {
+    const video = innerOf(buildGroupStatusRepost(msg({ videoMessage: { directPath: '/v', mimetype: 'video/mp4' } })))
+    expect(video['videoMessage']).toBeDefined()
+    const voice = innerOf(buildGroupStatusRepost(msg({ audioMessage: { directPath: '/a', ptt: true } })))
+    expect((voice['audioMessage'] as Record<string, unknown>)['ptt']).toBe(true)
+  })
+
+  it('unwraps a source that is already a group status instead of double nesting', () => {
+    const source = msg({ groupStatusMessageV2: { message: { conversation: 'halo' } } })
+    const node = innerOf(buildGroupStatusRepost(source))
+    expect(node['groupStatusMessageV2']).toBeUndefined()
+    expect((node['extendedTextMessage'] as Record<string, unknown>)['text']).toBe('halo')
+  })
+
+  it('unwraps a viewOnce envelope', () => {
+    const source = msg({ viewOnceMessageV2: { message: { imageMessage: { directPath: '/v', viewOnce: true } } } })
+    const node = innerOf(buildGroupStatusRepost(source))['imageMessage']!
+    expect(node['directPath']).toBe('/v')
+    expect(node['viewOnce']).toBeFalsy()
+  })
+
+  it('accepts a MessageContext-shaped source via message()', () => {
+    const source = imageSource()
+    const ctxLike = { message: () => source }
+    const node = innerOf(buildGroupStatusRepost(ctxLike))['imageMessage']!
+    expect(node['directPath']).toBe('/v/t62/abc')
+  })
+
+  it('rejects content types a status cannot carry', () => {
+    expectError(() => buildGroupStatusRepost(msg({ stickerMessage: { directPath: '/s' } })), 'INVALID_OPTIONS')
+    expectError(() => buildGroupStatusRepost(msg({ documentMessage: { directPath: '/d' } })), 'INVALID_OPTIONS')
+    expectError(() => buildGroupStatusRepost(msg({ locationMessage: { degreesLatitude: 1 } })), 'INVALID_OPTIONS')
+  })
+
+  it('rejects a source with no usable content', () => {
+    expectError(() => buildGroupStatusRepost(msg({})), 'EMPTY_CONTENT')
+    expectError(() => buildGroupStatusRepost({ key: {}, message: null } as unknown as WAMessage), 'EMPTY_CONTENT')
   })
 })

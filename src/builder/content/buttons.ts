@@ -8,6 +8,9 @@ export const RELAY_CONTENT_KEY = '__zaileysRelayMessage'
 
 export const RELAY_MEDIA_KEY = '__zaileysHeaderMedia'
 
+/** Marks relay content that may only target a group jid; the value is the method label used in the error. */
+export const RELAY_REQUIRE_GROUP_KEY = '__zaileysRequireGroupJid'
+
 export type HeaderMedia = { kind: 'image' | 'video'; src: MediaSource }
 
 export type RelayContent = { [RELAY_CONTENT_KEY]: proto.IMessage; [RELAY_MEDIA_KEY]?: HeaderMedia }

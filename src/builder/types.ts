@@ -147,6 +147,23 @@ export type GroupInviteOptions = {
   thumbnail?: Buffer
 }
 
+export type GroupStatusFont =
+  | 'system'
+  | 'system-text'
+  | 'fb-script'
+  | 'system-bold'
+  | 'morningbreeze'
+  | 'calistoga'
+  | 'exo2'
+  | 'courierprime'
+
+export type GroupStatusOptions = {
+  /** Background as `#RGB`, `#RRGGBB`, `#AARRGGBB` (with or without `#`), or a raw ARGB integer. */
+  backgroundColor?: string | number
+  /** Font face. Accepts a named font or a raw FontType integer for forward compatibility. */
+  font?: GroupStatusFont | number
+}
+
 export type BuilderContext = {
   recipient: string
   quoted?: WAMessage | WAMessageKey

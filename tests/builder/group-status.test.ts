@@ -150,58 +150,53 @@ const imageSource = (extra: Record<string, unknown> = {}): WAMessage =>
   })
 
 describe('buildGroupStatusRepost', () => {
-  it('copies the media pointers byte-identically without re-upload', () => {
-    const node = innerOf(buildGroupStatusRepost(imageSource()))['imageMessage']!
-    expect(node['directPath']).toBe('/v/t62/abc')
-    expect(node['url']).toBe('https://mmg.whatsapp.net/v/t62/abc')
-    expect(Buffer.from(node['mediaKey'] as Uint8Array)).toEqual(MEDIA_KEY)
-    expect(Buffer.from(node['fileEncSha256'] as Uint8Array)).toEqual(FILE_ENC_SHA)
-  })
-
   it('marks the reposted content as group-only', () => {
-    const content = buildGroupStatusRepost(imageSource()) as unknown as Record<string, unknown>
+    const content = buildGroupStatusRepost(msg({ conversation: 'halo' })) as unknown as Record<string, unknown>
     expect(content[RELAY_REQUIRE_GROUP_KEY]).toBe('groupStatus()')
   })
 
-  it('strips viewOnce from the copy', () => {
-    const node = innerOf(buildGroupStatusRepost(imageSource({ viewOnce: true })))['imageMessage']!
-    expect(node['viewOnce']).toBeFalsy()
+  it('copies a text message without mutating the source', () => {
+    const source = msg({ extendedTextMessage: { text: 'halo', contextInfo: { stanzaId: 'Q1', forwardingScore: 4 } } })
+    const node = innerOf(buildGroupStatusRepost(source))['extendedTextMessage']!
+    expect(node['text']).toBe('halo')
+    const ctx = node['contextInfo'] as Record<string, unknown>
+    expect(ctx['stanzaId']).toBeFalsy()
+    expect(ctx['forwardingScore']).toBeFalsy()
+    const original = (source.message as unknown as Record<string, Record<string, unknown>>)['extendedTextMessage']!
+    expect((original['contextInfo'] as Record<string, unknown>)['stanzaId']).toBe('Q1')
   })
 
-  it('resets inherited contextInfo so quote chains do not leak', () => {
-    const source = imageSource({
-      contextInfo: { stanzaId: 'QUOTED1', forwardingScore: 4, isForwarded: true },
-    })
-    const node = innerOf(buildGroupStatusRepost(source))['imageMessage']!
-    const ctx = node['contextInfo'] as Record<string, unknown> | undefined
-    expect(ctx?.['stanzaId']).toBeFalsy()
-    expect(ctx?.['forwardingScore']).toBeFalsy()
-    expect(ctx?.['isForwarded']).toBeFalsy()
+  it('overrides the text when a caption is given', () => {
+    const node = innerOf(buildGroupStatusRepost(msg({ conversation: 'lama' }), { caption: 'baru' }))
+    expect((node['extendedTextMessage'] as Record<string, unknown>)['text']).toBe('baru')
   })
 
-  it('does not mutate the source message', () => {
-    const source = imageSource({ viewOnce: true })
-    buildGroupStatusRepost(source)
-    const original = (source.message as unknown as Record<string, Record<string, unknown>>)['imageMessage']!
-    expect(original['viewOnce']).toBe(true)
-    expect(original['caption']).toBe('asli')
+  it('accepts a MessageContext-shaped source via message()', () => {
+    const source = msg({ conversation: 'halo' })
+    const node = innerOf(buildGroupStatusRepost({ message: () => source }))
+    expect((node['extendedTextMessage'] as Record<string, unknown>)['text']).toBe('halo')
   })
 
-  it('overrides the caption when asked', () => {
-    const node = innerOf(buildGroupStatusRepost(imageSource(), { caption: 'baru' }))['imageMessage']!
-    expect(node['caption']).toBe('baru')
+  it('rejects media sources because WhatsApp never renders a media group status', () => {
+    for (const media of [
+      { imageMessage: { directPath: '/i' } },
+      { videoMessage: { directPath: '/v' } },
+      { audioMessage: { directPath: '/a', ptt: true } },
+      { documentMessage: { directPath: '/d' } },
+      { stickerMessage: { directPath: '/s' } },
+    ]) {
+      expectError(() => buildGroupStatusRepost(msg(media)), 'INVALID_OPTIONS')
+    }
+  })
+
+  it('rejects other non-text content types', () => {
+    expectError(() => buildGroupStatusRepost(msg({ locationMessage: { degreesLatitude: 1 } })), 'INVALID_OPTIONS')
+    expectError(() => buildGroupStatusRepost(msg({ pollCreationMessage: { name: 'p' } })), 'INVALID_OPTIONS')
   })
 
   it('overrides the text when reposting a text message with a caption', () => {
     const node = innerOf(buildGroupStatusRepost(msg({ conversation: 'lama' }), { caption: 'baru' }))
     expect((node['extendedTextMessage'] as Record<string, unknown>)['text']).toBe('baru')
-  })
-
-  it('ignores a caption override on a voice note', () => {
-    const node = innerOf(
-      buildGroupStatusRepost(msg({ audioMessage: { directPath: '/a', ptt: true } }), { caption: 'x' }),
-    )['audioMessage']!
-    expect(node['caption']).toBeUndefined()
   })
 
   it('normalises a plain conversation into extendedTextMessage', () => {
@@ -210,38 +205,11 @@ describe('buildGroupStatusRepost', () => {
     expect(node['conversation']).toBeUndefined()
   })
 
-  it('accepts video and voice notes', () => {
-    const video = innerOf(buildGroupStatusRepost(msg({ videoMessage: { directPath: '/v', mimetype: 'video/mp4' } })))
-    expect(video['videoMessage']).toBeDefined()
-    const voice = innerOf(buildGroupStatusRepost(msg({ audioMessage: { directPath: '/a', ptt: true } })))
-    expect((voice['audioMessage'] as Record<string, unknown>)['ptt']).toBe(true)
-  })
-
   it('unwraps a source that is already a group status instead of double nesting', () => {
     const source = msg({ groupStatusMessageV2: { message: { conversation: 'halo' } } })
     const node = innerOf(buildGroupStatusRepost(source))
     expect(node['groupStatusMessageV2']).toBeUndefined()
     expect((node['extendedTextMessage'] as Record<string, unknown>)['text']).toBe('halo')
-  })
-
-  it('unwraps a viewOnce envelope', () => {
-    const source = msg({ viewOnceMessageV2: { message: { imageMessage: { directPath: '/v', viewOnce: true } } } })
-    const node = innerOf(buildGroupStatusRepost(source))['imageMessage']!
-    expect(node['directPath']).toBe('/v')
-    expect(node['viewOnce']).toBeFalsy()
-  })
-
-  it('accepts a MessageContext-shaped source via message()', () => {
-    const source = imageSource()
-    const ctxLike = { message: () => source }
-    const node = innerOf(buildGroupStatusRepost(ctxLike))['imageMessage']!
-    expect(node['directPath']).toBe('/v/t62/abc')
-  })
-
-  it('rejects content types a status cannot carry', () => {
-    expectError(() => buildGroupStatusRepost(msg({ stickerMessage: { directPath: '/s' } })), 'INVALID_OPTIONS')
-    expectError(() => buildGroupStatusRepost(msg({ documentMessage: { directPath: '/d' } })), 'INVALID_OPTIONS')
-    expectError(() => buildGroupStatusRepost(msg({ locationMessage: { degreesLatitude: 1 } })), 'INVALID_OPTIONS')
   })
 
   it('rejects a source with no usable content', () => {
@@ -335,19 +303,24 @@ describe('MessageBuilder.groupStatus()', () => {
     expect(ctx['expiration']).toBe(60)
   })
 
-  it('reposts a message through the same method', async () => {
+  it('reposts a text message through the same method', async () => {
     const { socket, relayMessage } = makeSocket()
-    await MessageBuilder.create(socket, GROUP).groupStatus(imageSource())
-    const node = relayedOf(relayMessage).groupStatusMessageV2!.message['imageMessage']!
-    expect(node['directPath']).toBe('/v/t62/abc')
-    expect(Buffer.from(node['mediaKey'] as Uint8Array)).toEqual(MEDIA_KEY)
+    await MessageBuilder.create(socket, GROUP).groupStatus(msg({ conversation: 'dari orang lain' }))
+    const node = relayedOf(relayMessage).groupStatusMessageV2!.message['extendedTextMessage']!
+    expect(node['text']).toBe('dari orang lain')
+  })
+
+  it('rejects a media repost synchronously, before it ever reaches the socket', () => {
+    const { socket, relayMessage } = makeSocket()
+    expectError(() => MessageBuilder.create(socket, GROUP).groupStatus(imageSource()), 'INVALID_OPTIONS')
+    expect(relayMessage).not.toHaveBeenCalled()
   })
 
   it('reposts from a MessageContext-shaped source', async () => {
     const { socket, relayMessage } = makeSocket()
-    const source = imageSource()
+    const source = msg({ conversation: 'halo' })
     await MessageBuilder.create(socket, GROUP).groupStatus({ message: () => source })
-    expect(relayedOf(relayMessage).groupStatusMessageV2!.message['imageMessage']).toBeDefined()
+    expect(relayedOf(relayMessage).groupStatusMessageV2!.message['extendedTextMessage']).toBeDefined()
   })
 
   it('records the sent message', async () => {

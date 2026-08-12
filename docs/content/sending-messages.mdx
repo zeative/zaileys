@@ -389,9 +389,8 @@ Signature: `groupStatus(text, opts?)`.
 
 ### Reposting someone else's message
 
-Pass a message instead of text and it becomes the status. Media is carried by **copying its pointers**,
-so nothing is downloaded and nothing is re-uploaded — reposting a 100 MB video costs the same as
-reposting a line of text.
+Pass a message instead of text and its text becomes the status. Any inherited quote chain is cleared,
+so the status does not carry the original's context.
 
 ```typescript
 client.on('message', async (ctx) => {
@@ -404,22 +403,23 @@ client.on('message', async (ctx) => {
 })
 ```
 
-Accepts text, image, video, and voice notes. `viewOnce` is stripped and any inherited quote chain is
-cleared, so the status does not carry the original's context.
-
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
-| `caption` | `string` | original caption | Replaces the caption. Ignored for voice notes. |
+| `caption` | `string` | original text | Replaces the status text. |
 
 <Callout type="warning">
-  Because only the media pointers are copied, a reposted status breaks if WhatsApp expires the original
-  media — the same trade-off forwarding has.
+  **Text only.** Reposting an image, video, or voice note rejects with `INVALID_OPTIONS`. This is a
+  WhatsApp limitation, not a missing feature: live testing on 2026-08-12 confirmed the server *accepts*
+  a media group status and returns a message id, but no client ever renders it. Baileys' `getMediaType`
+  does not look inside the `groupStatusMessageV2` envelope, so the stanza ships without its `mediatype`
+  attribute — and that attribute is set on the inner `enc` node, which callers cannot reach. Rather than
+  let you send something that silently disappears, zaileys rejects it up front.
 </Callout>
 
 <Callout type="error">
   A non-group recipient rejects with `INVALID_RECIPIENT`. Empty text, or a source with no repostable
-  content, rejects with `EMPTY_CONTENT`. A malformed colour, an unknown font, or an unsupported source
-  type (sticker, document, poll, location, contact) rejects with `INVALID_OPTIONS`.
+  content, rejects with `EMPTY_CONTENT`. A malformed colour, an unknown font, or a non-text source
+  rejects with `INVALID_OPTIONS`.
 </Callout>
 
 ## Product

@@ -83,19 +83,21 @@ const wrapStatus = (message: Record<string, unknown>): AnyMessageContent =>
     [RELAY_REQUIRE_GROUP_KEY]: 'groupStatus()',
   }) as unknown as AnyMessageContent
 
-const REPOSTABLE = ['conversation', 'extendedTextMessage', 'imageMessage', 'videoMessage', 'audioMessage'] as const
+const REPOSTABLE = ['conversation', 'extendedTextMessage'] as const
 
-const CAPTIONABLE = new Set(['extendedTextMessage', 'imageMessage', 'videoMessage'])
+/**
+ * Media reposts are rejected on purpose. Live-tested 2026-08-12: the relay is accepted and returns a
+ * message id, but WhatsApp never renders it as a status, because `getMediaType` does not look inside
+ * the `groupStatusMessageV2` envelope so the stanza ships without its `mediatype` attribute.
+ */
+const MEDIA_KEYS = new Set(['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage', 'stickerMessage'])
 
 const toWAMessage = (source: GroupStatusSource): WAMessage =>
   typeof (source as { message?: unknown }).message === 'function'
     ? (source as { message: () => WAMessage }).message()
     : (source as WAMessage)
 
-/**
- * Reposts an existing message as a group status. Media is carried by copying its pointers
- * (`url`, `directPath`, `mediaKey`), never by downloading and re-uploading the bytes.
- */
+/** Reposts an existing text message as a group status. Media sources are rejected — see `MEDIA_KEYS`. */
 export const buildGroupStatusRepost = (
   source: GroupStatusSource,
   opts?: GroupStatusRepostOptions,
@@ -105,6 +107,12 @@ export const buildGroupStatusRepost = (
   const key = content == null ? undefined : getContentType(content)
   if (content == null || key === undefined) {
     throw new ZaileysBuilderError('EMPTY_CONTENT', 'groupStatus() source has no repostable content')
+  }
+  if (MEDIA_KEYS.has(key)) {
+    throw new ZaileysBuilderError(
+      'INVALID_OPTIONS',
+      `groupStatus() cannot repost ${key}: WhatsApp accepts the send but never renders a media group status`,
+    )
   }
   if (!REPOSTABLE.includes(key as (typeof REPOSTABLE)[number])) {
     throw new ZaileysBuilderError(
@@ -121,8 +129,6 @@ export const buildGroupStatusRepost = (
   const node = copy[nodeKey] as Record<string, unknown>
   delete node['viewOnce']
   node['contextInfo'] = {}
-  if (opts?.caption !== undefined && CAPTIONABLE.has(nodeKey)) {
-    node[nodeKey === 'extendedTextMessage' ? 'text' : 'caption'] = opts.caption
-  }
+  if (opts?.caption !== undefined) node['text'] = opts.caption
   return wrapStatus({ [nodeKey]: node })
 }

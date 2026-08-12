@@ -107,3 +107,33 @@ export const safeNumber = (n: number | LongLike | null | undefined): number | nu
   }
   return null
 }
+
+export const asRecord = (value: unknown): Record<string, unknown> | null =>
+  value != null && typeof value === 'object' ? (value as Record<string, unknown>) : null
+
+export const WRAPPER_FIELDS = [
+  'ephemeralMessage',
+  'viewOnceMessage',
+  'viewOnceMessageV2',
+  'viewOnceMessageV2Extension',
+  'documentWithCaptionMessage',
+  'editedMessage',
+  'lottieStickerMessage',
+] as const
+
+export const unwrap = (content: Record<string, unknown>): Record<string, unknown> => {
+  let node = content
+  for (let i = 0; i < 5; i++) {
+    let next: Record<string, unknown> | null = null
+    for (const field of WRAPPER_FIELDS) {
+      const inner = asRecord(asRecord(node[field])?.['message'])
+      if (inner != null) {
+        next = inner
+        break
+      }
+    }
+    if (next == null) break
+    node = next
+  }
+  return node
+}

@@ -1,6 +1,6 @@
 import { jidDecode, jidNormalizedUser, type WAMessage, type WAMessageKey } from 'baileys'
 import { Readable } from 'node:stream'
-import { isGroupJid } from './decoders/_shared.js'
+import { asRecord, isGroupJid } from './decoders/_shared.js'
 import type { SenderInfo } from './types.js'
 import type { TextOptions } from '../builder/builder.js'
 
@@ -394,9 +394,6 @@ const PROTOCOL_REVOKE = 0
 const PROTOCOL_MESSAGE_EDIT = 14
 const PIN_FOR_ALL = 1
 const UNPIN_FOR_ALL = 2
-
-const asRecord = (value: unknown): Record<string, unknown> | null =>
-  value != null && typeof value === 'object' ? (value as Record<string, unknown>) : null
 
 const deriveFlags = (message: WAMessage): MessageFlags => {
   const content = asRecord(message.message)

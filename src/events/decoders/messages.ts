@@ -13,11 +13,13 @@ import {
 import type { MediaKind, SenderInfo } from '../types.js'
 import { createDownloadFn, createStreamFn, type DownloadLogger } from './_media-download.js'
 import {
+  asRecord,
   extractMentions,
   extractQuoted,
   extractSender,
   isGroupJid,
   safeNumber,
+  unwrap,
 } from './_shared.js'
 
 export interface DecodeContext {
@@ -59,9 +61,6 @@ const resolveJid = (key: WAMessage['key'] | undefined): string => {
   return typeof remote === 'string' && remote.length > 0 ? remote : ''
 }
 
-const asRecord = (value: unknown): Record<string, unknown> | null =>
-  value != null && typeof value === 'object' ? (value as Record<string, unknown>) : null
-
 const nonEmptyString = (value: unknown): string | null =>
   typeof value === 'string' && value.length > 0 ? value : null
 
@@ -71,33 +70,6 @@ const firstString = (...values: unknown[]): string | null => {
     if (text != null) return text
   }
   return null
-}
-
-const WRAPPER_FIELDS = [
-  'ephemeralMessage',
-  'viewOnceMessage',
-  'viewOnceMessageV2',
-  'viewOnceMessageV2Extension',
-  'documentWithCaptionMessage',
-  'editedMessage',
-  'lottieStickerMessage',
-] as const
-
-const unwrap = (content: Record<string, unknown>): Record<string, unknown> => {
-  let node = content
-  for (let i = 0; i < 5; i++) {
-    let next: Record<string, unknown> | null = null
-    for (const field of WRAPPER_FIELDS) {
-      const inner = asRecord(asRecord(node[field])?.['message'])
-      if (inner != null) {
-        next = inner
-        break
-      }
-    }
-    if (next == null) break
-    node = next
-  }
-  return node
 }
 
 const unwrappedMessage = (msg: WAMessage): WAMessage => {

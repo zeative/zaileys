@@ -1,5 +1,7 @@
 import {
   generateWAMessageFromContent,
+  getContentType,
+  normalizeMessageContent,
   prepareWAMessageMedia,
   type AnyMessageContent,
   type MiscMessageGenerationOptions,
@@ -7,6 +9,7 @@ import {
   type WAMessage,
   type WAMessageKey,
 } from 'baileys'
+import { randomBytes } from 'node:crypto'
 import { sendAlbum } from './album.js'
 import { buildAudioContent } from './content/audio.js'
 import { buildButtonsContent, RELAY_CONTENT_KEY, RELAY_MEDIA_KEY, type ButtonsContentOptions, type HeaderMedia } from './content/buttons.js'
@@ -354,6 +357,22 @@ export class MessageBuilder<State extends BuilderState> {
     if (media.kind === 'video' && prepared.videoMessage) header.videoMessage = prepared.videoMessage
   }
 
+  /** Relay skips baileys' contextInfo pass, so mentions and mentionAll are applied to the unwrapped node here. */
+  private applyRelayMentions(inner: proto.IMessage): void {
+    const mentions = this.internal.mentions
+    const mentionAll = this.internal.mentionAll === true
+    if ((mentions === undefined || mentions.length === 0) && !mentionAll) return
+    const normalized = normalizeMessageContent(inner)
+    const key = normalized == null ? undefined : getContentType(normalized)
+    if (normalized == null || key === undefined) return
+    const node = normalized[key] as unknown as { contextInfo?: Record<string, unknown> } | null
+    if (node == null || typeof node !== 'object') return
+    const contextInfo = node.contextInfo ?? {}
+    if (mentions !== undefined && mentions.length > 0) contextInfo['mentionedJid'] = mentions
+    if (mentionAll) contextInfo['nonJidMentions'] = 1
+    node.contextInfo = contextInfo
+  }
+
   private async sendRelay(
     inner: proto.IMessage,
     headerMedia?: HeaderMedia,
@@ -378,11 +397,19 @@ export class MessageBuilder<State extends BuilderState> {
         throw new ZaileysBuilderError('SEND_FAILED', 'interactive media upload failed', { cause: err })
       }
     }
+    const secretHolder = inner as { messageContextInfo?: { messageSecret?: Uint8Array } }
+    if (secretHolder.messageContextInfo?.messageSecret == null) {
+      secretHolder.messageContextInfo = { ...secretHolder.messageContextInfo, messageSecret: randomBytes(32) }
+    }
+    this.applyRelayMentions(inner)
     const userJid = this.socket.user?.id ?? ''
     const genOptions = { userJid } as Parameters<typeof generateWAMessageFromContent>[2]
     const quoted = this.internal.quoted as { message?: unknown } | undefined
     if (quoted !== undefined && quoted.message != null) {
       ;(genOptions as { quoted?: unknown }).quoted = quoted
+    }
+    if (this.internal.disappearingSeconds !== undefined) {
+      ;(genOptions as { ephemeralExpiration?: number }).ephemeralExpiration = this.internal.disappearingSeconds
     }
     const waMsg = generateWAMessageFromContent(this.internal.recipient, inner, genOptions)
     if (typeof waMsg.key?.id !== 'string') {

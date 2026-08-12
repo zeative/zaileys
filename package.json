@@ -84,15 +84,15 @@
     "@ffprobe-installer/ffprobe": "^2.1.2",
     "async-mutex": "^0.5.0",
     "audio-decode": "^2.2.3",
-    "baileys": "^7.0.0-rc13",
+    "baileys": "^7.0.0-rc14",
     "file-type": "^21.1.1",
-    "jimp": "^1.6.0",
+    "jimp": "^1.6.1",
     "lru-cache": "^11.2.7",
     "nanospinner": "^1.2.2",
     "node-webpmux": "^3.2.1",
     "pino": "10.3.1",
     "qrcode-terminal": "0.12.0",
-    "valibot": "^1.2.0"
+    "valibot": "^1.4.2"
   },
   "packageManager": "pnpm@10.24.0",
   "engines": {
@@ -121,7 +121,10 @@
   "pnpm": {
     "onlyBuiltDependencies": [
       "better-sqlite3"
-    ]
+    ],
+    "overrides": {
+      "protobufjs": "^7.6.5"
+    }
   },
   "exports": {
     ".": {

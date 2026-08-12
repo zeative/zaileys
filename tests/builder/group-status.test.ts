@@ -1,5 +1,6 @@
-import type { WAMessage } from 'baileys'
-import { describe, expect, it } from 'vitest'
+import type { WAMessage, WAMessageKey } from 'baileys'
+import { describe, expect, expectTypeOf, it, vi } from 'vitest'
+import { MessageBuilder, type BuilderSocketLike } from '../../src/builder/builder.js'
 import {
   buildGroupStatusContent,
   buildGroupStatusRepost,
@@ -228,5 +229,144 @@ describe('buildGroupStatusRepost', () => {
   it('rejects a source with no usable content', () => {
     expectError(() => buildGroupStatusRepost(msg({})), 'EMPTY_CONTENT')
     expectError(() => buildGroupStatusRepost({ key: {}, message: null } as unknown as WAMessage), 'EMPTY_CONTENT')
+  })
+})
+
+const GROUP = '120363000000000000@g.us'
+const DM = '628999@s.whatsapp.net'
+const SENT_KEY: WAMessageKey = { remoteJid: GROUP, fromMe: true, id: 'MSG1' }
+
+const makeSocket = () => {
+  const sendMessage = vi.fn(async () => ({ key: SENT_KEY }) as WAMessage)
+  const relayMessage = vi.fn(async () => 'RELAY1')
+  const socket: BuilderSocketLike = { sendMessage, relayMessage, user: { id: '9@s.whatsapp.net' } }
+  return { socket, sendMessage, relayMessage }
+}
+
+type Relayed = Record<string, Record<string, unknown>> & {
+  messageContextInfo?: { messageSecret?: Uint8Array }
+  groupStatusMessageV2?: { message: Record<string, Record<string, unknown>> }
+}
+
+const relayedOf = (relayMessage: ReturnType<typeof makeSocket>['relayMessage']): Relayed =>
+  relayMessage.mock.calls[0]![1] as unknown as Relayed
+
+const expectRejects = async (p: Promise<unknown>, code: string) => {
+  await expect(p).rejects.toMatchObject({ name: 'ZaileysBuilderError', code })
+}
+
+describe('MessageBuilder.groupStatus()', () => {
+  it('relays to a group and never calls sendMessage', async () => {
+    const { socket, sendMessage, relayMessage } = makeSocket()
+    const key = await MessageBuilder.create(socket, GROUP).groupStatus('halo')
+    expect(sendMessage).not.toHaveBeenCalled()
+    expect(relayMessage).toHaveBeenCalledOnce()
+    const [jid, , options] = relayMessage.mock.calls[0]! as [string, unknown, { messageId: string }]
+    expect(jid).toBe(GROUP)
+    expect(options.messageId).toBe(key.id)
+  })
+
+  it('sends without additionalNodes because it is not interactive', async () => {
+    const { socket, relayMessage } = makeSocket()
+    await MessageBuilder.create(socket, GROUP).groupStatus('halo')
+    const options = relayMessage.mock.calls[0]![2] as Record<string, unknown>
+    expect(Object.keys(options)).toEqual(['messageId'])
+  })
+
+  it('carries the text through to the relayed envelope', async () => {
+    const { socket, relayMessage } = makeSocket()
+    await MessageBuilder.create(socket, GROUP).groupStatus('halo', { backgroundColor: '#25D366' })
+    const node = relayedOf(relayMessage).groupStatusMessageV2!.message['extendedTextMessage']!
+    expect(node['text']).toBe('halo')
+    expect(node['backgroundArgb']).toBe(0xff25d366)
+  })
+
+  it('rejects non-group recipients', async () => {
+    for (const jid of [DM, 'x@lid', 'status@broadcast']) {
+      const { socket, relayMessage } = makeSocket()
+      await expectRejects(MessageBuilder.create(socket, jid).groupStatus('halo'), 'INVALID_RECIPIENT')
+      expect(relayMessage).not.toHaveBeenCalled()
+    }
+  })
+
+  it('validates the recipient after username resolution, not before', async () => {
+    const { socket, relayMessage } = makeSocket()
+    const key = await MessageBuilder.create(socket, 'namagrup', async () => GROUP).groupStatus('halo')
+    expect(key.id).toBeDefined()
+    expect(relayMessage).toHaveBeenCalledOnce()
+  })
+
+  it('puts messageSecret at the top level and not inside the envelope', async () => {
+    const { socket, relayMessage } = makeSocket()
+    await MessageBuilder.create(socket, GROUP).groupStatus('halo')
+    const relayed = relayedOf(relayMessage)
+    expect(relayed.messageContextInfo?.messageSecret?.length).toBe(32)
+    expect(relayed.groupStatusMessageV2!.message['messageContextInfo']).toBeUndefined()
+  })
+
+  it('applies mentions and disappearing to the inner node', async () => {
+    const { socket, relayMessage } = makeSocket()
+    await MessageBuilder.create(socket, GROUP)
+      .groupStatus('halo')
+      .mentions(['628111@s.whatsapp.net'])
+      .disappearing(60)
+    const ctx = relayedOf(relayMessage).groupStatusMessageV2!.message['extendedTextMessage']![
+      'contextInfo'
+    ] as Record<string, unknown>
+    expect(ctx['mentionedJid']).toEqual(['628111@s.whatsapp.net'])
+    expect(ctx['expiration']).toBe(60)
+  })
+
+  it('reposts a message through the same method', async () => {
+    const { socket, relayMessage } = makeSocket()
+    await MessageBuilder.create(socket, GROUP).groupStatus(imageSource())
+    const node = relayedOf(relayMessage).groupStatusMessageV2!.message['imageMessage']!
+    expect(node['directPath']).toBe('/v/t62/abc')
+    expect(Buffer.from(node['mediaKey'] as Uint8Array)).toEqual(MEDIA_KEY)
+  })
+
+  it('reposts from a MessageContext-shaped source', async () => {
+    const { socket, relayMessage } = makeSocket()
+    const source = imageSource()
+    await MessageBuilder.create(socket, GROUP).groupStatus({ message: () => source })
+    expect(relayedOf(relayMessage).groupStatusMessageV2!.message['imageMessage']).toBeDefined()
+  })
+
+  it('records the sent message', async () => {
+    const { socket } = makeSocket()
+    const recordSent = vi.fn()
+    await MessageBuilder.create(socket, GROUP, undefined, recordSent).groupStatus('halo')
+    expect(recordSent).toHaveBeenCalledOnce()
+  })
+
+  it('fails when the socket cannot relay', async () => {
+    const socket: BuilderSocketLike = { sendMessage: async () => undefined }
+    await expectRejects(MessageBuilder.create(socket, GROUP).groupStatus('halo'), 'SEND_FAILED')
+  })
+
+  it('wraps a relay rejection as SEND_FAILED with the cause', async () => {
+    const boom = new Error('boom')
+    const socket: BuilderSocketLike = {
+      sendMessage: async () => undefined,
+      relayMessage: async () => {
+        throw boom
+      },
+      user: { id: '9@s.whatsapp.net' },
+    }
+    const err = await MessageBuilder.create(socket, GROUP)
+      .groupStatus('halo')
+      .then(
+        () => null,
+        (e: unknown) => e,
+      )
+    expect((err as { cause?: unknown }).cause).toBe(boom)
+  })
+
+  it('transitions the builder into the content-set state', () => {
+    const { socket } = makeSocket()
+    const set = MessageBuilder.create(socket, GROUP).groupStatus('halo')
+    expectTypeOf(set).toMatchTypeOf<MessageBuilder<'content-set'>>()
+    // @ts-expect-error content can only be set once
+    set.groupStatus('lagi')
   })
 })

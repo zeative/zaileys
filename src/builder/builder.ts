@@ -12,7 +12,14 @@ import {
 import { randomBytes } from 'node:crypto'
 import { sendAlbum } from './album.js'
 import { buildAudioContent } from './content/audio.js'
-import { buildButtonsContent, RELAY_CONTENT_KEY, RELAY_MEDIA_KEY, type ButtonsContentOptions, type HeaderMedia } from './content/buttons.js'
+import {
+  buildButtonsContent,
+  RELAY_CONTENT_KEY,
+  RELAY_MEDIA_KEY,
+  RELAY_REQUIRE_GROUP_KEY,
+  type ButtonsContentOptions,
+  type HeaderMedia,
+} from './content/buttons.js'
 import { buildCarouselContent, RELAY_CARDS_MEDIA_KEY, type CardMedia, type CarouselCard } from './content/carousel.js'
 import { buildAIRichContent, type AIRichOptions } from './content/airich.js'
 import { parseRichMarkdown } from './content/markdown.js'
@@ -21,6 +28,7 @@ import { buildContactContent } from './content/contact.js'
 import { buildDocumentContent } from './content/document.js'
 import { buildEventContent } from './content/event.js'
 import { buildGroupInviteContent } from './content/group-invite.js'
+import { buildGroupStatusContent, buildGroupStatusRepost } from './content/group-status.js'
 import { buildImageContent } from './content/image.js'
 import { buildListContent } from './content/list.js'
 import { buildLocationContent } from './content/location.js'
@@ -41,6 +49,9 @@ import type {
   DocumentOptions,
   EventOptions,
   GroupInviteOptions,
+  GroupStatusOptions,
+  GroupStatusRepostOptions,
+  GroupStatusSource,
   ImageOptions,
   InteractiveButton,
   ListOptions,
@@ -216,6 +227,29 @@ export class MessageBuilder<State extends BuilderState> {
     return this as unknown as MessageBuilder<'content-set'>
   }
 
+  /** Post a group status. Pass text, or an existing message to repost it without re-uploading its media. */
+  groupStatus(
+    this: MessageBuilder<'init'>,
+    text: string,
+    opts?: GroupStatusOptions,
+  ): MessageBuilder<'content-set'>
+  groupStatus(
+    this: MessageBuilder<'init'>,
+    source: GroupStatusSource,
+    opts?: GroupStatusRepostOptions,
+  ): MessageBuilder<'content-set'>
+  groupStatus(
+    this: MessageBuilder<'init'>,
+    input: string | GroupStatusSource,
+    opts?: GroupStatusOptions | GroupStatusRepostOptions,
+  ): MessageBuilder<'content-set'> {
+    this.internal.content =
+      typeof input === 'string'
+        ? buildGroupStatusContent(input, opts as GroupStatusOptions | undefined)
+        : buildGroupStatusRepost(input, opts as GroupStatusRepostOptions | undefined)
+    return this as unknown as MessageBuilder<'content-set'>
+  }
+
   product(this: MessageBuilder<'init'>, opts: ProductOptions): MessageBuilder<'content-set'> {
     this.internal.pendingContent = buildProductContent(opts)
     return this as unknown as MessageBuilder<'content-set'>
@@ -308,6 +342,13 @@ export class MessageBuilder<State extends BuilderState> {
       const relayContent = this.internal.content as Record<string, unknown>
       const relayInner = relayContent[RELAY_CONTENT_KEY]
       if (relayInner !== undefined) {
+        const requiresGroup = relayContent[RELAY_REQUIRE_GROUP_KEY]
+        if (typeof requiresGroup === 'string' && !this.internal.recipient.endsWith('@g.us')) {
+          throw new ZaileysBuilderError(
+            'INVALID_RECIPIENT',
+            `${requiresGroup} can only be sent to a group jid ending in @g.us`,
+          )
+        }
         const headerMedia = relayContent[RELAY_MEDIA_KEY] as HeaderMedia | undefined
         const cardsMedia = relayContent[RELAY_CARDS_MEDIA_KEY] as CardMedia[] | undefined
         return this.sendRelay(relayInner as proto.IMessage, headerMedia, cardsMedia)

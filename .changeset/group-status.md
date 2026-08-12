@@ -6,7 +6,7 @@ Add group status support. `client.send(groupJid).groupStatus(text, { backgroundC
 
 Verified against a live WhatsApp session: a text group status sends to an ordinary `@g.us` group and renders, including the background colour. Note that `backgroundColor` accepts both a hex string and a raw ARGB integer — baileys' own `assertColor` silently returns `undefined` for numeric input, so zaileys parses colours itself.
 
-**Text only.** Reposting an image, video, or voice note rejects with `INVALID_OPTIONS`. Live testing showed the server accepts a media group status and returns a message id, but no client renders it: baileys' `getMediaType` does not look inside the `groupStatusMessageV2` envelope, so the stanza ships without its `mediatype` attribute, which is set on the inner `enc` node and is not reachable from `relayMessage` options. Sending it would be a silent no-op, so it is rejected up front.
+**Text only.** Reposting an image, video, or voice note rejects with `INVALID_OPTIONS`. Eight variants were relayed against a live session and none rendered, while that same session posted a media `status@broadcast` that did render — so the limitation is the group-status envelope, not the media pipeline, and text in the same envelope works. A status that silently vanishes is worse than a clear error, so it is blocked.
 
 Two pre-existing bugs are fixed alongside it.
 

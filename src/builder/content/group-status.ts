@@ -86,9 +86,10 @@ const wrapStatus = (message: Record<string, unknown>): AnyMessageContent =>
 const REPOSTABLE = ['conversation', 'extendedTextMessage'] as const
 
 /**
- * Media reposts are rejected on purpose. Live-tested 2026-08-12: the relay is accepted and returns a
- * message id, but WhatsApp never renders it as a status, because `getMediaType` does not look inside
- * the `groupStatusMessageV2` envelope so the stanza ships without its `mediatype` attribute.
+ * Media inside the group-status envelope is rejected: eight live variants relayed cleanly and none
+ * rendered, while the same session posted a media `status@broadcast` that did render — so the limit is
+ * the envelope, not the media pipeline. Text in the same envelope renders fine. Lift this if a WhatsApp
+ * build is found that shows one.
  */
 const MEDIA_KEYS = new Set(['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage', 'stickerMessage'])
 
@@ -111,7 +112,7 @@ export const buildGroupStatusRepost = (
   if (MEDIA_KEYS.has(key)) {
     throw new ZaileysBuilderError(
       'INVALID_OPTIONS',
-      `groupStatus() cannot repost ${key}: WhatsApp accepts the send but never renders a media group status`,
+      `groupStatus() cannot repost ${key}: media group status is not verified to render, so it is blocked rather than sent blind`,
     )
   }
   if (!REPOSTABLE.includes(key as (typeof REPOSTABLE)[number])) {

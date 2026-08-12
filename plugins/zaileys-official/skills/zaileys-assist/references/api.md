@@ -220,7 +220,7 @@ Content methods (each returns `MessageBuilder<'content-set'>`):
 | `carousel` | `(cards: CarouselCard[], opts?: { text? })` | interactive — see below |
 | `event` | `(opts: EventOptions)` | `{ name (req), description?, startAt:Date\|number (req), endAt?, location?:{latitude,longitude,name?,address?}, call?:'audio'\|'video', canceled? }` |
 | `groupInvite` | `(opts: GroupInviteOptions)` | `{ jid (req), code (req), subject?, caption?, expiresAt?:unix-sec, thumbnail?:Buffer }` |
-| `groupStatus` | `(text, opts?)` or `(source, opts?)` | GROUPS-only, TEXT-only. Text: `{ backgroundColor?: hex\|argb-int, font?: name\|int }`. Repost a text `MessageContext`/`WAMessage`: `{ caption? }`. Media sources throw `INVALID_OPTIONS` — WA accepts but never renders a media group status |
+| `groupStatus` | `(text, opts?)` or `(source, opts?)` | GROUPS-only, TEXT-only. Text: `{ backgroundColor?: hex\|argb-int, font?: name\|int }`. Repost a text `MessageContext`/`WAMessage`: `{ caption? }`. Media sources throw `INVALID_OPTIONS` — media never renders inside the group-status envelope (verified live; personal `status@broadcast` media DOES work) |
 | `product` | `(opts: ProductOptions)` | `{ image (req), title (req), businessOwnerId (req), description?, price?, currency?, productId?, retailerId?, url?, body?, footer? }` |
 | `requestPhoneNumber` | `()` | ask recipient to share their number |
 | `sharePhoneNumber` | `()` | share own number |

@@ -408,12 +408,18 @@ client.on('message', async (ctx) => {
 | `caption` | `string` | original text | Replaces the status text. |
 
 <Callout type="warning">
-  **Text only.** Reposting an image, video, or voice note rejects with `INVALID_OPTIONS`. This is a
-  WhatsApp limitation, not a missing feature: live testing on 2026-08-12 confirmed the server *accepts*
-  a media group status and returns a message id, but no client ever renders it. Baileys' `getMediaType`
-  does not look inside the `groupStatusMessageV2` envelope, so the stanza ships without its `mediatype`
-  attribute — and that attribute is set on the inner `enc` node, which callers cannot reach. Rather than
-  let you send something that silently disappears, zaileys rejects it up front.
+  **Text only.** Reposting an image, video, or voice note rejects with `INVALID_OPTIONS`. Eight
+  variants were relayed live — plain, with `contextInfo.isGroupStatus`, with `statusSourceType`, with
+  `statusAttributions`, with `statusJidList` — and none rendered, while the same session posted a media
+  `status@broadcast` that *did* render. So the limit is the group-status envelope itself, not the media
+  pipeline. Text in that same envelope renders fine. A media status that silently vanishes is worse
+  than a clear error, so zaileys blocks it.
+</Callout>
+
+<Callout>
+  Want a status with media? Post an ordinary **personal status** instead: send to `status@broadcast`
+  with a `statusJidList` of real recipient phone numbers. That path is verified working. An empty or
+  self-only `statusJidList` sends without error but reaches nobody.
 </Callout>
 
 <Callout type="error">

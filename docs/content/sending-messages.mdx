@@ -367,6 +367,61 @@ await client.send(to).groupInvite({
   A `jid` not ending in `@g.us`, or an empty `code`, rejects with `INVALID_OPTIONS`.
 </Callout>
 
+## Group status
+
+Post a **group status** — the story-style update that appears at the top of a group. The recipient must
+be a group.
+
+```typescript
+await client.send('120363012345678901@g.us').groupStatus('Pengumuman penting', {
+  backgroundColor: '#25D366',
+  font: 'calistoga',
+})
+```
+
+Signature: `groupStatus(text, opts?)`.
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `text` | `string` | **required** | The status text. |
+| `backgroundColor` | `string \| number` | — | `#RGB`, `#RRGGBB`, `#AARRGGBB` (with or without `#`), or a raw ARGB integer. |
+| `font` | `GroupStatusFont \| number` | — | `system`, `system-text`, `fb-script`, `system-bold`, `morningbreeze`, `calistoga`, `exo2`, `courierprime`. A raw `FontType` integer also works. |
+
+### Reposting someone else's message
+
+Pass a message instead of text and it becomes the status. Media is carried by **copying its pointers**,
+so nothing is downloaded and nothing is re-uploaded — reposting a 100 MB video costs the same as
+reposting a line of text.
+
+```typescript
+client.on('message', async (ctx) => {
+  if (ctx.text !== '!status') return
+
+  const original = await ctx.replied()
+  if (!original) return ctx.reply('Reply to a message first')
+
+  await client.send(ctx.chatId).groupStatus(original)
+})
+```
+
+Accepts text, image, video, and voice notes. `viewOnce` is stripped and any inherited quote chain is
+cleared, so the status does not carry the original's context.
+
+| Option | Type | Default | Description |
+| --- | --- | --- | --- |
+| `caption` | `string` | original caption | Replaces the caption. Ignored for voice notes. |
+
+<Callout type="warning">
+  Because only the media pointers are copied, a reposted status breaks if WhatsApp expires the original
+  media — the same trade-off forwarding has.
+</Callout>
+
+<Callout type="error">
+  A non-group recipient rejects with `INVALID_RECIPIENT`. Empty text, or a source with no repostable
+  content, rejects with `EMPTY_CONTENT`. A malformed colour, an unknown font, or an unsupported source
+  type (sticker, document, poll, location, contact) rejects with `INVALID_OPTIONS`.
+</Callout>
+
 ## Product
 
 Send a **business catalog product card**. Requires a **WhatsApp Business** account.

@@ -148,7 +148,7 @@ Message events deliver a `MessageContext` (mention events extend it):
 | `isQuestion` | `boolean` | text ends with `?` |
 | `isPrefix` | `boolean` | text starts with a configured prefix |
 | `isTagMe` | `boolean` | self jid in mentions |
-| `isEdited` `isDeleted` `isPinned` `isUnPinned` `isBot` `isStatusMention` `isGroupStatusMention` | `boolean` | DERIVED from the raw message (protocol/pin/bot-metadata) |
+| `isEdited` `isDeleted` `isPinned` `isUnPinned` `isBot` `isStatusMention` `isGroupStatusMention` `isGroupStatus` | `boolean` | DERIVED from the raw message (protocol/pin/bot-metadata) |
 | `isStory` | `boolean` | `remoteJid === 'status@broadcast'` |
 | `isHideTags` | `boolean` | has mentions but text contains no `@digits` |
 | `isSpam` | `boolean` | always `false` (reserved) |
@@ -220,6 +220,7 @@ Content methods (each returns `MessageBuilder<'content-set'>`):
 | `carousel` | `(cards: CarouselCard[], opts?: { text? })` | interactive — see below |
 | `event` | `(opts: EventOptions)` | `{ name (req), description?, startAt:Date\|number (req), endAt?, location?:{latitude,longitude,name?,address?}, call?:'audio'\|'video', canceled? }` |
 | `groupInvite` | `(opts: GroupInviteOptions)` | `{ jid (req), code (req), subject?, caption?, expiresAt?:unix-sec, thumbnail?:Buffer }` |
+| `groupStatus` | `(text, opts?)` or `(source, opts?)` | GROUPS-only. Text: `{ backgroundColor?: hex\|argb-int, font?: name\|int }`. Repost a `MessageContext`/`WAMessage` (text/image/video/voice) — copies media pointers, no re-upload: `{ caption? }` |
 | `product` | `(opts: ProductOptions)` | `{ image (req), title (req), businessOwnerId (req), description?, price?, currency?, productId?, retailerId?, url?, body?, footer? }` |
 | `requestPhoneNumber` | `()` | ask recipient to share their number |
 | `sharePhoneNumber` | `()` | share own number |

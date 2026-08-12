@@ -96,7 +96,8 @@ All computed from the message **except `isSpam`** (reserved, always `false` for 
 | `isSpam` | **reserved — always `false`.** |
 | `isHideTags` | hidden mentions: `mentions` exist but the text has no visible `@number`. |
 | `isStatusMention` | a status-mention message. |
-| `isGroupStatusMention` | a group-status-mention message. |
+| `isGroupStatusMention` | a group-status-mention message (someone mentioned this group in *their* status). |
+| `isGroupStatus` | the message **is** a group status post. `chatType` still reflects the inner content (`text`, `image`, …). |
 
 > The `is*` flags reflect the **state of this specific message**. In your example most are `false` simply because it's a normal forwarded image — only `isForwarded` and `isGroup` are `true`.
 

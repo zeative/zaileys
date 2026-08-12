@@ -162,6 +162,8 @@ client
 | `template(opts)` | `(opts: TemplateOptions)` | Template message. |
 | `event(opts)` | `(opts: EventOptions)` | Event message (`name`, `startAt`, optional `endAt`/`location`/`call`/`canceled`). |
 | `groupInvite(opts)` | `(opts: GroupInviteOptions)` | Group-invite card (`jid`, `code`, optional `subject`/`caption`/`expiresAt`/`thumbnail`). |
+| `groupStatus(text, opts?)` | `(text: string, opts?: GroupStatusOptions)` | Group status post (`backgroundColor`, `font`). Groups only. |
+| `groupStatus(source, opts?)` | `(source: GroupStatusSource, opts?: GroupStatusRepostOptions)` | Repost an existing message as a group status — copies media pointers, no re-upload. |
 | `product(opts)` | `(opts: ProductOptions)` | Business product card (`image`, `title`, `businessOwnerId`, optional `price`/`currency`/`productId`/etc.). |
 | `requestPhoneNumber()` | `()` | Ask the recipient to share their phone number. |
 | `sharePhoneNumber()` | `()` | Share your own phone number. |
@@ -214,7 +216,7 @@ The `message` event is an umbrella that fires **once for any inbound message** r
 - `staticId` — 16-char uppercase hex, stable per room + sender (same value for every message from one sender in one room).
 - `mentions` — resolved to PN (LID mentions mapped back to phone-number JIDs).
 - `senderDevice` — detected (`android` \| `ios` \| `web` \| `desktop` \| `unknown`).
-- Content-derived flags: `isEdited`, `isDeleted`, `isPinned`, `isUnPinned`, `isBot`, `isStatusMention`, `isGroupStatusMention`, `isStory`, `isHideTags`.
+- Content-derived flags: `isEdited`, `isDeleted`, `isPinned`, `isUnPinned`, `isBot`, `isStatusMention`, `isGroupStatusMention`, `isGroupStatus`, `isStory`, `isHideTags`.
 - `chatType` values include `album`, `group-invite`, `product`, `order`, `payment` (plus `text`/`image`/`video`/`audio`/`document`/`sticker`/`poll`/`contact`/`location`/`live-location`/`event`/`buttons`/`list`/`interactive`/`template`/`unknown`).
 
 | Export | Kind | Description |

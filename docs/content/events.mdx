@@ -275,6 +275,7 @@ All of these are plain `boolean` fields you can branch on directly.
 | `isSpam` | Flagged as spam. (Currently always `false`.) |
 | `isHideTags` | Hidetag (silent tag) — `mentions` are present but `text` has no visible `@number`. |
 | `isStatusMention` / `isGroupStatusMention` | Carries a `statusMentionMessage` / `groupStatusMentionMessage` respectively. |
+| `isGroupStatus` | The message is a group status post (`groupStatusMessage` / `groupStatusMessageV2`). Distinct from `isGroupStatusMention`. |
 | `isStory` | A status/story message — `remoteJid` is `status@broadcast`. |
 
 ### Methods

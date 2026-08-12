@@ -1,6 +1,6 @@
 import { jidDecode, jidNormalizedUser, type WAMessage, type WAMessageKey } from 'baileys'
 import { Readable } from 'node:stream'
-import { asRecord, isGroupJid } from './decoders/_shared.js'
+import { asRecord, GROUP_STATUS_FIELDS, isGroupJid, wrapperChainHas } from './decoders/_shared.js'
 import type { SenderInfo } from './types.js'
 import type { TextOptions } from '../builder/builder.js'
 
@@ -241,6 +241,7 @@ export interface MessageContext {
   isHideTags: boolean
   isStatusMention: boolean
   isGroupStatusMention: boolean
+  isGroupStatus: boolean
   isStory: boolean
   roomName(): Promise<string | null>
   receiverName(): Promise<string | null>
@@ -388,6 +389,7 @@ interface MessageFlags {
   isBot: boolean
   isStatusMention: boolean
   isGroupStatusMention: boolean
+  isGroupStatus: boolean
 }
 
 const PROTOCOL_REVOKE = 0
@@ -398,7 +400,7 @@ const UNPIN_FOR_ALL = 2
 const deriveFlags = (message: WAMessage): MessageFlags => {
   const content = asRecord(message.message)
   if (content == null) {
-    return { isEdited: false, isDeleted: false, isPinned: false, isUnPinned: false, isBot: false, isStatusMention: false, isGroupStatusMention: false }
+    return { isEdited: false, isDeleted: false, isPinned: false, isUnPinned: false, isBot: false, isStatusMention: false, isGroupStatusMention: false, isGroupStatus: false }
   }
   const protocol = asRecord(content['protocolMessage'])
   const protoType = typeof protocol?.['type'] === 'number' ? protocol['type'] : undefined
@@ -413,6 +415,7 @@ const deriveFlags = (message: WAMessage): MessageFlags => {
     isBot: asRecord(content['messageContextInfo'])?.['botMetadata'] != null,
     isStatusMention: content['statusMentionMessage'] != null,
     isGroupStatusMention: content['groupStatusMentionMessage'] != null,
+    isGroupStatus: wrapperChainHas(content, GROUP_STATUS_FIELDS),
   }
 }
 
@@ -464,6 +467,7 @@ export const buildMessageContext = (input: BuildContextInput): MessageContext =>
     isHideTags: input.mentions.length > 0 && !/@\d/.test(input.text),
     isStatusMention: flags.isStatusMention,
     isGroupStatusMention: flags.isGroupStatusMention,
+    isGroupStatus: flags.isGroupStatus,
     isStory: remoteJid === 'status@broadcast',
     roomName: input.resolveRoomName,
     receiverName: input.resolveReceiverName,

@@ -111,6 +111,7 @@ export const safeNumber = (n: number | LongLike | null | undefined): number | nu
 export const asRecord = (value: unknown): Record<string, unknown> | null =>
   value != null && typeof value === 'object' ? (value as Record<string, unknown>) : null
 
+/** Order matters: unwrap() breaks on the first match, so new entries go at the end. */
 export const WRAPPER_FIELDS = [
   'ephemeralMessage',
   'viewOnceMessage',
@@ -119,7 +120,29 @@ export const WRAPPER_FIELDS = [
   'documentWithCaptionMessage',
   'editedMessage',
   'lottieStickerMessage',
+  'groupStatusMessage',
+  'groupStatusMessageV2',
 ] as const
+
+export const GROUP_STATUS_FIELDS = ['groupStatusMessage', 'groupStatusMessageV2'] as const
+
+/** True when any level of the bounded wrapper chain carries one of the given fields. */
+export const wrapperChainHas = (content: Record<string, unknown>, fields: readonly string[]): boolean => {
+  let node: Record<string, unknown> | null = content
+  for (let i = 0; i < 5 && node != null; i++) {
+    if (fields.some((field) => node?.[field] != null)) return true
+    let next: Record<string, unknown> | null = null
+    for (const field of WRAPPER_FIELDS) {
+      const inner = asRecord(asRecord(node[field])?.['message'])
+      if (inner != null) {
+        next = inner
+        break
+      }
+    }
+    node = next
+  }
+  return false
+}
 
 export const unwrap = (content: Record<string, unknown>): Record<string, unknown> => {
   let node = content

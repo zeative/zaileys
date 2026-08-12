@@ -61,6 +61,12 @@ describe('parseStatusArgb', () => {
       expectError(() => parseStatusArgb(bad as string | number), 'INVALID_OPTIONS')
     }
   })
+
+  it('rejects a value that is neither a string nor a number', () => {
+    for (const bad of [{}, true, null]) {
+      expectError(() => parseStatusArgb(bad as unknown as string), 'INVALID_OPTIONS')
+    }
+  })
 })
 
 describe('resolveStatusFont', () => {
@@ -184,6 +190,18 @@ describe('buildGroupStatusRepost', () => {
   it('overrides the caption when asked', () => {
     const node = innerOf(buildGroupStatusRepost(imageSource(), { caption: 'baru' }))['imageMessage']!
     expect(node['caption']).toBe('baru')
+  })
+
+  it('overrides the text when reposting a text message with a caption', () => {
+    const node = innerOf(buildGroupStatusRepost(msg({ conversation: 'lama' }), { caption: 'baru' }))
+    expect((node['extendedTextMessage'] as Record<string, unknown>)['text']).toBe('baru')
+  })
+
+  it('ignores a caption override on a voice note', () => {
+    const node = innerOf(
+      buildGroupStatusRepost(msg({ audioMessage: { directPath: '/a', ptt: true } }), { caption: 'x' }),
+    )['audioMessage']!
+    expect(node['caption']).toBeUndefined()
   })
 
   it('normalises a plain conversation into extendedTextMessage', () => {

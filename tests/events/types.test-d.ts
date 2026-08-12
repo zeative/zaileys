@@ -20,7 +20,7 @@ import type {
   ReactionPayload,
   SenderInfo,
 } from '../../src/events/types.js'
-import type { MentionAllContext, MentionContext, MessageContext } from '../../src/events/context.js'
+import type { ChatType, MentionAllContext, MentionContext, MessageContext } from '../../src/events/context.js'
 
 describe('InboundEventMap keys', () => {
   it('enumerates exactly 24 event keys', () => {
@@ -195,5 +195,15 @@ describe('shared helper types', () => {
 
   it('QuotedRef carries key', () => {
     expectTypeOf<QuotedRef>().toHaveProperty('key')
+  })
+})
+
+describe('group status surface', () => {
+  it('exposes isGroupStatus as a required boolean', () => {
+    expectTypeOf<MessageContext>().toHaveProperty('isGroupStatus').toEqualTypeOf<boolean>()
+  })
+
+  it('keeps group-status out of ChatType so exhaustive switches stay valid', () => {
+    expectTypeOf<'group-status'>().not.toMatchTypeOf<ChatType>()
   })
 })

@@ -299,6 +299,30 @@ describe('buildMessageContext', () => {
     expect(buildMessageContext(withMessage({ groupStatusMentionMessage: {} })).isGroupStatusMention).toBe(true)
   })
 
+  it('isGroupStatus for both group status proto versions', () => {
+    const v2 = withMessage({ groupStatusMessageV2: { message: { conversation: 'x' } } })
+    const v1 = withMessage({ groupStatusMessage: { message: { conversation: 'x' } } })
+    expect(buildMessageContext(v2).isGroupStatus).toBe(true)
+    expect(buildMessageContext(v1).isGroupStatus).toBe(true)
+  })
+
+  it('isGroupStatus when nested inside an ephemeral envelope', () => {
+    const nested = withMessage({
+      ephemeralMessage: { message: { groupStatusMessageV2: { message: { conversation: 'x' } } } },
+    })
+    expect(buildMessageContext(nested).isGroupStatus).toBe(true)
+  })
+
+  it('does not confuse a group status mention with a group status', () => {
+    const ctx = buildMessageContext(withMessage({ groupStatusMentionMessage: {} }))
+    expect(ctx.isGroupStatusMention).toBe(true)
+    expect(ctx.isGroupStatus).toBe(false)
+  })
+
+  it('isGroupStatus is false for an ordinary message', () => {
+    expect(buildMessageContext(withMessage({ conversation: 'x' })).isGroupStatus).toBe(false)
+  })
+
   it('isStory when remoteJid is status@broadcast', () => {
     const key = { remoteJid: 'status@broadcast', id: 'S1', fromMe: false }
     const ctx = buildMessageContext({ ...baseInput(), key, message: { key, messageTimestamp: 1700000000, message: { conversation: 'hi' } } as never })

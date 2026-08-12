@@ -912,3 +912,84 @@ describe('structured media (msg.media union)', () => {
     expect(await (out!.media as { buffer: () => Promise<Buffer> }).buffer()).toBeInstanceOf(Buffer)
   })
 })
+
+describe('group status envelope', () => {
+  const wrap = (inner: Record<string, unknown>) => ({ groupStatusMessageV2: { message: inner } })
+
+  it('decodes a text group status that used to be dropped', () => {
+    const out = decodeMessage(base({ message: wrap({ conversation: 'halo' }) }), ctx)
+    expect(out).not.toBeNull()
+    expect(out?.text).toBe('halo')
+    expect(out?.chatType).toBe('text')
+  })
+
+  it('decodes the v1 groupStatusMessage envelope too', () => {
+    const out = decodeMessage(base({ message: { groupStatusMessage: { message: { conversation: 'halo' } } } }), ctx)
+    expect(out?.text).toBe('halo')
+  })
+
+  it('fires decodeText for a text group status', () => {
+    const out = decodeText(base({ message: wrap({ conversation: 'halo' }) }), ctx)
+    expect(out?.text).toBe('halo')
+  })
+
+  it('decodes a photo group status as an image with downloadable media', async () => {
+    const msg = base({ message: wrap({ imageMessage: { mimetype: 'image/jpeg', caption: 'c' } }) })
+    const out = decodeMessage(msg, ctx)
+    expect(out?.chatType).toBe('image')
+    expect(out?.media?.type).toBe('image')
+    expect(decodeImage(msg, ctx)).not.toBeNull()
+  })
+
+  it('reaches structuredMedia through the envelope', () => {
+    const out = decodeMessage(base({ message: wrap({ pollCreationMessage: { name: 'p', options: [] } }) }), ctx)
+    expect(out?.chatType).toBe('poll')
+  })
+
+  it('unwraps a group status nested inside an ephemeral envelope', () => {
+    const msg = base({ message: { ephemeralMessage: { message: wrap({ conversation: 'x' }) } } })
+    expect(decodeMessage(msg, ctx)?.text).toBe('x')
+  })
+
+  it('unwraps a viewOnce nested inside a group status', () => {
+    const msg = base({
+      message: wrap({ viewOnceMessageV2: { message: { imageMessage: { mimetype: 'image/jpeg' } } } }),
+    })
+    expect(decodeMessage(msg, ctx)?.chatType).toBe('image')
+  })
+
+  it('still drops an empty group status envelope', () => {
+    expect(decodeMessage(base({ message: wrap({}) }), ctx)).toBeNull()
+    expect(decodeMessage(base({ message: { groupStatusMessageV2: {} } }), ctx)).toBeNull()
+  })
+
+  it('keeps the existing wrapper types working', () => {
+    const cases: Array<[string, Record<string, unknown>]> = [
+      ['ephemeralMessage', { ephemeralMessage: { message: { conversation: 'a' } } }],
+      ['viewOnceMessage', { viewOnceMessage: { message: { conversation: 'b' } } }],
+      ['viewOnceMessageV2', { viewOnceMessageV2: { message: { conversation: 'c' } } }],
+      ['viewOnceMessageV2Extension', { viewOnceMessageV2Extension: { message: { conversation: 'd' } } }],
+      ['editedMessage', { editedMessage: { message: { conversation: 'e' } } }],
+      ['lottieStickerMessage', { lottieStickerMessage: { message: { conversation: 'f' } } }],
+    ]
+    for (const [name, message] of cases) {
+      expect(decodeMessage(base({ message }), ctx)?.text, name).toBeDefined()
+    }
+  })
+
+  it('stops unwrapping past the five-level bound instead of throwing', () => {
+    let nested: Record<string, unknown> = { conversation: 'deep' }
+    for (let i = 0; i < 6; i++) nested = { ephemeralMessage: { message: nested } }
+    expect(() => decodeMessage(base({ message: nested }), ctx)).not.toThrow()
+  })
+
+  it('surfaces mentions carried inside a group status', () => {
+    const msg = base({
+      key: { remoteJid: GROUP, fromMe: false, id: 'M1' },
+      message: wrap({
+        extendedTextMessage: { text: 'hai', contextInfo: { mentionedJid: [SELF] } },
+      }),
+    })
+    expect(decodeMention(msg, ctx)).not.toBeNull()
+  })
+})

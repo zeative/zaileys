@@ -1,5 +1,11 @@
 # zaileys
 
+## 4.9.0
+
+### Minor Changes
+
+- add object command specs with metadata, guards, and lifecycle events
+
 ## 4.8.9
 
 ## 4.8.8

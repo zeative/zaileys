@@ -1,5 +1,11 @@
 # zaileys
 
+## 4.11.0
+
+### Minor Changes
+
+- expose the client on the command context and pass plugin context to handlers
+
 ## 4.10.0
 
 ### Minor Changes

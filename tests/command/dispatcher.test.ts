@@ -19,7 +19,7 @@ const msg = (text: string): MessageContext => ({
   senderLid: null,
   senderName: null,
   senderUsername: null,
-  isOffline: false,
+  isOld: false,
   forwardCount: 0,
   ephemeralDuration: null,
   addressingMode: 'pn',

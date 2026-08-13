@@ -226,7 +226,7 @@ export function attachInboundPipeline(
 
   subscribe('messages.upsert', (raw) => {
     const upsert = dropSpoofedSelfOnly(raw as UpsertPayload)
-    const baseCtx = upsert.type === 'append' ? { ...decodeCtx, isOffline: true } : decodeCtx
+    const baseCtx = upsert.type === 'append' ? { ...decodeCtx, isOld: true } : decodeCtx
     for (const msg of upsert.messages) {
       if (ctx.ignoreMe === true && msg.key?.fromMe === true) continue
       const lids = ctx.resolveLidToPn != null ? lidTargetsOf(msg) : []

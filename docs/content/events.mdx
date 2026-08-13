@@ -298,7 +298,7 @@ client.on('message', async (msg) => {
 | `senderLid` | `string \| null` | The sender's LID (linked-device identifier), if known. Keeps the raw LID even after `senderId` is resolved to PN. |
 | `senderName` | `string \| null` | The sender's WhatsApp push name. |
 | `senderUsername` | `string \| null` | The sender's WhatsApp username (`@handle`), without the `@`. `null` unless WhatsApp sends one — mostly group messages from LID-only senders. |
-| `isOffline` | `boolean` | `true` for a backlog message replayed after a reconnect. Guard on this so the bot does not answer old messages twice. |
+| `isOld` | `boolean` | `true` for a backlog message replayed after a reconnect. Guard on this so the bot does not answer old messages twice. |
 | `forwardCount` | `number` | Forward hops. `>= 5` is WhatsApp's "forwarded many times". |
 | `ephemeralDuration` | `number \| null` | The chat's disappearing timer in seconds. |
 | `addressingMode` | `'pn' \| 'lid'` | How WhatsApp addressed the message. |

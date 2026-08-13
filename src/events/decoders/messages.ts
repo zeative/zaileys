@@ -30,7 +30,7 @@ export interface DecodeContext {
   selfName?: string
   lidMap?: Map<string, string>
   /** WhatsApp replays a reconnect's backlog as `append`; live traffic arrives as `notify`. */
-  isOffline?: boolean
+  isOld?: boolean
   logger?: DownloadLogger
   channelId?: string
   receiverId?: string
@@ -774,14 +774,14 @@ const buildContext = (
     isForwarded,
     isBroadcast,
     isNewsletter,
-    isOffline: ctx.isOffline === true,
+    isOld: ctx.isOld === true,
+    prefixes,
     forwardCount: numOr(contextInfo?.forwardingScore, 0),
     ephemeralDuration: ephemeralDurationOf(msg, contextInfo),
     addressingMode: key.addressingMode === 'lid' ? ('lid' as const) : ('pn' as const),
     mentionedGroups: groupMentionsOf(contextInfo),
     ...(ad !== undefined ? { ad } : {}),
     ...(business !== undefined ? { business } : {}),
-    prefixes,
     ...(ctx.lidMap != null ? { lidMap: ctx.lidMap } : {}),
     resolveRoomName,
     resolveReceiverName,
@@ -816,11 +816,11 @@ const buildMediaAttachment = (
     fileName: typeof node.fileName === 'string' ? node.fileName : null,
     fileSize: toNum(node.fileLength),
     ptt: node.ptt === true,
+    isAnimated: node.isAnimated === true || node.gifPlayback === true,
     duration: toNum(node.seconds),
     width: toNum(node.width),
     height: toNum(node.height),
     pages: toNum(node.pageCount),
-    isAnimated: node.isAnimated === true || node.gifPlayback === true,
     thumbnail: node.jpegThumbnail != null ? Buffer.from(node.jpegThumbnail) : null,
     buffer: async () => (await bufferFn()).buffer,
     stream: streamFn,

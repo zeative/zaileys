@@ -58,14 +58,8 @@ So plain fields are cheap to read; the function fields do real work (network/asy
 | `senderLid` | `string \| null` | `key.participantAlt` / `remoteJidAlt` ending in `@lid` | The sender's LID, when WhatsApp exposes one. `null` if not available. |
 | `senderName` | `string \| null` | `message.pushName` | Display/push name. Can be `null` or spoofed — don't use for authz. |
 | `senderUsername` | `string \| null` | `key.participantUsername` / `remoteJidUsername` | The sender's WhatsApp username (the `@handle`), without the `@`. `null` unless WhatsApp sends one — see the note below. |
-| `isOffline` | `boolean` | `messages.upsert` type `append` | **`true` for a backlog message replayed after a reconnect.** Skip these so your bot doesn't answer hours-old messages twice. |
-| `forwardCount` | `number` | `contextInfo.forwardingScore` | How many hops the message has been forwarded. `0` = not forwarded, `>= 5` = WhatsApp's "forwarded many times". |
-| `ephemeralDuration` | `number \| null` | `contextInfo.expiration` | The chat's disappearing timer **in seconds**, or `null` when messages are kept. |
-| `addressingMode` | `'pn' \| 'lid'` | `key.addressingMode` | Whether WhatsApp addressed this message by phone number or by LID. Useful when debugging identity resolution. |
-| `mentionedGroups` | `string[]` | `contextInfo.groupMentions` | JIDs of groups tagged in the message (community `@group` mentions). |
-| `ad` | `AdAttribution \| undefined` | `contextInfo.externalAdReply` | Present **only** on the first message of a chat opened from a Meta ad. |
-| `business` | `BusinessInfo \| undefined` | `verifiedBizName` | Present **only** when the sender is a verified WhatsApp Business account. |
 | `senderDevice` | `SenderDevice` | Parsed from the sender's device jid | Which client app sent it: `android` · `ios` · `web` · `desktop` · `unknown`. |
+| `addressingMode` | `'pn' \| 'lid'` | `key.addressingMode` | Whether WhatsApp addressed this message by phone number or by LID. Useful when debugging identity resolution. |
 | `isFromMe` | `boolean` | `key.fromMe === true` | `true` if your own account sent it (echo of your sends, other-device activity). |
 | `isGroup` | `boolean` | `remoteJid` is a group jid | Branch group vs DM logic. |
 | `isNewsletter` | `boolean` | `remoteJid` ends `@newsletter` | Message came from a channel/newsletter. |
@@ -82,7 +76,12 @@ So plain fields are cheap to read; the function fields do real work (network/asy
 | `text` | `string` | body / caption / poll name / location label, after unwrapping | The textual content. Empty string if none. Caption text for media is mirrored here too. |
 | `timestamp` | `number` | `messageTimestamp`, converted **seconds → milliseconds** | Unix **ms** epoch. Feed straight into `new Date(ctx.timestamp)`. `0` if invalid. |
 | `mentions` | `string[]` | `contextInfo.mentionedJid`, mapped to PN | Jids tagged in the message. |
+| `mentionedGroups` | `string[]` | `contextInfo.groupMentions` | Groups tagged in the message (community `@group` mentions). |
 | `links` | `string[]` | Regex over `text` | URLs found in the text (trailing punctuation trimmed). |
+| `forwardCount` | `number` | `contextInfo.forwardingScore` | How many hops the message has been forwarded. `0` = not forwarded, `>= 5` = WhatsApp's "forwarded many times". |
+| `ephemeralDuration` | `number \| null` | `contextInfo.expiration` | The chat's disappearing timer **in seconds**, or `null` when messages are kept. |
+| `ad` | `AdAttribution \| undefined` | `contextInfo.externalAdReply` | Present **only** on the first message of a chat opened from a Meta ad. See [`ad`](#ad--where-a-lead-came-from). |
+| `business` | `BusinessInfo \| undefined` | `verifiedBizName` | Present **only** when the sender is a verified WhatsApp Business account. |
 
 ---
 
@@ -95,6 +94,7 @@ All computed from the message **except `isSpam`** (reserved, always `false` for 
 | `isViewOnce` | view-once wrapper present, or media marked `viewOnce`. |
 | `isEphemeral` | ephemeral wrapper present, or `contextInfo.expiration > 0` (disappearing messages). |
 | `isForwarded` | marked forwarded, or `forwardingScore > 0`. |
+| `isOld` | the message is **backlog** — it arrived while your bot was disconnected and WhatsApp replayed it on reconnect. Guard on this so you don't answer hours-old messages. |
 | `isQuestion` | trimmed `text` ends with `?`. |
 | `isPrefix` | `text` starts with one of your configured command **prefixes**. |
 | `isTagMe` | your jid is in `mentions` (you were @-tagged). |
@@ -299,7 +299,7 @@ A few values come from your `Client` config rather than the raw message:
 - **`roomId` follows the conversation, not the direction** — safe as a reply target for both inbound and your own (`isFromMe`) messages.
 - **`isSpam` is reserved** and always `false` today. Use `forwardCount >= 5` for chain-message detection.
 - **Answer only live messages.** After a reconnect WhatsApp replays everything you missed. Guard with
-  `if (ctx.isOffline) return` unless you deliberately want to process the backlog.
+  `if (ctx.isOld) return` unless you deliberately want to process the backlog.
 - **Mirror the disappearing timer on replies.** `ctx.reply()` does not inherit it — pass
   `ctx.ephemeralDuration` to `.disappearing()` yourself, or your answer outlives the thread it belongs to.
 - **`senderUsername` is usually `null` — WhatsApp sends the phone number _or_ the username, never

@@ -46,15 +46,11 @@ export interface MediaAttachment {
   fileName: string | null
   fileSize: number | null
   ptt: boolean
-  /** Playback length in seconds, for audio and video. */
+  isAnimated: boolean
   duration: number | null
   width: number | null
   height: number | null
-  /** Page count, for documents. */
   pages: number | null
-  /** `true` for an animated sticker or a GIF-playback video. */
-  isAnimated: boolean
-  /** Inline JPEG preview, when WhatsApp sent one. Lets you show a thumbnail without downloading. */
   thumbnail: Buffer | null
   buffer(): Promise<Buffer>
   stream(): Promise<Readable>
@@ -248,7 +244,6 @@ export interface MessageContext {
   senderId: string
   senderLid: string | null
   senderName: string | null
-  /** WhatsApp username (the `@handle`), without the `@`. Only sent for accounts that set one. */
   senderUsername: string | null
   senderDevice: SenderDevice
   timestamp: number
@@ -262,20 +257,7 @@ export interface MessageContext {
   isViewOnce: boolean
   isEphemeral: boolean
   isForwarded: boolean
-  /** `true` for a backlog message replayed after a reconnect. Skip these to avoid answering twice. */
-  isOffline: boolean
-  /** How many hops this message has been forwarded. `>= 5` is WhatsApp's "forwarded many times". */
-  forwardCount: number
-  /** The chat's disappearing timer in seconds, or `null` when messages are kept. */
-  ephemeralDuration: number | null
-  /** Whether WhatsApp addressed this message by phone number or by LID. */
-  addressingMode: 'pn' | 'lid'
-  /** JIDs of groups tagged in the message (community `@group` mentions). */
-  mentionedGroups: string[]
-  /** Present only on the first message of a chat opened from a Meta ad. */
-  ad?: AdAttribution
-  /** Present only when the sender is a verified WhatsApp Business account. */
-  business?: BusinessInfo
+  isOld: boolean
   isQuestion: boolean
   isPrefix: boolean
   isTagMe: boolean
@@ -290,6 +272,12 @@ export interface MessageContext {
   isGroupStatusMention: boolean
   isGroupStatus: boolean
   isStory: boolean
+  forwardCount: number
+  ephemeralDuration: number | null
+  addressingMode: 'pn' | 'lid'
+  mentionedGroups: string[]
+  ad?: AdAttribution
+  business?: BusinessInfo
   roomName(): Promise<string | null>
   receiverName(): Promise<string | null>
   media?: ContextMedia
@@ -326,7 +314,7 @@ export interface BuildContextInput {
   isForwarded: boolean
   isBroadcast: boolean
   isNewsletter: boolean
-  isOffline?: boolean
+  isOld?: boolean
   forwardCount?: number
   ephemeralDuration?: number | null
   addressingMode?: 'pn' | 'lid'
@@ -510,13 +498,7 @@ export const buildMessageContext = (input: BuildContextInput): MessageContext =>
     isViewOnce: input.isViewOnce,
     isEphemeral: input.isEphemeral,
     isForwarded: input.isForwarded,
-    isOffline: input.isOffline === true,
-    forwardCount: input.forwardCount ?? 0,
-    ephemeralDuration: input.ephemeralDuration ?? null,
-    addressingMode: input.addressingMode ?? 'pn',
-    mentionedGroups: input.mentionedGroups ?? [],
-    ...(input.ad !== undefined ? { ad: input.ad } : {}),
-    ...(input.business !== undefined ? { business: input.business } : {}),
+    isOld: input.isOld === true,
     isQuestion: isQuestionOf(input.text),
     isPrefix: isPrefixOf(input.text, input.prefixes),
     isTagMe: isTagMeOf(input.selfJid, input.mentions),
@@ -531,6 +513,12 @@ export const buildMessageContext = (input: BuildContextInput): MessageContext =>
     isGroupStatusMention: flags.isGroupStatusMention,
     isGroupStatus: flags.isGroupStatus,
     isStory: remoteJid === 'status@broadcast',
+    forwardCount: input.forwardCount ?? 0,
+    ephemeralDuration: input.ephemeralDuration ?? null,
+    addressingMode: input.addressingMode ?? 'pn',
+    mentionedGroups: input.mentionedGroups ?? [],
+    ...(input.ad !== undefined ? { ad: input.ad } : {}),
+    ...(input.business !== undefined ? { business: input.business } : {}),
     roomName: input.resolveRoomName,
     receiverName: input.resolveReceiverName,
     replied: input.resolveReplied,

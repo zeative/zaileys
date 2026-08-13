@@ -38,13 +38,13 @@ const emit = (messages: Record<string, unknown>[], type = 'notify'): MessageCont
   return seen.mock.calls[0]?.[0] as MessageContext
 }
 
-describe('isOffline', () => {
+describe('isOld', () => {
   it('is false for live traffic', () => {
-    expect(emit([msg()]).isOffline).toBe(false)
+    expect(emit([msg()]).isOld).toBe(false)
   })
 
   it('is true for the backlog WhatsApp replays after a reconnect', () => {
-    expect(emit([msg()], 'append').isOffline).toBe(true)
+    expect(emit([msg()], 'append').isOld).toBe(true)
   })
 })
 

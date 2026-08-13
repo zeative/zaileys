@@ -217,6 +217,8 @@ export interface MessageContext {
   senderId: string
   senderLid: string | null
   senderName: string | null
+  /** WhatsApp username (the `@handle`), without the `@`. Only sent for accounts that set one. */
+  senderUsername: string | null
   senderDevice: SenderDevice
   timestamp: number
   text: string
@@ -443,6 +445,7 @@ export const buildMessageContext = (input: BuildContextInput): MessageContext =>
     senderId,
     senderLid: input.sender.lid ?? null,
     senderName: input.sender.pushName ?? null,
+    senderUsername: input.sender.username ?? null,
     senderDevice: senderDeviceOf(input.sender.deviceJid ?? input.sender.jid),
     timestamp: epochSecondsToMs(input.message.messageTimestamp),
     text: input.text,

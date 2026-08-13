@@ -278,6 +278,7 @@ client.on('message', async (msg) => {
 | `senderId` | `string` | The sender's phone-number JID (e.g. `628xxxxxxxxxx`). Resolved to PN form even when only the LID is known. |
 | `senderLid` | `string \| null` | The sender's LID (linked-device identifier), if known. Keeps the raw LID even after `senderId` is resolved to PN. |
 | `senderName` | `string \| null` | The sender's WhatsApp push name. |
+| `senderUsername` | `string \| null` | The sender's WhatsApp username (`@handle`), without the `@`. `null` unless WhatsApp sends one — mostly group messages from LID-only senders. |
 | `senderDevice` | `SenderDevice` | `'android' \| 'ios' \| 'web' \| 'desktop' \| 'unknown'` — detected from the JID's device suffix. |
 | `timestamp` | `number` | Message time in epoch **milliseconds**. |
 

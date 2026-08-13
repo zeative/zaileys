@@ -55,6 +55,7 @@ So plain fields are cheap to read; the function fields do real work (network/asy
 | `senderId` | `string` | `key.participant`/`remoteJid`, mapped LID → **PN** | Who sent it, as a phone-number jid (`...@s.whatsapp.net`). Primary identity for auth/owner checks. |
 | `senderLid` | `string \| null` | `key.participantAlt` / `remoteJidAlt` ending in `@lid` | The sender's LID, when WhatsApp exposes one. `null` if not available. |
 | `senderName` | `string \| null` | `message.pushName` | Display/push name. Can be `null` or spoofed — don't use for authz. |
+| `senderUsername` | `string \| null` | `key.participantUsername` / `remoteJidUsername` | The sender's WhatsApp username (the `@handle`), without the `@`. `null` unless WhatsApp sends one — see the note below. |
 | `senderDevice` | `SenderDevice` | Parsed from the sender's device jid | Which client app sent it: `android` · `ios` · `web` · `desktop` · `unknown`. |
 | `isFromMe` | `boolean` | `key.fromMe === true` | `true` if your own account sent it (echo of your sends, other-device activity). |
 | `isGroup` | `boolean` | `remoteJid` is a group jid | Branch group vs DM logic. |
@@ -227,3 +228,7 @@ A few values come from your `Client` config rather than the raw message:
 - **Methods are lazy & mostly async.** `roomName()`, `replied()`, `media.buffer()`, `citation.*` do real work — `await` them; they show as `[Function]` when you log the object.
 - **`roomId` follows the conversation, not the direction** — safe as a reply target for both inbound and your own (`isFromMe`) messages.
 - **`isSpam` is reserved** and always `false` today.
+- **`senderUsername` is usually `null`.** WhatsApp only attaches a username when the sender has
+  actually set one, and in practice it arrives mainly on **group** messages from senders your account
+  knows only by LID. Treat it as a bonus, never as an identity you can rely on — `senderId` remains
+  the field to use for authorization.

@@ -251,6 +251,16 @@ describe('buildMessageContext', () => {
     expect(typeof ctx.uniqueId).toBe('string')
   })
 
+  it('carries the sender username WhatsApp attached to the message', () => {
+    const input = baseInput()
+    const ctx = buildMessageContext({ ...input, sender: { ...input.sender, username: 'meow1222' } })
+    expect(ctx.senderUsername).toBe('meow1222')
+  })
+
+  it('leaves senderUsername null when the sender has not set one', () => {
+    expect(buildMessageContext(baseInput()).senderUsername).toBeNull()
+  })
+
   it('uniqueId is deterministic across two buildMessageContext calls with same input', () => {
     const ctx1 = buildMessageContext(baseInput())
     const ctx2 = buildMessageContext(baseInput())

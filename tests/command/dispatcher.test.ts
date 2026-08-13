@@ -18,6 +18,7 @@ const msg = (text: string): MessageContext => ({
   senderId: SENDER_JID,
   senderLid: null,
   senderName: null,
+  senderUsername: null,
   senderDevice: 'unknown',
   timestamp: 0,
   text,

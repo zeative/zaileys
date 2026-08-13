@@ -1,5 +1,11 @@
 # zaileys
 
+## 4.10.0
+
+### Minor Changes
+
+- declare commands and event handlers on the plugin itself
+
 ## 4.9.0
 
 ### Minor Changes

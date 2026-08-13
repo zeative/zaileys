@@ -63,6 +63,16 @@ These fire as your session connects, authenticates, and (occasionally) drops. Ev
 | `auth-exhausted` | `{ sessionId, kind, attempts, max }` | The [`authGuard`](/configuration#authguard) budget ran out — too many QR / pairing regenerations. `kind` is `'qr' \| 'pairing'`. The client stops and will not auto-retry until you call `connect()` again. |
 | `error` | `{ sessionId, error }` | An internal connection error surfaced as an `Error`. |
 
+### Commands
+
+Emitted by the [command framework](/commands). All three are silent no-ops unless you listen.
+
+| Event | Payload | Fires when |
+| ----- | ------- | ---------- |
+| `command-blocked` | `{ command, reason, retryIn?, ctx }` | A guard stopped a command. `reason` is `'group-only' \| 'private-only' \| 'admin-only' \| 'cooldown'`. zaileys replies nothing — see [Guards](/commands#guards-and-command-blocked). |
+| `command-error` | `{ command, error, ctx }` | A command handler threw. Listening takes ownership, so zaileys stops logging it itself. |
+| `command-not-found` | `{ command, message }` | A prefixed message matched no registered command. |
+
 ### Inbound messages
 
 These deliver a rich [message context](#the-message-context) object — the same shape across every message type. The `media` accessor is populated only for media kinds.

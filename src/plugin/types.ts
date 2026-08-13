@@ -1,12 +1,14 @@
 import type { Client } from '../client/client.js'
 import type { Logger, ClientEventMap } from '../client/types.js'
-import type { CommandHandler, Middleware } from '../command/index.js'
+import type { CommandHandler, CommandSpec, Middleware } from '../command/index.js'
 
 export interface PluginContext {
   client: Client
   logger: Logger | undefined
   pluginDir: string
-  command(spec: string, handler: CommandHandler): void
+  /** The subfolder this plugin lives in. Commands default their `category` to it. */
+  category: string | undefined
+  command(spec: string | CommandSpec, handler: CommandHandler): void
   use(middleware: Middleware): void
   on<E extends keyof ClientEventMap>(
     event: E,

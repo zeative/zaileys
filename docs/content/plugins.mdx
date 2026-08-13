@@ -185,6 +185,22 @@ ctx.command('help|h|?', async (c) => {
 })
 ```
 
+Pass an object instead to describe the command or guard it. Inside a plugin the **`category`
+defaults to the plugin's folder**, so `plugins/group/kick.ts` needs no `category` field:
+
+```typescript
+// plugins/group/kick.ts
+ctx.command(
+  { name: 'kick', description: 'Remove a member', group: true, admin: true },
+  async (c) => { /* ... */ },
+)
+// registered with category: 'group'
+```
+
+`ctx.category` holds that folder name, or `undefined` for a plugin sitting directly in the plugins
+root. Setting `category` yourself always wins. See [Commands](/commands#describing-a-command) for
+every field.
+
 See [Commands](/commands) for the full command spec syntax, argument parsing, and `CommandContext`.
 
 ### `ctx.use(middleware)`
@@ -237,7 +253,8 @@ leaked listeners, commands, or middleware.
 | `client` | `Client` | The full `Client` instance. Call any client method directly from here. |
 | `logger` | `Logger \| undefined` | The client's logger instance. May be `undefined` if logging is disabled. |
 | `pluginDir` | `string` | Absolute path to the directory containing this plugin file. Useful for loading sibling assets (e.g. JSON config, image files). |
-| `command(spec, handler)` | `void` | Register a command. Tracked — auto-removed on unload. |
+| `category` | `string \| undefined` | The subfolder this plugin lives in, e.g. `'group'` for `plugins/group/kick.ts`. `undefined` for a plugin in the plugins root. Commands default their `category` to it. |
+| `command(spec, handler)` | `void` | Register a command. `spec` is a pipe string or a [command object](/commands#describing-a-command). Tracked — auto-removed on unload. |
 | `use(middleware)` | `void` | Register command middleware. Tracked — auto-removed on unload. |
 | `on(event, handler)` | `() => void` | Subscribe to a client event. Returns an unsubscribe fn. Tracked — auto-removed on unload. |
 | `once(event, handler)` | `() => void` | Like `on` but fires once. Returns an unsubscribe fn. Tracked — auto-removed on unload. |
@@ -378,7 +395,7 @@ import type {
 | Type | Shape |
 | ---- | ----- |
 | `Plugin` | `{ name: string; setup(ctx: PluginContext): void \| (() => void) \| Promise<void \| (() => void)>; onUnload?(): void \| Promise<void> }` |
-| `PluginContext` | `{ client, logger, pluginDir, command, use, on, once }` — see table above |
+| `PluginContext` | `{ client, logger, pluginDir, category, command, use, on, once }` — see table above |
 | `PluginsOptions` | `{ dir?, watch?, pattern?, ignore?, onError? }` — see table above |
 
 `definePlugin` is also exported and is the recommended way to author plugins:

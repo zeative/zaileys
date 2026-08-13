@@ -99,7 +99,7 @@ export class PluginLoader {
       return
     }
     const before = this.registry.list()
-    await this.registry.loadPlugin(plugin, file)
+    await this.registry.loadPlugin(plugin, file, this.dir)
     const added = this.registry.list().find((n) => !before.includes(n))
     if (added) this.fileToName.set(file, added)
   }

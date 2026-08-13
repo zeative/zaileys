@@ -3,8 +3,8 @@ import type { Logger } from '../client/types.js'
 import type { Plugin, PluginContext } from './types.js'
 
 export interface PluginHost {
-  command(spec: string, handler: Parameters<PluginContext['command']>[1]): unknown
-  unregisterCommand(spec: string): void
+  command(spec: Parameters<PluginContext['command']>[0], handler: Parameters<PluginContext['command']>[1]): unknown
+  unregisterCommand(spec: Parameters<PluginContext["command"]>[0]): void
   use(mw: Parameters<PluginContext['use']>[0]): unknown
   unuse(mw: Parameters<PluginContext['use']>[0]): unknown
   on: PluginContext['on']
@@ -15,6 +15,22 @@ type Loaded = {
   plugin: Plugin
   file: string
   disposers: Array<() => void | Promise<void>>
+}
+
+/**
+ * The subfolder a plugin sits in, used as its commands' default category. Files directly in the
+ * plugins root have no category — there is no folder to name them after.
+ */
+const categoryOf = (file: string, rootDir?: string): string | undefined => {
+  const dir = path.dirname(path.resolve(file))
+  const root = rootDir === undefined ? undefined : path.resolve(rootDir)
+  if (root !== undefined) {
+    const rel = path.relative(root, dir)
+    if (rel.length === 0 || rel.startsWith('..')) return undefined
+    return rel.split(path.sep)[0]
+  }
+  const name = path.basename(dir)
+  return name.length > 0 ? name : undefined
 }
 
 export class PluginRegistry {
@@ -35,7 +51,7 @@ export class PluginRegistry {
     return [...this.plugins.keys()]
   }
 
-  async loadPlugin(plugin: Plugin, file: string): Promise<void> {
+  async loadPlugin(plugin: Plugin, file: string, rootDir?: string): Promise<void> {
     if (typeof plugin?.name !== 'string' || typeof plugin?.setup !== 'function') {
       this.logger?.warn({ file }, 'plugin: invalid shape (need name + setup); skipped')
       return
@@ -45,13 +61,20 @@ export class PluginRegistry {
       return
     }
     const disposers: Loaded['disposers'] = []
+    const category = categoryOf(file, rootDir)
     const ctx: PluginContext = {
       client: this.host as unknown as PluginContext['client'],
       logger: this.logger,
       pluginDir: path.dirname(file),
+      category,
+      /** The folder already names the category, so a plugin never has to repeat it. */
       command: (spec, handler) => {
-        this.host.command(spec, handler)
-        disposers.push(() => this.host.unregisterCommand(spec))
+        const withCategory =
+          typeof spec === 'string' || spec.category !== undefined || category === undefined
+            ? spec
+            : { ...spec, category }
+        this.host.command(withCategory, handler)
+        disposers.push(() => this.host.unregisterCommand(withCategory))
       },
       use: (mw) => {
         this.host.use(mw)

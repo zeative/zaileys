@@ -6,7 +6,8 @@ import type { OperationGuardOptions } from '../automation/operation-guard.js'
 import type { PresenceThrottleOptions } from '../automation/presence.js'
 import type { AuthGuardOptions } from '../connection/auth-guard.js'
 import type { DisconnectReasonDomain } from '../connection/disconnect-reason.js'
-import type { CitationConfig } from '../events/context.js'
+import type { CommandBlockedReason, CommandContext } from '../command/types.js'
+import type { CitationConfig, MessageContext } from '../events/context.js'
 import type { InboundEventMap } from '../events/types.js'
 import type { MessageStore } from '../store/types.js'
 import type { PluginsOptions } from '../plugin/types.js'
@@ -97,6 +98,18 @@ export type ConnectionEventMap = {
   reconnecting: { sessionId: string; attempt: number; delayMs: number; reason: DisconnectReasonDomain }
   'auth-exhausted': { sessionId: string; kind: ConnectionAuthType; attempts: number; max: number }
   error: { sessionId: string; error: Error }
+  /** A command matched but a guard stopped it. zaileys sends nothing — reply here if you want to. */
+  'command-blocked': {
+    command: string
+    reason: CommandBlockedReason
+    /** Seconds until the sender may retry. Only present when `reason` is `cooldown`. */
+    retryIn?: number
+    ctx: CommandContext
+  }
+  /** A command handler threw. Listening takes ownership: zaileys stops logging it as an error. */
+  'command-error': { command: string; error: unknown; ctx: CommandContext }
+  /** A prefixed message matched no command. Only emitted when something is listening. */
+  'command-not-found': { command: string; message: MessageContext }
   /** Cloud provider: delivery lifecycle of outbound messages (sent/delivered/read/failed). */
   'message-status': CloudStatusEvent
   /** Cloud provider: template review lifecycle (APPROVED/REJECTED/PAUSED...). */

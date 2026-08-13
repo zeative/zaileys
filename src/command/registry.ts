@@ -1,5 +1,13 @@
 import { ZaileysCommandError } from './errors.js'
-import type { CommandDefinition, CommandHandler, ParsedArgs } from './types.js'
+import type {
+  CommandDefinition,
+  CommandGuards,
+  CommandHandler,
+  CommandMeta,
+  CommandSpec,
+  ParsedArgs,
+  RegisteredCommand,
+} from './types.js'
 
 const parseSegment = (segment: string): string[] => {
   const parts = segment
@@ -15,17 +23,36 @@ const parseSegment = (segment: string): string[] => {
 
 const keyOf = (parts: string[]): string => parts.join(' ')
 
+/** The object form is sugar over the pipe syntax, so both paths share one registration routine. */
+const specToString = (spec: CommandSpec): string =>
+  [spec.name, ...(spec.aliases ?? [])].join('|')
+
+const metaOf = (spec: CommandSpec): CommandMeta & CommandGuards => {
+  const out: CommandMeta & CommandGuards = {}
+  if (spec.description !== undefined) out.description = spec.description
+  if (spec.usage !== undefined) out.usage = spec.usage
+  if (spec.category !== undefined) out.category = spec.category
+  if (spec.hidden !== undefined) out.hidden = spec.hidden
+  if (spec.metadata !== undefined) out.metadata = spec.metadata
+  if (spec.group !== undefined) out.group = spec.group
+  if (spec.private !== undefined) out.private = spec.private
+  if (spec.admin !== undefined) out.admin = spec.admin
+  if (spec.cooldown !== undefined) out.cooldown = spec.cooldown
+  return out
+}
+
 export class CommandRegistry {
   private readonly paths = new Map<string, CommandDefinition>()
   private readonly defs: CommandDefinition[] = []
   private maxDepth = 1
 
-  register(spec: string, handler: CommandHandler): void {
-    if (spec.trim().length === 0) {
+  register(spec: string | CommandSpec, handler: CommandHandler): void {
+    const source = typeof spec === 'string' ? spec : specToString(spec)
+    if (source.trim().length === 0) {
       throw new ZaileysCommandError('INVALID_COMMAND_NAME', 'command spec must not be empty')
     }
 
-    const segments = spec.split('|').map((segment) => parseSegment(segment))
+    const segments = source.split('|').map((segment) => parseSegment(segment))
     const canonicalParts = segments[0] as string[]
     const aliases = segments.slice(1).map((parts) => keyOf(parts))
 
@@ -34,6 +61,7 @@ export class CommandRegistry {
       aliases,
       parts: canonicalParts,
       handler,
+      meta: typeof spec === 'string' ? {} : metaOf(spec),
     }
 
     for (const parts of segments) {
@@ -69,8 +97,9 @@ export class CommandRegistry {
     return undefined
   }
 
-  unregister(spec: string): void {
-    const segments = spec.split('|').map((segment) => parseSegment(segment))
+  unregister(spec: string | CommandSpec): void {
+    const source = typeof spec === 'string' ? spec : specToString(spec)
+    const segments = source.split('|').map((segment) => parseSegment(segment))
     const canonicalKey = keyOf(segments[0] as string[])
     const def = this.paths.get(canonicalKey)
     if (def === undefined) return
@@ -84,5 +113,10 @@ export class CommandRegistry {
 
   list(): CommandDefinition[] {
     return [...this.defs]
+  }
+
+  /** The registered commands without their handlers — what a help menu is built from. */
+  describe(): RegisteredCommand[] {
+    return this.defs.map((def) => ({ name: def.name, aliases: [...def.aliases], ...def.meta }))
   }
 }

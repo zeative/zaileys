@@ -40,8 +40,10 @@ import {
   ZaileysCommandError,
   type CommandContext,
   type CommandHandler,
+  type CommandSpec,
   type DispatcherHandle,
   type Middleware,
+  type RegisteredCommand,
   type ResolvedCommand,
 } from '../command/index.js'
 import { applyGroupStatusWrap } from '../builder/status-wrap.js'
@@ -738,15 +740,20 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     await this.disconnect()
   }
 
-  command(spec: string, handler: CommandHandler): this {
+  command(spec: string | CommandSpec, handler: CommandHandler): this {
     ;(this.commandRegistry ??= new CommandRegistry()).register(spec, handler)
     this.attachCommandsIfReady()
     return this
   }
 
-  unregisterCommand(spec: string): this {
+  unregisterCommand(spec: string | CommandSpec): this {
     this.commandRegistry?.unregister(spec)
     return this
+  }
+
+  /** Every registered command with its description and guards — build a help menu from this. */
+  commands(): RegisteredCommand[] {
+    return this.commandRegistry?.describe() ?? []
   }
 
   use(middleware: Middleware): this {
@@ -777,7 +784,43 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         return () => this.off('text', wrapped)
       },
       buildContext: (resolved, msg) => this.buildCommandContext(resolved, msg),
+      isAdmin: (groupJid, senderJid) => this.isGroupAdmin(groupJid, senderJid),
+      onError: (error, ctx) => {
+        if (this.listenerCount('command-error') === 0) return false
+        this.emit('command-error', { command: ctx.command, error, ctx })
+        return true
+      },
+      onNotFound: (name, msg) => {
+        if (this.listenerCount('command-not-found') === 0) return
+        this.emit('command-not-found', { command: name, message: msg })
+      },
+      onBlocked: (block, ctx) => {
+        this.emit('command-blocked', {
+          command: ctx.command,
+          reason: block.reason,
+          ...(block.retryIn !== undefined ? { retryIn: block.retryIn } : {}),
+          ctx,
+        })
+      },
     })
+  }
+
+  /** Admin lookup for the `admin` guard. Never throws — an unreachable group means "not an admin". */
+  private async isGroupAdmin(groupJid: string, senderJid: string): Promise<boolean> {
+    try {
+      const meta = await this.group.metadata(groupJid)
+      const bare = (jid: string): string => jid.split('@')[0]?.split(':')[0] ?? jid
+      const target = bare(senderJid)
+      return (meta.participants ?? []).some((p) => {
+        const entry = p as unknown as Record<string, unknown>
+        const ids = [p.id, entry['phoneNumber'], entry['jid']].filter(
+          (v): v is string => typeof v === 'string',
+        )
+        return ids.some((id) => bare(id) === target) && p.admin != null
+      })
+    } catch {
+      return false
+    }
   }
 
   private buildCommandContext(resolved: ResolvedCommand, msg: MessageContext): CommandContext {

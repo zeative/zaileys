@@ -387,6 +387,14 @@ Signature: `groupStatus(text, opts?)`.
 | `backgroundColor` | `string \| number` | — | `#RGB`, `#RRGGBB`, `#AARRGGBB` (with or without `#`), or a raw ARGB integer. |
 | `font` | `GroupStatusFont \| number` | — | `system`, `system-text`, `fb-script`, `system-bold`, `morningbreeze`, `calistoga`, `exo2`, `courierprime`. A raw `FontType` integer also works. |
 
+Both a hex string and a raw ARGB integer are verified to render. Note that baileys' own `assertColor`
+returns `undefined` for numeric input, so zaileys parses colours itself rather than delegating.
+
+<Callout>
+  `.mentions()` attaches `mentionedJid` to the status, but WhatsApp does not surface it — the status
+  renders without a visible mention. Send a normal group message if you need someone tagged.
+</Callout>
+
 ### Reposting someone else's message
 
 Pass a message instead of text and its text becomes the status. Any inherited quote chain is cleared,

@@ -4,7 +4,7 @@
 
 Add group status support. `client.send(groupJid).groupStatus(text, { backgroundColor, font })` posts a group status, and `groupStatus(message)` reposts an existing text message as one. Groups only: a non-`@g.us` recipient rejects with `INVALID_RECIPIENT`.
 
-Verified against a live WhatsApp session: a text group status sends to an ordinary `@g.us` group and renders, including the background colour. Note that `backgroundColor` accepts both a hex string and a raw ARGB integer — baileys' own `assertColor` silently returns `undefined` for numeric input, so zaileys parses colours itself.
+Verified against a live WhatsApp session: plain text, hex background, raw ARGB-integer background, a named font, reposting a text message, and overriding its text all render in an ordinary `@g.us` group, and a non-group recipient is rejected. `backgroundColor` accepts both a hex string and a raw ARGB integer — baileys' own `assertColor` silently returns `undefined` for numeric input, so zaileys parses colours itself. One caveat: `.mentions()` attaches `mentionedJid` but WhatsApp does not render a visible mention on a group status.
 
 **Text only.** Reposting an image, video, or voice note rejects with `INVALID_OPTIONS`. Eight variants were relayed against a live session and none rendered, while that same session posted a media `status@broadcast` that did render — so the limitation is the group-status envelope, not the media pipeline, and text in the same envelope works. A status that silently vanishes is worse than a clear error, so it is blocked.
 

@@ -1,5 +1,18 @@
 # zaileys
 
+## 4.8.8
+
+### Minor Changes
+
+- expand the message payload and fix silently dropped context
+- resolve whatsapp usernames via the mex graphql lookup
+- send personal status via audience()
+- add bulk lid/pn mapping lookups
+- add fetchHistory to request older messages
+- add call privacy setting
+- expose senderUsername on the message context
+- expose caller details from the raw call stanza
+
 ## 4.8.7
 
 ### Patch Changes

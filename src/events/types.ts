@@ -64,7 +64,10 @@ export interface DeletePayload {
 
 export interface PollVotePayload {
   pollKey: WAMessageKey
+  /** Raw SHA-256 hashes WhatsApp sends. Use {@link PollVotePayload.options} for readable text. */
   selectedOptions: string[]
+  /** The option text the voter picked. Needs the original poll in the store; empty when unavailable. */
+  options(): Promise<string[]>
   voter: SenderInfo
   timestamp: number
 }

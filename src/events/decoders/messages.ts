@@ -2,6 +2,8 @@ import { jidNormalizedUser, type WAContextInfo, type WAMessage, type WAMessageKe
 import type { TextOptions } from '../../builder/builder.js'
 import {
   buildMessageContext,
+  type AdAttribution,
+  type BusinessInfo,
   type ChatType,
   type CitationConfig,
   type ContextMedia,
@@ -27,6 +29,8 @@ export interface DecodeContext {
   selfLid?: string
   selfName?: string
   lidMap?: Map<string, string>
+  /** WhatsApp replays a reconnect's backlog as `append`; live traffic arrives as `notify`. */
+  isOffline?: boolean
   logger?: DownloadLogger
   channelId?: string
   receiverId?: string
@@ -45,6 +49,13 @@ interface MediaNode {
   caption?: string | null
   fileName?: string | null
   ptt?: boolean | null
+  seconds?: number | null
+  width?: number | null
+  height?: number | null
+  pageCount?: number | null
+  isAnimated?: boolean | null
+  gifPlayback?: boolean | null
+  jpegThumbnail?: Uint8Array | null
   contextInfo?: WAContextInfo | null
 }
 
@@ -459,17 +470,19 @@ const anyText = (msg: WAMessage): string | null => {
   return bodyText(inner) ?? buttonResponseText(inner) ?? mediaCaptionText(inner)
 }
 
+/**
+ * Every message type nests its own `contextInfo`, so scanning only text and media silently dropped
+ * mentions, quotes and the forwarded flag for polls, locations, buttons and the rest.
+ */
 const contextInfoOf = (msg: WAMessage): WAContextInfo | null => {
   const content = asRecord(unwrappedMessage(msg).message)
   if (content == null) return null
   const ext = asRecord(content['extendedTextMessage'])?.['contextInfo'] as WAContextInfo | undefined
   if (ext != null) return ext
-  for (const field of Object.values(MEDIA_FIELD)) {
-    const node = content[field]
-    if (node != null && typeof node === 'object') {
-      const ci = (node as { contextInfo?: WAContextInfo | null }).contextInfo
-      if (ci != null) return ci
-    }
+  for (const node of Object.values(content)) {
+    if (node == null || typeof node !== 'object') continue
+    const ci = (node as { contextInfo?: WAContextInfo | null }).contextInfo
+    if (ci != null) return ci
   }
   return null
 }
@@ -501,6 +514,62 @@ const isViewOnceOf = (msg: WAMessage): boolean => {
 const isEphemeralOf = (msg: WAMessage, contextInfo: WAContextInfo | null): boolean => {
   if (msg.message?.ephemeralMessage != null) return true
   return typeof contextInfo?.expiration === 'number' && contextInfo.expiration > 0
+}
+
+const numOr = (value: unknown, fallback: number): number =>
+  typeof value === 'number' && Number.isFinite(value) ? value : fallback
+
+/** The chat's disappearing timer in seconds, so a reply can mirror it instead of outliving the thread. */
+const ephemeralDurationOf = (msg: WAMessage, contextInfo: WAContextInfo | null): number | null => {
+  const fromContext = contextInfo?.expiration
+  if (typeof fromContext === 'number' && fromContext > 0) return fromContext
+  const inner = asRecord(asRecord(msg.message)?.['ephemeralMessage'])
+  const nested = asRecord(asRecord(inner?.['message'])?.['extendedTextMessage'])?.['contextInfo']
+  const value = asRecord(nested)?.['expiration']
+  return typeof value === 'number' && value > 0 ? value : null
+}
+
+const groupMentionsOf = (contextInfo: WAContextInfo | null): string[] => {
+  const raw = contextInfo?.groupMentions
+  if (!Array.isArray(raw)) return []
+  const out: string[] = []
+  for (const entry of raw) {
+    const jid = asRecord(entry)?.['groupJid']
+    if (typeof jid === 'string' && jid.length > 0) out.push(jid)
+  }
+  return out
+}
+
+const strOr = (value: unknown): string | undefined =>
+  typeof value === 'string' && value.length > 0 ? value : undefined
+
+/** Attribution for a chat opened from a Meta ad. Only the first message of such a chat carries it. */
+const adOf = (contextInfo: WAContextInfo | null): AdAttribution | undefined => {
+  const raw = asRecord(contextInfo?.externalAdReply)
+  if (raw == null) return undefined
+  const ad: AdAttribution = {}
+  const map: Array<[keyof AdAttribution, string]> = [
+    ['clickId', 'ctwaClid'],
+    ['sourceId', 'sourceId'],
+    ['sourceUrl', 'sourceUrl'],
+    ['sourceApp', 'sourceApp'],
+    ['sourceType', 'sourceType'],
+    ['title', 'title'],
+    ['body', 'body'],
+    ['thumbnailUrl', 'thumbnailUrl'],
+    ['ref', 'ref'],
+  ]
+  for (const [field, protoKey] of map) {
+    const value = strOr(raw[protoKey])
+    if (value !== undefined) ad[field] = value
+  }
+  return Object.keys(ad).length > 0 ? ad : undefined
+}
+
+/** WhatsApp attaches this only for verified business senders; unlike a push name it cannot be spoofed. */
+const businessOf = (msg: WAMessage): BusinessInfo | undefined => {
+  const name = strOr(asRecord(msg)?.['verifiedBizName'])
+  return name !== undefined ? { verifiedName: name } : undefined
 }
 
 const chatTypeOf = (content: WAMessage['message']): ChatType => {
@@ -687,6 +756,8 @@ const buildContext = (
 
   const mentionedJids = mapMentions(extractMentions(contextInfo).mentionedJids, ctx)
   const syncedText = syncMentionText(text, ctx.lidMap)
+  const ad = adOf(contextInfo)
+  const business = businessOf(msg)
 
   const baseInput = {
     message: msg,
@@ -703,6 +774,13 @@ const buildContext = (
     isForwarded,
     isBroadcast,
     isNewsletter,
+    isOffline: ctx.isOffline === true,
+    forwardCount: numOr(contextInfo?.forwardingScore, 0),
+    ephemeralDuration: ephemeralDurationOf(msg, contextInfo),
+    addressingMode: key.addressingMode === 'lid' ? ('lid' as const) : ('pn' as const),
+    mentionedGroups: groupMentionsOf(contextInfo),
+    ...(ad !== undefined ? { ad } : {}),
+    ...(business !== undefined ? { business } : {}),
     prefixes,
     ...(ctx.lidMap != null ? { lidMap: ctx.lidMap } : {}),
     resolveRoomName,
@@ -738,6 +816,12 @@ const buildMediaAttachment = (
     fileName: typeof node.fileName === 'string' ? node.fileName : null,
     fileSize: toNum(node.fileLength),
     ptt: node.ptt === true,
+    duration: toNum(node.seconds),
+    width: toNum(node.width),
+    height: toNum(node.height),
+    pages: toNum(node.pageCount),
+    isAnimated: node.isAnimated === true || node.gifPlayback === true,
+    thumbnail: node.jpegThumbnail != null ? Buffer.from(node.jpegThumbnail) : null,
     buffer: async () => (await bufferFn()).buffer,
     stream: streamFn,
   }

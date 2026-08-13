@@ -3,6 +3,8 @@ title: Message Payload (MessageContext)
 description: Every field of the inbound message object zaileys passes to your handlers — where each value comes from, what it means, and how to use it.
 ---
 
+import { Callout } from 'nextra/components'
+
 # Message Payload (`MessageContext`)
 
 Every inbound message handler receives a single **`MessageContext`** object. It is decoded by zaileys from the raw Baileys `WAMessage` into a flat, predictable shape: IDs are normalized, LIDs are resolved to phone numbers where possible, and the heavy parts (group name, replied message, media bytes) are exposed as **lazy functions** so nothing is fetched until you ask for it.
@@ -56,6 +58,13 @@ So plain fields are cheap to read; the function fields do real work (network/asy
 | `senderLid` | `string \| null` | `key.participantAlt` / `remoteJidAlt` ending in `@lid` | The sender's LID, when WhatsApp exposes one. `null` if not available. |
 | `senderName` | `string \| null` | `message.pushName` | Display/push name. Can be `null` or spoofed — don't use for authz. |
 | `senderUsername` | `string \| null` | `key.participantUsername` / `remoteJidUsername` | The sender's WhatsApp username (the `@handle`), without the `@`. `null` unless WhatsApp sends one — see the note below. |
+| `isOffline` | `boolean` | `messages.upsert` type `append` | **`true` for a backlog message replayed after a reconnect.** Skip these so your bot doesn't answer hours-old messages twice. |
+| `forwardCount` | `number` | `contextInfo.forwardingScore` | How many hops the message has been forwarded. `0` = not forwarded, `>= 5` = WhatsApp's "forwarded many times". |
+| `ephemeralDuration` | `number \| null` | `contextInfo.expiration` | The chat's disappearing timer **in seconds**, or `null` when messages are kept. |
+| `addressingMode` | `'pn' \| 'lid'` | `key.addressingMode` | Whether WhatsApp addressed this message by phone number or by LID. Useful when debugging identity resolution. |
+| `mentionedGroups` | `string[]` | `contextInfo.groupMentions` | JIDs of groups tagged in the message (community `@group` mentions). |
+| `ad` | `AdAttribution \| undefined` | `contextInfo.externalAdReply` | Present **only** on the first message of a chat opened from a Meta ad. |
+| `business` | `BusinessInfo \| undefined` | `verifiedBizName` | Present **only** when the sender is a verified WhatsApp Business account. |
 | `senderDevice` | `SenderDevice` | Parsed from the sender's device jid | Which client app sent it: `android` · `ios` · `web` · `desktop` · `unknown`. |
 | `isFromMe` | `boolean` | `key.fromMe === true` | `true` if your own account sent it (echo of your sends, other-device activity). |
 | `isGroup` | `boolean` | `remoteJid` is a group jid | Branch group vs DM logic. |
@@ -156,6 +165,11 @@ Present only for messages that carry media or structured content. The shape depe
 | `fileName` | `string \| null` | Original name (documents). |
 | `fileSize` | `number \| null` | Bytes, when WhatsApp provides it. |
 | `ptt` | `boolean` | `true` for a voice note (push-to-talk audio). |
+| `duration` | `number \| null` | Playback length in **seconds** (audio and video). |
+| `width` / `height` | `number \| null` | Pixel dimensions (image, video, sticker). |
+| `pages` | `number \| null` | Page count (documents). |
+| `isAnimated` | `boolean` | `true` for an animated sticker or a GIF-playback video. |
+| `thumbnail` | `Buffer \| null` | Inline JPEG preview when WhatsApp sent one. |
 | `buffer()` | `Promise<Buffer>` | Downloads the full media into memory. |
 | `stream()` | `Promise<Readable>` | Streams the media (for large files). |
 
@@ -168,6 +182,21 @@ client.on('image', async (ctx) => {
 })
 ```
 
+The metadata fields arrive **with the message**, before any download. Use them to decide whether a
+download is worth it at all:
+
+```ts
+client.on('audio', async (ctx) => {
+  if (ctx.media?.type !== 'audio') return
+  if ((ctx.media.duration ?? 0) > 300) {
+    return ctx.reply('Voice note terlalu panjang, maksimal 5 menit.')
+  }
+  const buf = await ctx.media.buffer()   // only now do we pay for the download
+})
+```
+
+`thumbnail` lets you show a preview without downloading the original at all.
+
 ### Structured media (no download)
 
 Other `chatType`s surface a typed `media` describing the content (no `buffer()`/`stream()`):
@@ -175,6 +204,47 @@ Other `chatType`s surface a typed `media` describing the content (no `buffer()`/
 `poll` · `contact` · `location` / `live-location` · `album` · `group-invite` · `product` · `order` · `payment` · `link` (preview) · `event` · `buttons` · `list` · `interactive` · `template`
 
 Each carries the fields relevant to it — e.g. `location` has `latitude`/`longitude`/`name`, `poll` has `name`/`options`/`selectableCount`, `payment` has `kind`/`amount`/`currency`, `group-invite` has `groupId`/`inviteCode`/`expiresAt`.
+
+---
+
+## `ad` — where a lead came from
+
+When someone taps a **Click-to-WhatsApp** ad on Facebook or Instagram, WhatsApp attaches the ad's
+attribution to the **first message** of that chat. Later messages in the same chat do not carry it.
+
+| Field | Type | Notes |
+|---|---|---|
+| `clickId` | `string?` | The `ctwaClid` click id — join this against Meta Ads reporting. |
+| `sourceId` | `string?` | The ad's id. |
+| `sourceUrl` | `string?` | Landing URL configured on the ad. |
+| `sourceApp` | `string?` | Which surface the ad ran on, e.g. `facebook`, `instagram`. |
+| `sourceType` | `string?` | Ad format as WhatsApp reports it. |
+| `title` / `body` | `string?` | The ad's headline and text. |
+| `thumbnailUrl` | `string?` | Ad creative preview. |
+| `ref` | `string?` | Campaign reference you set on the ad. |
+
+```ts
+client.on('message', async (ctx) => {
+  if (!ctx.ad) return
+  await saveLead({ from: ctx.senderId, campaign: ctx.ad.ref, clickId: ctx.ad.clickId })
+  await ctx.reply(`Halo! Kamu datang dari iklan "${ctx.ad.title}". Ada yang bisa dibantu?`)
+})
+```
+
+<Callout type="warn">
+This is built from WhatsApp's protocol definition but has **not been verified against a live ad click**
+— we have no Click-to-WhatsApp campaign to test with. The field names are correct; report an issue if a
+real ad message shapes differently.
+</Callout>
+
+## `business` — verified business senders
+
+| Field | Type | Notes |
+|---|---|---|
+| `verifiedName` | `string` | The WhatsApp-verified business name. |
+
+Present only when WhatsApp itself verified the sender. Unlike `senderName` (a push name anyone can
+set to anything) this cannot be spoofed, so prefer it when you display or log who you are talking to.
 
 ---
 
@@ -227,7 +297,11 @@ A few values come from your `Client` config rather than the raw message:
 - **`senderId` is a phone-number jid** (`@s.whatsapp.net`), resolved from LID when possible; `senderLid` holds the `@lid` form when present.
 - **Methods are lazy & mostly async.** `roomName()`, `replied()`, `media.buffer()`, `citation.*` do real work — `await` them; they show as `[Function]` when you log the object.
 - **`roomId` follows the conversation, not the direction** — safe as a reply target for both inbound and your own (`isFromMe`) messages.
-- **`isSpam` is reserved** and always `false` today.
+- **`isSpam` is reserved** and always `false` today. Use `forwardCount >= 5` for chain-message detection.
+- **Answer only live messages.** After a reconnect WhatsApp replays everything you missed. Guard with
+  `if (ctx.isOffline) return` unless you deliberately want to process the backlog.
+- **Mirror the disappearing timer on replies.** `ctx.reply()` does not inherit it — pass
+  `ctx.ephemeralDuration` to `.disappearing()` yourself, or your answer outlives the thread it belongs to.
 - **`senderUsername` is usually `null` — WhatsApp sends the phone number _or_ the username, never
   both.** A username is the fallback handle for a sender whose number you cannot see, so it stays
   `null` for anyone whose phone number your account already knows (which is most people). It arrives

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import { proto, type WAMessageKey } from 'baileys'
 import type { DeletePayload, EditPayload, PollVotePayload, ReactionPayload } from '../types.js'
 import { extractJid, extractSender, safeNumber, type LongLike } from './_shared.js'
@@ -5,6 +6,8 @@ import { extractJid, extractSender, safeNumber, type LongLike } from './_shared.
 export interface MutationContext {
   selfJid: string
   pushName?: string
+  /** Looks up the original poll so a vote's option hashes can be turned back into their text. */
+  resolvePoll?: (id: string, remoteJid: string) => Promise<proto.IWebMessageInfo | null>
 }
 
 export interface ReactionItem {
@@ -106,6 +109,36 @@ export const decodeDelete = (update: MessageUpdate, ctx: MutationContext): Delet
   }
 }
 
+/** WhatsApp sends a vote as SHA-256 of each option's text, so hashing the poll's own options maps them back. */
+const resolveOptionNames = async (
+  pollKey: WAMessageKey,
+  hashes: string[],
+  ctx: MutationContext,
+): Promise<string[]> => {
+  if (hashes.length === 0 || ctx.resolvePoll == null) return []
+  const id = pollKey.id
+  const remoteJid = pollKey.remoteJid
+  if (typeof id !== 'string' || typeof remoteJid !== 'string') return []
+  const poll = await ctx.resolvePoll(id, remoteJid)
+  const content = poll?.message
+  const options =
+    content?.pollCreationMessage?.options ??
+    content?.pollCreationMessageV2?.options ??
+    content?.pollCreationMessageV3?.options ??
+    []
+  const byHash = new Map<string, string>()
+  for (const option of options) {
+    const name = option?.optionName ?? ''
+    byHash.set(createHash('sha256').update(Buffer.from(name)).digest('hex').toUpperCase(), name)
+  }
+  const out: string[] = []
+  for (const hash of hashes) {
+    const name = byHash.get(hash.toUpperCase())
+    if (name !== undefined) out.push(name)
+  }
+  return out
+}
+
 export const decodePollVote = (update: MessageUpdate, ctx: MutationContext): PollVotePayload | null => {
   const fromUpdates = update?.update?.pollUpdates?.[0]
   const inner = update?.update?.message?.pollUpdateMessage
@@ -114,9 +147,11 @@ export const decodePollVote = (update: MessageUpdate, ctx: MutationContext): Pol
   if (fromUpdates) {
     const pollKey = fromUpdates.pollUpdateMessageKey
     if (!pollKey) return null
+    const hashes = toHex(fromUpdates.vote?.selectedOptions)
     return {
       pollKey,
-      selectedOptions: toHex(fromUpdates.vote?.selectedOptions),
+      selectedOptions: hashes,
+      options: () => resolveOptionNames(pollKey, hashes, ctx),
       voter: sender,
       timestamp: numberOr(fromUpdates.senderTimestampMs, numberOr(update.update.messageTimestamp, 0)),
     }
@@ -127,6 +162,7 @@ export const decodePollVote = (update: MessageUpdate, ctx: MutationContext): Pol
     return {
       pollKey,
       selectedOptions: [],
+      options: () => Promise.resolve([]),
       voter: sender,
       timestamp: numberOr(inner.senderTimestampMs, numberOr(update.update.messageTimestamp, 0)),
     }

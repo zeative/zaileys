@@ -86,7 +86,26 @@ These deliver a rich [message context](#the-message-context) object — the same
 | `edit` | `EditPayload` | A previously sent message was edited. `{ key, newContent, editedAt, sender }`. |
 | `delete` | `DeletePayload` | A message was deleted. `{ key, deletedFor: 'everyone' \| 'me', sender, timestamp }`. |
 | `reaction` | `ReactionPayload` | Someone reacted to (or un-reacted from) a message. `{ key, emoji, sender, timestamp }`. `emoji` is `null` when the reaction is removed. |
-| `poll-vote` | `PollVotePayload` | A poll vote was cast/changed. `{ pollKey, selectedOptions, voter, timestamp }`. |
+| `poll-vote` | `PollVotePayload` | A poll vote was cast/changed. `{ pollKey, selectedOptions, options(), voter, timestamp }`. |
+
+#### Reading a poll vote
+
+WhatsApp does not send the option text — it sends the **SHA-256 hash** of each option the voter
+picked. `selectedOptions` holds those raw hashes; `options()` looks up the original poll and turns
+them back into readable text:
+
+```ts
+client.on('poll-vote', async (vote) => {
+  const picked = await vote.options()   // ['Nasi Goreng']
+  console.log(`${vote.voter.jid} memilih ${picked.join(', ')}`)
+})
+```
+
+<Callout type="warn">
+`options()` needs the original poll message in the [message store](/storage). If the poll was created
+before your bot started — or you run without a persistent store — it resolves to an empty array. The
+raw hashes in `selectedOptions` are always available.
+</Callout>
 
 ### Interactive replies
 
@@ -279,6 +298,13 @@ client.on('message', async (msg) => {
 | `senderLid` | `string \| null` | The sender's LID (linked-device identifier), if known. Keeps the raw LID even after `senderId` is resolved to PN. |
 | `senderName` | `string \| null` | The sender's WhatsApp push name. |
 | `senderUsername` | `string \| null` | The sender's WhatsApp username (`@handle`), without the `@`. `null` unless WhatsApp sends one — mostly group messages from LID-only senders. |
+| `isOffline` | `boolean` | `true` for a backlog message replayed after a reconnect. Guard on this so the bot does not answer old messages twice. |
+| `forwardCount` | `number` | Forward hops. `>= 5` is WhatsApp's "forwarded many times". |
+| `ephemeralDuration` | `number \| null` | The chat's disappearing timer in seconds. |
+| `addressingMode` | `'pn' \| 'lid'` | How WhatsApp addressed the message. |
+| `mentionedGroups` | `string[]` | Groups tagged via a community `@group` mention. |
+| `ad` | `AdAttribution?` | Meta ad attribution, on the first message of a Click-to-WhatsApp chat only. |
+| `business` | `BusinessInfo?` | Verified business name, for verified business senders only. |
 | `senderDevice` | `SenderDevice` | `'android' \| 'ios' \| 'web' \| 'desktop' \| 'unknown'` — detected from the JID's device suffix. |
 | `timestamp` | `number` | Message time in epoch **milliseconds**. |
 

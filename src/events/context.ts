@@ -46,6 +46,16 @@ export interface MediaAttachment {
   fileName: string | null
   fileSize: number | null
   ptt: boolean
+  /** Playback length in seconds, for audio and video. */
+  duration: number | null
+  width: number | null
+  height: number | null
+  /** Page count, for documents. */
+  pages: number | null
+  /** `true` for an animated sticker or a GIF-playback video. */
+  isAnimated: boolean
+  /** Inline JPEG preview, when WhatsApp sent one. Lets you show a thumbnail without downloading. */
+  thumbnail: Buffer | null
   buffer(): Promise<Buffer>
   stream(): Promise<Readable>
 }
@@ -206,6 +216,27 @@ export type ContextMedia =
   | InteractiveMedia
   | TemplateMedia
 
+/** Attribution for a chat that started from a Meta ad (Click-to-WhatsApp). */
+export interface AdAttribution {
+  /** The click id to join against Meta Ads reporting. */
+  clickId?: string
+  sourceId?: string
+  sourceUrl?: string
+  /** Which Meta surface the ad ran on, e.g. `facebook`, `instagram`. */
+  sourceApp?: string
+  sourceType?: string
+  title?: string
+  body?: string
+  thumbnailUrl?: string
+  /** Campaign reference you set on the ad. */
+  ref?: string
+}
+
+export interface BusinessInfo {
+  /** WhatsApp-verified business name. Unlike `senderName` this cannot be set by the sender. */
+  verifiedName: string
+}
+
 export interface MessageContext {
   uniqueId: string
   staticId: string
@@ -231,6 +262,20 @@ export interface MessageContext {
   isViewOnce: boolean
   isEphemeral: boolean
   isForwarded: boolean
+  /** `true` for a backlog message replayed after a reconnect. Skip these to avoid answering twice. */
+  isOffline: boolean
+  /** How many hops this message has been forwarded. `>= 5` is WhatsApp's "forwarded many times". */
+  forwardCount: number
+  /** The chat's disappearing timer in seconds, or `null` when messages are kept. */
+  ephemeralDuration: number | null
+  /** Whether WhatsApp addressed this message by phone number or by LID. */
+  addressingMode: 'pn' | 'lid'
+  /** JIDs of groups tagged in the message (community `@group` mentions). */
+  mentionedGroups: string[]
+  /** Present only on the first message of a chat opened from a Meta ad. */
+  ad?: AdAttribution
+  /** Present only when the sender is a verified WhatsApp Business account. */
+  business?: BusinessInfo
   isQuestion: boolean
   isPrefix: boolean
   isTagMe: boolean
@@ -281,6 +326,13 @@ export interface BuildContextInput {
   isForwarded: boolean
   isBroadcast: boolean
   isNewsletter: boolean
+  isOffline?: boolean
+  forwardCount?: number
+  ephemeralDuration?: number | null
+  addressingMode?: 'pn' | 'lid'
+  mentionedGroups?: string[]
+  ad?: AdAttribution
+  business?: BusinessInfo
   prefixes: string[]
   citationConfig?: CitationConfig
   lidMap?: Map<string, string>
@@ -458,6 +510,13 @@ export const buildMessageContext = (input: BuildContextInput): MessageContext =>
     isViewOnce: input.isViewOnce,
     isEphemeral: input.isEphemeral,
     isForwarded: input.isForwarded,
+    isOffline: input.isOffline === true,
+    forwardCount: input.forwardCount ?? 0,
+    ephemeralDuration: input.ephemeralDuration ?? null,
+    addressingMode: input.addressingMode ?? 'pn',
+    mentionedGroups: input.mentionedGroups ?? [],
+    ...(input.ad !== undefined ? { ad: input.ad } : {}),
+    ...(input.business !== undefined ? { business: input.business } : {}),
     isQuestion: isQuestionOf(input.text),
     isPrefix: isPrefixOf(input.text, input.prefixes),
     isTagMe: isTagMeOf(input.selfJid, input.mentions),

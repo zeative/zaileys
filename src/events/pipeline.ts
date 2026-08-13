@@ -146,7 +146,10 @@ export function attachInboundPipeline(
   const interactiveCtx: InteractiveContext = ctx.logger
     ? { selfJid: ctx.selfJid, logger: ctx.logger }
     : { selfJid: ctx.selfJid }
-  const mutationCtx: MutationContext = { selfJid: ctx.selfJid }
+  const mutationCtx: MutationContext = {
+    selfJid: ctx.selfJid,
+    ...(ctx.resolveQuoted != null ? { resolvePoll: ctx.resolveQuoted } : {}),
+  }
 
   const subscribe = (event: string, handler: (payload: unknown) => void): void => {
     const wrapped = (...args: unknown[]): void => {
@@ -223,20 +226,19 @@ export function attachInboundPipeline(
 
   subscribe('messages.upsert', (raw) => {
     const upsert = dropSpoofedSelfOnly(raw as UpsertPayload)
+    const baseCtx = upsert.type === 'append' ? { ...decodeCtx, isOffline: true } : decodeCtx
     for (const msg of upsert.messages) {
       if (ctx.ignoreMe === true && msg.key?.fromMe === true) continue
       const lids = ctx.resolveLidToPn != null ? lidTargetsOf(msg) : []
       if (lids.length === 0) {
-        runMessage(msg, decodeCtx)
+        runMessage(msg, baseCtx)
         continue
       }
       void buildLidMap(lids)
-        .then((lidMap) =>
-          runMessage(msg, lidMap != null ? { ...decodeCtx, lidMap } : decodeCtx),
-        )
+        .then((lidMap) => runMessage(msg, lidMap != null ? { ...baseCtx, lidMap } : baseCtx))
         .catch((err) => {
           ctx.logger?.warn(err, 'inbound pipeline: deferred lid resolve emit failed')
-          runMessage(msg, decodeCtx)
+          runMessage(msg, baseCtx)
         })
     }
   })

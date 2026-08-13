@@ -132,6 +132,14 @@ interface SocketCleanup {
   off: () => void
 }
 
+/** Structural view of baileys' `signalRepository.lidMapping`, which no public socket type exposes. */
+interface LidMappingStore {
+  getPNForLID?: (lid: string) => Promise<string | null>
+  getLIDForPN?: (pn: string) => Promise<string | null>
+  getPNsForLIDs?: (lids: string[]) => Promise<Array<{ pn: string; lid: string }> | null>
+  getLIDsForPNs?: (pns: string[]) => Promise<Array<{ pn: string; lid: string }> | null>
+}
+
 interface ConnectionUpdate {
   connection?: 'open' | 'connecting' | 'close'
   lastDisconnect?: { error?: unknown; date?: Date }
@@ -1096,8 +1104,29 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     }
   }
 
-  private lidMapping(): { getPNForLID?: (l: string) => Promise<string | null>; getLIDForPN?: (p: string) => Promise<string | null> } | undefined {
-    return (this._socket as { signalRepository?: { lidMapping?: { getPNForLID?: (l: string) => Promise<string | null>; getLIDForPN?: (p: string) => Promise<string | null> } } } | undefined)?.signalRepository?.lidMapping
+  private lidMapping(): LidMappingStore | undefined {
+    return (this._socket as { signalRepository?: { lidMapping?: LidMappingStore } } | undefined)?.signalRepository
+      ?.lidMapping
+  }
+
+  /** One round trip for many jids, so resolving a whole participant list is not N lookups. */
+  private async lidMapBulk(
+    method: 'getLIDsForPNs' | 'getPNsForLIDs',
+    jids: string[],
+    key: 'pn' | 'lid',
+  ): Promise<Map<string, string>> {
+    const out = new Map<string, string>()
+    if (jids.length === 0) return out
+    try {
+      const fn = this.lidMapping()?.[method]
+      if (typeof fn !== 'function') return out
+      for (const pair of (await fn(jids)) ?? []) {
+        if (pair?.pn != null && pair?.lid != null) out.set(pair[key], key === 'pn' ? pair.lid : pair.pn)
+      }
+    } catch {
+      return out
+    }
+    return out
   }
 
   /** Resolve a `@lid` JID to its phone-number JID (uses WhatsApp's LID mapping; may hit the network). */
@@ -1118,6 +1147,16 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     } catch {
       return null
     }
+  }
+
+  /** Bulk {@link lidToPn}. Returns a `lid -> pn` map; jids WhatsApp could not resolve are simply absent. */
+  async lidToPns(lids: string[]): Promise<Map<string, string>> {
+    return this.lidMapBulk('getPNsForLIDs', lids, 'lid')
+  }
+
+  /** Bulk {@link pnToLid}. Returns a `pn -> lid` map; jids WhatsApp could not resolve are simply absent. */
+  async pnToLids(pns: string[]): Promise<Map<string, string>> {
+    return this.lidMapBulk('getLIDsForPNs', pns, 'pn')
   }
 
   /**

@@ -56,6 +56,8 @@ client.on('text', (ctx) => {
 | `rejectCall(call \| callId, from?)` | `(call: CallPayload \| string, from?: string): Promise<void>` | 🔗 Reject an incoming call. Accepts the `call-incoming` payload or raw `callId` + caller jid. Throws `UNSUPPORTED_ON_CLOUD` on the cloud provider. See [`autoRejectCall`](/configuration#autorejectcall). |
 | `lidToPn(lid)` | `(lid: string): Promise<string \| null>` | Resolve a `@lid` JID to its phone-number JID (`null` if unknown). Needs a connected socket. |
 | `pnToLid(pn)` | `(pn: string): Promise<string \| null>` | Resolve a phone-number JID to its `@lid` JID (`null` if unknown). Needs a connected socket. |
+| `lidToPns(lids)` | `(lids: string[]): Promise<Map<string, string>>` | Bulk `lidToPn` in one round trip. Unresolved jids are absent from the map. |
+| `pnToLids(pns)` | `(pns: string[]): Promise<Map<string, string>>` | Bulk `pnToLid` in one round trip. Unresolved jids are absent from the map. |
 | `broadcast(jids, build, opts?)` | `(jids: string[], build, opts?): Promise<BroadcastResult>` | Send to many recipients. See [Broadcast & Schedule](/automation). |
 | `scheduleAt(date, build, opts?)` | `(date: Date, build, opts?): Promise<ScheduleHandle>` | Schedule a message for later. |
 | `command(spec, handler)` | `(spec: string, handler: CommandHandler): this` | Register a command. See [Commands](/commands). |

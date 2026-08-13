@@ -389,11 +389,30 @@ is unknown.
 | ------ | --------- | ----------- |
 | `lidToPn` | `lidToPn(lid: string): Promise<string \| null>` | Resolve a `@lid` JID to its phone-number JID. `null` if unknown. |
 | `pnToLid` | `pnToLid(pn: string): Promise<string \| null>` | Resolve a phone-number JID to its `@lid` JID. `null` if unknown. |
+| `lidToPns` | `lidToPns(lids: string[]): Promise<Map<string, string>>` | Bulk `lidToPn`. Returns a `lid → pn` map. |
+| `pnToLids` | `pnToLids(pns: string[]): Promise<Map<string, string>>` | Bulk `pnToLid`. Returns a `pn → lid` map. |
 
 ```typescript
 const pn = await client.lidToPn('12345@lid')             // '628123@s.whatsapp.net' | null
 const lid = await client.pnToLid('628123@s.whatsapp.net') // '12345@lid' | null
 ```
+
+Resolving a whole participant list one jid at a time is N round trips. The bulk forms do it in one:
+
+```typescript
+const meta = await client.group.metadata('120363xxx@g.us')
+const map = await client.lidToPns(meta.participants.map((p) => p.id))
+
+for (const p of meta.participants) {
+  console.log(p.id, '→', map.get(p.id) ?? 'unknown')
+}
+```
+
+<Callout type="info">
+Jids WhatsApp could not resolve are simply **absent** from the map rather than mapped to `null`, so
+`map.size` may be smaller than the input. Like the single-jid forms, these never throw — a failed
+lookup yields an empty map.
+</Callout>
 
 <Callout type="info">
 For pure, offline JID inspection (decode, normalize, predicates) use the

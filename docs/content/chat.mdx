@@ -56,6 +56,7 @@ Use a persistent [store](/storage) for reliable results.
 | `unstar` | `unstar(key)` | `Promise<void>` | Unstar a specific message. |
 | `delete` | `delete(jid)` | `Promise<void>` | Delete the entire chat. |
 | `clear` | `clear(jid)` | `Promise<void>` | Clear the chat's messages but keep it. |
+| `fetchHistory` | `fetchHistory(count, oldest, oldestTimestamp)` | `Promise<string>` | Ask WhatsApp to resend older messages. Returns a request id. |
 
 ## `archive` / `unarchive`
 
@@ -188,6 +189,39 @@ await client.chat.delete(jid) // remove the chat entirely
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `jid` | `string` | The chat JID to delete/clear. |
+
+## `fetchHistory(count, oldest, oldestTimestamp)`
+
+```typescript
+fetchHistory(count: number, oldest: WAMessageKey, oldestTimestamp: number): Promise<string>
+```
+
+Asks WhatsApp to resend messages older than the one you pass. Useful for backfilling a chat your bot
+joined late.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `count` | `number` | How many older messages to request. |
+| `oldest` | `WAMessageKey` | Key of the oldest message you already have. Must carry a `remoteJid`. |
+| `oldestTimestamp` | `number` | That message's timestamp, in seconds. |
+
+```typescript
+const [oldest] = await client.store.listMessages(jid, { limit: 1 })
+if (oldest) {
+  await client.chat.fetchHistory(50, oldest.key, oldest.messageTimestamp)
+}
+```
+
+<Callout type="warn">
+**The messages do not come back from this call.** It returns a request id; the messages themselves
+arrive later on the [`history-sync`](/events) event. Listen for that event rather than awaiting a
+result here.
+</Callout>
+
+<Callout type="error">
+A key without a `remoteJid` rejects with `OPERATION_FAILED` — WhatsApp cannot tell which chat to
+backfill.
+</Callout>
 
 ## Practical pattern: auto-read inbound messages
 

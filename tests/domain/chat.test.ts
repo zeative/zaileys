@@ -61,4 +61,32 @@ describe('ChatModule', () => {
     const mod = new ChatModule(() => undefined)
     await expect(mod.pin(JID)).rejects.toMatchObject({ code: 'NOT_CONNECTED' })
   })
+
+  describe('fetchHistory', () => {
+    const withHistory = () => {
+      const fetchMessageHistory = vi.fn(async () => 'REQ1')
+      const socket = { fetchMessageHistory } as unknown as DomainSocketLike
+      return { fetchMessageHistory, mod: new ChatModule(() => socket) }
+    }
+
+    it('forwards the count, key and timestamp and returns the request id', async () => {
+      const { fetchMessageHistory, mod } = withHistory()
+      const key = LAST[0]!.key
+      await expect(mod.fetchHistory(50, key, 1700)).resolves.toBe('REQ1')
+      expect(fetchMessageHistory).toHaveBeenCalledWith(50, key, 1700)
+    })
+
+    it('rejects a key with no remoteJid instead of asking WhatsApp for nothing', async () => {
+      const { fetchMessageHistory, mod } = withHistory()
+      await expect(mod.fetchHistory(50, { id: 'M1', fromMe: false }, 1700)).rejects.toMatchObject({
+        code: 'OPERATION_FAILED',
+      })
+      expect(fetchMessageHistory).not.toHaveBeenCalled()
+    })
+
+    it('throws NOT_CONNECTED without a socket', async () => {
+      const mod = new ChatModule(() => undefined)
+      await expect(mod.fetchHistory(10, LAST[0]!.key, 1700)).rejects.toMatchObject({ code: 'NOT_CONNECTED' })
+    })
+  })
 })

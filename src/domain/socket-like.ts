@@ -75,6 +75,7 @@ export interface DomainSocketLike {
   profilePictureUrl(jid: string, type?: 'image' | 'preview', timeoutMs?: number): Promise<string | undefined>
   fetchStatus(jid: string): Promise<unknown>
   chatModify(mod: ChatModification, jid: string): Promise<void>
+  fetchMessageHistory(count: number, oldestMsgKey: WAMessageKey, oldestMsgTimestamp: number): Promise<string>
 
   newsletterCreate(name: string, description?: string): Promise<NewsletterMetadata>
   newsletterFollow(jid: string): Promise<unknown>

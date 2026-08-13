@@ -79,6 +79,15 @@ export class ChatModule {
     await this.star(key, false)
   }
 
+  /**
+   * Asks WhatsApp to resend older messages from before `oldest`. Returns the request id; the messages
+   * themselves arrive later on the `history-sync` event, not from this call.
+   */
+  async fetchHistory(count: number, oldest: WAMessageKey, oldestTimestamp: number): Promise<string> {
+    requireRemoteJid(oldest)
+    return this.requireSocket().fetchMessageHistory(count, oldest, oldestTimestamp)
+  }
+
   async delete(jid: string): Promise<void> {
     await this.requireSocket().chatModify({ delete: true, lastMessages: await this.last(jid) }, jid)
   }

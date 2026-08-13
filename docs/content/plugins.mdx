@@ -31,15 +31,17 @@ import { definePlugin } from 'zaileys'
 
 export default definePlugin({
   name: 'greet',
-  setup(ctx) {
-    ctx.command('hello', async (c) => {
-      await c.reply('hi there 👋')
-    })
+  description: 'Say hello',
+  command: async (c) => {
+    await c.reply('hi there 👋')
   },
 })
 ```
 
-Send `!hello` — the bot replies. Edit the file and watch it hot-reload.
+Send `!greet` — the bot replies. Edit the file and watch it hot-reload.
+
+The plugin **is** the command: its `name` is the command name, and the fields beside it describe and
+guard it. Nothing is written twice.
 
 ## Enabling plugins
 
@@ -84,18 +86,16 @@ import { definePlugin } from 'zaileys'
 
 export default definePlugin({
   name: 'greet',
-  setup(ctx) {
-    ctx.command('hello', async (c) => {
-      await c.reply('hi there 👋')
-    })
-    ctx.on('text', (m) => ctx.logger?.info({ text: m.text }, 'greet saw text'))
-    ctx.use(async (c, next) => {
-      await next()
-    })
-    return () => ctx.logger?.info('greet unloaded')
+  aliases: ['hi'],
+  description: 'Say hello',
+  cooldown: 3,
+
+  command: async (c) => {
+    await c.reply('hi there 👋')
   },
-  onUnload() {
-    // optional extra cleanup
+
+  message: (m) => {
+    console.log('saw a message:', m.text)
   },
 })
 ```
@@ -140,15 +140,10 @@ on the `ctx` argument.
 import { definePlugin } from 'zaileys'
 
 export default definePlugin({
-  name: 'my-plugin',   // unique name — used in logs and error messages
-  setup(ctx) {
-    // register commands, event listeners, middleware here
-    // optionally return a teardown function
-    return () => { /* called on unload */ }
-  },
-  onUnload() {
-    // alternative / additional cleanup hook (also called on unload)
-  },
+  name: 'my-plugin',
+  description: 'What it does',
+  command: async (c) => { /* handles !my-plugin */ },
+  message: (m) => { /* every inbound message */ },
 })
 ```
 
@@ -156,18 +151,85 @@ export default definePlugin({
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `name` | `string` | Required. Unique identifier for the plugin. Used in logs and error reporting. |
-| `setup` | `(ctx: PluginContext) => void \| (() => void) \| Promise<void \| (() => void)>` | Required. Called once on load. May return a synchronous or async teardown function. |
-| `onUnload` | `() => void \| Promise<void>` | Optional. Additional cleanup called on unload, alongside any teardown returned by `setup`. |
+| `name` | `string` | Required. Identifies the plugin **and** names the command `command` handles. |
+| `command` | `CommandHandler` | Handles the command named after this plugin. Omit if the plugin only listens to events. |
+| `setup` | `(ctx) => void \| (() => void) \| Promise<…>` | Optional escape hatch — see [below](#going-beyond-the-shorthands). |
+| `onUnload` | `() => void \| Promise<void>` | Optional cleanup, called on unload. |
+
+Beside those, a plugin carries **every field a command spec carries** — `aliases`, `description`,
+`usage`, `category`, `hidden`, `metadata`, and the guards `group`, `private`, `admin`, `cooldown`.
+They describe the command that `command` handles. See
+[Commands](/commands#describing-a-command) for the full table.
+
+```typescript
+export default definePlugin({
+  name: 'kick',
+  aliases: ['remove'],
+  description: 'Remove a member',
+  usage: '@user',
+  group: true,
+  admin: true,
+  cooldown: 3,
+  command: async (c) => { /* ... */ },
+})
+```
 
 <Callout type="info">
-`setup` may **return** a teardown function, or put cleanup in `onUnload`, or both — they all run
-on unload (teardown first, then `onUnload`). Choose whichever reads more naturally for your plugin.
+`category` defaults to the plugin's folder, so `plugins/group/kick.ts` is categorised as `group`
+without saying so.
 </Callout>
 
-## What a plugin can register
+<Callout type="warning">
+Guards apply to **`command` only**. An event method like `message` receives the raw stream — check
+`m.isGroup` yourself if you need to narrow it. This keeps `admin` from triggering a group-metadata
+lookup on every message that passes through your bot.
+</Callout>
 
-Inside `setup(ctx)`, use the following `ctx` methods to wire up your plugin logic.
+## Event methods
+
+Every inbound event has a matching optional method. Hyphenated event names become camelCase, so
+`poll-vote` is `pollVote`.
+
+```typescript
+export default definePlugin({
+  name: 'watcher',
+  message: (m) => console.log(m.senderId, m.text),
+  image: async (m) => { await m.reply('nice picture') },
+  pollVote: async (v) => console.log(await v.options()),
+  groupJoin: (e) => console.log('joined:', e.participants.length),
+  callIncoming: (c) => console.log('call from', c.from),
+})
+```
+
+Available: `message` · `text` · `image` · `video` · `audio` · `document` · `sticker` · `reaction` ·
+`edit` · `delete` · `pollVote` · `buttonClick` · `listSelect` · `mention` · `mentionAll` ·
+`groupUpdate` · `groupJoin` · `groupLeave` · `memberTag` · `callIncoming` · `callEnded` ·
+`historySync` · `limited` · `presence` · `newsletter`.
+
+Each is typed from [the event map](/events), so the payload needs no annotation. Listeners are
+removed automatically when the plugin unloads.
+
+## Going beyond the shorthands
+
+`setup(ctx)` is still there for what the fields cannot express: registering **several** commands
+from one file, adding middleware, or cleaning up a timer.
+
+```typescript
+export default definePlugin({
+  name: 'group-toggle',
+  setup(ctx) {
+    ctx.command({ name: 'open', description: 'Open the group', admin: true }, handler)
+    ctx.command({ name: 'close', description: 'Close the group', admin: true }, handler)
+
+    const timer = setInterval(check, 60_000)
+    return () => clearInterval(timer)
+  },
+})
+```
+
+Both styles can live in the same plugin — the declarative fields are wired first, then `setup` runs.
+
+### What `ctx` offers
 
 ### `ctx.command(spec, handler)`
 

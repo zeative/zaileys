@@ -1,6 +1,7 @@
 import path from 'node:path'
 import type { Logger } from '../client/types.js'
-import type { Plugin, PluginContext } from './types.js'
+import { INBOUND_EVENTS, type Plugin, type PluginContext } from './types.js'
+import type { CommandSpec } from '../command/index.js'
 
 export interface PluginHost {
   command(spec: Parameters<PluginContext['command']>[0], handler: Parameters<PluginContext['command']>[1]): unknown
@@ -33,6 +34,38 @@ const categoryOf = (file: string, rootDir?: string): string | undefined => {
   return name.length > 0 ? name : undefined
 }
 
+const camel = (event: string): string =>
+  event.replace(/-([a-z])/g, (_, letter: string) => letter.toUpperCase())
+
+/** The command spec a plugin describes through its own top-level metadata. */
+const specOf = (plugin: Plugin): CommandSpec => {
+  const spec: CommandSpec = { name: plugin.name }
+  if (plugin.aliases !== undefined) spec.aliases = plugin.aliases
+  if (plugin.description !== undefined) spec.description = plugin.description
+  if (plugin.usage !== undefined) spec.usage = plugin.usage
+  if (plugin.category !== undefined) spec.category = plugin.category
+  if (plugin.hidden !== undefined) spec.hidden = plugin.hidden
+  if (plugin.metadata !== undefined) spec.metadata = plugin.metadata
+  if (plugin.group !== undefined) spec.group = plugin.group
+  if (plugin.private !== undefined) spec.private = plugin.private
+  if (plugin.admin !== undefined) spec.admin = plugin.admin
+  if (plugin.cooldown !== undefined) spec.cooldown = plugin.cooldown
+  return spec
+}
+
+/** Turns the plugin's `command()` and per-event methods into real registrations. */
+const wireHandlers = (plugin: Plugin, ctx: PluginContext): void => {
+  if (typeof plugin.command === 'function') ctx.command(specOf(plugin), plugin.command)
+  const methods = plugin as unknown as Record<string, unknown>
+  for (const event of INBOUND_EVENTS) {
+    const handler = methods[camel(event)]
+    if (typeof handler !== 'function') continue
+    ctx.on(event, (payload) => {
+      void (handler as (p: unknown) => unknown)(payload)
+    })
+  }
+}
+
 export class PluginRegistry {
   private readonly host: PluginHost
   private readonly logger: Logger | undefined
@@ -52,8 +85,8 @@ export class PluginRegistry {
   }
 
   async loadPlugin(plugin: Plugin, file: string, rootDir?: string): Promise<void> {
-    if (typeof plugin?.name !== 'string' || typeof plugin?.setup !== 'function') {
-      this.logger?.warn({ file }, 'plugin: invalid shape (need name + setup); skipped')
+    if (typeof plugin?.name !== 'string') {
+      this.logger?.warn({ file }, 'plugin: invalid shape (needs a name); skipped')
       return
     }
     if (this.plugins.has(plugin.name)) {
@@ -98,7 +131,8 @@ export class PluginRegistry {
       },
     }
     try {
-      const teardown = await plugin.setup(ctx)
+      wireHandlers(plugin, ctx)
+      const teardown = await plugin.setup?.(ctx)
       if (typeof teardown === 'function') disposers.push(teardown)
     } catch (err) {
       for (const d of [...disposers].reverse()) {

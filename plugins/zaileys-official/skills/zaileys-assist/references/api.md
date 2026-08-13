@@ -220,7 +220,7 @@ Content methods (each returns `MessageBuilder<'content-set'>`):
 | `carousel` | `(cards: CarouselCard[], opts?: { text? })` | interactive — see below |
 | `event` | `(opts: EventOptions)` | `{ name (req), description?, startAt:Date\|number (req), endAt?, location?:{latitude,longitude,name?,address?}, call?:'audio'\|'video', canceled? }` |
 | `groupInvite` | `(opts: GroupInviteOptions)` | `{ jid (req), code (req), subject?, caption?, expiresAt?:unix-sec, thumbnail?:Buffer }` |
-| `groupStatus` | `(text, opts?)` or `(source, opts?)` | GROUPS-only, TEXT-only. Text: `{ backgroundColor?: hex\|argb-int, font?: name\|int }`. Repost a text `MessageContext`/`WAMessage`: `{ caption? }`. Also accepts fresh media: `{ image\|video\|audio: MediaSource, caption?, ptt? }` — always re-uploaded, never pointer-copied. Media status renders on some accounts only; text is verified |
+| `groupStatus` | `(text, opts?)` or `(source, opts?)` | GROUPS-only, TEXT-only. Text: `{ backgroundColor?: hex\|argb-int, font?: name\|int }`. Repost a text `MessageContext`/`WAMessage`: `{ caption? }`. Also accepts fresh media: `{ image\|video\|audio: MediaSource, caption?, ptt? }` — always re-uploaded (a status cannot reuse another message's pointers). Media delivery needs the `mediatype` stanza attr, which zaileys arranges via `patchMessageBeforeSending`; nesting media up front makes the server drop it silently |
 | `product` | `(opts: ProductOptions)` | `{ image (req), title (req), businessOwnerId (req), description?, price?, currency?, productId?, retailerId?, url?, body?, footer? }` |
 | `requestPhoneNumber` | `()` | ask recipient to share their number |
 | `sharePhoneNumber` | `()` | share own number |

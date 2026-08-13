@@ -43,6 +43,7 @@ import {
   type Middleware,
   type ResolvedCommand,
 } from '../command/index.js'
+import { applyGroupStatusWrap } from '../builder/status-wrap.js'
 import { PluginRegistry, PluginLoader, type PluginHost } from '../plugin/index.js'
 import type { PluginsOptions } from '../plugin/types.js'
 import { StickerProcessor } from '../media/index.js'
@@ -490,6 +491,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       auth: { creds, keys },
       logger: this.logger as never,
       getMessage: (key) => this.resolveMessageForResend(key),
+      patchMessageBeforeSending: this.patchOutgoing as never,
     }
     const socket = makeWASocket(config)
     this._socket = socket
@@ -857,6 +859,16 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     const recipient = await this.resolveRecipient(to)
     const socket = this.requireSocket() as unknown as BuilderSocketLike
     await socket.sendMessage(recipient, { disappearingMessagesInChat: seconds } as never)
+  }
+
+  /** Group status media must be wrapped after baileys computes the stanza's mediatype; see status-wrap. */
+  private readonly patchOutgoing = async (message: object, jids?: string[]): Promise<object> => {
+    const wrapped = applyGroupStatusWrap(message)
+    const userPatch = (
+      this.baileysExtra as { patchMessageBeforeSending?: (m: object, j?: string[]) => unknown }
+    ).patchMessageBeforeSending
+    if (typeof userPatch !== 'function') return wrapped
+    return (await userPatch(wrapped, jids)) as object
   }
 
   private resolveRecipient(to: string): Promise<string> {

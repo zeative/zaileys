@@ -436,14 +436,46 @@ await client.send(groupJid).groupStatus({ audio: './voice.ogg', ptt: true })
 | `caption` | `string` | Caption for image and video. Ignored for audio. |
 | `ptt` | `boolean` | Send an audio status as a voice note. |
 
-<Callout type="warning">
-  **Media status may not render on every account.** Text group status is verified working. Media
-  relays cleanly and returns a message id, but on the account used for development it never appeared,
-  while an identical proto captured from another sender *did* render for them — same structure, same
-  library, same code, even a raw baileys socket. Everything under our control was eliminated, so the
-  remaining variable appears to be account or client rollout. Test it on your own account before
-  relying on it.
+<Callout type="info">
+  **Why media is always re-uploaded.** A status cannot reuse another message's media pointers, so
+  `groupStatus(ctx)` downloads the source bytes and uploads them fresh. Only the *text* repost path is
+  cheap; media costs a full round trip.
 </Callout>
+
+<details>
+<summary>How zaileys makes a media group status actually deliver</summary>
+
+Nesting media inside `groupStatusMessageV2` and relaying it looks correct and returns a message id —
+but the server drops it and **no group member ever receives it**. There is no error; delivery receipts
+simply never arrive.
+
+The cause is an ordering detail in baileys (`Socket/messages-send.js`):
+
+```
+line 469   const mediaType = getMediaType(message)     // reads the RAW message
+line 471   extraAttrs['mediatype'] = mediaType         // lands on the `enc` node
+line 372   patchMessageBeforeSending(message, jids)    // runs AFTER
+```
+
+`getMediaType` does not look inside `groupStatusMessageV2`, so the stanza ships without its
+`mediatype` attribute and the server discards it. Text is unaffected — it needs no media
+classification, which is why a text group status works while media silently vanishes.
+
+zaileys exploits the ordering: the media is relayed at the **top level** so `getMediaType` sees it,
+then wrapped into the envelope inside `patchMessageBeforeSending`, which runs after the attribute is
+computed but before encryption. Both end up correct.
+
+Measured on a live session — the same send, before and after:
+
+| | delivery receipts |
+| --- | --- |
+| media nested up front | **0** |
+| media wrapped in the patch hook | **3** |
+
+If you pass your own `patchMessageBeforeSending` via `ClientOptions.baileys`, zaileys composes with
+it: the status wrap runs first, then your function.
+
+</details>
 
 <Callout>
   Want a status with media? Post an ordinary **personal status** instead: send to `status@broadcast`

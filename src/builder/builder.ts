@@ -43,6 +43,7 @@ import { buildTextContent } from './content/text.js'
 import { buildVideoContent } from './content/video.js'
 import { ZaileysBuilderError } from './errors.js'
 import { createInternalState, type BuilderInternalState } from './state.js'
+import { markAsGroupStatus } from './status-wrap.js'
 import type {
   AlbumItem,
   AudioOptions,
@@ -354,10 +355,13 @@ export class MessageBuilder<State extends BuilderState> {
           )
         }
         const statusMedia = relayContent[RELAY_STATUS_MEDIA_KEY] as StatusMedia | undefined
-        if (statusMedia !== undefined) await this.attachStatusMedia(relayInner as proto.IMessage, statusMedia)
+        const inner =
+          statusMedia !== undefined
+            ? await this.buildStatusMedia(statusMedia)
+            : (relayInner as proto.IMessage)
         const headerMedia = relayContent[RELAY_MEDIA_KEY] as HeaderMedia | undefined
         const cardsMedia = relayContent[RELAY_CARDS_MEDIA_KEY] as CardMedia[] | undefined
-        return this.sendRelay(relayInner as proto.IMessage, headerMedia, cardsMedia)
+        return this.sendRelay(inner, headerMedia, cardsMedia, statusMedia !== undefined)
       }
       const content = this.internal.content as AnyMessageContent & {
         mentions?: string[]
@@ -404,25 +408,24 @@ export class MessageBuilder<State extends BuilderState> {
     if (media.kind === 'video' && prepared.videoMessage) header.videoMessage = prepared.videoMessage
   }
 
-  /** A status needs its own upload, so the downloaded bytes are re-uploaded here and injected into the envelope. */
-  private async attachStatusMedia(inner: proto.IMessage, media: StatusMedia): Promise<void> {
+  /**
+   * Uploads the status media and returns it at the TOP level, not inside the envelope. baileys derives
+   * the stanza's `mediatype` attribute from the raw message before `patchMessageBeforeSending` runs, and
+   * the server drops a media status that lacks it — so the wrapping happens later, in that hook.
+   */
+  private async buildStatusMedia(media: StatusMedia): Promise<proto.IMessage> {
     const payload: Record<string, unknown> = { [media.kind]: media.buffer }
     if (media.caption !== undefined) payload['caption'] = media.caption
     if (media.ptt === true) payload['ptt'] = true
-    let built: Record<string, unknown>
     try {
-      built = (await generateWAMessageContent(payload as never, {
+      const built = (await generateWAMessageContent(payload as never, {
         upload: this.socket.waUploadToServer,
-      } as never)) as unknown as Record<string, unknown>
+      } as never)) as unknown as { toJSON?: () => Record<string, unknown> }
+      const node = typeof built.toJSON === 'function' ? built.toJSON() : (built as Record<string, unknown>)
+      return node as unknown as proto.IMessage
     } catch (err) {
       throw new ZaileysBuilderError('MEDIA_LOAD_FAILED', 'groupStatus() media upload failed', { cause: err })
     }
-    const holder = built as { toJSON?: () => Record<string, unknown> }
-    const node = typeof holder.toJSON === 'function' ? holder.toJSON() : built
-    const envelope = (inner as unknown as Record<string, { message: Record<string, unknown> }>)[
-      'groupStatusMessageV2'
-    ]
-    if (envelope !== undefined) envelope.message = node
   }
 
   /** Relay skips baileys' contextInfo pass, so mentions and mentionAll are applied to the unwrapped node here. */
@@ -445,6 +448,7 @@ export class MessageBuilder<State extends BuilderState> {
     inner: proto.IMessage,
     headerMedia?: HeaderMedia,
     cardsMedia?: CardMedia[],
+    wrapAsGroupStatus = false,
   ): Promise<WAMessageKey> {
     const relay = this.socket.relayMessage
     if (typeof relay !== 'function') {
@@ -466,7 +470,7 @@ export class MessageBuilder<State extends BuilderState> {
       }
     }
     const secretHolder = inner as { messageContextInfo?: { messageSecret?: Uint8Array } }
-    if (secretHolder.messageContextInfo?.messageSecret == null) {
+    if (!wrapAsGroupStatus && secretHolder.messageContextInfo?.messageSecret == null) {
       secretHolder.messageContextInfo = { ...secretHolder.messageContextInfo, messageSecret: randomBytes(32) }
     }
     this.applyRelayMentions(inner)
@@ -480,6 +484,7 @@ export class MessageBuilder<State extends BuilderState> {
       ;(genOptions as { ephemeralExpiration?: number }).ephemeralExpiration = this.internal.disappearingSeconds
     }
     const waMsg = generateWAMessageFromContent(this.internal.recipient, inner, genOptions)
+    if (wrapAsGroupStatus && waMsg.message != null) markAsGroupStatus(waMsg.message as object)
     if (typeof waMsg.key?.id !== 'string') {
       throw new ZaileysBuilderError('SEND_FAILED', 'failed to generate relay message key')
     }

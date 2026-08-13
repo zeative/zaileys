@@ -1,6 +1,7 @@
 import type { WAMessageKey } from 'baileys'
 import type { MessageContext } from '../events/context.js'
 import type { TextOptions } from '../builder/builder.js'
+import type { Client as ZaileysClient } from '../client/client.js'
 
 export type CommandPrefix = string | string[]
 
@@ -14,6 +15,8 @@ export interface ParsedArgs {
 }
 
 export interface CommandContext extends MessageContext {
+  /** The client that received this command, so a handler needs nothing else in scope. */
+  client: ZaileysClient
   raw: string
   command: string
   args: string[]

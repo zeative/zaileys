@@ -827,6 +827,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     let lastSentKey: WAMessageKey | undefined
     return {
       ...msg,
+      client: this,
       raw: resolved.raw,
       command: resolved.command,
       args: resolved.args,

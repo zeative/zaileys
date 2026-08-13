@@ -32,8 +32,8 @@ import { definePlugin } from 'zaileys'
 export default definePlugin({
   name: 'greet',
   description: 'Say hello',
-  command: async (c) => {
-    await c.reply('hi there 👋')
+  command: async (ctx) => {
+    await ctx.reply('hi there 👋')
   },
 })
 ```
@@ -90,8 +90,8 @@ export default definePlugin({
   description: 'Say hello',
   cooldown: 3,
 
-  command: async (c) => {
-    await c.reply('hi there 👋')
+  command: async (ctx) => {
+    await ctx.reply('hi there 👋')
   },
 
   message: (m) => {
@@ -142,7 +142,7 @@ import { definePlugin } from 'zaileys'
 export default definePlugin({
   name: 'my-plugin',
   description: 'What it does',
-  command: async (c) => { /* handles !my-plugin */ },
+  command: async (ctx) => { /* handles !my-plugin */ },
   message: (m) => { /* every inbound message */ },
 })
 ```
@@ -152,7 +152,7 @@ export default definePlugin({
 | Field | Type | Description |
 | ----- | ---- | ----------- |
 | `name` | `string` | Required. Identifies the plugin **and** names the command `command` handles. |
-| `command` | `CommandHandler` | Handles the command named after this plugin. Omit if the plugin only listens to events. |
+| `command` | `(ctx, plugin) => void \| Promise<void>` | Handles the command named after this plugin. Omit if the plugin only listens to events. |
 | `setup` | `(ctx) => void \| (() => void) \| Promise<…>` | Optional escape hatch — see [below](#going-beyond-the-shorthands). |
 | `onUnload` | `() => void \| Promise<void>` | Optional cleanup, called on unload. |
 
@@ -170,7 +170,7 @@ export default definePlugin({
   group: true,
   admin: true,
   cooldown: 3,
-  command: async (c) => { /* ... */ },
+  command: async (ctx) => { /* ... */ },
 })
 ```
 
@@ -209,6 +209,25 @@ Available: `message` · `text` · `image` · `video` · `audio` · `document` ·
 Each is typed from [the event map](/events), so the payload needs no annotation. Listeners are
 removed automatically when the plugin unloads.
 
+### Reaching the client
+
+A command handler gets the client straight off its context:
+
+```typescript
+command: async (ctx) => {
+  await ctx.client.group.removeMember(ctx.roomId!, ctx.mentions)
+},
+```
+
+Event payloads are plain message contexts and carry no client, so every handler also receives the
+**plugin context** as a second argument:
+
+```typescript
+message: async (msg, plugin) => {
+  if (msg.text === 'ping') await plugin.client.send(msg.roomId!).text('pong')
+},
+```
+
 ## Going beyond the shorthands
 
 `setup(ctx)` is still there for what the fields cannot express: registering **several** commands
@@ -238,12 +257,12 @@ Supports aliases (pipe-separated) and multi-word commands. The command is automa
 de-registered when the plugin unloads.
 
 ```typescript
-ctx.command('ping', async (c) => {
-  await c.reply('pong')
+ctx.command('ping', async (ctx) => {
+  await ctx.reply('pong')
 })
 
-ctx.command('help|h|?', async (c) => {
-  await c.reply('Available: !ping, !help')
+ctx.command('help|h|?', async (ctx) => {
+  await ctx.reply('Available: !ping, !help')
 })
 ```
 
@@ -254,7 +273,7 @@ defaults to the plugin's folder**, so `plugins/group/kick.ts` needs no `category
 // plugins/group/kick.ts
 ctx.command(
   { name: 'kick', description: 'Remove a member', group: true, admin: true },
-  async (c) => { /* ... */ },
+  async (ctx) => { /* ... */ },
 )
 // registered with category: 'group'
 ```
@@ -335,8 +354,8 @@ export default definePlugin({
     const path = require('node:path')
     const config = require(path.join(ctx.pluginDir, 'config.json'))
 
-    ctx.command('status', async (c) => {
-      await c.reply(`Mode: ${config.mode}`)
+    ctx.command('status', async (ctx) => {
+      await ctx.reply(`Mode: ${config.mode}`)
     })
   },
 })

@@ -55,13 +55,16 @@ const specOf = (plugin: Plugin): CommandSpec => {
 
 /** Turns the plugin's `command()` and per-event methods into real registrations. */
 const wireHandlers = (plugin: Plugin, ctx: PluginContext): void => {
-  if (typeof plugin.command === 'function') ctx.command(specOf(plugin), plugin.command)
+  const run = plugin.command
+  if (typeof run === 'function') {
+    ctx.command(specOf(plugin), (commandCtx) => run(commandCtx, ctx))
+  }
   const methods = plugin as unknown as Record<string, unknown>
   for (const event of INBOUND_EVENTS) {
     const handler = methods[camel(event)]
     if (typeof handler !== 'function') continue
     ctx.on(event, (payload) => {
-      void (handler as (p: unknown) => unknown)(payload)
+      void (handler as (p: unknown, c: PluginContext) => unknown)(payload, ctx)
     })
   }
 }

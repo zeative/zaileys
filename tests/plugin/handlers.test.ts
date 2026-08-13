@@ -55,7 +55,16 @@ describe('plugin metadata becomes the command spec', () => {
       cooldown: 3,
       category: 'group',
     })
-    expect(h.commands[0]!.handler).toBe(run)
+  })
+
+  it('hands the plugin context to command() as a second argument', async () => {
+    const run = vi.fn()
+    const { host: h } = await load(definePlugin({ name: 'x', command: run }))
+    ;(h.commands[0]!.handler as (c: unknown) => void)({ command: 'x' })
+    expect(run).toHaveBeenCalledTimes(1)
+    const [commandCtx, pluginCtx] = run.mock.calls[0] as [unknown, { category?: string }]
+    expect(commandCtx).toEqual({ command: 'x' })
+    expect(pluginCtx.category).toBe('tool')
   })
 
   it('registers nothing when the plugin has no command handler', async () => {
@@ -83,11 +92,13 @@ describe('event methods', () => {
     ])
   })
 
-  it('passes the payload straight to the method', async () => {
+  it('passes the payload and the plugin context to the method', async () => {
     const message = vi.fn()
     const { host: h } = await load(definePlugin({ name: 'watcher', message }))
     h.listeners[0]!.handler({ text: 'halo' })
-    expect(message).toHaveBeenCalledWith({ text: 'halo' })
+    const [payload, pluginCtx] = message.mock.calls[0] as [unknown, { category?: string }]
+    expect(payload).toEqual({ text: 'halo' })
+    expect(pluginCtx.category).toBe('tool')
   })
 
   it('subscribes to nothing when no event method is present', async () => {

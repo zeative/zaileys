@@ -36,6 +36,7 @@ type Camel<S extends string> = S extends `${infer Head}-${infer Tail}`
 export type PluginEventHandlers = {
   [E in keyof InboundEventMap as Camel<E>]?: (
     payload: InboundEventMap[E],
+    ctx: PluginContext,
   ) => void | Promise<void>
 }
 
@@ -75,7 +76,7 @@ export type Plugin = CommandMeta &
     name: string
     aliases?: string[]
     /** Handles the command named after this plugin. The metadata above describes it. */
-    command?: CommandHandler
+    command?: (ctx: Parameters<CommandHandler>[0], plugin: PluginContext) => void | Promise<void>
     /** Escape hatch for what the methods above cannot express: extra commands, middleware, cleanup. */
     setup?(ctx: PluginContext): void | (() => void) | Promise<void | (() => void)>
     onUnload?(): void | Promise<void>

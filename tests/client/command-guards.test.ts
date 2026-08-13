@@ -171,3 +171,15 @@ describe('command-not-found', () => {
     expect(seen).not.toHaveBeenCalled()
   })
 })
+
+describe('ctx.client', () => {
+  it('hands the client to every command handler', async () => {
+    const client = connected()
+    let seen: unknown
+    client.command('who', (ctx) => {
+      seen = ctx.client
+    })
+    await send(client, '!who', false)
+    expect(seen).toBe(client)
+  })
+})

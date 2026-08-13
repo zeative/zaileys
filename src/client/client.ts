@@ -44,6 +44,7 @@ import {
   type ResolvedCommand,
 } from '../command/index.js'
 import { applyGroupStatusWrap } from '../builder/status-wrap.js'
+import { rememberCallerInfo } from '../events/call-metadata.js'
 import { PluginRegistry, PluginLoader, type PluginHost } from '../plugin/index.js'
 import type { PluginsOptions } from '../plugin/types.js'
 import { StickerProcessor } from '../media/index.js'
@@ -908,8 +909,21 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         this.logger.warn(err, 'auth.creds.writeCreds failed')
       })
     }
+    const onRawCall = (node: unknown): void => {
+      try {
+        rememberCallerInfo(node)
+      } catch (err) {
+        this.logger.warn(err, 'rememberCallerInfo failed')
+      }
+    }
     socket.ev.on('connection.update', onConnection)
     socket.ev.on('creds.update', onCreds)
+    const ws = (socket as { ws?: { on?: unknown; off?: unknown } }).ws
+    if (ws !== undefined && typeof ws.on === 'function' && typeof ws.off === 'function') {
+      const raw = ws as { on: (e: string, f: (n: unknown) => void) => void; off: (e: string, f: (n: unknown) => void) => void }
+      raw.on('CB:call', onRawCall)
+      this.listenerCleanup.push({ off: () => raw.off('CB:call', onRawCall) })
+    }
     this.listenerCleanup.push({
       off: () => socket.ev.off('connection.update', onConnection),
     })

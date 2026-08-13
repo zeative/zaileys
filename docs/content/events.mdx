@@ -110,13 +110,50 @@ See [Interactive Messages](/interactive) for how to send buttons, lists, templat
 
 | Event | Payload | When |
 | --- | --- | --- |
-| `call-incoming` | `CallPayload` (`kind: 'incoming'`) | An incoming call. `{ callId, from, isGroup, isVideo, timestamp, status?, kind }`. |
+| `call-incoming` | `CallPayload` (`kind: 'incoming'`) | An incoming call. `{ callId, from, isGroup, isVideo, timestamp, status?, caller?, kind }`. |
 | `call-ended` | `CallPayload` (`kind: 'ended'`) | A call ended. Same shape as above with `kind: 'ended'`. |
 
 <Callout type="info">
 🔗 Calls are **unofficial-provider only**. To hang up automatically, set
 [`autoRejectCall`](/configuration#autorejectcall); to do it yourself, call
 `client.rejectCall(call)` (or `client.rejectCall(callId, from)`) from a `call-incoming` handler.
+</Callout>
+
+#### `call.caller` — who is calling
+
+WhatsApp puts more about the caller on the raw call stanza than baileys keeps. zaileys reads that
+surplus and attaches it as `caller` on `call-incoming`.
+
+```typescript
+client.on('call-incoming', (call) => {
+  console.log(call.caller?.platform)     // 'iphone'
+  console.log(call.caller?.countryCode)  // 'ID'
+  console.log(call.caller?.phoneJid)     // '628…@s.whatsapp.net' — even on a LID call
+  void client.rejectCall(call)
+})
+```
+
+| Field | Type | Notes |
+| --- | --- | --- |
+| `platform` | `string` | `iphone`, `android`, `smba`, … As WhatsApp reports it — more reliable than a jid device index. |
+| `appVersion` | `string` | The caller's WhatsApp build, e.g. `2.26.30.78`. |
+| `name` | `string` | Pushname carried on the call stanza. |
+| `countryCode` | `string` | ISO country the caller is dialling from, e.g. `ID`. |
+| `phoneJid` | `string` | Phone-number jid — useful because `from` is often a `@lid`. |
+| `networkMedium` | `number` | Raw network-medium code from the caller's device. |
+| `screen` | `{ width, height }` | Screen size the device advertised. **Video calls only.** |
+
+Every field is optional: `caller` is omitted entirely when WhatsApp sends nothing, and individual
+fields are absent rather than `undefined`-filled. Treat it as a hint, not a guarantee.
+
+<Callout type="warning">
+  **This is not an IP address, and WhatsApp does not expose one.** Messages are relayed through
+  WhatsApp's servers, so a sender's IP never reaches you. A live capture of raw call stanzas found no
+  `ip4`/`ip6`/host/port/ICE-candidate field either — the `<te relay_name=…>` entries in a call offer
+  are *WhatsApp's own relay servers* ranked by the caller's latency, not the caller's address. Reading
+  a peer IP would need answering the call with a WebRTC stack, which baileys does not have (it can
+  only reject). Note that the latency ranking still hints at coarse geography, and the fields above
+  are a meaningful device fingerprint — handle them as personal data.
 </Callout>
 | `presence` | `PresencePayload` | A contact's presence changed. `{ jid, participant?, status }` where `status` is `available \| unavailable \| composing \| recording \| paused`. |
 | `history-sync` | `HistorySyncPayload` | A history sync batch progressed. `{ syncType, status: 'complete' \| 'paused', explicit }`. |

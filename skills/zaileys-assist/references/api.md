@@ -117,7 +117,7 @@ Message events deliver a `MessageContext` (mention events extend it):
 | `group-join` | `{groupId,participants:GroupParticipantInfo[],action:'add'\|'invite'\|'invite-link',by?,timestamp}` |
 | `group-leave` | `{groupId,participants[],action:'remove'\|'leave',by?,timestamp}` |
 | `member-tag` | `{groupId,participant,participantAlt?,label,timestamp}` |
-| `call-incoming` / `call-ended` | `{callId,from,isGroup,isVideo,timestamp,status?,kind}` |
+| `call-incoming` / `call-ended` | `{callId,from,isGroup,isVideo,timestamp,status?,kind,caller?}` — `caller` = `{platform,appVersion,name,countryCode,phoneJid,networkMedium,screen?}` read from the raw call stanza (baileys discards it). NOT an IP; WhatsApp exposes none |
 | `history-sync` | `{syncType,status:'complete'\|'paused',explicit}` |
 | `limited` | `{reason:'reachout-timelock',retryAt}` \| `{reason:'chat-limit-reached',usedQuota?,totalQuota?}` |
 | `presence` | `{jid,participant?,status:'available'\|'unavailable'\|'composing'\|'recording'\|'paused'}` |

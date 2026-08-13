@@ -1,5 +1,6 @@
 import type { WACallEvent } from 'baileys'
-import { describe, expect, it } from 'vitest'
+import { rememberCallerInfo, resetCallerInfo } from '../../../src/events/call-metadata.js'
+import { beforeEach, describe, expect, it } from 'vitest'
 import { decodeCallEnded, decodeCallIncoming } from '../../../src/events/decoders/calls.js'
 
 const baseCall = (overrides: Partial<WACallEvent> = {}): WACallEvent => ({
@@ -106,5 +107,42 @@ describe('decodeCallEnded', () => {
   it('returns null for an offer (delegated to incoming decoder)', () => {
     expect(decodeCallEnded(baseCall({ status: 'offer' }))).toBeNull()
     expect(decodeCallEnded(baseCall({ status: 'ringing' }))).toBeNull()
+  })
+})
+
+describe('caller info merge', () => {
+  beforeEach(() => resetCallerInfo())
+
+  const rawOffer = (callId: string) => ({
+    tag: 'call',
+    attrs: { platform: 'iphone', version: '2.26.30.78', notify: 'Kejaa' },
+    content: [
+      {
+        tag: 'offer',
+        attrs: { 'call-id': callId, caller_pn: '628@s.whatsapp.net', caller_country_code: 'ID' },
+        content: [{ tag: 'net', attrs: { medium: '3' }, content: null }],
+      },
+    ],
+  })
+
+  it('attaches caller details captured from the raw stanza', () => {
+    rememberCallerInfo(rawOffer('X1'))
+    const out = decodeCallIncoming({
+      id: 'X1',
+      from: '628@s.whatsapp.net',
+      status: 'offer',
+      date: new Date(1700000000000),
+    } as never)
+    expect(out?.caller).toMatchObject({ platform: 'iphone', countryCode: 'ID', appVersion: '2.26.30.78' })
+  })
+
+  it('omits caller entirely when the raw stanza was never seen', () => {
+    const out = decodeCallIncoming({
+      id: 'X2',
+      from: '628@s.whatsapp.net',
+      status: 'offer',
+      date: new Date(1700000000000),
+    } as never)
+    expect(out).not.toHaveProperty('caller')
   })
 })

@@ -1,4 +1,5 @@
 import type { WACallEvent } from 'baileys'
+import { takeCallerInfo } from '../call-metadata.js'
 import type { CallPayload } from '../types.js'
 
 type IncomingCall = Extract<CallPayload, { kind: 'incoming' }>
@@ -15,7 +16,8 @@ const toMillis = (date: WACallEvent['date']): number => {
 export const decodeCallIncoming = (item: WACallEvent): IncomingCall | null => {
   if (typeof item.id !== 'string' || item.id.length === 0) return null
   if (!INCOMING_STATUSES.has(item.status)) return null
-  return {
+  const caller = takeCallerInfo(item.id)
+  const payload: IncomingCall = {
     kind: 'incoming',
     callId: item.id,
     from: item.from,
@@ -24,6 +26,8 @@ export const decodeCallIncoming = (item: WACallEvent): IncomingCall | null => {
     timestamp: toMillis(item.date),
     status: item.status,
   }
+  if (caller !== undefined) payload.caller = caller
+  return payload
 }
 
 export const decodeCallEnded = (item: WACallEvent): EndedCall | null => {

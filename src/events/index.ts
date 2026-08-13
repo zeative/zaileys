@@ -2,6 +2,7 @@ export * from './guards.js'
 export type {
   ButtonClickPayload,
   CallBase,
+  CallerInfo,
   CallPayload,
   DeletePayload,
   EditPayload,

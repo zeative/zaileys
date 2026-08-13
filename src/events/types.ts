@@ -125,6 +125,23 @@ export type CallPayload =
   | (CallBase & { kind: 'incoming' })
   | (CallBase & { kind: 'ended' })
 
+export interface CallerInfo {
+  /** Caller platform as WhatsApp reports it, e.g. `iphone`, `android`, `smba`. More reliable than a jid device index. */
+  platform?: string
+  /** Caller's WhatsApp app version, e.g. `2.26.30.78`. */
+  appVersion?: string
+  /** Caller's pushname carried on the call stanza. */
+  name?: string
+  /** ISO 3166 country the caller is dialling from, e.g. `ID`. */
+  countryCode?: string
+  /** Caller's phone-number jid — present even when the call itself is addressed by LID. */
+  phoneJid?: string
+  /** Raw network medium code the caller's device reported. */
+  networkMedium?: number
+  /** Screen size the caller's device advertised. Video calls only. */
+  screen?: { width: number; height: number }
+}
+
 export interface CallBase {
   callId: string
   from: string
@@ -132,6 +149,8 @@ export interface CallBase {
   isVideo: boolean
   timestamp: number
   status?: string
+  /** Extra caller details from the raw call stanza. Absent when WhatsApp did not send them. */
+  caller?: CallerInfo
 }
 
 export interface HistorySyncPayload {

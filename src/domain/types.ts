@@ -6,6 +6,7 @@ export type {
   WAPrivacyOnlineValue,
   WAReadReceiptsValue,
   WAPrivacyGroupAddValue,
+  WAPrivacyCallValue,
   NewsletterMetadata,
   WAMediaUpload,
 } from 'baileys'
@@ -15,6 +16,7 @@ import type {
   WAPrivacyOnlineValue,
   WAReadReceiptsValue,
   WAPrivacyGroupAddValue,
+  WAPrivacyCallValue,
 } from 'baileys'
 
 export interface ParticipantUpdateResult {
@@ -29,6 +31,8 @@ export interface PrivacyConfig {
   status?: WAPrivacyValue
   readReceipts?: WAReadReceiptsValue
   groupAdd?: WAPrivacyGroupAddValue
+  /** Who may call you. `known` limits calls to your contacts. */
+  call?: WAPrivacyCallValue
 }
 
 export type PrivacySettings = { [key: string]: string }

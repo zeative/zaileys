@@ -4,6 +4,8 @@ import type {
   NewsletterMetadata,
   ParticipantAction,
   WAMediaUpload,
+  WAMessageKey,
+  WAPrivacyCallValue,
   WAPrivacyGroupAddValue,
   WAPrivacyOnlineValue,
   WAPrivacyValue,
@@ -60,6 +62,7 @@ export interface DomainSocketLike {
   updateStatusPrivacy(value: WAPrivacyValue): Promise<void>
   updateReadReceiptsPrivacy(value: WAReadReceiptsValue): Promise<void>
   updateGroupsAddPrivacy(value: WAPrivacyGroupAddValue): Promise<void>
+  updateCallPrivacy(value: WAPrivacyCallValue): Promise<void>
   updateDefaultDisappearingMode(duration: number): Promise<void>
   fetchPrivacySettings(force?: boolean): Promise<{ [_: string]: string }>
   updateBlockStatus(jid: string, action: 'block' | 'unblock'): Promise<void>

@@ -36,6 +36,7 @@ export interface MockSocket {
   updateStatusPrivacy: Mock
   updateReadReceiptsPrivacy: Mock
   updateGroupsAddPrivacy: Mock
+  updateCallPrivacy: Mock
   updateDefaultDisappearingMode: Mock
   fetchPrivacySettings: Mock
   updateBlockStatus: Mock
@@ -113,6 +114,7 @@ export function createMockSocket(initial?: { user?: MockSocketUser }): MockSocke
     updateStatusPrivacy: vi.fn(async (_value: string) => undefined),
     updateReadReceiptsPrivacy: vi.fn(async (_value: string) => undefined),
     updateGroupsAddPrivacy: vi.fn(async (_value: string) => undefined),
+    updateCallPrivacy: vi.fn(async (_value: string) => undefined),
     updateDefaultDisappearingMode: vi.fn(async (_duration: number) => undefined),
     fetchPrivacySettings: vi.fn(async (_force?: boolean) => ({
       last: 'contacts',

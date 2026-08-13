@@ -147,6 +147,28 @@ describe('PrivacyModule', () => {
     })
   })
 
+  describe('call', () => {
+    it('restricts calls to contacts', async () => {
+      await privacy.call('known')
+      expect(socket.updateCallPrivacy).toHaveBeenCalledWith('known')
+    })
+
+    it('is also reachable through set()', async () => {
+      await privacy.set({ call: 'all' })
+      expect(socket.updateCallPrivacy).toHaveBeenCalledWith('all')
+    })
+
+    it('is left untouched when set() omits it', async () => {
+      await privacy.set({ lastSeen: 'all' })
+      expect(socket.updateCallPrivacy).not.toHaveBeenCalled()
+    })
+
+    it('throws NOT_CONNECTED when socket is absent', async () => {
+      const detached = new PrivacyModule(() => undefined)
+      await expect(detached.call('all')).rejects.toMatchObject({ code: 'NOT_CONNECTED' })
+    })
+  })
+
   describe('get', () => {
     it('returns the privacy settings from fetchPrivacySettings', async () => {
       const result = await privacy.get()

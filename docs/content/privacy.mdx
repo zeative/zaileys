@@ -37,6 +37,7 @@ before using this namespace. See [Error Handling](/error-handling).
 | `unblock` | `unblock(jid): Promise<void>` | `void` | Unblock a contact. |
 | `blocklist` | `blocklist(): Promise<string[]>` | `string[]` | Return the list of all blocked JIDs. |
 | `disappearingMode` | `disappearingMode(seconds): Promise<void>` | `void` | Set the default disappearing-messages timer for **new** chats. |
+| `call` | `call(value): Promise<void>` | `void` | Restrict who may call you: `all` or `known` (contacts only). |
 
 ---
 
@@ -59,6 +60,7 @@ are sent to WhatsApp. You can update a single setting or several at once.
 | `status` | `WAPrivacyValue` | `'all'` \| `'contacts'` \| `'contact_blacklist'` \| `'none'` | Who can see your text status. |
 | `readReceipts` | `WAReadReceiptsValue \| boolean` | `'all'` \| `'none'` \| `true` \| `false` | Whether read receipts (blue ticks) are sent. `true` maps to `'all'`, `false` maps to `'none'`. |
 | `groupAdd` | `WAPrivacyGroupAddValue` | `'all'` \| `'contacts'` \| `'contact_blacklist'` | Who can add you to groups. |
+| `call` | `WAPrivacyCallValue` | `'all'` \| `'known'` | Who can call you. `'known'` silences calls from anyone outside your contacts. |
 
 <Callout type="info">
 `readReceipts` accepts either the string union (`'all'` / `'none'`) or a plain boolean for
@@ -282,6 +284,32 @@ client.on('connect', async () => {
   console.log('Blocked contacts:', blocked)
 })
 ```
+
+---
+
+## `call(value)`
+
+```typescript
+call(value: 'all' | 'known'): Promise<void>
+```
+
+Restricts who may call you. `'known'` silences calls from anyone who is not in your contacts —
+WhatsApp does not ring, and the caller is not told why.
+
+### Example
+
+```typescript
+// Only contacts can call
+await client.privacy.call('known')
+
+// Also reachable through set(), alongside other settings
+await client.privacy.set({ call: 'known', lastSeen: 'contacts' })
+```
+
+<Callout type="info">
+This changes who is *allowed* to call. To hang up on calls that still come through, see
+[`autoRejectCall`](/configuration) — the two work well together.
+</Callout>
 
 ---
 

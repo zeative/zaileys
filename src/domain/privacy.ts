@@ -1,6 +1,6 @@
 import { ZaileysDomainError } from './errors.js'
 import type { DomainSocketLike } from './socket-like.js'
-import type { PrivacyConfig, PrivacySettings, WAReadReceiptsValue } from './types.js'
+import type { PrivacyConfig, PrivacySettings, WAPrivacyCallValue, WAReadReceiptsValue } from './types.js'
 
 export class PrivacyModule {
   constructor(private readonly getSocket: () => DomainSocketLike | undefined) {}
@@ -40,6 +40,9 @@ export class PrivacyModule {
     if (config.groupAdd !== undefined) {
       await socket.updateGroupsAddPrivacy(config.groupAdd)
     }
+    if (config.call !== undefined) {
+      await socket.updateCallPrivacy(config.call)
+    }
   }
 
   async get(): Promise<PrivacySettings> {
@@ -65,5 +68,11 @@ export class PrivacyModule {
   async disappearingMode(seconds: number): Promise<void> {
     const socket = this.requireSocket()
     await socket.updateDefaultDisappearingMode(seconds)
+  }
+
+  /** Restricts who may call you. `known` blocks calls from anyone outside your contacts. */
+  async call(value: WAPrivacyCallValue): Promise<void> {
+    const socket = this.requireSocket()
+    await socket.updateCallPrivacy(value)
   }
 }

@@ -48,3 +48,5 @@ docs/superpowers/
 # planning scratch — local only, not shipped
 /spec/
 /tasks/
+
+.learnings/

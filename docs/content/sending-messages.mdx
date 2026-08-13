@@ -367,6 +367,36 @@ await client.send(to).groupInvite({
   A `jid` not ending in `@g.us`, or an empty `code`, rejects with `INVALID_OPTIONS`.
 </Callout>
 
+## Personal status (story)
+
+Post to your own status by sending to `status@broadcast` and naming the audience with `.audience()`.
+Any content type works — text, image, video, voice note.
+
+```typescript
+await client
+  .send('status@broadcast')
+  .image('./promo.jpg', { caption: 'Diskon hari ini' })
+  .audience(['628111@s.whatsapp.net', '628222@s.whatsapp.net'])
+```
+
+`.audience(jids)` is the list of people who will see the status. It merges and de-duplicates across
+calls, so you can build it up in pieces.
+
+<Callout type="warn">
+  **The audience is required.** WhatsApp accepts a status with an empty recipient list and returns a
+  normal message key — but nobody ever sees it. Because that failure is completely silent, zaileys
+  rejects it with `INVALID_OPTIONS` instead of letting you believe it was posted.
+</Callout>
+
+<Callout type="error">
+  `.audience()` on any other recipient rejects with `INVALID_RECIPIENT` — WhatsApp would ignore it
+  there, so failing loudly is better than dropping it quietly.
+</Callout>
+
+Unlike group status, a personal status carries no `backgroundColor`/`font` options in zaileys yet.
+There is no contact-list default either: you always pass the audience explicitly, so a status is never
+broadcast wider than you intended.
+
 ## Group status
 
 Post a **group status** — the story-style update that appears at the top of a group. The recipient must

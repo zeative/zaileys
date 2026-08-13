@@ -9,6 +9,7 @@ export type BuilderInternalState = {
   quoted?: WAMessage | WAMessageKey
   mentions?: string[]
   mentionAll?: boolean
+  statusJidList?: string[]
   disappearingSeconds?: number
   resolveRecipient?: (raw: string) => Promise<string>
   recordSent?: (message: WAMessage) => void

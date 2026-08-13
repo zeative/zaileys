@@ -87,6 +87,9 @@ export interface BuilderSocketLike {
 
 export type TextOptions = { rich?: boolean } & AIRichOptions
 
+/** The pseudo-recipient WhatsApp uses for personal statuses (stories). */
+export const STATUS_BROADCAST_JID = 'status@broadcast'
+
 const INTERACTIVE_NATIVE_FLOW_NODES = [
   {
     tag: 'biz',
@@ -310,6 +313,24 @@ export class MessageBuilder<State extends BuilderState> {
     return this as unknown as MessageBuilder<State>
   }
 
+  /**
+   * Sets who sees a status posted to `status@broadcast`. WhatsApp delivers a status only to the jids
+   * listed here — an empty list is accepted by the server but reaches nobody, so this is required.
+   */
+  audience(jids: string[]): MessageBuilder<State> {
+    if (jids.length === 0) {
+      throw new ZaileysBuilderError('INVALID_OPTIONS', 'audience() requires at least one jid')
+    }
+    for (const jid of jids) {
+      if (typeof jid !== 'string' || !jid.includes('@')) {
+        throw new ZaileysBuilderError('INVALID_OPTIONS', `invalid jid: ${String(jid)}`)
+      }
+    }
+    const merged = new Set([...(this.internal.statusJidList ?? []), ...jids])
+    this.internal.statusJidList = [...merged]
+    return this as unknown as MessageBuilder<State>
+  }
+
   disappearing(seconds: number): MessageBuilder<State> {
     if (!Number.isInteger(seconds) || seconds <= 0) {
       throw new ZaileysBuilderError('INVALID_OPTIONS', 'disappearing() requires a positive integer duration')
@@ -327,6 +348,12 @@ export class MessageBuilder<State extends BuilderState> {
       if (this.internal.resolveRecipient) {
         this.internal.recipient = await this.internal.resolveRecipient(this.internal.recipient)
         delete this.internal.resolveRecipient
+      }
+      if (this.internal.statusJidList !== undefined && this.internal.recipient !== STATUS_BROADCAST_JID) {
+        throw new ZaileysBuilderError(
+          'INVALID_RECIPIENT',
+          `audience() only applies to ${STATUS_BROADCAST_JID}, not ${this.internal.recipient}`,
+        )
       }
       if (this.internal.albumItems) {
         const context: BuilderContext = { recipient: this.internal.recipient }
@@ -373,12 +400,21 @@ export class MessageBuilder<State extends BuilderState> {
       if (this.internal.mentionAll) {
         content.mentionAll = true
       }
+      if (this.internal.recipient === STATUS_BROADCAST_JID && this.internal.statusJidList === undefined) {
+        throw new ZaileysBuilderError(
+          'INVALID_OPTIONS',
+          `a status sent to ${STATUS_BROADCAST_JID} needs audience([...]); without it WhatsApp accepts the message but shows it to nobody`,
+        )
+      }
       const options: MiscMessageGenerationOptions = {}
       if (this.internal.quoted) {
         options.quoted = this.internal.quoted as WAMessage
       }
       if (this.internal.disappearingSeconds !== undefined) {
         options.ephemeralExpiration = this.internal.disappearingSeconds
+      }
+      if (this.internal.statusJidList !== undefined) {
+        options.statusJidList = this.internal.statusJidList
       }
       let result: WAMessage | undefined
       try {

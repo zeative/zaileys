@@ -228,7 +228,9 @@ A few values come from your `Client` config rather than the raw message:
 - **Methods are lazy & mostly async.** `roomName()`, `replied()`, `media.buffer()`, `citation.*` do real work — `await` them; they show as `[Function]` when you log the object.
 - **`roomId` follows the conversation, not the direction** — safe as a reply target for both inbound and your own (`isFromMe`) messages.
 - **`isSpam` is reserved** and always `false` today.
-- **`senderUsername` is usually `null`.** WhatsApp only attaches a username when the sender has
-  actually set one, and in practice it arrives mainly on **group** messages from senders your account
-  knows only by LID. Treat it as a bonus, never as an identity you can rely on — `senderId` remains
-  the field to use for authorization.
+- **`senderUsername` is usually `null` — WhatsApp sends the phone number _or_ the username, never
+  both.** A username is the fallback handle for a sender whose number you cannot see, so it stays
+  `null` for anyone whose phone number your account already knows (which is most people). It arrives
+  mainly on **group** messages from LID-only senders. Never use it for authorization — `senderId` is
+  the field for that. To ask for one explicitly, see
+  [`client.getUsername(jid)`](/client#usernames).

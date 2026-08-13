@@ -1,6 +1,7 @@
 import makeWASocket, {
   fetchLatestBaileysVersion,
   initAuthCreds,
+  S_WHATSAPP_NET,
   type AuthenticationCreds,
   type UserFacingSocketConfig,
   type WAMessage,
@@ -130,6 +131,46 @@ const POST_OPEN_LOGOUT_RETRY_DELAY_MS = 3_000
 
 interface SocketCleanup {
   off: () => void
+}
+
+/**
+ * WhatsApp retired the USync `username` protocol baileys still ships — it answers with an empty node
+ * for everyone. This GraphQL document is what the official client moved to.
+ */
+const MEX_FETCH_USERS_QUERY_ID = '29829202653362039'
+
+/** Structural view of the raw socket bits used for GraphQL lookups baileys does not wrap. */
+interface MexCapableSocket {
+  query?: (node: unknown) => Promise<unknown>
+  generateMessageTag?: () => string
+}
+
+/**
+ * Reads the `<result>` payload of a `w:mex` reply. A jid with no username comes back as an
+ * `XWA2ResponseStatus` instead of an `XWA2Username`, so entries without one are skipped.
+ */
+export const parseMexUsers = (result: unknown): Array<{ jid: string; username: string }> => {
+  const children = (result as { content?: unknown })?.content
+  if (!Array.isArray(children)) return []
+  const body = children.find((c) => (c as { tag?: string })?.tag === 'result')?.content
+  if (!Buffer.isBuffer(body)) return []
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(body.toString())
+  } catch {
+    return []
+  }
+  const users = (parsed as { data?: { xwa2_fetch_wa_users?: unknown } })?.data?.xwa2_fetch_wa_users
+  if (!Array.isArray(users)) return []
+  const out: Array<{ jid: string; username: string }> = []
+  for (const user of users) {
+    const jid = (user as { jid?: unknown })?.jid
+    const username = (user as { username_info?: { username?: unknown } })?.username_info?.username
+    if (typeof jid === 'string' && typeof username === 'string' && username.length > 0) {
+      out.push({ jid, username })
+    }
+  }
+  return out
 }
 
 /** Structural view of baileys' `signalRepository.lidMapping`, which no public socket type exposes. */
@@ -1157,6 +1198,48 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   /** Bulk {@link pnToLid}. Returns a `pn -> lid` map; jids WhatsApp could not resolve are simply absent. */
   async pnToLids(pns: string[]): Promise<Map<string, string>> {
     return this.lidMapBulk('getLIDsForPNs', pns, 'pn')
+  }
+
+  /**
+   * Looks up WhatsApp usernames (`@handle`) for many jids in one round trip. Returns a `jid -> username`
+   * map; jids whose owner has not set a username are simply absent. Works best with `@lid` jids.
+   */
+  async usernames(jids: string[]): Promise<Map<string, string>> {
+    const out = new Map<string, string>()
+    if (jids.length === 0) return out
+    const socket = this._socket as MexCapableSocket | undefined
+    const send = socket?.query
+    const nextTag = socket?.generateMessageTag
+    if (typeof send !== 'function' || typeof nextTag !== 'function') return out
+
+    const variables = {
+      input: { query_input: jids.map((jid) => ({ jid })), telemetry: { context: 'INTERACTIVE' } },
+      include_username: true,
+      include_about_status: false,
+      include_country_code: false,
+    }
+    try {
+      const result = await send({
+        tag: 'iq',
+        attrs: { id: nextTag(), type: 'get', to: S_WHATSAPP_NET, xmlns: 'w:mex' },
+        content: [
+          {
+            tag: 'query',
+            attrs: { query_id: MEX_FETCH_USERS_QUERY_ID },
+            content: Buffer.from(JSON.stringify({ variables }), 'utf-8'),
+          },
+        ],
+      })
+      for (const entry of parseMexUsers(result)) out.set(entry.jid, entry.username)
+    } catch {
+      return out
+    }
+    return out
+  }
+
+  /** Single-jid {@link usernames}. `null` when the account has no username or the lookup fails. */
+  async getUsername(jid: string): Promise<string | null> {
+    return (await this.usernames([jid])).get(jid) ?? null
   }
 
   /**

@@ -414,6 +414,41 @@ Jids WhatsApp could not resolve are simply **absent** from the map rather than m
 lookup yields an empty map.
 </Callout>
 
+### Usernames
+
+| Method | Signature | Description |
+| ------ | --------- | ----------- |
+| `getUsername` | `getUsername(jid: string): Promise<string \| null>` | The account's WhatsApp username (`@handle`), without the `@`. |
+| `usernames` | `usernames(jids: string[]): Promise<Map<string, string>>` | Bulk form, one round trip. Accounts with no username are absent. |
+
+```typescript
+await client.getUsername('115362955808779@lid')   // 'hacelo' | null
+
+const map = await client.usernames(['115362955808779@lid', '234256710246613@lid'])
+// Map { '115362955808779@lid' => 'hacelo', '234256710246613@lid' => 'hanntylor' }
+```
+
+<Callout type="warn">
+**WhatsApp gives you the phone number _or_ the username — never both.** A username is the fallback
+handle for someone whose number you cannot see. If your account already knows a contact's phone
+number, the lookup returns nothing for them, even when that person really has a username set. This
+is WhatsApp's disclosure policy, not a limitation of zaileys — the official client behaves the same.
+
+In practice that means usernames come back for **`@lid` jids whose `phoneNumber` is unknown**, which
+is exactly where you need a readable handle. Use [`lidToPn`](#lid--phone-number) first; if it returns
+`null`, ask for the username.
+</Callout>
+
+<Callout type="info">
+This uses WhatsApp's current GraphQL lookup. The `username` USync protocol that baileys still ships
+is **retired server-side** — it answers with an empty node for every jid — so `client.getUsername()`
+is the only path that works.
+</Callout>
+
+Group metadata carries usernames for free under the same rule: `client.group.metadata(jid)` returns
+`participants[].username` (plus `ownerUsername`, `subjectOwnerUsername`, `descOwnerUsername`)
+populated for members whose phone number WhatsApp withholds — no extra call needed.
+
 <Callout type="info">
 For pure, offline JID inspection (decode, normalize, predicates) use the
 [JID helpers](/utilities#jid-helpers) instead — those need no socket.

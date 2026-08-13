@@ -58,6 +58,8 @@ client.on('text', (ctx) => {
 | `pnToLid(pn)` | `(pn: string): Promise<string \| null>` | Resolve a phone-number JID to its `@lid` JID (`null` if unknown). Needs a connected socket. |
 | `lidToPns(lids)` | `(lids: string[]): Promise<Map<string, string>>` | Bulk `lidToPn` in one round trip. Unresolved jids are absent from the map. |
 | `pnToLids(pns)` | `(pns: string[]): Promise<Map<string, string>>` | Bulk `pnToLid` in one round trip. Unresolved jids are absent from the map. |
+| `getUsername(jid)` | `(jid: string): Promise<string \| null>` | The account's WhatsApp username (`@handle`). `null` when WhatsApp withholds it — see [Usernames](/client#usernames). |
+| `usernames(jids)` | `(jids: string[]): Promise<Map<string, string>>` | Bulk `getUsername` in one round trip. Accounts with no disclosed username are absent. |
 | `broadcast(jids, build, opts?)` | `(jids: string[], build, opts?): Promise<BroadcastResult>` | Send to many recipients. See [Broadcast & Schedule](/automation). |
 | `scheduleAt(date, build, opts?)` | `(date: Date, build, opts?): Promise<ScheduleHandle>` | Schedule a message for later. |
 | `command(spec, handler)` | `(spec: string, handler: CommandHandler): this` | Register a command. See [Commands](/commands). |

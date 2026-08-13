@@ -1,4 +1,5 @@
 import {
+  generateWAMessageContent,
   generateWAMessageFromContent,
   getContentType,
   normalizeMessageContent,
@@ -17,8 +18,10 @@ import {
   RELAY_CONTENT_KEY,
   RELAY_MEDIA_KEY,
   RELAY_REQUIRE_GROUP_KEY,
+  RELAY_STATUS_MEDIA_KEY,
   type ButtonsContentOptions,
   type HeaderMedia,
+  type StatusMedia,
 } from './content/buttons.js'
 import { buildCarouselContent, RELAY_CARDS_MEDIA_KEY, type CardMedia, type CarouselCard } from './content/carousel.js'
 import { buildAIRichContent, type AIRichOptions } from './content/airich.js'
@@ -243,10 +246,11 @@ export class MessageBuilder<State extends BuilderState> {
     input: string | GroupStatusSource,
     opts?: GroupStatusOptions | GroupStatusRepostOptions,
   ): MessageBuilder<'content-set'> {
-    this.internal.content =
-      typeof input === 'string'
-        ? buildGroupStatusContent(input, opts as GroupStatusOptions | undefined)
-        : buildGroupStatusRepost(input, opts as GroupStatusRepostOptions | undefined)
+    if (typeof input === 'string') {
+      this.internal.content = buildGroupStatusContent(input, opts as GroupStatusOptions | undefined)
+    } else {
+      this.internal.pendingContent = buildGroupStatusRepost(input, opts as GroupStatusRepostOptions | undefined)
+    }
     return this as unknown as MessageBuilder<'content-set'>
   }
 
@@ -349,6 +353,8 @@ export class MessageBuilder<State extends BuilderState> {
             `${requiresGroup} can only be sent to a group jid ending in @g.us`,
           )
         }
+        const statusMedia = relayContent[RELAY_STATUS_MEDIA_KEY] as StatusMedia | undefined
+        if (statusMedia !== undefined) await this.attachStatusMedia(relayInner as proto.IMessage, statusMedia)
         const headerMedia = relayContent[RELAY_MEDIA_KEY] as HeaderMedia | undefined
         const cardsMedia = relayContent[RELAY_CARDS_MEDIA_KEY] as CardMedia[] | undefined
         return this.sendRelay(relayInner as proto.IMessage, headerMedia, cardsMedia)
@@ -396,6 +402,27 @@ export class MessageBuilder<State extends BuilderState> {
     header.hasMediaAttachment = true
     if (media.kind === 'image' && prepared.imageMessage) header.imageMessage = prepared.imageMessage
     if (media.kind === 'video' && prepared.videoMessage) header.videoMessage = prepared.videoMessage
+  }
+
+  /** A status needs its own upload, so the downloaded bytes are re-uploaded here and injected into the envelope. */
+  private async attachStatusMedia(inner: proto.IMessage, media: StatusMedia): Promise<void> {
+    const payload: Record<string, unknown> = { [media.kind]: media.buffer }
+    if (media.caption !== undefined) payload['caption'] = media.caption
+    if (media.ptt === true) payload['ptt'] = true
+    let built: Record<string, unknown>
+    try {
+      built = (await generateWAMessageContent(payload as never, {
+        upload: this.socket.waUploadToServer,
+      } as never)) as unknown as Record<string, unknown>
+    } catch (err) {
+      throw new ZaileysBuilderError('MEDIA_LOAD_FAILED', 'groupStatus() media upload failed', { cause: err })
+    }
+    const holder = built as { toJSON?: () => Record<string, unknown> }
+    const node = typeof holder.toJSON === 'function' ? holder.toJSON() : built
+    const envelope = (inner as unknown as Record<string, { message: Record<string, unknown> }>)[
+      'groupStatusMessageV2'
+    ]
+    if (envelope !== undefined) envelope.message = node
   }
 
   /** Relay skips baileys' contextInfo pass, so mentions and mentionAll are applied to the unwrapped node here. */

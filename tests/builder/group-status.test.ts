@@ -7,7 +7,11 @@ import {
   parseStatusArgb,
   resolveStatusFont,
 } from '../../src/builder/content/group-status.js'
-import { RELAY_CONTENT_KEY, RELAY_REQUIRE_GROUP_KEY } from '../../src/builder/content/buttons.js'
+import {
+  RELAY_CONTENT_KEY,
+  RELAY_REQUIRE_GROUP_KEY,
+  RELAY_STATUS_MEDIA_KEY,
+} from '../../src/builder/content/buttons.js'
 import { ZaileysBuilderError } from '../../src/builder/errors.js'
 
 type ExtendedText = { text: string; backgroundArgb?: number; font?: number }
@@ -149,15 +153,50 @@ const imageSource = (extra: Record<string, unknown> = {}): WAMessage =>
     },
   })
 
-describe('buildGroupStatusRepost', () => {
-  it('marks the reposted content as group-only', () => {
-    const content = buildGroupStatusRepost(msg({ conversation: 'halo' })) as unknown as Record<string, unknown>
+describe('buildGroupStatusRepost (media langsung)', () => {
+  const PNG = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    'base64',
+  )
+
+  it('carries a fresh image buffer for upload at dispatch', async () => {
+    const content = (await buildGroupStatusRepost({ image: PNG, caption: 'halo' })) as unknown as Record<
+      string,
+      { kind: string; buffer: Buffer; caption?: string }
+    >
+    const media = content[RELAY_STATUS_MEDIA_KEY]!
+    expect(media.kind).toBe('image')
+    expect(media.caption).toBe('halo')
+    expect(Buffer.isBuffer(media.buffer)).toBe(true)
+  })
+
+  it('marks a fresh media status as group-only and leaves the envelope empty until upload', async () => {
+    const content = (await buildGroupStatusRepost({ video: PNG })) as unknown as Record<string, unknown>
+    expect(content[RELAY_REQUIRE_GROUP_KEY]).toBe('groupStatus()')
+    expect(Object.keys(innerOf(content))).toEqual([])
+  })
+
+  it('keeps ptt for a voice note and drops caption', async () => {
+    const content = (await buildGroupStatusRepost({ audio: PNG, ptt: true, caption: 'x' })) as unknown as Record<
+      string,
+      { kind: string; ptt?: boolean; caption?: string }
+    >
+    const media = content[RELAY_STATUS_MEDIA_KEY]!
+    expect(media.kind).toBe('audio')
+    expect(media.ptt).toBe(true)
+    expect(media.caption).toBeUndefined()
+  })
+})
+
+describe('buildGroupStatusRepost (teks)', () => {
+  it('marks the reposted content as group-only', async () => {
+    const content = (await buildGroupStatusRepost(msg({ conversation: 'halo' }))) as unknown as Record<string, unknown>
     expect(content[RELAY_REQUIRE_GROUP_KEY]).toBe('groupStatus()')
   })
 
-  it('copies a text message without mutating the source', () => {
+  it('copies a text message without mutating the source', async () => {
     const source = msg({ extendedTextMessage: { text: 'halo', contextInfo: { stanzaId: 'Q1', forwardingScore: 4 } } })
-    const node = innerOf(buildGroupStatusRepost(source))['extendedTextMessage']!
+    const node = innerOf(await buildGroupStatusRepost(source))['extendedTextMessage']!
     expect(node['text']).toBe('halo')
     const ctx = node['contextInfo'] as Record<string, unknown>
     expect(ctx['stanzaId']).toBeFalsy()
@@ -166,55 +205,45 @@ describe('buildGroupStatusRepost', () => {
     expect((original['contextInfo'] as Record<string, unknown>)['stanzaId']).toBe('Q1')
   })
 
-  it('overrides the text when a caption is given', () => {
-    const node = innerOf(buildGroupStatusRepost(msg({ conversation: 'lama' }), { caption: 'baru' }))
+  it('overrides the text when a caption is given', async () => {
+    const node = innerOf(await buildGroupStatusRepost(msg({ conversation: 'lama' }), { caption: 'baru' }))
     expect((node['extendedTextMessage'] as Record<string, unknown>)['text']).toBe('baru')
   })
 
-  it('accepts a MessageContext-shaped source via message()', () => {
-    const source = msg({ conversation: 'halo' })
-    const node = innerOf(buildGroupStatusRepost({ message: () => source }))
-    expect((node['extendedTextMessage'] as Record<string, unknown>)['text']).toBe('halo')
-  })
-
-  it('rejects media sources because WhatsApp never renders a media group status', () => {
-    for (const media of [
-      { imageMessage: { directPath: '/i' } },
-      { videoMessage: { directPath: '/v' } },
-      { audioMessage: { directPath: '/a', ptt: true } },
-      { documentMessage: { directPath: '/d' } },
-      { stickerMessage: { directPath: '/s' } },
-    ]) {
-      expectError(() => buildGroupStatusRepost(msg(media)), 'INVALID_OPTIONS')
-    }
-  })
-
-  it('rejects other non-text content types', () => {
-    expectError(() => buildGroupStatusRepost(msg({ locationMessage: { degreesLatitude: 1 } })), 'INVALID_OPTIONS')
-    expectError(() => buildGroupStatusRepost(msg({ pollCreationMessage: { name: 'p' } })), 'INVALID_OPTIONS')
-  })
-
-  it('overrides the text when reposting a text message with a caption', () => {
-    const node = innerOf(buildGroupStatusRepost(msg({ conversation: 'lama' }), { caption: 'baru' }))
-    expect((node['extendedTextMessage'] as Record<string, unknown>)['text']).toBe('baru')
-  })
-
-  it('normalises a plain conversation into extendedTextMessage', () => {
-    const node = innerOf(buildGroupStatusRepost(msg({ conversation: 'halo' })))
+  it('normalises a plain conversation into extendedTextMessage', async () => {
+    const node = innerOf(await buildGroupStatusRepost(msg({ conversation: 'halo' })))
     expect((node['extendedTextMessage'] as Record<string, unknown>)['text']).toBe('halo')
     expect(node['conversation']).toBeUndefined()
   })
 
-  it('unwraps a source that is already a group status instead of double nesting', () => {
+  it('accepts a MessageContext-shaped source via message()', async () => {
+    const source = msg({ conversation: 'halo' })
+    const node = innerOf(await buildGroupStatusRepost({ message: () => source }))
+    expect((node['extendedTextMessage'] as Record<string, unknown>)['text']).toBe('halo')
+  })
+
+  it('unwraps a source that is already a group status instead of double nesting', async () => {
     const source = msg({ groupStatusMessageV2: { message: { conversation: 'halo' } } })
-    const node = innerOf(buildGroupStatusRepost(source))
+    const node = innerOf(await buildGroupStatusRepost(source))
     expect(node['groupStatusMessageV2']).toBeUndefined()
     expect((node['extendedTextMessage'] as Record<string, unknown>)['text']).toBe('halo')
   })
 
-  it('rejects a source with no usable content', () => {
-    expectError(() => buildGroupStatusRepost(msg({})), 'EMPTY_CONTENT')
-    expectError(() => buildGroupStatusRepost({ key: {}, message: null } as unknown as WAMessage), 'EMPTY_CONTENT')
+  it('rejects content types a status cannot carry', async () => {
+    await expect(buildGroupStatusRepost(msg({ locationMessage: { degreesLatitude: 1 } }))).rejects.toMatchObject({
+      name: 'ZaileysBuilderError',
+      code: 'INVALID_OPTIONS',
+    })
+    await expect(buildGroupStatusRepost(msg({ pollCreationMessage: { name: 'p' } }))).rejects.toMatchObject({
+      code: 'INVALID_OPTIONS',
+    })
+  })
+
+  it('rejects a source with no usable content', async () => {
+    await expect(buildGroupStatusRepost(msg({}))).rejects.toMatchObject({ code: 'EMPTY_CONTENT' })
+    await expect(
+      buildGroupStatusRepost({ key: {}, message: null } as unknown as WAMessage),
+    ).rejects.toMatchObject({ code: 'EMPTY_CONTENT' })
   })
 })
 
@@ -310,9 +339,9 @@ describe('MessageBuilder.groupStatus()', () => {
     expect(node['text']).toBe('dari orang lain')
   })
 
-  it('rejects a media repost synchronously, before it ever reaches the socket', () => {
+  it('routes a media repost through the upload path instead of copying pointers', async () => {
     const { socket, relayMessage } = makeSocket()
-    expectError(() => MessageBuilder.create(socket, GROUP).groupStatus(imageSource()), 'INVALID_OPTIONS')
+    await expectRejects(MessageBuilder.create(socket, GROUP).groupStatus(imageSource()), 'MEDIA_LOAD_FAILED')
     expect(relayMessage).not.toHaveBeenCalled()
   })
 

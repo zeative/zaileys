@@ -164,8 +164,18 @@ export type GroupStatusOptions = {
   font?: GroupStatusFont | number
 }
 
-/** A message to repost as a group status — a `MessageContext` or a raw `WAMessage`. */
-export type GroupStatusSource = WAMessage | { message: () => WAMessage }
+/** Media posted directly as a group status, without an existing message to repost. */
+export type GroupStatusMedia = {
+  image?: MediaSource
+  video?: MediaSource
+  audio?: MediaSource
+  caption?: string
+  /** Send an audio status as a voice note. */
+  ptt?: boolean
+}
+
+/** What a group status can be built from: a `MessageContext`, a raw `WAMessage`, or fresh media. */
+export type GroupStatusSource = WAMessage | { message: () => WAMessage } | GroupStatusMedia
 
 export type GroupStatusRepostOptions = {
   /** Replaces the original caption. Ignored for voice notes, which have none. */

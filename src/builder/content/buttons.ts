@@ -11,6 +11,11 @@ export const RELAY_MEDIA_KEY = '__zaileysHeaderMedia'
 /** Marks relay content that may only target a group jid; the value is the method label used in the error. */
 export const RELAY_REQUIRE_GROUP_KEY = '__zaileysRequireGroupJid'
 
+/** Carries a downloaded media buffer that `sendRelay` re-uploads and injects into the status envelope. */
+export const RELAY_STATUS_MEDIA_KEY = '__zaileysStatusMedia'
+
+export type StatusMedia = { kind: 'image' | 'video' | 'audio'; buffer: Buffer; caption?: string; ptt?: boolean }
+
 export type HeaderMedia = { kind: 'image' | 'video'; src: MediaSource }
 
 export type RelayContent = { [RELAY_CONTENT_KEY]: proto.IMessage; [RELAY_MEDIA_KEY]?: HeaderMedia }

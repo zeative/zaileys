@@ -1,7 +1,15 @@
 import { getContentType, normalizeMessageContent, proto, type AnyMessageContent, type WAMessage } from 'baileys'
 import { ZaileysBuilderError } from '../errors.js'
-import { RELAY_CONTENT_KEY, RELAY_REQUIRE_GROUP_KEY } from './buttons.js'
-import type { GroupStatusFont, GroupStatusOptions, GroupStatusRepostOptions, GroupStatusSource } from '../types.js'
+import { RELAY_CONTENT_KEY, RELAY_REQUIRE_GROUP_KEY, RELAY_STATUS_MEDIA_KEY, type StatusMedia } from './buttons.js'
+import { loadMedia } from '../media-loader.js'
+import type {
+  GroupStatusFont,
+  GroupStatusMedia,
+  GroupStatusOptions,
+  GroupStatusRepostOptions,
+  GroupStatusSource,
+  MediaSource,
+} from '../types.js'
 
 const MAX_ARGB = 0xffffffff
 
@@ -85,51 +93,102 @@ const wrapStatus = (message: Record<string, unknown>): AnyMessageContent =>
 
 const REPOSTABLE = ['conversation', 'extendedTextMessage'] as const
 
-/**
- * Media inside the group-status envelope is rejected: eight live variants relayed cleanly and none
- * rendered, while the same session posted a media `status@broadcast` that did render — so the limit is
- * the envelope, not the media pipeline. Text in the same envelope renders fine. Lift this if a WhatsApp
- * build is found that shows one.
- */
-const MEDIA_KEYS = new Set(['imageMessage', 'videoMessage', 'audioMessage', 'documentMessage', 'stickerMessage'])
+const MEDIA_KINDS: Record<string, 'image' | 'video' | 'audio'> = {
+  imageMessage: 'image',
+  videoMessage: 'video',
+  audioMessage: 'audio',
+}
+
+const statusMediaContent = (media: StatusMedia): AnyMessageContent =>
+  ({
+    [RELAY_CONTENT_KEY]: { groupStatusMessageV2: { message: {} } },
+    [RELAY_REQUIRE_GROUP_KEY]: 'groupStatus()',
+    [RELAY_STATUS_MEDIA_KEY]: media,
+  }) as unknown as AnyMessageContent
+
+const FRESH_KINDS = ['image', 'video', 'audio'] as const
+
+const asFreshMedia = (source: GroupStatusSource): { kind: 'image' | 'video' | 'audio'; src: MediaSource } | null => {
+  const rec = source as Record<string, unknown>
+  if (typeof rec['message'] === 'function' || rec['message'] !== undefined || rec['key'] !== undefined) return null
+  for (const kind of FRESH_KINDS) {
+    if (rec[kind] !== undefined) return { kind, src: rec[kind] as MediaSource }
+  }
+  return null
+}
 
 const toWAMessage = (source: GroupStatusSource): WAMessage =>
   typeof (source as { message?: unknown }).message === 'function'
     ? (source as { message: () => WAMessage }).message()
     : (source as WAMessage)
 
-/** Reposts an existing text message as a group status. Media sources are rejected — see `MEDIA_KEYS`. */
-export const buildGroupStatusRepost = (
-  source: GroupStatusSource,
+const buildTextRepost = (
+  content: proto.IMessage,
+  key: string,
   opts?: GroupStatusRepostOptions,
 ): AnyMessageContent => {
+  const copy = proto.Message.decode(proto.Message.encode(content).finish()) as unknown as Record<string, unknown>
+  if (key === 'conversation') {
+    copy['extendedTextMessage'] = { text: copy['conversation'] }
+    delete copy['conversation']
+  }
+  const node = copy['extendedTextMessage'] as Record<string, unknown>
+  delete node['viewOnce']
+  node['contextInfo'] = {}
+  if (opts?.caption !== undefined) node['text'] = opts.caption
+  return wrapStatus({ extendedTextMessage: node })
+}
+
+/**
+ * Reposts an existing message as a group status. Media cannot be carried by copying pointers — the
+ * bytes are downloaded here and re-uploaded at dispatch, because a status needs its own upload.
+ */
+export const buildGroupStatusRepost = async (
+  source: GroupStatusSource,
+  opts?: GroupStatusRepostOptions,
+): Promise<AnyMessageContent> => {
+  const fresh = asFreshMedia(source)
+  if (fresh !== null) {
+    const opt = source as GroupStatusMedia
+    const { buffer } = await loadMedia(fresh.src)
+    const media: StatusMedia = { kind: fresh.kind, buffer }
+    const caption = opts?.caption ?? opt.caption
+    if (fresh.kind !== 'audio' && caption !== undefined) media.caption = caption
+    if (fresh.kind === 'audio' && opt.ptt === true) media.ptt = true
+    return statusMediaContent(media)
+  }
+
   const original = toWAMessage(source)
   const content = original?.message == null ? null : normalizeMessageContent(original.message)
   const key = content == null ? undefined : getContentType(content)
   if (content == null || key === undefined) {
     throw new ZaileysBuilderError('EMPTY_CONTENT', 'groupStatus() source has no repostable content')
   }
-  if (MEDIA_KEYS.has(key)) {
-    throw new ZaileysBuilderError(
-      'INVALID_OPTIONS',
-      `groupStatus() cannot repost ${key}: media group status is not verified to render, so it is blocked rather than sent blind`,
-    )
+
+  const kind = MEDIA_KINDS[key]
+  if (kind !== undefined) {
+    const node = (content as unknown as Record<string, Record<string, unknown>>)[key] ?? {}
+    let buffer: Buffer
+    try {
+      const { downloadMediaMessage } = await import('baileys')
+      buffer = (await downloadMediaMessage(original, 'buffer', {})) as Buffer
+    } catch (err) {
+      throw new ZaileysBuilderError('MEDIA_LOAD_FAILED', 'groupStatus() could not download the source media', {
+        cause: err,
+      })
+    }
+    const media: StatusMedia = { kind, buffer }
+    const caption = opts?.caption ?? (node['caption'] as string | undefined)
+    if (kind !== 'audio' && caption !== undefined) media.caption = caption
+    if (kind === 'audio' && node['ptt'] === true) media.ptt = true
+    return statusMediaContent(media)
   }
+
   if (!REPOSTABLE.includes(key as (typeof REPOSTABLE)[number])) {
     throw new ZaileysBuilderError(
       'INVALID_OPTIONS',
-      `groupStatus() cannot repost ${key}; supported: ${REPOSTABLE.join(', ')}`,
+      `groupStatus() cannot repost ${key}; supported: text, image, video, audio`,
     )
   }
-  const copy = proto.Message.decode(proto.Message.encode(content).finish()) as unknown as Record<string, unknown>
-  if (key === 'conversation') {
-    copy['extendedTextMessage'] = { text: copy['conversation'] }
-    delete copy['conversation']
-  }
-  const nodeKey = key === 'conversation' ? 'extendedTextMessage' : key
-  const node = copy[nodeKey] as Record<string, unknown>
-  delete node['viewOnce']
-  node['contextInfo'] = {}
-  if (opts?.caption !== undefined) node['text'] = opts.caption
-  return wrapStatus({ [nodeKey]: node })
+  return buildTextRepost(content, key, opts)
 }

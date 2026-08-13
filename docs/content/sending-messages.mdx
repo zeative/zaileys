@@ -397,8 +397,8 @@ returns `undefined` for numeric input, so zaileys parses colours itself rather t
 
 ### Reposting someone else's message
 
-Pass a message instead of text and its text becomes the status. Any inherited quote chain is cleared,
-so the status does not carry the original's context.
+Pass a message instead of text and it becomes the status — text, image, video, or voice note. Any
+inherited quote chain is cleared, so the status does not carry the original's context.
 
 ```typescript
 client.on('message', async (ctx) => {
@@ -415,13 +415,34 @@ client.on('message', async (ctx) => {
 | --- | --- | --- | --- |
 | `caption` | `string` | original text | Replaces the status text. |
 
+### Media status
+
+Post an image, video, or voice note as a group status. Pass fresh media directly, or repost an
+existing media message — either way the bytes are uploaded fresh, because a status needs its own
+upload and cannot reuse another message's media pointers.
+
+```typescript
+await client.send(groupJid).groupStatus({
+  image: './poster.jpg',
+  caption: 'Promo hari ini',
+})
+
+await client.send(groupJid).groupStatus({ audio: './voice.ogg', ptt: true })
+```
+
+| Option | Type | Description |
+| --- | --- | --- |
+| `image` / `video` / `audio` | `MediaSource` | A file path, `Buffer`, or URL. Exactly one. |
+| `caption` | `string` | Caption for image and video. Ignored for audio. |
+| `ptt` | `boolean` | Send an audio status as a voice note. |
+
 <Callout type="warning">
-  **Text only.** Reposting an image, video, or voice note rejects with `INVALID_OPTIONS`. Eight
-  variants were relayed live — plain, with `contextInfo.isGroupStatus`, with `statusSourceType`, with
-  `statusAttributions`, with `statusJidList` — and none rendered, while the same session posted a media
-  `status@broadcast` that *did* render. So the limit is the group-status envelope itself, not the media
-  pipeline. Text in that same envelope renders fine. A media status that silently vanishes is worse
-  than a clear error, so zaileys blocks it.
+  **Media status may not render on every account.** Text group status is verified working. Media
+  relays cleanly and returns a message id, but on the account used for development it never appeared,
+  while an identical proto captured from another sender *did* render for them — same structure, same
+  library, same code, even a raw baileys socket. Everything under our control was eliminated, so the
+  remaining variable appears to be account or client rollout. Test it on your own account before
+  relying on it.
 </Callout>
 
 <Callout>

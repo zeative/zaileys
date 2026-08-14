@@ -1,0 +1,460 @@
+# Error Handling
+
+> Source: https://zeative.github.io/zaileys/error-handling
+
+# Error Handling
+
+Every failure in zaileys is a typed `Error` subclass with a stable `.code` string, so you can catch problems precisely instead of parsing message text. This page documents the full error class hierarchy, every code each class can carry, how to catch and narrow them, the client `error` event, and how to react to connection disconnects.
+
+## The error model at a glance
+
+zaileys ships five concrete error classes. They are all plain `Error` subclasses (so a generic `catch (err)` still works), and each one adds two extra fields:
+
+- `code` — a stable string literal you switch on to react to a specific failure.
+- `cause` — the underlying error that triggered this one, when there is one (set via the standard `{ cause }` option). Always optional.
+
+Every class is exported from the package root, so you can import them directly:
+
+```typescript
+import {
+  Client,
+  ZaileysBuilderError,
+  ZaileysCommandError,
+  ZaileysDomainError,
+  ZaileysAutomationError,
+  ZaileysStoreError,
+} from 'zaileys'
+```
+
+| Class | `name` | Thrown by | Typical trigger |
+| --- | --- | --- | --- |
+| `ZaileysBuilderError` | `'ZaileysBuilderError'` | The message builder (`client.send(...)`, `client.edit(...)`, content methods, album/broadcast send) | Invalid content options, media load failure, send rejected by the socket |
+| `ZaileysCommandError` | `'ZaileysCommandError'` | The command system (registry, middleware, dispatcher) | Duplicate command, bad command name, handler/middleware threw |
+| `ZaileysDomainError` | `'ZaileysDomainError'` | Domain modules (`client.group`, `client.privacy`, `client.newsletter`, `client.community`) | Client not connected, group/newsletter not found, operation failed |
+| `ZaileysAutomationError` | `'ZaileysAutomationError'` | Automation features (`client.broadcast`, `client.scheduleAt`, presence, rate limiter) | Not connected, invalid schedule/rate config, presence update failed |
+| `ZaileysStoreError` | `'ZaileysStoreError'` | Auth stores and message stores (file/sqlite/postgres/redis/convex adapters) | Store unavailable, connection/read/write failure, corrupted or closed store |
+
+All five classes have an identical shape: `code`, `message`, and optional `cause`. Once you know how to handle one, you know how to handle them all.
+
+## Catching and narrowing
+
+The reliable way to react to a specific failure is `instanceof` to pick the class, then a `switch` on `.code` to pick the case. Because `code` is a string literal union in TypeScript, the editor autocompletes every valid value and warns on typos.
+
+```typescript
+
+const client = new Client()
+
+client.on('connect', async () => {
+  try {
+    await client.send('6281234567890@s.whatsapp.net').text('Hello!')
+  } catch (err) {
+    if (err instanceof ZaileysBuilderError) {
+      switch (err.code) {
+        case 'EMPTY_CONTENT':
+          console.error('Nothing to send — set content before awaiting.')
+          break
+        case 'INVALID_RECIPIENT':
+          console.error('Bad JID:', err.message)
+          break
+        case 'SEND_FAILED':
+          console.error('WhatsApp rejected the send:', err.cause)
+          break
+        default:
+          console.error('Builder error:', err.code, err.message)
+      }
+    } else {
+      throw err
+    }
+  }
+})
+```
+
+### Inspecting the cause chain
+
+When zaileys wraps a lower-level failure (a network error, a database driver error, a Baileys socket rejection), it preserves it on `.cause`. Read it for the real root reason.
+
+```typescript
+
+try {
+  await someStoreOperation()
+} catch (err) {
+  if (err instanceof ZaileysStoreError) {
+    console.error('Store failed:', err.code)
+    console.error('Underlying cause:', err.cause) // e.g. the pg/redis driver error
+  }
+}
+```
+
+`cause` is typed as `unknown` because the wrapped value can be anything. Narrow it (`err.cause instanceof Error`) before reading `.message` off it.
+
+## ZaileysBuilderError
+
+Thrown while constructing or sending a message: content validation, media loading, and the actual socket send/relay. This is the error you will hit most often.
+
+| `code` | Meaning |
+| --- | --- |
+| `MEDIA_LOAD_FAILED` | A media source could not be fetched/read or converted — e.g. an image URL returned a non-2xx status, a local file path failed to read, or audio/sticker transcoding failed. |
+| `INVALID_RECIPIENT` | The target JID is not a valid WhatsApp recipient. |
+| `USERNAME_NOT_FOUND` | A `@username` could not be resolved to a JID. |
+| `EMPTY_CONTENT` | A content method was called with empty input, or you awaited the builder before setting any content (`text('')`, `poll()` with no question, `no content set`). |
+| `INVALID_OPTIONS` | Options failed validation — out-of-range poll/album/button/list counts, invalid latitude/longitude, bad vcard, invalid mentions JID, non-positive disappearing duration, missing `remoteJid`, unsupported interactive socket, or `client not connected`. |
+| `SEND_FAILED` | The socket accepted the request but rejected or returned no message key — `sendMessage`/`relayMessage` rejected, interactive media upload failed, album child/parent send failed. |
+| `MESSAGE_NOT_FOUND` | A message referenced for forwarding was not present in the store. |
+
+```typescript
+
+const client = new Client()
+
+client.on('connect', async () => {
+  try {
+    await client
+      .send('6281234567890@s.whatsapp.net')
+      .poll('Lunch?', { options: ['Pizza'] }) // only one option → INVALID_OPTIONS
+  } catch (err) {
+    if (err instanceof ZaileysBuilderError && err.code === 'INVALID_OPTIONS') {
+      console.error('Fix your poll:', err.message)
+    }
+  }
+})
+```
+
+Note the guard at `client.send(...)`: if you call it before the client is connected, you get a `ZaileysBuilderError` with code `INVALID_OPTIONS` and message `"client not connected"`. See [Validating before you send](#validating-before-you-send).
+
+## ZaileysCommandError
+
+Thrown by the [command system](/commands) — registration, middleware execution, and handler dispatch.
+
+| `code` | Meaning |
+| --- | --- |
+| `DUPLICATE_COMMAND` | A command key is registered more than once. |
+| `INVALID_COMMAND_NAME` | A command spec is empty or contains an empty segment. |
+| `HANDLER_ERROR` | A command handler threw; the original error is on `.cause`. |
+| `MIDDLEWARE_ERROR` | A middleware threw, or called `next()` more than once. |
+| `NO_SENT_MESSAGE` | `ctx.edit(...)` was used without a prior `ctx.reply(...)` to edit. |
+| `NOT_CONNECTED` | A command operation required an active socket but the client was not connected. |
+
+```typescript
+
+try {
+  await dispatchSomeCommand()
+} catch (err) {
+  if (err instanceof ZaileysCommandError) {
+    if (err.code === 'HANDLER_ERROR') {
+      console.error('Command handler crashed:', err.cause)
+    } else {
+      console.error('Command system error:', err.code, err.message)
+    }
+  }
+}
+```
+
+## ZaileysDomainError
+
+Thrown by the domain modules: `client.group`, `client.privacy`, `client.newsletter`, and `client.community`.
+
+| `code` | Meaning |
+| --- | --- |
+| `NOT_CONNECTED` | The module needs a live socket but the client is not connected. |
+| `GROUP_NOT_FOUND` | The referenced group does not exist or is not accessible. |
+| `NEWSLETTER_NOT_FOUND` | The referenced newsletter/channel could not be found. |
+| `INVALID_PARTICIPANT` | A participant JID was invalid for the operation. |
+| `OPERATION_FAILED` | The domain operation failed (e.g. invite code unavailable, invite acceptance failed). |
+
+```typescript
+
+const client = new Client()
+
+client.on('connect', async () => {
+  try {
+    await client.group.acceptInvite('some-invite-code')
+  } catch (err) {
+    if (err instanceof ZaileysDomainError) {
+      switch (err.code) {
+        case 'NOT_CONNECTED':
+          console.error('Wait for the connect event first.')
+          break
+        case 'OPERATION_FAILED':
+          console.error('Invite could not be accepted:', err.message)
+          break
+        default:
+          console.error('Domain error:', err.code)
+      }
+    }
+  }
+})
+```
+
+## ZaileysAutomationError
+
+Thrown by automation helpers: `client.broadcast`, `client.scheduleAt`, presence updates, and the rate limiter.
+
+| `code` | Meaning |
+| --- | --- |
+| `NOT_CONNECTED` | Presence/automation needs a live socket but the client is not connected. |
+| `RATE_LIMIT_INVALID` | A rate-limiter value is invalid — `perSec`, `perJidPerSec`, or `burst` must be greater than zero. |
+| `TASK_FAILED` | A scheduled/automation task failed during execution. |
+| `SCHEDULE_INVALID` | `scheduleAt` got a non-`Date`, the scheduled builder threw, or it produced no content. |
+| `STORE_UNAVAILABLE` | A store required by an automation feature was unavailable. |
+| `PRESENCE_FAILED` | A presence update (`typing`, `recording`, etc.) failed; the cause is on `.cause`. |
+
+```typescript
+
+const client = new Client()
+
+client.on('connect', async () => {
+  try {
+    await client.scheduleAt(
+      new Date(Date.now() + 60_000),
+      (b) => b.text('Reminder: standup in 1 minute.'),
+    )
+  } catch (err) {
+    if (err instanceof ZaileysAutomationError && err.code === 'SCHEDULE_INVALID') {
+      console.error('Bad schedule:', err.message)
+    }
+  }
+})
+```
+
+## ZaileysStoreError
+
+Thrown by [storage adapters](/storage) — both the auth store (session credentials) and the message store, across the file, sqlite, postgres, redis, and convex backends.
+
+| `code` | Meaning |
+| --- | --- |
+| `STORE_NOT_AVAILABLE` | A required peer dependency or backend is missing (e.g. the `convex` package is not installed, `pg.Pool` constructor not found). |
+| `STORE_CONNECTION_FAILED` | Could not connect to or initialize the backend — bad/conflicting config, failed schema migration, module load failure. |
+| `STORE_WRITE_FAILED` | A write/delete/serialize operation against the store failed. |
+| `STORE_READ_FAILED` | A read operation against the store failed. |
+| `STORE_CORRUPTED` | Stored data could not be parsed (e.g. a corrupted sqlite blob). |
+| `STORE_CLOSED` | An operation was attempted after the store was closed. |
+
+```typescript
+
+try {
+  await startClientWithDatabaseStore()
+} catch (err) {
+  if (err instanceof ZaileysStoreError) {
+    switch (err.code) {
+      case 'STORE_NOT_AVAILABLE':
+        console.error('Missing dependency:', err.message) // e.g. "Run: pnpm add convex"
+        break
+      case 'STORE_CONNECTION_FAILED':
+        console.error('Cannot reach the database:', err.cause)
+        break
+      case 'STORE_CORRUPTED':
+        console.error('Session data is corrupt — clear it and re-authenticate.')
+        break
+      default:
+        console.error('Store error:', err.code)
+    }
+  }
+}
+```
+
+`STORE_NOT_AVAILABLE` for optional backends (convex, postgres `pg`, redis) means the peer dependency is not installed. Install it before using that adapter — see [Storage Adapters](/storage).
+
+## The `error` event
+
+Failures that happen outside an `await` you control — most importantly auto-connect failures — surface through the client's `error` event instead of a thrown exception. The payload is `{ sessionId: string; error: Error }`.
+
+```typescript
+
+const client = new Client()
+
+client.on('error', ({ sessionId, error }) => {
+  console.error(`[${sessionId}] background error:`, error.message)
+})
+```
+
+The auto-connect path only emits `error` if there is at least one `error` listener attached. If you rely on `autoConnect` (the default), register an `error` listener early so background connection failures are not swallowed. See [Client](/client).
+
+## Connection disconnects
+
+When the underlying connection drops, the client emits a `disconnect` event. The payload tells you both the normalized `reason` and whether zaileys will automatically reconnect:
+
+```typescript
+disconnect: { sessionId: string; reason: DisconnectReasonDomain; willReconnect: boolean }
+```
+
+`reason` is one of these normalized values (mapped from the raw Baileys disconnect codes):
+
+| `reason` | Fatal? | Auto-reconnect | Meaning |
+| --- | --- | --- | --- |
+| `logged-out` | Yes | No | The session was logged out from the phone. Auth is cleared; you must re-authenticate. |
+| `connection-replaced` | Yes | No | Another session replaced this one (same account opened elsewhere). Auth is cleared. |
+| `forbidden` | Yes | No | The account is blocked/forbidden by WhatsApp. Auth is cleared. |
+| `restart-required` | No | Yes | WhatsApp asked for a restart of the connection. |
+| `bad-session` | No | Yes | The session data was bad; auth is cleared but a reconnect is attempted. |
+| `connection-closed` | No | Yes | The connection was closed; reconnect is attempted. |
+| `connection-lost` | No | Yes | The connection was lost (network); reconnect is attempted. |
+| `multi-device-mismatch` | No | Yes | A multi-device mismatch occurred; reconnect is attempted. |
+| `unavailable-service` | No | Yes | The service was temporarily unavailable; reconnect is attempted. |
+| `unknown` | No | Yes | The disconnect code was not recognized; reconnect is attempted. |
+
+A reason is **fatal** when it is `logged-out`, `connection-replaced`, or `forbidden`. Fatal disconnects stop the reconnect loop (`willReconnect` will be `false`); everything else is retried automatically.
+
+```typescript
+
+const client = new Client()
+
+client.on('disconnect', ({ reason, willReconnect }) => {
+  if (!willReconnect) {
+    // Fatal: logged-out / connection-replaced / forbidden
+    console.error(`Connection ended permanently (${reason}). Re-authentication required.`)
+    // Surface a fresh QR/pairing flow, alert an operator, etc.
+    return
+  }
+  console.warn(`Disconnected (${reason}); reconnecting automatically...`)
+})
+
+client.on('reconnecting', ({ attempt, delayMs, reason }) => {
+  console.log(`Reconnect attempt ${attempt} in ${delayMs}ms (reason: ${reason})`)
+})
+```
+
+The `bad-session`, `connection-replaced`, `forbidden`, and `logged-out` reasons clear stored auth credentials. Of those, only `bad-session` triggers a reconnect — the other three are fatal. For the full lifecycle, see [Events](/events).
+
+## Best-practice patterns
+
+### Validating before you send
+
+The cheapest error is the one you never trigger. Guard against the two most common preventable failures — sending before connect, and empty/invalid content — at the call site.
+
+```typescript
+
+const client = new Client()
+
+async function safeSend(jid: string, text: string) {
+  if (client.state !== 'connected') {
+    // Avoids INVALID_OPTIONS "client not connected"
+    throw new Error('Not connected yet — wait for the connect event.')
+  }
+  if (!text.trim()) {
+    // Avoids EMPTY_CONTENT
+    return
+  }
+  try {
+    return await client.send(jid).text(text)
+  } catch (err) {
+    if (err instanceof ZaileysBuilderError && err.code === 'SEND_FAILED') {
+      console.error('Delivery failed for', jid, '-', err.cause)
+      return
+    }
+    throw err
+  }
+}
+```
+
+### Handling send failures without crashing
+
+A single failed send should never take down a long-running bot. Wrap each outbound send and decide locally whether to retry, skip, or alert.
+
+```typescript
+
+const client = new Client()
+
+async function sendWithRetry(jid: string, text: string, attempts = 3) {
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await client.send(jid).text(text)
+    } catch (err) {
+      const isTransient =
+        err instanceof ZaileysBuilderError && err.code === 'SEND_FAILED'
+      if (!isTransient || i === attempts) throw err
+      await new Promise((r) => setTimeout(r, 500 * i))
+    }
+  }
+}
+```
+
+### Per-recipient broadcast errors
+
+`client.broadcast(...)` never rejects on a single bad recipient. Instead it resolves to a `BroadcastResult` that partitions outcomes — `sent` is an array of JIDs that succeeded, `failed` is an array of `{ jid, error }` for the ones that did not. Always inspect `failed`.
+
+```typescript
+
+const client = new Client()
+
+const recipients = [
+  '6281111111111@s.whatsapp.net',
+  '6282222222222@s.whatsapp.net',
+  '6283333333333@s.whatsapp.net',
+]
+
+client.on('connect', async () => {
+  const result = await client.broadcast(
+    recipients,
+    (b) => b.text('Scheduled maintenance tonight at 22:00.'),
+    {
+      rateLimitPerSec: 5,
+      onProgress: (done, total, jid, ok) => {
+        console.log(`[${done}/${total}] ${jid} ${ok ? 'sent' : 'failed'}`)
+      },
+    },
+  )
+
+  console.log(`Sent ${result.sent.length}, failed ${result.failed.length}`)
+  for (const { jid, error } of result.failed) {
+    console.error(`Could not reach ${jid}:`, error.message)
+  }
+})
+```
+
+`onProgress` fires once per recipient with `(done, total, jid, ok)`, so you can stream progress live and still get the full partitioned result at the end.
+
+### A single top-level handler
+
+For everything else, a small helper that narrows across all five classes keeps your call sites clean.
+
+```typescript
+import {
+  ZaileysBuilderError,
+  ZaileysCommandError,
+  ZaileysDomainError,
+  ZaileysAutomationError,
+  ZaileysStoreError,
+} from 'zaileys'
+
+function describeError(err: unknown): string {
+  if (
+    err instanceof ZaileysBuilderError ||
+    err instanceof ZaileysCommandError ||
+    err instanceof ZaileysDomainError ||
+    err instanceof ZaileysAutomationError ||
+    err instanceof ZaileysStoreError
+  ) {
+    return `${err.name} [${err.code}]: ${err.message}`
+  }
+  return err instanceof Error ? err.message : String(err)
+}
+```
+
+### Never let `error` events go unobserved
+
+```typescript
+
+const client = new Client()
+
+// Register before connecting so auto-connect failures are reported.
+client.on('error', ({ error }) => {
+  console.error('Client error:', error.message)
+})
+```
+
+On Node.js, an `EventEmitter` that emits `error` with no listener throws. zaileys guards the auto-connect path by only emitting `error` when a listener exists — but you should still attach one so failures are visible rather than silent.
+
+## Quick reference
+
+| Class | Codes |
+| --- | --- |
+| `ZaileysBuilderError` | `MEDIA_LOAD_FAILED`, `INVALID_RECIPIENT`, `USERNAME_NOT_FOUND`, `EMPTY_CONTENT`, `INVALID_OPTIONS`, `SEND_FAILED`, `MESSAGE_NOT_FOUND` |
+| `ZaileysCommandError` | `DUPLICATE_COMMAND`, `INVALID_COMMAND_NAME`, `HANDLER_ERROR`, `MIDDLEWARE_ERROR`, `NO_SENT_MESSAGE`, `NOT_CONNECTED` |
+| `ZaileysDomainError` | `NOT_CONNECTED`, `GROUP_NOT_FOUND`, `NEWSLETTER_NOT_FOUND`, `INVALID_PARTICIPANT`, `OPERATION_FAILED` |
+| `ZaileysAutomationError` | `NOT_CONNECTED`, `RATE_LIMIT_INVALID`, `TASK_FAILED`, `SCHEDULE_INVALID`, `STORE_UNAVAILABLE`, `PRESENCE_FAILED` |
+| `ZaileysStoreError` | `STORE_NOT_AVAILABLE`, `STORE_CONNECTION_FAILED`, `STORE_WRITE_FAILED`, `STORE_READ_FAILED`, `STORE_CORRUPTED`, `STORE_CLOSED` |
+
+## Related
+
+- [Client](/client) — `connect`, `autoConnect`, lifecycle, and the `error`/`disconnect` events.
+- [Sending Messages](/sending-messages) — the builder API that produces `ZaileysBuilderError`.
+- [Troubleshooting](/troubleshooting) — diagnosing common real-world failures.

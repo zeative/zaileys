@@ -1,0 +1,503 @@
+# Newsletter (Channels)
+
+> Source: https://zeative.github.io/zaileys/newsletter
+
+# Newsletter (Channels)
+
+`client.newsletter` is the domain namespace for **WhatsApp Channels** — the broadcast-only
+publishing surface built into WhatsApp. Every method proxies to the live socket and requires an
+active connection.
+
+```typescript
+
+const client = new Client({ sessionId: 'default' })
+
+client.on('connect', async () => {
+  const channel = await client.newsletter.create('My Channel', {
+    description: 'Updates and announcements',
+  })
+  console.log('created', channel.id)
+})
+```
+
+Newsletter JIDs look like `xxxxxxxxxxxxxxxxxx@newsletter` — they are distinct from user
+(`@s.whatsapp.net`), group (`@g.us`), and community JIDs.
+
+**NOT_CONNECTED guard.** Every `client.newsletter` method calls `requireSocket()` internally.
+If the client is not yet connected, the call throws `ZaileysDomainError` with code `NOT_CONNECTED`.
+Always call newsletter methods inside a `'connect'` handler or after `await client.connect()`.
+See [Error Handling](/error-handling).
+
+## Methods at a glance
+
+| Method | Signature | Returns | Description |
+| ------ | --------- | ------- | ----------- |
+| `create` | `create(name, opts?)` | `Promise<NewsletterMetadata>` | Create a new channel. |
+| `follow` | `follow(jid)` | `Promise<void>` | Follow a channel. |
+| `unfollow` | `unfollow(jid)` | `Promise<void>` | Unfollow a channel. |
+| `metadata` | `metadata(jid)` | `Promise<NewsletterMetadata>` | Fetch channel metadata. |
+| `updateName` | `updateName(jid, name)` | `Promise<void>` | Rename the channel. |
+| `updateDescription` | `updateDescription(jid, description)` | `Promise<void>` | Update the channel description. |
+| `updatePicture` | `updatePicture(jid, picture)` | `Promise<void>` | Update the channel picture. |
+| `mute` | `mute(jid)` | `Promise<void>` | Mute channel notifications. |
+| `unmute` | `unmute(jid)` | `Promise<void>` | Unmute channel notifications. |
+| `delete` | `delete(jid)` | `Promise<void>` | Permanently delete the channel. |
+| `removePicture` | `removePicture(jid)` | `Promise<void>` | Remove the channel picture. |
+| `react` | `react(jid, serverId, emoji)` | `Promise<void>` | React to a newsletter message. |
+| `unreact` | `unreact(jid, serverId)` | `Promise<void>` | Remove your reaction from a message. |
+| `subscribers` | `subscribers(jid)` | `Promise<unknown>` | List the channel's subscribers. |
+| `messages` | `messages(jid, count?, opts?)` | `Promise<unknown>` | Fetch published messages. |
+| `adminCount` | `adminCount(jid)` | `Promise<number>` | Number of channel admins. |
+| `changeOwner` | `changeOwner(jid, newOwnerJid)` | `Promise<void>` | Transfer ownership. |
+| `demote` | `demote(jid, userJid)` | `Promise<void>` | Demote an admin to subscriber. |
+
+**Ban safety — operationGuard is ON by default.** Creating a channel and follow/unfollow
+operations are spaced by the built-in `operationGuard` to avoid the rapid-fire pattern WhatsApp
+flags as automated abuse:
+
+| Category | Default interval |
+| -------- | ---------------- |
+| `newsletter.create` | 120 s |
+| `newsletter.follow` | 2 s |
+| `newsletter.update` | 3 s |
+
+Calls queue behind each other per category and automatically wait until the interval has
+elapsed. You can tune or disable this via the `operationGuard` option when constructing the
+client. See [Configuration](/configuration#operationguard) and [Troubleshooting](/troubleshooting).
+
+## `create`
+
+```typescript
+create(
+  name: string,
+  opts?: { description?: string; picture?: Buffer },
+): Promise<NewsletterMetadata>
+```
+
+Creates a new WhatsApp Channel with the given display name. Optionally sets a description and a
+cover picture in the same call. Returns `NewsletterMetadata` with at minimum the channel's `id`
+(a `@newsletter` JID) that you will use for subsequent calls.
+
+When `picture` is provided, `create` first creates the channel and then uploads the picture as a
+second step — both steps run inside the `newsletter.create` guard slot.
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `name` | `string` | yes | Display name for the channel. |
+| `opts.description` | `string` | no | Short channel description shown on the info screen. |
+| `opts.picture` | `Buffer` | no | Channel cover image as a `Buffer`. |
+
+```typescript
+
+const client = new Client()
+
+client.on('connect', async () => {
+  const picture = readFileSync('./channel-cover.jpg')
+
+  const channel = await client.newsletter.create('zaileys updates', {
+    description: 'Release notes, tips, and announcements',
+    picture,
+  })
+
+  console.log('Channel JID:', channel.id)
+})
+```
+
+## `follow`
+
+```typescript
+follow(jid: string): Promise<void>
+```
+
+Follows the channel identified by `jid`. Subject to the `newsletter.follow` guard (2 s between
+calls).
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jid` | `string` | The `@newsletter` JID of the channel to follow. |
+
+```typescript
+await client.newsletter.follow('xxxxxxxxxxxxxxxxxx@newsletter')
+```
+
+## `unfollow`
+
+```typescript
+unfollow(jid: string): Promise<void>
+```
+
+Unfollows the channel identified by `jid`. Shares the same `newsletter.follow` guard slot as
+`follow` (2 s spacing between any follow/unfollow operations).
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jid` | `string` | The `@newsletter` JID of the channel to unfollow. |
+
+```typescript
+await client.newsletter.unfollow('xxxxxxxxxxxxxxxxxx@newsletter')
+```
+
+## `metadata`
+
+```typescript
+metadata(jid: string): Promise<NewsletterMetadata>
+```
+
+Fetches the metadata for the given channel. Throws `ZaileysDomainError` with code
+`NEWSLETTER_NOT_FOUND` if the channel does not exist or is not accessible.
+
+This method does **not** go through the operationGuard — it is a read-only lookup with no
+throttling.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jid` | `string` | The `@newsletter` JID to look up. |
+
+```typescript
+
+try {
+  const info = await client.newsletter.metadata('xxxxxxxxxxxxxxxxxx@newsletter')
+  console.log('Channel name:', info.name)
+  console.log('Subscribers:', info.subscriberCount)
+} catch (err) {
+  if (err instanceof ZaileysDomainError && err.code === 'NEWSLETTER_NOT_FOUND') {
+    console.error('Channel not found or inaccessible.')
+  }
+}
+```
+
+## `updateName`
+
+```typescript
+updateName(jid: string, name: string): Promise<void>
+```
+
+Renames the channel. You must be the channel owner.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jid` | `string` | The `@newsletter` JID of your channel. |
+| `name` | `string` | New display name. |
+
+```typescript
+await client.newsletter.updateName('xxxxxxxxxxxxxxxxxx@newsletter', 'zaileys — official')
+```
+
+## `updateDescription`
+
+```typescript
+updateDescription(jid: string, description: string): Promise<void>
+```
+
+Replaces the channel description. You must be the channel owner.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jid` | `string` | The `@newsletter` JID of your channel. |
+| `description` | `string` | New description text. |
+
+```typescript
+await client.newsletter.updateDescription(
+  'xxxxxxxxxxxxxxxxxx@newsletter',
+  'Now including weekly deep-dives and changelogs.',
+)
+```
+
+## `updatePicture`
+
+```typescript
+updatePicture(jid: string, picture: Buffer): Promise<void>
+```
+
+Replaces the channel cover picture. `picture` must be a `Buffer` containing the image data. You
+must be the channel owner.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jid` | `string` | The `@newsletter` JID of your channel. |
+| `picture` | `Buffer` | New cover image as a `Buffer`. |
+
+```typescript
+
+const newCover = readFileSync('./new-cover.png')
+await client.newsletter.updatePicture('xxxxxxxxxxxxxxxxxx@newsletter', newCover)
+```
+
+## `mute`
+
+```typescript
+mute(jid: string): Promise<void>
+```
+
+Mutes push notifications from the channel without unfollowing it.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jid` | `string` | The `@newsletter` JID to mute. |
+
+```typescript
+await client.newsletter.mute('xxxxxxxxxxxxxxxxxx@newsletter')
+```
+
+## `unmute`
+
+```typescript
+unmute(jid: string): Promise<void>
+```
+
+Re-enables push notifications for a previously muted channel.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jid` | `string` | The `@newsletter` JID to unmute. |
+
+```typescript
+await client.newsletter.unmute('xxxxxxxxxxxxxxxxxx@newsletter')
+```
+
+## `delete`
+
+```typescript
+delete(jid: string): Promise<void>
+```
+
+Permanently deletes the channel. This action is irreversible. You must be the channel owner.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jid` | `string` | The `@newsletter` JID of the channel to delete. |
+
+```typescript
+await client.newsletter.delete('xxxxxxxxxxxxxxxxxx@newsletter')
+```
+
+`delete` is permanent. There is no confirmation step — the channel and all its published content
+are removed immediately. Make sure you are passing the correct JID before calling this.
+
+## `removePicture`
+
+```typescript
+removePicture(jid: string): Promise<void>
+```
+
+Removes the channel's cover picture, leaving it without an image. You must be the channel owner.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jid` | `string` | The `@newsletter` JID of your channel. |
+
+```typescript
+await client.newsletter.removePicture('xxxxxxxxxxxxxxxxxx@newsletter')
+```
+
+## `react`
+
+```typescript
+react(jid: string, serverId: string, emoji: string): Promise<void>
+```
+
+Reacts to a published newsletter message with an emoji. The `serverId` identifies the target
+message within the channel.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jid` | `string` | The `@newsletter` JID of the channel. |
+| `serverId` | `string` | The server ID of the message to react to. |
+| `emoji` | `string` | The emoji to react with. |
+
+```typescript
+await client.newsletter.react('xxxxxxxxxxxxxxxxxx@newsletter', '100', '👍')
+```
+
+## `unreact`
+
+```typescript
+unreact(jid: string, serverId: string): Promise<void>
+```
+
+Removes your reaction from a newsletter message. Internally this is the same operation as `react`
+with no emoji.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jid` | `string` | The `@newsletter` JID of the channel. |
+| `serverId` | `string` | The server ID of the message to clear your reaction from. |
+
+```typescript
+await client.newsletter.unreact('xxxxxxxxxxxxxxxxxx@newsletter', '100')
+```
+
+## `subscribers`
+
+```typescript
+subscribers(jid: string): Promise<unknown>
+```
+
+Returns the list of subscribers for the channel. You must be the channel owner.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jid` | `string` | The `@newsletter` JID of your channel. |
+
+```typescript
+const subs = await client.newsletter.subscribers('xxxxxxxxxxxxxxxxxx@newsletter')
+console.log(subs)
+```
+
+## `messages`
+
+```typescript
+messages(
+  jid: string,
+  count = 50,
+  opts?: { since?: number; after?: number },
+): Promise<unknown>
+```
+
+Fetches published messages from the channel. By default returns up to 50 messages. Use `since` and
+`after` to paginate or window the result.
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `jid` | `string` | yes | The `@newsletter` JID of the channel. |
+| `count` | `number` | no | Maximum number of messages to fetch (default `50`). |
+| `opts.since` | `number` | no | Only return messages since this point. |
+| `opts.after` | `number` | no | Only return messages after this point. |
+
+```typescript
+// Latest 20 messages
+const recent = await client.newsletter.messages('xxxxxxxxxxxxxxxxxx@newsletter', 20)
+console.log(recent)
+```
+
+## `adminCount`
+
+```typescript
+adminCount(jid: string): Promise<number>
+```
+
+Returns the number of admins on the channel.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jid` | `string` | The `@newsletter` JID of the channel. |
+
+```typescript
+const admins = await client.newsletter.adminCount('xxxxxxxxxxxxxxxxxx@newsletter')
+console.log('Admins:', admins)
+```
+
+**Returns:** `number` — the admin count.
+
+## `changeOwner`
+
+```typescript
+changeOwner(jid: string, newOwnerJid: string): Promise<void>
+```
+
+Transfers ownership of the channel to another user. After this call you are no longer the owner.
+You must be the current channel owner.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jid` | `string` | The `@newsletter` JID of your channel. |
+| `newOwnerJid` | `string` | The user JID of the new owner. |
+
+```typescript
+await client.newsletter.changeOwner(
+  'xxxxxxxxxxxxxxxxxx@newsletter',
+  '628111111111@s.whatsapp.net',
+)
+```
+
+## `demote`
+
+```typescript
+demote(jid: string, userJid: string): Promise<void>
+```
+
+Demotes an admin of the channel back to a regular subscriber. You must be the channel owner.
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `jid` | `string` | The `@newsletter` JID of your channel. |
+| `userJid` | `string` | The user JID of the admin to demote. |
+
+```typescript
+await client.newsletter.demote(
+  'xxxxxxxxxxxxxxxxxx@newsletter',
+  '628111111111@s.whatsapp.net',
+)
+```
+
+## Error handling
+
+All `client.newsletter` methods throw `ZaileysDomainError` on failure. Import it from `zaileys`
+to handle errors precisely.
+
+```typescript
+
+try {
+  const info = await client.newsletter.metadata('xxxxxxxxxxxxxxxxxx@newsletter')
+  console.log(info.name)
+} catch (err) {
+  if (err instanceof ZaileysDomainError) {
+    switch (err.code) {
+      case 'NOT_CONNECTED':
+        console.error('Client is not connected. Wait for the connect event.')
+        break
+      case 'NEWSLETTER_NOT_FOUND':
+        console.error('Channel not found or no longer exists.')
+        break
+      default:
+        throw err
+    }
+  }
+}
+```
+
+| Code | Raised by | When |
+| ---- | --------- | ---- |
+| `NOT_CONNECTED` | every method | Client socket is not open. |
+| `NEWSLETTER_NOT_FOUND` | `metadata` | The requested channel does not exist or is inaccessible. |
+
+See [Error Handling](/error-handling) for the full error taxonomy.
+
+## Complete example
+
+```typescript
+
+const client = new Client({ sessionId: 'default' })
+
+client.on('connect', async () => {
+  // Create a channel with a picture
+  const picture = readFileSync('./cover.jpg')
+  const channel = await client.newsletter.create('My Project Updates', {
+    description: 'Changelogs and feature announcements',
+    picture,
+  })
+  console.log('Created:', channel.id)
+
+  // Follow another channel
+  await client.newsletter.follow('xxxxxxxxxxxxxxxxxx@newsletter')
+
+  // Fetch and log metadata
+  const info = await client.newsletter.metadata(channel.id)
+  console.log('Subscribers:', info.subscriberCount)
+
+  // Update details later
+  await client.newsletter.updateName(channel.id, 'My Project — Updates')
+  await client.newsletter.updateDescription(channel.id, 'Now with release notes!')
+
+  // Mute and then unmute notifications on a followed channel
+  await client.newsletter.mute('xxxxxxxxxxxxxxxxxx@newsletter')
+  await client.newsletter.unmute('xxxxxxxxxxxxxxxxxx@newsletter')
+})
+```
+
+## See also
+
+- [Client & Lifecycle](/client) — `client.newsletter` namespace overview and other domain modules.
+- [Configuration](/configuration#operationguard) — tune or disable the operationGuard intervals.
+- [Error Handling](/error-handling) — full error taxonomy and `ZaileysDomainError`.
+- [Troubleshooting](/troubleshooting) — what to do when operations are throttled or accounts are flagged.

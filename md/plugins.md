@@ -1,0 +1,475 @@
+# Plugins
+
+> Source: https://zeative.github.io/zaileys/plugins
+
+# Plugins
+
+The plugin system lets you split your bot logic across multiple files without any manual wiring.
+Point the loader at a directory, drop plugin files in, and zaileys imports them, runs their `setup`
+function, and — by default — watches for changes and hot-reloads them live. Every command,
+event listener, and middleware registered through a plugin is automatically cleaned up when the
+plugin unloads, so there are no leaked listeners across reloads or restarts.
+
+```typescript
+
+const client = new Client({
+  commandPrefix: '!',
+  plugins: { dir: './plugins' },
+})
+
+client.on('connect', ({ me }) => console.log('Plugin bot ready as', me.id))
+```
+
+Drop a plugin file:
+
+```typescript
+// plugins/greet.ts
+
+export default definePlugin({
+  name: 'greet',
+  description: 'Say hello',
+  message: async (ctx) => {
+    await ctx.reply('hi there 👋')
+  },
+})
+```
+
+Send `!greet` — the bot replies. Edit the file and watch it hot-reload.
+
+The plugin **is** the command: its `name` is the command name, and the fields beside it describe and
+guard it. Nothing is written twice.
+
+## Enabling plugins
+
+Plugins are **off by default**. Pass `plugins` to the `Client` constructor to activate the loader.
+
+```typescript
+
+const client = new Client({
+  plugins: { dir: './plugins' },
+})
+```
+
+| Option | Type | Default | Description |
+| ------ | ---- | ------- | ----------- |
+| `plugins` | `PluginsOptions` | `undefined` | Plugin loader configuration. Omit entirely to load no plugins. |
+
+### `PluginsOptions` fields
+
+| Option | Type | Default | Description |
+| ------ | ---- | ------- | ----------- |
+| `dir` | `string` | `'./plugins'` | Folder to scan for plugin files. Supports nested subfolders. |
+| `watch` | `boolean` | `true` | Hot-reload plugins when their file changes on disk. |
+| `pattern` | `RegExp` | `/\.(ts\|js\|mjs\|cjs)$/` | Files matching this pattern are treated as plugins. |
+| `ignore` | `RegExp` | `/(\.d\.ts$\|^_\|[/\\\\]_)/` | Files matching this pattern are skipped. By default skips `.d.ts` declaration files and any file or directory whose name starts with `_`. |
+| `onError` | `(err: unknown, file: string) => void` | `undefined` | Called when a plugin file fails to import. Useful for custom alerting. |
+
+The `ignore` default skips `_` -prefixed files and directories, so you can place shared helper
+modules (e.g. `_utils.ts`, `_types.ts`) alongside your plugin files without them being loaded as
+plugins.
+
+## Quick start
+
+### Create `plugins/greet.ts`
+
+```typescript
+
+export default definePlugin({
+  name: 'greet',
+  aliases: ['hi'],
+  description: 'Say hello',
+  cooldown: 3,
+
+  message: async (ctx) => {
+    await ctx.reply('hi there 👋')
+  },
+
+  image: (ctx) => {
+    console.log('someone sent a picture:', ctx.senderId)
+  },
+})
+```
+
+### Configure the client
+
+Pass `plugins` and a `commandPrefix` (required for commands to fire):
+
+```typescript
+
+const client = new Client({
+  commandPrefix: '!',
+  plugins: { dir: './plugins' },
+})
+
+client.on('connect', ({ me }) => console.log('Bot ready as', me.id))
+```
+
+### Run and edit
+
+Start your bot. Send `!hello` — the `greet` plugin handles it. Now edit `plugins/greet.ts` while
+the bot is running: zaileys detects the change, unloads the old version (running its disposers),
+re-imports the new one, and calls `setup` again — no restart needed. Delete the file to unload;
+add a new file to load it automatically.
+
+For commands registered inside a plugin to dispatch, the `Client` must have `commandPrefix`
+configured. Without it, command handlers are registered but never invoked. See
+[Commands](/commands) for prefix configuration and the full command API.
+
+## Authoring a plugin
+
+Every plugin file must export a plugin object as its **default export**. Use `definePlugin` to
+author it — this is an identity helper (zero runtime cost) that gives TypeScript full autocomplete
+on the `ctx` argument.
+
+```typescript
+
+export default definePlugin({
+  name: 'my-plugin',
+  description: 'What it does',
+  message: async (ctx) => { /* handles !my-plugin */ },
+  image: (ctx) => { /* every inbound image */ },
+})
+```
+
+### The `Plugin` shape
+
+| Field | Type | Description |
+| ----- | ---- | ----------- |
+| `name` | `string` | Required. Identifies the plugin **and** names the command it handles. `name: 'sticker'` answers `!sticker`. |
+| `message` | `(ctx, plugin) => void \| Promise<void>` | Handles that command. Omit if the plugin only listens to events. |
+| `setup` | `(ctx) => void \| (() => void) \| Promise<…>` | Optional escape hatch — see [below](#going-beyond-the-shorthands). |
+| `onUnload` | `() => void \| Promise<void>` | Optional cleanup, called on unload. |
+
+Beside those, a plugin carries **every field a command spec carries** — `aliases`, `description`,
+`usage`, `category`, `hidden`, `metadata`, and the guards `group`, `private`, `admin`, `cooldown`.
+They describe the command that `message` handles. See
+[Commands](/commands#describing-a-command) for the full table.
+
+```typescript
+export default definePlugin({
+  name: 'kick',
+  aliases: ['remove'],
+  description: 'Remove a member',
+  usage: '@user',
+  group: true,
+  admin: true,
+  cooldown: 3,
+  message: async (ctx) => { /* ... */ },
+})
+```
+
+`category` defaults to the plugin's folder, so `plugins/group/kick.ts` is categorised as `group`
+without saying so.
+
+Guards apply to **`message` only**. An event method like `image` receives the raw stream — check
+`ctx.isGroup` yourself if you need to narrow it. This keeps `admin` from triggering a group-metadata
+lookup on every message that passes through your bot.
+
+## Event methods
+
+Beside `message`, every inbound event has a matching optional method. Hyphenated event names become
+camelCase, so `poll-vote` is `pollVote`.
+
+```typescript
+export default definePlugin({
+  name: 'watcher',
+  text: (ctx) => console.log(ctx.senderId, ctx.text),
+  image: async (ctx) => { await ctx.reply('nice picture') },
+  pollVote: async (vote) => console.log(await vote.options()),
+  groupJoin: (event) => console.log('joined:', event.participants.length),
+  callIncoming: (call) => console.log('call from', call.from),
+})
+```
+
+Available: `text` · `image` · `video` · `audio` · `document` · `sticker` · `reaction` ·
+`edit` · `delete` · `pollVote` · `buttonClick` · `listSelect` · `mention` · `mentionAll` ·
+`groupUpdate` · `groupJoin` · `groupLeave` · `memberTag` · `callIncoming` · `callEnded` ·
+`historySync` · `limited` · `presence` · `newsletter`.
+
+There is no `message` event method — on a plugin that name is the **command handler**. To watch every
+inbound message regardless of type, use `setup(ctx)` and `ctx.on('message', …)`.
+
+Each is typed from [the event map](/events), so the payload needs no annotation. Listeners are
+removed automatically when the plugin unloads.
+
+### Reaching the client
+
+A command handler gets the client straight off its context:
+
+```typescript
+message: async (ctx) => {
+  await ctx.send().sticker(buffer)                            // this chat
+  await ctx.send('628xxx@s.whatsapp.net').text('halo')        // somewhere else
+  await ctx.client.group.removeMember(ctx.roomId!, ctx.mentions)
+},
+```
+
+Event payloads are plain message contexts and carry no client, so every handler also receives the
+**plugin context** as a second argument:
+
+```typescript
+image: async (ctx, plugin) => {
+  await plugin.client.send(ctx.roomId!).text('gambar diterima')
+},
+```
+
+## Going beyond the shorthands
+
+`setup(ctx)` is still there for what the fields cannot express: registering **several** commands
+from one file, adding middleware, or cleaning up a timer.
+
+```typescript
+export default definePlugin({
+  name: 'group-toggle',
+  setup(ctx) {
+    ctx.command({ name: 'open', description: 'Open the group', admin: true }, handler)
+    ctx.command({ name: 'close', description: 'Close the group', admin: true }, handler)
+
+    const timer = setInterval(check, 60_000)
+    return () => clearInterval(timer)
+  },
+})
+```
+
+Both styles can live in the same plugin — the declarative fields are wired first, then `setup` runs.
+
+### What `ctx` offers
+
+### `ctx.command(spec, handler)`
+
+Registers a command handler — identical to calling `client.command(spec, handler)` directly.
+Supports aliases (pipe-separated) and multi-word commands. The command is automatically
+de-registered when the plugin unloads.
+
+```typescript
+ctx.command('ping', async (ctx) => {
+  await ctx.reply('pong')
+})
+
+ctx.command('help|h|?', async (ctx) => {
+  await ctx.reply('Available: !ping, !help')
+})
+```
+
+Pass an object instead to describe the command or guard it. Inside a plugin the **`category`
+defaults to the plugin's folder**, so `plugins/group/kick.ts` needs no `category` field:
+
+```typescript
+// plugins/group/kick.ts
+ctx.command(
+  { name: 'kick', description: 'Remove a member', group: true, admin: true },
+  async (ctx) => { /* ... */ },
+)
+// registered with category: 'group'
+```
+
+`ctx.category` holds that folder name, or `undefined` for a plugin sitting directly in the plugins
+root. Setting `category` yourself always wins. See [Commands](/commands#describing-a-command) for
+every field.
+
+See [Commands](/commands) for the full command spec syntax, argument parsing, and `CommandContext`.
+
+### `ctx.use(middleware)`
+
+Registers a middleware function into the command dispatch chain — identical to `client.use(...)`.
+Runs in registration order before the matched command handler. Automatically removed on unload.
+
+```typescript
+ctx.use(async (c, next) => {
+  console.log(`[${ctx.name}] command: ${c.command} from ${c.senderId}`)
+  await next()
+})
+```
+
+### `ctx.on(event, handler)`
+
+Subscribes to a client event, returning an unsubscribe function. The subscription is automatically
+cleaned up when the plugin unloads, so you do not need to call the returned function yourself
+(though you may if you want to unsubscribe earlier).
+
+```typescript
+ctx.on('text', (msg) => {
+  if (msg.text.toLowerCase().includes('hello')) {
+    msg.reply('👋')
+  }
+})
+```
+
+### `ctx.once(event, handler)`
+
+Like `ctx.on` but fires only the first time the event fires, then unsubscribes. Also tracked and
+cleaned up on unload.
+
+```typescript
+ctx.once('connect', ({ me }) => {
+  ctx.logger?.info({ me: me.id }, 'greet plugin saw first connect')
+})
+```
+
+See [Events](/events) for the full event catalog and `MessageContext` fields.
+
+## The `PluginContext` object
+
+Every `setup` function receives a `PluginContext` (`ctx`). All registrations made through `ctx`
+are tracked and automatically reversed when the plugin unloads (LIFO order), guaranteeing no
+leaked listeners, commands, or middleware.
+
+| Member | Type | Description |
+| ------ | ---- | ----------- |
+| `client` | `Client` | The full `Client` instance. Call any client method directly from here. |
+| `logger` | `Logger \| undefined` | The client's logger instance. May be `undefined` if logging is disabled. |
+| `pluginDir` | `string` | Absolute path to the directory containing this plugin file. Useful for loading sibling assets (e.g. JSON config, image files). |
+| `category` | `string \| undefined` | The subfolder this plugin lives in, e.g. `'group'` for `plugins/group/kick.ts`. `undefined` for a plugin in the plugins root. Commands default their `category` to it. |
+| `command(spec, handler)` | `void` | Register a command. `spec` is a pipe string or a [command object](/commands#describing-a-command). Tracked — auto-removed on unload. |
+| `use(middleware)` | `void` | Register command middleware. Tracked — auto-removed on unload. |
+| `on(event, handler)` | `() => void` | Subscribe to a client event. Returns an unsubscribe fn. Tracked — auto-removed on unload. |
+| `once(event, handler)` | `() => void` | Like `on` but fires once. Returns an unsubscribe fn. Tracked — auto-removed on unload. |
+
+```typescript
+export default definePlugin({
+  name: 'example',
+  setup(ctx) {
+    // access the full client
+    const client = ctx.client
+
+    // log with the shared logger
+    ctx.logger?.info('example plugin loaded')
+
+    // load a sibling JSON file
+    const path = require('node:path')
+    const config = require(path.join(ctx.pluginDir, 'config.json'))
+
+    ctx.command('status', async (ctx) => {
+      await ctx.reply(`Mode: ${config.mode}`)
+    })
+  },
+})
+```
+
+## Loading & lifecycle
+
+### Startup scan
+
+On `client.connect()`, the loader recursively scans `dir` (including all nested subfolders),
+filters files by `pattern` and `ignore`, imports each matching file's default export, validates
+that it is a plugin (has `name` and `setup`), and calls `setup(ctx)`. Plugins are loaded in
+filesystem order.
+
+### Error isolation
+
+If a plugin file fails to import (syntax error, missing dependency, etc.) or if its `setup`
+function throws:
+
+- The error is logged via the client logger.
+- `onError` is called (if provided) for import failures.
+- Any partial registrations from a throwing `setup` are rolled back automatically.
+- The failed plugin is skipped — all other plugins continue working normally.
+
+"Safe" here means **error isolation**, not a security sandbox. Plugins are trusted code that runs
+in-process with full access to the `Client`, its internals, and the Node.js environment. Only
+load plugin files that you control. Never load plugins from untrusted sources.
+
+### Hot-reload (watch mode)
+
+With `watch: true` (the default), the loader watches the plugin directory for file system events:
+
+| File event | Loader action |
+| ---------- | ------------- |
+| File edited / saved | Unloads old version (disposers + `onUnload`), re-imports cache-busted file, calls `setup` on new version. |
+| File deleted | Unloads the plugin. |
+| New file added | Validates and loads the plugin. |
+
+Rapid saves are serialized — flush operations queue so back-to-back saves do not race. The loader
+survives transient reconnects and is **not** torn down on reconnect; it is fully stopped (with
+all plugins unloaded) only on `client.disconnect()`.
+
+```typescript
+// Disable hot-reload (useful in production builds)
+const client = new Client({
+  plugins: { dir: './plugins', watch: false },
+})
+```
+
+### Unload sequence
+
+When a plugin is unloaded (hot-reload, file deletion, or `client.disconnect()`), the following
+happens in order:
+
+1. Every `ctx.on` / `ctx.once` subscription is removed (LIFO).
+2. Every `ctx.command` registration is removed (LIFO).
+3. Every `ctx.use` middleware is removed (LIFO).
+4. The teardown function returned by `setup` (if any) is called.
+5. `onUnload` (if defined) is called.
+
+## Custom file patterns
+
+Use `pattern` and `ignore` to control which files the loader picks up.
+
+```typescript
+// Load only .plugin.ts files, ignore anything in __tests__
+const client = new Client({
+  plugins: {
+    dir: './src/plugins',
+    pattern: /\.plugin\.ts$/,
+    ignore: /__tests__/,
+  },
+})
+```
+
+```typescript
+// Load all .js and .ts files, but skip files starting with 'dev-'
+const client = new Client({
+  plugins: {
+    dir: './plugins',
+    pattern: /\.(ts|js)$/,
+    ignore: /(^dev-|\.d\.ts$)/,
+  },
+})
+```
+
+## Error callback
+
+`onError` is called when a plugin **file** fails to import (the `setup`-throw path is logged
+internally regardless). Use it for custom alerting:
+
+```typescript
+const client = new Client({
+  plugins: {
+    dir: './plugins',
+    onError(err, file) {
+      console.error(`Plugin load failed: ${file}`, err)
+      // send alert, increment metric, etc.
+    },
+  },
+})
+```
+
+## Types reference
+
+All plugin types are exported from `zaileys`:
+
+```typescript
+import type {
+  Plugin,
+  PluginContext,
+  PluginsOptions,
+} from 'zaileys'
+```
+
+| Type | Shape |
+| ---- | ----- |
+| `Plugin` | `{ name: string; setup(ctx: PluginContext): void \| (() => void) \| Promise<void \| (() => void)>; onUnload?(): void \| Promise<void> }` |
+| `PluginContext` | `{ client, logger, pluginDir, category, command, use, on, once }` — see table above |
+| `PluginsOptions` | `{ dir?, watch?, pattern?, ignore?, onError? }` — see table above |
+
+`definePlugin` is also exported and is the recommended way to author plugins:
+
+```typescript
+// definePlugin(plugin: Plugin): Plugin — identity helper, no runtime overhead
+```
+
+## See also
+
+- [Commands](/commands) — command registration, aliases, argument parsing, and middleware.
+- [Events](/events) — the full event catalog and `MessageContext` API available via `ctx.on`.
+- [Configuration](/configuration) — all `Client` constructor options including `commandPrefix`.

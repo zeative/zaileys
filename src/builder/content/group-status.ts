@@ -3,12 +3,14 @@ import { ZaileysBuilderError } from '../errors.js'
 import { RELAY_CONTENT_KEY, RELAY_REQUIRE_GROUP_KEY, RELAY_STATUS_MEDIA_KEY, type StatusMedia } from './buttons.js'
 import { loadMedia } from '../media-loader.js'
 import type {
+  GroupStatusAudience,
   GroupStatusFont,
   GroupStatusMedia,
   GroupStatusOptions,
   GroupStatusRepostOptions,
   GroupStatusSource,
   MediaSource,
+  StatusAudienceMetadata,
 } from '../types.js'
 
 const MAX_ARGB = 0xffffffff
@@ -71,17 +73,59 @@ export const resolveStatusFont = (value: GroupStatusFont | number): number => {
   return resolved
 }
 
+/** Resolves status audience options into StatusAudienceMetadata for group status posts. */
+export const resolveStatusAudience = (audience?: GroupStatusAudience): StatusAudienceMetadata | undefined => {
+  if (audience === undefined) return undefined
+  if (audience === 'everyone') {
+    return { audienceType: 0 }
+  }
+  if (audience === 'close-friends') {
+    return { audienceType: 1, listEmoji: '⭐', listName: 'Teman Dekat' }
+  }
+  if (typeof audience === 'object' && audience !== null) {
+    const res: StatusAudienceMetadata = {
+      audienceType: audience.audienceType ?? 1,
+    }
+    if (audience.listEmoji !== undefined && audience.listEmoji !== '') {
+      res.listEmoji = audience.listEmoji
+    }
+    if (audience.listName !== undefined && audience.listName !== '') {
+      res.listName = audience.listName
+    }
+    return res
+  }
+  return invalid(`groupStatus() audience must be 'everyone', 'close-friends', or an audience object, got ${String(audience)}`)
+}
+
 export const buildGroupStatusContent = (text: string, opts?: GroupStatusOptions): AnyMessageContent => {
   if (typeof text !== 'string' || text.trim().length === 0) {
     throw new ZaileysBuilderError('EMPTY_CONTENT', 'groupStatus() requires a non-empty string')
   }
-  const extendedTextMessage: Record<string, unknown> = { text }
+  const extendedTextMessage: Record<string, unknown> = {
+    text,
+    textArgb: 4294967040,
+    previewType: 0,
+    inviteLinkGroupTypeV2: 0,
+  }
   if (opts?.backgroundColor !== undefined) {
     extendedTextMessage['backgroundArgb'] = parseStatusArgb(opts.backgroundColor)
   }
   if (opts?.font !== undefined) {
     extendedTextMessage['font'] = resolveStatusFont(opts.font)
   }
+  const contextInfo: Record<string, unknown> = {
+    isGroupStatus: true,
+    statusAttributions: [{ type: 10 }],
+    featureEligibilities: { canBeReshared: true, canReceiveMultiReact: true },
+    statusSourceType: opts?.statusSourceType ?? 4,
+  }
+  if (opts?.audience !== undefined) {
+    const audience = resolveStatusAudience(opts.audience)
+    if (audience !== undefined) {
+      contextInfo['statusAudienceMetadata'] = audience
+    }
+  }
+  extendedTextMessage['contextInfo'] = contextInfo
   return wrapStatus({ extendedTextMessage })
 }
 
@@ -134,7 +178,22 @@ const buildTextRepost = (
   }
   const node = copy['extendedTextMessage'] as Record<string, unknown>
   delete node['viewOnce']
-  node['contextInfo'] = {}
+  node['textArgb'] = 4294967040
+  node['previewType'] = 0
+  node['inviteLinkGroupTypeV2'] = 0
+  const contextInfo: Record<string, unknown> = {
+    isGroupStatus: true,
+    statusAttributions: [{ type: 10 }],
+    featureEligibilities: { canBeReshared: true, canReceiveMultiReact: true },
+    statusSourceType: 4,
+  }
+  if (opts?.audience !== undefined) {
+    const audience = resolveStatusAudience(opts.audience)
+    if (audience !== undefined) {
+      contextInfo['statusAudienceMetadata'] = audience
+    }
+  }
+  node['contextInfo'] = contextInfo
   if (opts?.caption !== undefined) node['text'] = opts.caption
   return wrapStatus({ extendedTextMessage: node })
 }
@@ -151,7 +210,9 @@ export const buildGroupStatusRepost = async (
   if (fresh !== null) {
     const opt = source as GroupStatusMedia
     const { buffer } = await loadMedia(fresh.src)
+    const audience = opts?.audience ?? opt.audience
     const media: StatusMedia = { kind: fresh.kind, buffer }
+    if (audience !== undefined) media.audience = audience
     const caption = opts?.caption ?? opt.caption
     if (fresh.kind !== 'audio' && caption !== undefined) media.caption = caption
     if (fresh.kind === 'audio' && opt.ptt === true) media.ptt = true
@@ -177,7 +238,9 @@ export const buildGroupStatusRepost = async (
         cause: err,
       })
     }
+    const audience = opts?.audience
     const media: StatusMedia = { kind, buffer }
+    if (audience !== undefined) media.audience = audience
     const caption = opts?.caption ?? (node['caption'] as string | undefined)
     if (kind !== 'audio' && caption !== undefined) media.caption = caption
     if (kind === 'audio' && node['ptt'] === true) media.ptt = true

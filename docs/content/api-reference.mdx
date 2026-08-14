@@ -166,8 +166,8 @@ client
 | `template(opts)` | `(opts: TemplateOptions)` | Template message. |
 | `event(opts)` | `(opts: EventOptions)` | Event message (`name`, `startAt`, optional `endAt`/`location`/`call`/`canceled`). |
 | `groupInvite(opts)` | `(opts: GroupInviteOptions)` | Group-invite card (`jid`, `code`, optional `subject`/`caption`/`expiresAt`/`thumbnail`). |
-| `groupStatus(text, opts?)` | `(text: string, opts?: GroupStatusOptions)` | Group status post (`backgroundColor`, `font`). Groups only. |
-| `groupStatus(source, opts?)` | `(source: GroupStatusSource, opts?: GroupStatusRepostOptions)` | Repost a message, or post fresh media (`{ image\|video\|audio, caption?, ptt? }`), as a group status. Media is always re-uploaded. |
+| `groupStatus(text, opts?)` | `(text: string, opts?: GroupStatusOptions)` | Group status post (`backgroundColor`, `font`, experimental `audience`). Groups only. |
+| `groupStatus(source, opts?)` | `(source: GroupStatusSource, opts?: GroupStatusRepostOptions)` | Repost a message, or post fresh media (`{ image\|video\|audio, caption?, ptt?, audience? }`), as a group status (audience metadata is experimental). Media is always re-uploaded. |
 | `product(opts)` | `(opts: ProductOptions)` | Business product card (`image`, `title`, `businessOwnerId`, optional `price`/`currency`/`productId`/etc.). |
 | `requestPhoneNumber()` | `()` | Ask the recipient to share their phone number. |
 | `sharePhoneNumber()` | `()` | Share your own phone number. |

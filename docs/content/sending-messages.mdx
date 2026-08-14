@@ -416,9 +416,15 @@ Signature: `groupStatus(text, opts?)`.
 | `text` | `string` | **required** | The status text. |
 | `backgroundColor` | `string \| number` | — | `#RGB`, `#RRGGBB`, `#AARRGGBB` (with or without `#`), or a raw ARGB integer. |
 | `font` | `GroupStatusFont \| number` | — | `system`, `system-text`, `fb-script`, `system-bold`, `morningbreeze`, `calistoga`, `exo2`, `courierprime`. A raw `FontType` integer also works. |
+| `audience` | `'everyone' \| 'close-friends' \| StatusAudienceMetadata` | — | *(Experimental / WIP)* Target audience metadata (e.g. `'close-friends'`, `'everyone'`, or `{ audienceType, listEmoji, listName }`). |
 
 Both a hex string and a raw ARGB integer are verified to render. Note that baileys' own `assertColor`
 returns `undefined` for numeric input, so zaileys parses colours itself rather than delegating.
+
+<Callout type="warning">
+  **Close Friends (`audience`) status metadata is Experimental / WIP.**
+  WhatsApp's status audience and close friends badge rendering is currently being rolled out across different WhatsApp client versions and platform builds. The underlying metadata envelope is transmitted, but visual indicators in the WhatsApp viewer UI may vary.
+</Callout>
 
 <Callout>
   `.mentions()` attaches `mentionedJid` to the status, but WhatsApp does not surface it — the status
@@ -437,13 +443,14 @@ client.on('message', async (ctx) => {
   const original = await ctx.replied()
   if (!original) return ctx.reply('Reply to a message first')
 
-  await client.send(ctx.chatId).groupStatus(original)
+  await client.send(ctx.chatId).groupStatus(original, { audience: 'close-friends' })
 })
 ```
 
 | Option | Type | Default | Description |
 | --- | --- | --- | --- |
 | `caption` | `string` | original text | Replaces the status text. |
+| `audience` | `'everyone' \| 'close-friends' \| StatusAudienceMetadata` | — | Status audience metadata. |
 
 ### Media status
 
@@ -455,6 +462,7 @@ upload and cannot reuse another message's media pointers.
 await client.send(groupJid).groupStatus({
   image: './poster.jpg',
   caption: 'Promo hari ini',
+  audience: 'close-friends',
 })
 
 await client.send(groupJid).groupStatus({ audio: './voice.ogg', ptt: true })
@@ -465,6 +473,7 @@ await client.send(groupJid).groupStatus({ audio: './voice.ogg', ptt: true })
 | `image` / `video` / `audio` | `MediaSource` | A file path, `Buffer`, or URL. Exactly one. |
 | `caption` | `string` | Caption for image and video. Ignored for audio. |
 | `ptt` | `boolean` | Send an audio status as a voice note. |
+| `audience` | `'everyone' \| 'close-friends' \| StatusAudienceMetadata` | Target audience metadata (e.g. `'close-friends'`, `'everyone'`, or custom list). |
 
 <Callout type="info">
   **Why media is always re-uploaded.** A status cannot reuse another message's media pointers, so

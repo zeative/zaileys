@@ -15,3 +15,4 @@ export {
   resolveUsername,
   type UsernameResolveSocketLike,
 } from './username-resolve.js'
+export { resolveStatusAudience } from './content/group-status.js'

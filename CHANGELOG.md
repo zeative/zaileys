@@ -1,5 +1,11 @@
 # zaileys
 
+## 4.11.2
+
+### Patch Changes
+
+- inherit the chat disappearing timer when replying
+
 ## 4.11.1
 
 ### Patch Changes

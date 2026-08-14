@@ -36,8 +36,18 @@ omitting the option all leave the command framework disabled — your `command()
 never fire.
 </Callout>
 
-Commands are matched on the `text` event stream, so they work in DMs, groups, and any chat that
-produces a text message. See [Events](/events) for the full event surface.
+Commands are matched on every inbound message, in DMs and groups alike — **including media
+captions**. Sending a photo captioned `!sticker` runs the `sticker` command with the photo attached
+as `ctx.media`, which is how most WhatsApp bots are actually used.
+
+```typescript
+client.command('sticker', async (ctx) => {
+  if (ctx.media?.type !== 'image') return ctx.reply('Send a photo captioned !sticker')
+  await ctx.send().sticker(await ctx.media.buffer())
+})
+```
+
+See [Events](/events) for the full event surface.
 
 ## Registering a command
 

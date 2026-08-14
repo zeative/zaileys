@@ -30,7 +30,7 @@ const connected = () => {
 
 /** Fires a text message through the real dispatcher and waits for the async guard chain. */
 const send = async (client: Client, text: string, isGroup = true): Promise<void> => {
-  client.emit('text', msg(text, isGroup))
+  client.emit('message', msg(text, isGroup))
   await new Promise((r) => setTimeout(r, 10))
 }
 

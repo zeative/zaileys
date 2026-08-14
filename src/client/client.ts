@@ -782,10 +782,14 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       middleware: this.commandMiddleware,
       prefixes: this.commandPrefixes,
       logger: this.logger,
+      /**
+       * `message` rather than `text`: a command is just as often a media caption (`.sticker` on a
+       * photo), and the `text` event deliberately excludes captions.
+       */
       onText: (handler) => {
         const wrapped = (msg: MessageContext): void => handler(msg)
-        this.on('text', wrapped)
-        return () => this.off('text', wrapped)
+        this.on('message', wrapped)
+        return () => this.off('message', wrapped)
       },
       buildContext: (resolved, msg) => this.buildCommandContext(resolved, msg),
       isAdmin: (groupJid, senderJid) => this.isGroupAdmin(groupJid, senderJid),

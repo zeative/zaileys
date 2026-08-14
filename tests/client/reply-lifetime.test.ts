@@ -54,7 +54,7 @@ describe('replies inherit the disappearing timer', () => {
     client.command('ping', async (ctx) => {
       await ctx.reply('pong')
     })
-    client.emit('text', msg(604800))
+    client.emit('message', msg(604800))
     await new Promise((r) => setTimeout(r, 20))
     expect(optionsOf(sendMessage).ephemeralExpiration).toBe(604800)
   })
@@ -64,7 +64,7 @@ describe('replies inherit the disappearing timer', () => {
     client.command('ping', async (ctx) => {
       await ctx.reply('pong')
     })
-    client.emit('text', msg())
+    client.emit('message', msg())
     await new Promise((r) => setTimeout(r, 20))
     expect(optionsOf(sendMessage).ephemeralExpiration).toBeUndefined()
   })

@@ -62,7 +62,7 @@ describe('plugin file to dispatched command', () => {
       { name: 'ping', aliases: [], description: 'Cek bot', category: 'info' },
     ])
 
-    client.emit('text', msg('!ping'))
+    client.emit('message', msg('!ping'))
     await new Promise((r) => setTimeout(r, 20))
     expect((globalThis as Record<string, unknown>)['__hit']).toBe('ping')
   })
@@ -88,7 +88,7 @@ describe('plugin file to dispatched command', () => {
     )
     await boot()
 
-    client.emit('text', msg('!legacy'))
+    client.emit('message', msg('!legacy'))
     await new Promise((r) => setTimeout(r, 20))
     expect((globalThis as Record<string, unknown>)['__legacy']).toBe(true)
   })

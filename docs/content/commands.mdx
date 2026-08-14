@@ -225,6 +225,7 @@ normal text message is available (`ctx.senderId`, `ctx.roomId`, `ctx.isGroup`, `
 | Field / Method | Type | Description |
 | -------------- | ---- | ----------- |
 | `client` | `Client` | The client that received the command. Lets a handler call any client method without importing anything. |
+| `send(to?)` | `MessageBuilder` | Starts a message aimed at **this chat**. Pass a jid to send elsewhere. Shorthand for `ctx.client.send(ctx.roomId)`. |
 | `command` | `string` | The canonical command name that matched (e.g. `'help'`, `'group kick'`). |
 | `args` | `string[]` | Positional arguments after the command name. Flags and the leading command words are removed. |
 | `flags` | `Record<string, string \| boolean>` | Parsed `--flag` options. `true` for boolean flags, the string value otherwise. |

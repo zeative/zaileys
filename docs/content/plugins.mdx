@@ -220,6 +220,8 @@ A command handler gets the client straight off its context:
 
 ```typescript
 message: async (ctx) => {
+  await ctx.send().sticker(buffer)                            // this chat
+  await ctx.send('628xxx@s.whatsapp.net').text('halo')        // somewhere else
   await ctx.client.group.removeMember(ctx.roomId!, ctx.mentions)
 },
 ```

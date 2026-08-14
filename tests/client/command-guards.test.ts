@@ -183,3 +183,39 @@ describe('ctx.client', () => {
     expect(seen).toBe(client)
   })
 })
+
+describe('ctx.send', () => {
+  const sendingClient = () => {
+    const sendMessage = vi.fn(async () => ({ key: { remoteJid: SENDER, id: 'OUT', fromMe: true } }))
+    const client = connected()
+    ;(client as unknown as { _socket: unknown })._socket = { user: { id: SELF }, sendMessage }
+    return { client, sendMessage }
+  }
+
+  it('defaults to the chat the command came from', async () => {
+    const { client, sendMessage } = sendingClient()
+    client.command('hi', async (ctx) => {
+      await ctx.send().text('halo')
+    })
+    await send(client, '!hi')
+    expect((sendMessage.mock.calls[0] as unknown as [string])[0]).toBe(GROUP)
+  })
+
+  it('sends elsewhere when a jid is given', async () => {
+    const { client, sendMessage } = sendingClient()
+    client.command('hi', async (ctx) => {
+      await ctx.send('628999@s.whatsapp.net').text('halo')
+    })
+    await send(client, '!hi')
+    expect((sendMessage.mock.calls[0] as unknown as [string])[0]).toBe('628999@s.whatsapp.net')
+  })
+
+  it('falls back to the sender in a chat with no room', async () => {
+    const { client, sendMessage } = sendingClient()
+    client.command('hi', async (ctx) => {
+      await ctx.send().text('halo')
+    })
+    await send(client, '!hi', false)
+    expect((sendMessage.mock.calls[0] as unknown as [string])[0]).toBe(SENDER)
+  })
+})

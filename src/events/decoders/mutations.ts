@@ -151,9 +151,9 @@ export const decodePollVote = (update: MessageUpdate, ctx: MutationContext): Pol
     return {
       pollKey,
       selectedOptions: hashes,
-      options: () => resolveOptionNames(pollKey, hashes, ctx),
       voter: sender,
       timestamp: numberOr(fromUpdates.senderTimestampMs, numberOr(update.update.messageTimestamp, 0)),
+      options: () => resolveOptionNames(pollKey, hashes, ctx),
     }
   }
   if (inner) {
@@ -162,9 +162,9 @@ export const decodePollVote = (update: MessageUpdate, ctx: MutationContext): Pol
     return {
       pollKey,
       selectedOptions: [],
-      options: () => Promise.resolve([]),
       voter: sender,
       timestamp: numberOr(inner.senderTimestampMs, numberOr(update.update.messageTimestamp, 0)),
+      options: () => Promise.resolve([]),
     }
   }
   return null

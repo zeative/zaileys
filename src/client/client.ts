@@ -844,12 +844,13 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     let lastSentKey: WAMessageKey | undefined
     return {
       ...msg,
-      client: this,
       raw: resolved.raw,
       command: resolved.command,
       args: resolved.args,
       flags: resolved.flags,
       json: resolved.json,
+      client: this,
+      send: (to?: string) => this.send(to ?? msg.roomId ?? msg.senderId),
       reply: async (content: string, opts?: TextOptions): Promise<WAMessageKey> => {
         const target = msg.message().key.remoteJid ?? msg.roomId ?? msg.senderId
         const key = await this.replyWithSameLifetime(target, content, opts, msg.message())

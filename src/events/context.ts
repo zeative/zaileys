@@ -278,12 +278,12 @@ export interface MessageContext {
   mentionedGroups: string[]
   ad?: AdAttribution
   business?: BusinessInfo
+  media?: ContextMedia
+  citation: CitationPredicates
   roomName(): Promise<string | null>
   receiverName(): Promise<string | null>
-  media?: ContextMedia
   replied(): Promise<MessageContext | null>
   message(): WAMessage
-  citation: CitationPredicates
   reply(content: string, opts?: TextOptions): Promise<WAMessageKey>
   react(emoji: string): Promise<WAMessageKey>
 }
@@ -519,17 +519,14 @@ export const buildMessageContext = (input: BuildContextInput): MessageContext =>
     mentionedGroups: input.mentionedGroups ?? [],
     ...(input.ad !== undefined ? { ad: input.ad } : {}),
     ...(input.business !== undefined ? { business: input.business } : {}),
+    ...(input.media !== undefined ? { media: input.media } : {}),
+    citation: makeCitation(input.citationConfig, input.sender.pn ?? input.sender.jid),
     roomName: input.resolveRoomName,
     receiverName: input.resolveReceiverName,
     replied: input.resolveReplied,
+    message: () => input.message,
     reply: input.reply,
     react: input.react,
-    message: () => input.message,
-    citation: makeCitation(input.citationConfig, input.sender.pn ?? input.sender.jid),
-  }
-
-  if (input.media !== undefined) {
-    ctx.media = input.media
   }
 
   return ctx

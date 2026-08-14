@@ -119,10 +119,11 @@ export class MessageBuilder<State extends BuilderState> {
     recipient: string,
     resolveRecipient?: (raw: string) => Promise<string>,
     recordSent?: (message: WAMessage) => void,
+    inheritDisappearing?: (jid: string) => number | undefined,
   ): MessageBuilder<'init'> {
     return new MessageBuilder<'init'>(
       socket,
-      createInternalState(recipient, resolveRecipient, recordSent),
+      createInternalState(recipient, resolveRecipient, recordSent, inheritDisappearing),
     )
   }
 
@@ -348,6 +349,11 @@ export class MessageBuilder<State extends BuilderState> {
       if (this.internal.resolveRecipient) {
         this.internal.recipient = await this.internal.resolveRecipient(this.internal.recipient)
         delete this.internal.resolveRecipient
+      }
+      /** Resolved once here so text, media, album and relay sends all inherit the chat's timer. */
+      if (this.internal.disappearingSeconds === undefined) {
+        const inherited = this.internal.inheritDisappearing?.(this.internal.recipient)
+        if (inherited !== undefined && inherited > 0) this.internal.disappearingSeconds = inherited
       }
       if (this.internal.statusJidList !== undefined && this.internal.recipient !== STATUS_BROADCAST_JID) {
         throw new ZaileysBuilderError(

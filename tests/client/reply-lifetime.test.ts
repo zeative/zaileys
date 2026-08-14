@@ -24,6 +24,7 @@ const msg = (expiration?: number): MessageContext =>
     senderId: SENDER,
     roomId: SENDER,
     isGroup: false,
+    ephemeralDuration: expiration ?? null,
     message: () => quoted(expiration),
   }) as unknown as MessageContext
 
@@ -65,6 +66,48 @@ describe('replies inherit the disappearing timer', () => {
     })
     client.emit('text', msg())
     await new Promise((r) => setTimeout(r, 20))
+    expect(optionsOf(sendMessage).ephemeralExpiration).toBeUndefined()
+  })
+})
+
+describe('every send into a disappearing chat inherits its timer', () => {
+  /** Teaches the client the chat's timer the way a real inbound message would. */
+  const learn = (client: Client, seconds: number): void => {
+    client.emit('message', msg(seconds))
+  }
+
+  it('applies it to a plain text send, not just a reply', async () => {
+    const { client, sendMessage } = connected()
+    learn(client, 86400)
+    await client.send(SENDER).text('halo')
+    expect(optionsOf(sendMessage).ephemeralExpiration).toBe(86400)
+  })
+
+  it('applies it to media — the sticker case', async () => {
+    const { client, sendMessage } = connected()
+    learn(client, 604800)
+    await client.send(SENDER).image(Buffer.from('jpeg'))
+    expect(optionsOf(sendMessage).ephemeralExpiration).toBe(604800)
+  })
+
+  it('never overrides a timer the caller set explicitly', async () => {
+    const { client, sendMessage } = connected()
+    learn(client, 604800)
+    await client.send(SENDER).text('halo').disappearing(60)
+    expect(optionsOf(sendMessage).ephemeralExpiration).toBe(60)
+  })
+
+  it('adds nothing for a chat it has never seen', async () => {
+    const { client, sendMessage } = connected()
+    await client.send('628999@s.whatsapp.net').text('halo')
+    expect(optionsOf(sendMessage).ephemeralExpiration).toBeUndefined()
+  })
+
+  it('forgets the timer once the chat stops disappearing', async () => {
+    const { client, sendMessage } = connected()
+    learn(client, 604800)
+    client.emit('message', msg())
+    await client.send(SENDER).text('halo')
     expect(optionsOf(sendMessage).ephemeralExpiration).toBeUndefined()
   })
 })

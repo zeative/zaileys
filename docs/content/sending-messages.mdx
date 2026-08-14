@@ -647,6 +647,15 @@ Send as an ephemeral/disappearing message. Takes a **positive integer** number o
 await client.send(to).text('self-destructs in a day').disappearing(86400)
 ```
 
+<Callout type="info">
+**You rarely need this.** zaileys learns each chat's disappearing timer from the messages it
+receives, and every send into that chat inherits it automatically — replies, media, stickers,
+albums alike. Call `.disappearing()` only to override the chat's own timer.
+
+A message sent *without* the chat's timer is what makes WhatsApp show
+*"this message won't disappear"* beside it.
+</Callout>
+
 ### `.to(recipient)`
 
 Reassign the recipient on an `init`-state builder before adding content (rarely needed since

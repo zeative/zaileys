@@ -300,9 +300,10 @@ A few values come from your `Client` config rather than the raw message:
 - **`isSpam` is reserved** and always `false` today. Use `forwardCount >= 5` for chain-message detection.
 - **Answer only live messages.** After a reconnect WhatsApp replays everything you missed. Guard with
   `if (ctx.isOld) return` unless you deliberately want to process the backlog.
-- **`ctx.reply()` inherits the disappearing timer automatically.** An answer in a disappearing chat
-  disappears with it. Only `client.send(...)` needs `.disappearing(ctx.ephemeralDuration)` passed by
-  hand — without it WhatsApp marks the message *"this message won't disappear"*.
+- **Disappearing timers are inherited automatically.** zaileys learns each chat's timer from its
+  inbound messages, so `ctx.reply()` **and** every `client.send(...)` into that chat — text, media,
+  stickers, albums — carry it without you asking. Pass `.disappearing(seconds)` only to override it.
+  Messages sent without the timer are the ones WhatsApp flags *"this message won't disappear"*.
 - **`senderUsername` is usually `null` — WhatsApp sends the phone number _or_ the username, never
   both.** A username is the fallback handle for a sender whose number you cannot see, so it stays
   `null` for anyone whose phone number your account already knows (which is most people). It arrives

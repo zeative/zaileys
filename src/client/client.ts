@@ -210,6 +210,8 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private readonly presenceThrottle: PresenceThrottleOptions | undefined
   private readonly scheduleLimiter: RateLimiter | undefined
   private authExhausted = false
+  /** Each chat's disappearing timer, learned from inbound messages so outbound sends can inherit it. */
+  private readonly chatExpiration = new Map<string, number>()
   private _socket: BaileysSocket | undefined
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined
   private listenerCleanup: SocketCleanup[] = []
@@ -269,6 +271,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.qrTerminal = options.qrTerminal ?? true
     this.statusLog = options.statusLog ?? true
     if (this.statusLog) suppressLibsignalNoise()
+    this.on('message', (msg) => this.rememberChatExpiration(msg))
     this.reconnectOptions = options.reconnect ?? {}
     this.baileysExtra = options.baileys ?? {}
     this.auth = options.auth ?? new FileAuthStore({ basePath: `./.zaileys/auth/${this.sessionId}` })
@@ -873,10 +876,31 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     const recordSent = (message: WAMessage): void => {
       void this.store.saveMessage(message).catch((err) => this.logger.warn(err, 'recordSent failed'))
     }
+    const inherit = (jid: string): number | undefined => this.chatExpiration.get(jid)
     if (this._provider === 'cloud' || isJid(to)) {
-      return MessageBuilder.create(socket, to, undefined, recordSent)
+      return MessageBuilder.create(socket, to, undefined, recordSent, inherit)
     }
-    return MessageBuilder.create(socket, to, (raw) => this.resolveRecipient(raw), recordSent)
+    return MessageBuilder.create(
+      socket,
+      to,
+      (raw) => this.resolveRecipient(raw),
+      recordSent,
+      inherit,
+    )
+  }
+
+  private rememberChatExpiration(msg: MessageContext): void {
+    const room = msg.roomId
+    if (room === null) return
+    if (msg.ephemeralDuration === null) {
+      this.chatExpiration.delete(room)
+      return
+    }
+    if (this.chatExpiration.size >= 500 && !this.chatExpiration.has(room)) {
+      const oldest = this.chatExpiration.keys().next().value
+      if (oldest !== undefined) this.chatExpiration.delete(oldest)
+    }
+    this.chatExpiration.set(room, msg.ephemeralDuration)
   }
 
   edit(key: WAMessageKey): EditBuilder {

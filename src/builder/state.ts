@@ -13,14 +13,18 @@ export type BuilderInternalState = {
   disappearingSeconds?: number
   resolveRecipient?: (raw: string) => Promise<string>
   recordSent?: (message: WAMessage) => void
+  /** The chat's own disappearing timer, applied when the caller did not set one. */
+  inheritDisappearing?: (jid: string) => number | undefined
 }
 
 export const createInternalState = (
   recipient: string,
   resolveRecipient?: (raw: string) => Promise<string>,
   recordSent?: (message: WAMessage) => void,
+  inheritDisappearing?: (jid: string) => number | undefined,
 ): BuilderInternalState => ({
   recipient,
   ...(resolveRecipient ? { resolveRecipient } : {}),
   ...(recordSent ? { recordSent } : {}),
+  ...(inheritDisappearing ? { inheritDisappearing } : {}),
 })

@@ -1,5 +1,11 @@
 # zaileys
 
+## 4.14.1
+
+### Patch Changes
+
+- dispatch commands sent as a media caption
+
 ## 4.14.0
 
 ### Minor Changes

@@ -1,6 +1,6 @@
 import { proto, type AnyMessageContent } from 'baileys'
 import { ZaileysBuilderError } from '../errors.js'
-import type { BottomSheetOptions, ButtonDef, InteractiveButton, LimitedTimeOfferOptions, MediaSource } from '../types.js'
+import type { BottomSheetOptions, ButtonDef, GroupStatusAudience, InteractiveButton, LimitedTimeOfferOptions, MediaSource } from '../types.js'
 
 const MAX_BUTTONS = 10
 
@@ -14,7 +14,13 @@ export const RELAY_REQUIRE_GROUP_KEY = '__zaileysRequireGroupJid'
 /** Carries a downloaded media buffer that `sendRelay` re-uploads and injects into the status envelope. */
 export const RELAY_STATUS_MEDIA_KEY = '__zaileysStatusMedia'
 
-export type StatusMedia = { kind: 'image' | 'video' | 'audio'; buffer: Buffer; caption?: string; ptt?: boolean }
+export type StatusMedia = {
+  kind: 'image' | 'video' | 'audio'
+  buffer: Buffer
+  caption?: string
+  ptt?: boolean
+  audience?: GroupStatusAudience
+}
 
 export type HeaderMedia = { kind: 'image' | 'video'; src: MediaSource }
 

@@ -31,7 +31,7 @@ import { buildContactContent } from './content/contact.js'
 import { buildDocumentContent } from './content/document.js'
 import { buildEventContent } from './content/event.js'
 import { buildGroupInviteContent } from './content/group-invite.js'
-import { buildGroupStatusContent, buildGroupStatusRepost } from './content/group-status.js'
+import { buildGroupStatusContent, buildGroupStatusRepost, resolveStatusAudience } from './content/group-status.js'
 import { buildImageContent } from './content/image.js'
 import { buildListContent } from './content/list.js'
 import { buildLocationContent } from './content/location.js'
@@ -459,6 +459,14 @@ export class MessageBuilder<State extends BuilderState> {
     const payload: Record<string, unknown> = { [media.kind]: media.buffer }
     if (media.caption !== undefined) payload['caption'] = media.caption
     if (media.ptt === true) payload['ptt'] = true
+    const audience = resolveStatusAudience(media.audience)
+    payload['contextInfo'] = {
+      isGroupStatus: true,
+      pairedMediaType: 'NOT_PAIRED_MEDIA',
+      statusAttributions: [{ type: 10 }],
+      featureEligibilities: { canBeReshared: true, canReceiveMultiReact: true },
+      ...(audience !== undefined ? { statusAudienceMetadata: audience } : {}),
+    }
     try {
       const built = (await generateWAMessageContent(payload as never, {
         upload: this.socket.waUploadToServer,

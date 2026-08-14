@@ -5,6 +5,7 @@ import {
   buildGroupStatusContent,
   buildGroupStatusRepost,
   parseStatusArgb,
+  resolveStatusAudience,
   resolveStatusFont,
 } from '../../src/builder/content/group-status.js'
 import {
@@ -97,6 +98,51 @@ describe('resolveStatusFont', () => {
   })
 })
 
+describe('resolveStatusAudience', () => {
+  it('returns undefined when no audience is given', () => {
+    expect(resolveStatusAudience(undefined)).toBeUndefined()
+  })
+
+  it('maps everyone to audienceType 0', () => {
+    expect(resolveStatusAudience('everyone')).toEqual({ audienceType: 0 })
+  })
+
+  it('maps close-friends to audienceType 1 with default emoji and listName', () => {
+    expect(resolveStatusAudience('close-friends')).toEqual({
+      audienceType: 1,
+      listEmoji: '⭐',
+      listName: 'Teman Dekat',
+    })
+  })
+
+  it('accepts a custom audience object', () => {
+    expect(
+      resolveStatusAudience({
+        audienceType: 1,
+        listEmoji: '❄️',
+        listName: 'CdX Bot',
+      }),
+    ).toEqual({
+      audienceType: 1,
+      listEmoji: '❄️',
+      listName: 'CdX Bot',
+    })
+  })
+
+  it('defaults custom audience audienceType to 1 if not specified', () => {
+    expect(resolveStatusAudience({ listEmoji: '🔥', listName: 'VIP' })).toEqual({
+      audienceType: 1,
+      listEmoji: '🔥',
+      listName: 'VIP',
+    })
+  })
+
+  it('rejects invalid audience values', () => {
+    expectError(() => resolveStatusAudience('invalid' as 'everyone'), 'INVALID_OPTIONS')
+    expectError(() => resolveStatusAudience(123 as unknown as 'everyone'), 'INVALID_OPTIONS')
+  })
+})
+
 describe('buildGroupStatusContent', () => {
   it('wraps the text in a groupStatusMessageV2 relay envelope', () => {
     const content = buildGroupStatusContent('halo')
@@ -124,6 +170,33 @@ describe('buildGroupStatusContent', () => {
     const node = statusOf(buildGroupStatusContent('halo', { backgroundColor: 0, font: 'system' }))
     expect(node.backgroundArgb).toBe(0)
     expect(node.font).toBe(0)
+  })
+
+  it('attaches contextInfo and statusAudienceMetadata when audience is given', () => {
+    const node = statusOf(buildGroupStatusContent('halo', { audience: 'close-friends' }))
+    const ctx = (node as unknown as { contextInfo: Record<string, unknown> }).contextInfo
+    expect(ctx).toBeDefined()
+    expect(ctx.statusAudienceMetadata).toEqual({
+      audienceType: 1,
+      listEmoji: '⭐',
+      listName: 'Teman Dekat',
+    })
+    expect(ctx.statusSourceType).toBe(4)
+  })
+
+  it('attaches custom audience metadata and custom statusSourceType', () => {
+    const node = statusOf(
+      buildGroupStatusContent('halo', {
+        audience: { audienceType: 1, listEmoji: '⚠️', listName: 'Custom' },
+        statusSourceType: 4,
+      }),
+    )
+    const ctx = (node as unknown as { contextInfo: Record<string, unknown> }).contextInfo
+    expect(ctx.statusAudienceMetadata).toEqual({
+      audienceType: 1,
+      listEmoji: '⚠️',
+      listName: 'Custom',
+    })
   })
 
   it('rejects blank or non-string text', () => {
@@ -186,12 +259,32 @@ describe('buildGroupStatusRepost (media langsung)', () => {
     expect(media.ptt).toBe(true)
     expect(media.caption).toBeUndefined()
   })
+
+  it('preserves audience metadata for fresh media status', async () => {
+    const content = (await buildGroupStatusRepost({
+      image: PNG,
+      caption: 'halo',
+      audience: 'close-friends',
+    })) as unknown as Record<string, { kind: string; audience?: string }>
+    const media = content[RELAY_STATUS_MEDIA_KEY]!
+    expect(media.audience).toBe('close-friends')
+  })
 })
 
 describe('buildGroupStatusRepost (teks)', () => {
   it('marks the reposted content as group-only', async () => {
     const content = (await buildGroupStatusRepost(msg({ conversation: 'halo' }))) as unknown as Record<string, unknown>
     expect(content[RELAY_REQUIRE_GROUP_KEY]).toBe('groupStatus()')
+  })
+
+  it('applies audience metadata to reposted text message contextInfo', async () => {
+    const node = innerOf(await buildGroupStatusRepost(msg({ conversation: 'halo' }), { audience: 'close-friends' }))
+    const ctx = (node['extendedTextMessage'] as Record<string, Record<string, unknown>>)['contextInfo']!
+    expect(ctx['statusAudienceMetadata']).toEqual({
+      audienceType: 1,
+      listEmoji: '⭐',
+      listName: 'Teman Dekat',
+    })
   })
 
   it('copies a text message without mutating the source', async () => {
@@ -294,6 +387,18 @@ describe('MessageBuilder.groupStatus()', () => {
     const node = relayedOf(relayMessage).groupStatusMessageV2!.message['extendedTextMessage']!
     expect(node['text']).toBe('halo')
     expect(node['backgroundArgb']).toBe(0xff25d366)
+  })
+
+  it('carries audience metadata through to the relayed envelope', async () => {
+    const { socket, relayMessage } = makeSocket()
+    await MessageBuilder.create(socket, GROUP).groupStatus('halo', { audience: 'close-friends' })
+    const node = relayedOf(relayMessage).groupStatusMessageV2!.message['extendedTextMessage']!
+    const ctx = node['contextInfo'] as Record<string, unknown>
+    expect(ctx['statusAudienceMetadata']).toEqual({
+      audienceType: 1,
+      listEmoji: '⭐',
+      listName: 'Teman Dekat',
+    })
   })
 
   it('rejects non-group recipients', async () => {

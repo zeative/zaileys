@@ -157,11 +157,26 @@ export type GroupStatusFont =
   | 'exo2'
   | 'courierprime'
 
+export type StatusAudienceMetadata = {
+  audienceType?: number
+  listEmoji?: string
+  listName?: string
+}
+
+export type GroupStatusAudience =
+  | 'everyone'
+  | 'close-friends'
+  | StatusAudienceMetadata
+
 export type GroupStatusOptions = {
   /** Background as `#RGB`, `#RRGGBB`, `#AARRGGBB` (with or without `#`), or a raw ARGB integer. */
   backgroundColor?: string | number
   /** Font face. Accepts a named font or a raw FontType integer for forward compatibility. */
   font?: GroupStatusFont | number
+  /** Audience metadata for close friends or custom list status. */
+  audience?: GroupStatusAudience
+  /** Optional status source type (defaults to 4 for text status). */
+  statusSourceType?: number
 }
 
 /** Media posted directly as a group status, without an existing message to repost. */
@@ -172,6 +187,8 @@ export type GroupStatusMedia = {
   caption?: string
   /** Send an audio status as a voice note. */
   ptt?: boolean
+  /** Audience metadata for close friends or custom list status. */
+  audience?: GroupStatusAudience
 }
 
 /** What a group status can be built from: a `MessageContext`, a raw `WAMessage`, or fresh media. */
@@ -180,6 +197,8 @@ export type GroupStatusSource = WAMessage | { message: () => WAMessage } | Group
 export type GroupStatusRepostOptions = {
   /** Replaces the original caption. Ignored for voice notes, which have none. */
   caption?: string
+  /** Audience metadata for close friends or custom list status. */
+  audience?: GroupStatusAudience
 }
 
 export type BuilderContext = {

@@ -1,5 +1,11 @@
 # zaileys
 
+## 4.14.0
+
+### Minor Changes
+
+- add ctx.send and group context members by kind
+
 ## 4.13.0
 
 ### Minor Changes

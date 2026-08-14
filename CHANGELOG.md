@@ -1,5 +1,11 @@
 # zaileys
 
+## 4.13.0
+
+### Minor Changes
+
+- inherit the chat disappearing timer on every send
+
 ## 4.12.0
 
 ### Major Changes

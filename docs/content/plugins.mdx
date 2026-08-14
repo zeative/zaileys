@@ -32,7 +32,7 @@ import { definePlugin } from 'zaileys'
 export default definePlugin({
   name: 'greet',
   description: 'Say hello',
-  command: async (ctx) => {
+  message: async (ctx) => {
     await ctx.reply('hi there 👋')
   },
 })
@@ -90,12 +90,12 @@ export default definePlugin({
   description: 'Say hello',
   cooldown: 3,
 
-  command: async (ctx) => {
+  message: async (ctx) => {
     await ctx.reply('hi there 👋')
   },
 
-  message: (m) => {
-    console.log('saw a message:', m.text)
+  image: (ctx) => {
+    console.log('someone sent a picture:', ctx.senderId)
   },
 })
 ```
@@ -142,8 +142,8 @@ import { definePlugin } from 'zaileys'
 export default definePlugin({
   name: 'my-plugin',
   description: 'What it does',
-  command: async (ctx) => { /* handles !my-plugin */ },
-  message: (m) => { /* every inbound message */ },
+  message: async (ctx) => { /* handles !my-plugin */ },
+  image: (ctx) => { /* every inbound image */ },
 })
 ```
 
@@ -151,14 +151,14 @@ export default definePlugin({
 
 | Field | Type | Description |
 | ----- | ---- | ----------- |
-| `name` | `string` | Required. Identifies the plugin **and** names the command `command` handles. |
-| `command` | `(ctx, plugin) => void \| Promise<void>` | Handles the command named after this plugin. Omit if the plugin only listens to events. |
+| `name` | `string` | Required. Identifies the plugin **and** names the command it handles. `name: 'sticker'` answers `!sticker`. |
+| `message` | `(ctx, plugin) => void \| Promise<void>` | Handles that command. Omit if the plugin only listens to events. |
 | `setup` | `(ctx) => void \| (() => void) \| Promise<…>` | Optional escape hatch — see [below](#going-beyond-the-shorthands). |
 | `onUnload` | `() => void \| Promise<void>` | Optional cleanup, called on unload. |
 
 Beside those, a plugin carries **every field a command spec carries** — `aliases`, `description`,
 `usage`, `category`, `hidden`, `metadata`, and the guards `group`, `private`, `admin`, `cooldown`.
-They describe the command that `command` handles. See
+They describe the command that `message` handles. See
 [Commands](/commands#describing-a-command) for the full table.
 
 ```typescript
@@ -170,7 +170,7 @@ export default definePlugin({
   group: true,
   admin: true,
   cooldown: 3,
-  command: async (ctx) => { /* ... */ },
+  message: async (ctx) => { /* ... */ },
 })
 ```
 
@@ -180,31 +180,36 @@ without saying so.
 </Callout>
 
 <Callout type="warning">
-Guards apply to **`command` only**. An event method like `message` receives the raw stream — check
-`m.isGroup` yourself if you need to narrow it. This keeps `admin` from triggering a group-metadata
+Guards apply to **`message` only**. An event method like `image` receives the raw stream — check
+`ctx.isGroup` yourself if you need to narrow it. This keeps `admin` from triggering a group-metadata
 lookup on every message that passes through your bot.
 </Callout>
 
 ## Event methods
 
-Every inbound event has a matching optional method. Hyphenated event names become camelCase, so
-`poll-vote` is `pollVote`.
+Beside `message`, every inbound event has a matching optional method. Hyphenated event names become
+camelCase, so `poll-vote` is `pollVote`.
 
 ```typescript
 export default definePlugin({
   name: 'watcher',
-  message: (m) => console.log(m.senderId, m.text),
-  image: async (m) => { await m.reply('nice picture') },
-  pollVote: async (v) => console.log(await v.options()),
-  groupJoin: (e) => console.log('joined:', e.participants.length),
-  callIncoming: (c) => console.log('call from', c.from),
+  text: (ctx) => console.log(ctx.senderId, ctx.text),
+  image: async (ctx) => { await ctx.reply('nice picture') },
+  pollVote: async (vote) => console.log(await vote.options()),
+  groupJoin: (event) => console.log('joined:', event.participants.length),
+  callIncoming: (call) => console.log('call from', call.from),
 })
 ```
 
-Available: `message` · `text` · `image` · `video` · `audio` · `document` · `sticker` · `reaction` ·
+Available: `text` · `image` · `video` · `audio` · `document` · `sticker` · `reaction` ·
 `edit` · `delete` · `pollVote` · `buttonClick` · `listSelect` · `mention` · `mentionAll` ·
 `groupUpdate` · `groupJoin` · `groupLeave` · `memberTag` · `callIncoming` · `callEnded` ·
 `historySync` · `limited` · `presence` · `newsletter`.
+
+<Callout type="info">
+There is no `message` event method — on a plugin that name is the **command handler**. To watch every
+inbound message regardless of type, use `setup(ctx)` and `ctx.on('message', …)`.
+</Callout>
 
 Each is typed from [the event map](/events), so the payload needs no annotation. Listeners are
 removed automatically when the plugin unloads.
@@ -214,7 +219,7 @@ removed automatically when the plugin unloads.
 A command handler gets the client straight off its context:
 
 ```typescript
-command: async (ctx) => {
+message: async (ctx) => {
   await ctx.client.group.removeMember(ctx.roomId!, ctx.mentions)
 },
 ```
@@ -223,8 +228,8 @@ Event payloads are plain message contexts and carry no client, so every handler 
 **plugin context** as a second argument:
 
 ```typescript
-message: async (msg, plugin) => {
-  if (msg.text === 'ping') await plugin.client.send(msg.roomId!).text('pong')
+image: async (ctx, plugin) => {
+  await plugin.client.send(ctx.roomId!).text('gambar diterima')
 },
 ```
 

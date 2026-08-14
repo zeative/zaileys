@@ -53,9 +53,9 @@ const specOf = (plugin: Plugin): CommandSpec => {
   return spec
 }
 
-/** Turns the plugin's `command()` and per-event methods into real registrations. */
+/** Turns the plugin's `message` handler and per-event methods into real registrations. */
 const wireHandlers = (plugin: Plugin, ctx: PluginContext): void => {
-  const run = plugin.command
+  const run = plugin.message
   if (typeof run === 'function') {
     ctx.command(specOf(plugin), (commandCtx) => run(commandCtx, ctx))
   }

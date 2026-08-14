@@ -32,9 +32,12 @@ type Camel<S extends string> = S extends `${infer Head}-${infer Tail}`
   ? `${Head}${Capitalize<Camel<Tail>>}`
   : S
 
-/** One optional method per inbound event, derived so a new event is available here automatically. */
+/**
+ * One optional method per inbound event, derived so a new event is available here automatically.
+ * `message` is excluded — on a plugin that name belongs to the command handler.
+ */
 export type PluginEventHandlers = {
-  [E in keyof InboundEventMap as Camel<E>]?: (
+  [E in Exclude<keyof InboundEventMap, 'message'> as Camel<E>]?: (
     payload: InboundEventMap[E],
     ctx: PluginContext,
   ) => void | Promise<void>
@@ -42,7 +45,6 @@ export type PluginEventHandlers = {
 
 /** Every inbound event name, in the order their methods are wired up. */
 export const INBOUND_EVENTS = [
-  'message',
   'text',
   'image',
   'video',
@@ -67,7 +69,7 @@ export const INBOUND_EVENTS = [
   'limited',
   'presence',
   'newsletter',
-] as const satisfies ReadonlyArray<keyof InboundEventMap>
+] as const satisfies ReadonlyArray<Exclude<keyof InboundEventMap, 'message'>>
 
 export type Plugin = CommandMeta &
   CommandGuards &
@@ -76,7 +78,7 @@ export type Plugin = CommandMeta &
     name: string
     aliases?: string[]
     /** Handles the command named after this plugin. The metadata above describes it. */
-    command?: (ctx: Parameters<CommandHandler>[0], plugin: PluginContext) => void | Promise<void>
+    message?: (ctx: Parameters<CommandHandler>[0], plugin: PluginContext) => void | Promise<void>
     /** Escape hatch for what the methods above cannot express: extra commands, middleware, cleanup. */
     setup?(ctx: PluginContext): void | (() => void) | Promise<void | (() => void)>
     onUnload?(): void | Promise<void>

@@ -53,7 +53,7 @@ describe('plugin file to dispatched command', () => {
       `export default {
          name: 'ping',
          description: 'Cek bot',
-         command: async (ctx) => { globalThis.__hit = ctx.command },
+         message: async (ctx) => { globalThis.__hit = ctx.command },
        }`,
     )
     await boot()
@@ -70,11 +70,11 @@ describe('plugin file to dispatched command', () => {
   it('wires a declarative event method', async () => {
     await fs.writeFile(
       path.join(dir, 'info', 'watch.js'),
-      `export default { name: 'watch', message: (m) => { globalThis.__seen = m.text } }`,
+      `export default { name: 'watch', text: (ctx) => { globalThis.__seen = ctx.text } }`,
     )
     await boot()
 
-    client.emit('message', msg('halo'))
+    client.emit('text', msg('halo'))
     expect((globalThis as Record<string, unknown>)['__seen']).toBe('halo')
   })
 

@@ -37,10 +37,8 @@ export async function importPlugin(file: string, bust?: number): Promise<Plugin 
     const url = pathToFileURL(file).href + (bust !== undefined ? `?t=${bust}` : '')
     const mod = (await import(url)) as { default?: Plugin } & Partial<Plugin>
     const candidate = mod.default ?? (mod as Plugin)
-    if (candidate && typeof candidate.name === 'string' && typeof candidate.setup === 'function') {
-      return candidate
-    }
-    return undefined
+    /** A plugin may be purely declarative, so a name is all that is required here. */
+    return candidate && typeof candidate.name === 'string' ? candidate : undefined
   } catch {
     return undefined
   }

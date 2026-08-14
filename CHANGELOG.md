@@ -1,5 +1,11 @@
 # zaileys
 
+## 4.11.1
+
+### Patch Changes
+
+- load plugins that declare handlers without a setup function
+
 ## 4.11.0
 
 ### Minor Changes

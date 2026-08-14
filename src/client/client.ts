@@ -73,6 +73,7 @@ import {
 } from '../automation/index.js'
 import type { CitationConfig, MessageContext } from '../events/context.js'
 import { createDownloadFn } from '../events/decoders/_media-download.js'
+import { ephemeralExpirationOf } from '../events/decoders/messages.js'
 import type { CallPayload, MediaDownloadResult, MediaKind } from '../events/types.js'
 import {
   formatConnectionStatus,
@@ -614,7 +615,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       resolveQuoted: (id, remoteJid) => this.lookupQuoted(id, remoteJid),
       resolveLidToPn: () => Promise.resolve(null),
       sendReply: async (target, content, opts, quoted) =>
-        await this.send(target).text(content, opts).reply(quoted),
+        await this.replyWithSameLifetime(target, content, opts, quoted),
       react: (key, emoji) => this.react(key, emoji),
       ignoreMe: this.ignoreMe,
     })
@@ -805,6 +806,19 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     })
   }
 
+  /** Replies inherit the quoted message's disappearing timer, so an answer never outlives its thread. */
+  private async replyWithSameLifetime(
+    target: string,
+    content: string,
+    opts: TextOptions | undefined,
+    quoted: WAMessage,
+  ): Promise<WAMessageKey> {
+    const builder = this.send(target).text(content, opts)
+    const expiration = ephemeralExpirationOf(quoted)
+    const withLifetime = expiration !== undefined ? builder.disappearing(expiration) : builder
+    return withLifetime.reply(quoted)
+  }
+
   /** Admin lookup for the `admin` guard. Never throws — an unreachable group means "not an admin". */
   private async isGroupAdmin(groupJid: string, senderJid: string): Promise<boolean> {
     try {
@@ -835,7 +849,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       json: resolved.json,
       reply: async (content: string, opts?: TextOptions): Promise<WAMessageKey> => {
         const target = msg.message().key.remoteJid ?? msg.roomId ?? msg.senderId
-        const key = await this.send(target).text(content, opts).reply(msg.message())
+        const key = await this.replyWithSameLifetime(target, content, opts, msg.message())
         lastSentKey = key
         return key
       },
@@ -1141,7 +1155,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         resolveQuoted: (id, remoteJid) => this.lookupQuoted(id, remoteJid),
         resolveLidToPn: (lid) => this.lidToPn(lid),
         sendReply: async (target, content, opts, quoted) =>
-          await this.send(target).text(content, opts).reply(quoted),
+          await this.replyWithSameLifetime(target, content, opts, quoted),
         react: (key, emoji) => this.react(key, emoji),
         ignoreMe: this.ignoreMe,
       })

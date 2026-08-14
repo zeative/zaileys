@@ -516,6 +516,13 @@ const isEphemeralOf = (msg: WAMessage, contextInfo: WAContextInfo | null): boole
   return typeof contextInfo?.expiration === 'number' && contextInfo.expiration > 0
 }
 
+/**
+ * The disappearing timer a reply must copy. Without it WhatsApp flags the answer as one that will
+ * not disappear, leaving it behind in a chat whose other messages are gone.
+ */
+export const ephemeralExpirationOf = (msg: WAMessage): number | undefined =>
+  ephemeralDurationOf(msg, contextInfoOf(msg)) ?? undefined
+
 const numOr = (value: unknown, fallback: number): number =>
   typeof value === 'number' && Number.isFinite(value) ? value : fallback
 

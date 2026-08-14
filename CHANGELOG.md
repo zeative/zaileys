@@ -1,5 +1,11 @@
 # zaileys
 
+## 4.12.0
+
+### Major Changes
+
+- rename the command handler to message
+
 ## 4.11.2
 
 ### Patch Changes

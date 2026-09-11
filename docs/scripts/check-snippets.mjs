@@ -1,13 +1,17 @@
 // Type-checks every ```ts block in the docs against src/ so API drift fails loudly.
 // Opt a block out with `{/* snippet-check: skip — <reason> */}` on the line above its fence.
 import { readFileSync, writeFileSync, mkdirSync, rmSync, readdirSync, statSync } from 'node:fs'
-import { join, relative, dirname } from 'node:path'
+import { join, relative, dirname, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawnSync } from 'node:child_process'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
 const DOCS = join(ROOT, 'docs')
-const OUT = join(ROOT, 'node_modules', '.cache', 'docs-snippets')
+// Per-process dir so several checks (e.g. parallel writers) never wipe each other's files.
+const OUT = join(ROOT, 'node_modules', '.cache', `docs-snippets-${process.pid}`)
+// Optional path arguments narrow the check, e.g. `pnpm docs:check docs/bots`.
+const TARGETS = process.argv.slice(2).map((p) => resolve(process.cwd(), p))
+const inTargets = (file) => !TARGETS.length || TARGETS.some((t) => file === t || file.startsWith(t + sep))
 const LANGS = new Set(['ts', 'typescript'])
 const SKIP = /\{\/\*\s*snippet-check:\s*skip\b(.*?)\*\/\}/
 
@@ -22,7 +26,7 @@ const problems = []
 const snippets = []
 let skipped = 0
 
-for (const file of walk(DOCS)) {
+for (const file of walk(DOCS).filter(inTargets)) {
   const lines = readFileSync(file, 'utf8').split('\n')
   for (let i = 0; i < lines.length; i++) {
     const open = lines[i].match(/^(\s*)```(\w+)/)
@@ -94,6 +98,7 @@ for (const line of `${tsc.stdout}\n${tsc.stderr}`.split('\n')) {
 if (tsc.status !== 0 && !problems.length && !foreign.length) foreign.push(`tsc exited ${tsc.status}: ${tsc.stderr.trim()}`)
 
 const secs = ((Date.now() - started) / 1000).toFixed(1)
+rmSync(OUT, { recursive: true, force: true })
 if (foreign.length) console.error(`Errors outside doc snippets (src or config):\n  ${foreign.join('\n  ')}\n`)
 if (problems.length) {
   console.error(`✗ ${problems.length} problem(s) in ${snippets.length} snippet(s):\n  ${problems.join('\n  ')}`)

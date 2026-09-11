@@ -1,9 +1,453 @@
 ---
 title: "Storage adapters"
-description: "Adapter options and the store interfaces."
+sidebarTitle: "Storage"
+description: "Constructor options for every auth store and message store, the peer package each needs, and the interfaces for writing your own adapter."
 icon: "database"
+keywords: ["AuthStoreBundle", "MessageStore", "FileAuthStore", "SqliteAuthStore", "PostgresMessageStore", "RedisAuthStore", "ConvexMessageStore", "custom adapter", "storage interface", "pruneMessages", "BufferJSON", "cacheSignal"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/storage](https://zeative.github.io/zaileys/storage).
-</Note>
+import { Term } from "/snippets/glossary.jsx"
+
+This page lists every storage class, its options, and the interfaces a custom adapter implements. For choosing and setting up a store, read [Storage](/data/storage).
+
+## At a glance
+
+| Backend | Auth store | Message store | Peer package |
+| --- | --- | --- | --- |
+| File | [`FileAuthStore`](#fileauthstore) | — | None |
+| Memory | [`MemoryAuthStore`](#memoryauthstore) | [`MemoryMessageStore`](#memorymessagestore) | None |
+| SQLite | [`SqliteAuthStore`](#sqliteauthstore) | [`SqliteMessageStore`](#sqlitemessagestore) | `better-sqlite3` `^11.0.0` |
+| Postgres | [`PostgresAuthStore`](#postgresauthstore) | [`PostgresMessageStore`](#postgresmessagestore) | `pg` `^8.11.0` |
+| Redis | [`RedisAuthStore`](#redisauthstore) | [`RedisMessageStore`](#redismessagestore) | `redis` `^4.7.0` |
+| Convex | [`ConvexAuthStore`](#convexauthstore) | [`ConvexMessageStore`](#convexmessagestore) | `convex` `^1.0.0` |
+
+The peer packages are optional dependencies. Zaileys imports one the first time its store is used, so a missing package fails with `STORE_NOT_AVAILABLE` when the client connects, and the message names the install command.
+
+## Client options
+
+```ts
+import { Client, FileAuthStore, MemoryMessageStore } from 'zaileys'
+
+const client = new Client({
+  sessionId: 'default',
+  auth: new FileAuthStore({ basePath: './.zaileys/auth/default' }),
+  store: new MemoryMessageStore(),
+})
+```
+
+<ParamField body="auth" type="AuthStoreBundle" default="new FileAuthStore({ basePath: './.zaileys/auth/<sessionId>' })">
+  Where the <Term id="session" /> — login credentials and encryption keys — is kept. Not used on the Cloud API.
+</ParamField>
+<ParamField body="store" type="MessageStore" default="new MemoryMessageStore()">
+  Where messages, chats, contacts, and presence are kept. Read it back through `client.store`.
+</ParamField>
+<ParamField body="cacheSignal" type="boolean" default="true">
+  Wraps the auth store's key reads and writes in Baileys' in-memory cache (`makeCacheableAuthStore`), so a database store isn't queried for every encrypted message. Set `false` to talk to the store directly.
+</ParamField>
+
+## Auth stores
+
+Each auth store is a class you construct and pass as `auth`. They all implement [`AuthStoreBundle`](#authstorebundle), and each throws `STORE_CLOSED` once the client has closed it on `disconnect()`.
+
+### FileAuthStore
+
+```ts
+import { FileAuthStore } from 'zaileys'
+
+const auth = new FileAuthStore({ basePath: './sessions/support-bot' })
+```
+
+JSON files on disk: `creds.json` for the login, and `signal/<type>/<id>.json` for each key. Writes go to a temporary file first, then are renamed into place. `clear()` deletes the whole `basePath` folder.
+
+<ParamField body="basePath" type="string" default="'./.zaileys/auth'">
+  The folder, relative to where you start the bot. The client's own default is `./.zaileys/auth/<sessionId>`.
+</ParamField>
+
+### MemoryAuthStore
+
+```ts
+import { MemoryAuthStore } from 'zaileys'
+
+const auth = new MemoryAuthStore()
+```
+
+Keeps everything in memory, so the login is lost when the process exits. No options. Meant for tests.
+
+### SqliteAuthStore
+
+```ts
+import { SqliteAuthStore } from 'zaileys'
+
+const auth = new SqliteAuthStore({ database: './whatsapp.db' })
+```
+
+Tables `auth_creds` and `auth_signal`, created on first use, in WAL mode. Needs `better-sqlite3`.
+
+<ParamField body="database" type="string | Buffer" required>
+  Path to the database file, created if missing.
+</ParamField>
+<ParamField body="readonly" type="boolean" default="false">
+  Open the database read-only.
+</ParamField>
+
+### PostgresAuthStore
+
+```ts
+import { PostgresAuthStore } from 'zaileys'
+
+const auth = new PostgresAuthStore({ connectionString: process.env.DATABASE_URL!, max: 5 })
+```
+
+Tables `zaileys_auth_creds` and `zaileys_auth_signal`, created on first use. Needs `pg`.
+
+<ParamField body="connectionString" type="string">
+  A Postgres URL. The store creates its own pool and ends it on `close()`.
+</ParamField>
+<ParamField body="pool" type="PgPoolLike">
+  A `pg` `Pool` you created. You own it — the store never ends it.
+</ParamField>
+<ParamField body="max" type="number">
+  Pool size for the pool the store creates. Ignored with `pool`.
+</ParamField>
+
+Pass exactly one of `connectionString` and `pool`. Both or neither throws `STORE_CONNECTION_FAILED` from the constructor.
+
+### RedisAuthStore
+
+```ts
+import { RedisAuthStore } from 'zaileys'
+
+const auth = new RedisAuthStore({ url: 'redis://localhost:6379', namespace: 'shop-bot:auth' })
+```
+
+Keys `<namespace>:auth:creds`, `<namespace>:auth:signal:<type>:<id>`, and one index set per key type. Needs `redis` 4.
+
+<ParamField body="url" type="string">
+  A Redis URL. The store connects on first use and quits on `close()`.
+</ParamField>
+<ParamField body="client" type="RedisClientLike">
+  A `redis` client you created **and connected**. An unconnected client fails with `STORE_CONNECTION_FAILED`. You own it — the store never quits it.
+</ParamField>
+<ParamField body="namespace" type="string" default="'zaileys'">
+  Prefix for every key.
+</ParamField>
+
+Pass exactly one of `url` and `client`.
+
+### ConvexAuthStore
+
+```ts
+import { ConvexAuthStore } from 'zaileys'
+
+const auth = new ConvexAuthStore({ url: process.env.CONVEX_URL!, namespace: 'wa-auth' })
+```
+
+Rows in the `zaileys_kv` table, through the functions `zaileys:get`, `zaileys:set`, `zaileys:del`, `zaileys:clear`, and `zaileys:list` that you deploy once ([setup](/data/storage#set-up-an-adapter)). Needs `convex`.
+
+<ParamField body="url" type="string">
+  Your deployment URL. The store creates a `ConvexHttpClient`.
+</ParamField>
+<ParamField body="client" type="ConvexClientLike">
+  A Convex client you created — any object with `query(name, args)` and `mutation(name, args)`.
+</ParamField>
+<ParamField body="namespace" type="string" default="'zaileys'">
+  Partition inside `zaileys_kv`. `clear()` deletes the whole namespace.
+</ParamField>
+
+Pass exactly one of `url` and `client`.
+
+### makeCacheableAuthStore()
+
+```ts
+import { makeCacheableAuthStore, SqliteAuthStore } from 'zaileys'
+
+const auth = makeCacheableAuthStore(new SqliteAuthStore({ database: './whatsapp.db' }))
+```
+
+`(bundle: AuthStoreBundle, options?: { logger?: … }) => AuthStoreBundle`. Returns a bundle whose `signal` part goes through Baileys' in-memory key cache; `creds` passes through unchanged. The client already does this for you unless `cacheSignal` is `false`.
+
+## Message stores
+
+Each message store implements [`MessageStore`](#messagestore). All five support `deleteMessage()` and `pruneMessages()`, so [auto-delete](/bots/auto-delete) works with any of them. Only `ConvexMessageStore` persists [scheduled messages](/bots/broadcast-and-schedule).
+
+| Store | `listMessages` default `limit` | Scheduled jobs | Notes |
+| --- | --- | --- | --- |
+| `MemoryMessageStore` | Everything | No | Emptied on restart |
+| `SqliteMessageStore` | 100 | No | Tables `messages`, `chats`, `contacts`, `presence` |
+| `PostgresMessageStore` | 100 | No | Tables `zaileys_messages`, `zaileys_chats`, `zaileys_contacts`, `zaileys_presence` |
+| `RedisMessageStore` | 100 | No | Presence expires after 5 minutes; `clear()` deletes `<namespace>:*` |
+| `ConvexMessageStore` | Everything | Yes | Shares the `zaileys_kv` table with the auth store |
+
+### MemoryMessageStore
+
+```ts
+import { MemoryMessageStore } from 'zaileys'
+
+const store = new MemoryMessageStore()
+```
+
+No options.
+
+### SqliteMessageStore
+
+```ts
+import { SqliteMessageStore } from 'zaileys'
+
+const store = new SqliteMessageStore({ database: './whatsapp.db' })
+```
+
+<ParamField body="database" type="string | Buffer" required>
+  Path to the database file. It can be the same file as `SqliteAuthStore`.
+</ParamField>
+<ParamField body="readonly" type="boolean" default="false">
+  Open the database read-only.
+</ParamField>
+
+### PostgresMessageStore
+
+```ts
+import { PostgresMessageStore } from 'zaileys'
+
+const store = new PostgresMessageStore({ connectionString: process.env.DATABASE_URL! })
+```
+
+<ParamField body="connectionString" type="string">
+  A Postgres URL. The store creates and ends its own pool.
+</ParamField>
+<ParamField body="pool" type="PgPoolLike">
+  A `pg` `Pool` you own.
+</ParamField>
+<ParamField body="max" type="number">
+  Pool size, with `connectionString` only.
+</ParamField>
+
+### RedisMessageStore
+
+```ts
+import { RedisMessageStore } from 'zaileys'
+
+const store = new RedisMessageStore({ url: 'redis://localhost:6379', namespace: 'shop-bot:history' })
+```
+
+<ParamField body="url" type="string">
+  A Redis URL.
+</ParamField>
+<ParamField body="client" type="RedisClientLike">
+  A connected `redis` client you own.
+</ParamField>
+<ParamField body="namespace" type="string" default="'zaileys'">
+  Key prefix. Don't let the auth store's namespace start with this one — `clear()` deletes every key under it.
+</ParamField>
+
+### ConvexMessageStore
+
+```ts
+import { ConvexMessageStore } from 'zaileys'
+
+const store = new ConvexMessageStore({ url: process.env.CONVEX_URL!, namespace: 'wa-store' })
+```
+
+Same options as [`ConvexAuthStore`](#convexauthstore). Use a different namespace from the auth store.
+
+## AuthStoreBundle
+
+The type of the `auth` option — two parts, both required:
+
+```ts
+import type { AuthCredsStore, AuthStore } from 'zaileys'
+
+interface MyAuthStoreBundle {
+  readonly creds: AuthCredsStore
+  readonly signal: AuthStore
+}
+```
+
+### AuthCredsStore
+
+The login credentials, one object per session.
+
+<ResponseField name="readCreds()" type="() => Promise<AuthenticationCreds | undefined>">
+  The saved credentials, or `undefined` before the first login — Zaileys then starts a fresh login with a QR or pairing code.
+</ResponseField>
+<ResponseField name="writeCreds(creds)" type="(creds: AuthenticationCreds) => Promise<void>">
+  Replace the saved credentials. Called on link and whenever WhatsApp updates them.
+</ResponseField>
+<ResponseField name="deleteCreds()" type="() => Promise<void>">
+  Remove the credentials. Called by `client.logout()`.
+</ResponseField>
+
+### AuthStore
+
+The encryption keys, grouped by type (`AuthStoreKey`: `'pre-key'`, `'session'`, `'sender-key'`, `'app-state-sync-key'`, and the other Baileys key types).
+
+<ResponseField name="read(type, ids)" type="<K extends AuthStoreKey>(type: K, ids: readonly string[]) => Promise<{ [id: string]: AuthStoreValue<K> | undefined }>">
+  The stored values for these IDs. Leave out IDs you don't have.
+</ResponseField>
+<ResponseField name="write(data)" type="(data: SignalDataSet) => Promise<void>">
+  Save a batch: `{ [type]: { [id]: value } }`. **A `null` value means delete that ID**; skip `undefined`.
+</ResponseField>
+<ResponseField name="delete(type, ids)" type="<K extends AuthStoreKey>(type: K, ids: readonly string[]) => Promise<void>">
+  Remove these IDs.
+</ResponseField>
+<ResponseField name="clear()" type="() => Promise<void>">
+  Remove every key — and, in the built-in stores, the credentials too. Called on `client.logout()` and when WhatsApp ends the session for good.
+</ResponseField>
+<ResponseField name="close()" type="() => Promise<void>">
+  Release connections. Called on `client.disconnect()`.
+</ResponseField>
+
+Values contain `Buffer`s. Serialize them with `BufferJSON.replacer` and read them back with `BufferJSON.reviver` from `baileys`, as every built-in store does — plain `JSON.stringify` turns them into objects that no longer decrypt.
+
+## MessageStore
+
+The type of the `store` option. The client never saves incoming messages itself: it calls `bind(socket)` once per connection, and the store subscribes to the events it wants to keep. It saves messages it sends with `saveMessage()`.
+
+| Method | Signature | Who calls it |
+| --- | --- | --- |
+| `bind` | `(socket: BaileysSocketLike) => void` | The client, once per connection. Subscribe to `socket.ev` here — the built-in stores listen to `messages.upsert`, `messages.update`, `chats.upsert`, `chats.update`, `contacts.upsert`, and `presence.update`. |
+| `saveMessage` | `(message: WAMessage) => Promise<void>` | Your `bind` listeners, and the client after every send. |
+| `getMessage` | `(key: WAMessageKey) => Promise<WAMessage \| undefined>` | `msg.replied()`, poll-vote option names, `client.downloadMedia()`, `client.forward()`, and Baileys message retries. |
+| `listMessages` | `(jid: string, options?: { limit?: number; before?: number }) => Promise<WAMessage[]>` | You. Newest first; `before` is Unix seconds. |
+| `saveChat`, `getChat` | `(chat: Chat) => Promise<void>`, `(jid: string) => Promise<Chat \| undefined>` | Your `bind` listeners; you. |
+| `listChats` | `(options?: { archived?: boolean }) => Promise<Chat[]>` | You, and auto-delete's fallback. |
+| `saveContact`, `getContact`, `listContacts` | `(contact: Contact) => Promise<void>`, `(jid) => Promise<Contact \| undefined>`, `() => Promise<Contact[]>` | Your `bind` listeners; you. |
+| `savePresence`, `getPresence` | `(jid, presence: PresenceData) => Promise<void>`, `(jid) => Promise<PresenceData \| undefined>` | Your `bind` listeners; you. |
+| `clear` | `() => Promise<void>` | You. |
+| `close` | `() => Promise<void>` | The client, on `disconnect()`. Unsubscribe from the socket here. |
+
+Optional methods — leave them out and the feature that needs them turns off:
+
+| Method | Signature | Enables |
+| --- | --- | --- |
+| `pruneMessages` | `(opts: PruneOptions) => Promise<number>` | Auto-delete. Returns how many messages it removed. |
+| `deleteMessage` | `(key: WAMessageKey) => Promise<void>` | Auto-delete without `pruneMessages`: Zaileys walks your chats with `listChats()` and deletes one by one. |
+| `saveScheduledJob`, `listScheduledJobs`, `deleteScheduledJob` | `(job: ScheduledJobRecord) => Promise<void>`, `() => Promise<ScheduledJobRecord[]>`, `(id: string) => Promise<void>` | Scheduled messages that survive a restart. |
+
+With neither `pruneMessages` nor `deleteMessage`, auto-delete logs a warning and stays off.
+
+<ResponseField name="PruneOptions" type="{ olderThan?: number; maxPerChat?: number; chatFilter?: (jid: string) => boolean }">
+  `olderThan` — delete messages with a `messageTimestamp` strictly older than this, in Unix **seconds**. `maxPerChat` — keep only the newest N per chat. `chatFilter` — only prune chats whose JID passes.
+</ResponseField>
+<ResponseField name="ScheduledJobRecord" type="{ id: string; fireAt: number; recipient: string; payload: unknown }">
+  One pending scheduled message.
+</ResponseField>
+<ResponseField name="BaileysSocketLike" type="{ ev: { on(event, handler): void; off?(event, handler): void } }">
+  What `bind()` receives: the WhatsApp Web socket, or the Cloud API transport.
+</ResponseField>
+
+## Write your own adapter
+
+### An auth store
+
+This adapter keeps the session in any key-value backend with `get`, `set`, `del`, and `keys`:
+
+```ts kv-auth-store.ts
+import { BufferJSON, type AuthenticationCreds, type SignalDataSet } from 'baileys'
+import type { AuthCredsStore, AuthStore, AuthStoreBundle, AuthStoreKey, AuthStoreValue } from 'zaileys'
+
+export interface KeyValue {
+  get(key: string): Promise<string | undefined>
+  set(key: string, value: string): Promise<void>
+  del(key: string): Promise<void>
+  keys(prefix: string): Promise<string[]>
+}
+
+export function keyValueAuthStore(kv: KeyValue, prefix = 'wa'): AuthStoreBundle {
+  const encode = (value: unknown) => JSON.stringify(value, BufferJSON.replacer)
+  const decode = <T>(raw: string) => JSON.parse(raw, BufferJSON.reviver) as T
+  const keyOf = (type: string, id: string) => `${prefix}:signal:${type}:${id}`
+
+  const creds: AuthCredsStore = {
+    async readCreds() {
+      const raw = await kv.get(`${prefix}:creds`)
+      return raw === undefined ? undefined : decode<AuthenticationCreds>(raw)
+    },
+    async writeCreds(next) {
+      await kv.set(`${prefix}:creds`, encode(next))
+    },
+    async deleteCreds() {
+      await kv.del(`${prefix}:creds`)
+    },
+  }
+
+  const signal: AuthStore = {
+    async read<K extends AuthStoreKey>(type: K, ids: readonly string[]) {
+      const out: { [id: string]: AuthStoreValue<K> | undefined } = {}
+      for (const id of ids) {
+        const raw = await kv.get(keyOf(type, id))
+        if (raw !== undefined) out[id] = decode<AuthStoreValue<K>>(raw)
+      }
+      return out
+    },
+    async write(data: SignalDataSet) {
+      for (const [type, entries] of Object.entries(data)) {
+        for (const [id, value] of Object.entries(entries ?? {})) {
+          if (value === null) await kv.del(keyOf(type, id))
+          else if (value !== undefined) await kv.set(keyOf(type, id), encode(value))
+        }
+      }
+    },
+    async delete(type: AuthStoreKey, ids: readonly string[]) {
+      for (const id of ids) await kv.del(keyOf(type, id))
+    },
+    async clear() {
+      for (const key of await kv.keys(`${prefix}:`)) await kv.del(key)
+    },
+    async close() {},
+  }
+
+  return { creds, signal }
+}
+```
+
+Pass it as `auth: keyValueAuthStore(myBackend, 'support-bot')`. `baileys` is a dependency of Zaileys; if your package manager doesn't let you import it directly, add the same version to your own dependencies.
+
+### A message store
+
+The shortest route is to extend a built-in store and override what you need — for example, to mirror every saved message somewhere else:
+
+```ts bot.ts
+import { Client, MemoryMessageStore, type WAMessage } from 'zaileys'
+
+class AuditedStore extends MemoryMessageStore {
+  override async saveMessage(message: WAMessage): Promise<void> {
+    await super.saveMessage(message)
+    console.log(`Stored ${message.key.id} from ${message.key.remoteJid}`)
+  }
+}
+
+const client = new Client({ store: new AuditedStore() })
+```
+
+Writing one from scratch? Implement every method in the [`MessageStore` table](#messagestore), subscribe to `socket.ev` in `bind()` — otherwise incoming messages are never saved — and unsubscribe in `close()`.
+
+## Errors
+
+Store failures throw `ZaileysStoreError`:
+
+| Code | Meaning |
+| --- | --- |
+| `STORE_NOT_AVAILABLE` | The peer package isn't installed. |
+| `STORE_CONNECTION_FAILED` | Couldn't open or reach the database, create tables, or load the package; or conflicting constructor options. |
+| `STORE_READ_FAILED`, `STORE_WRITE_FAILED` | A query or file operation failed. The driver's error is on `cause`. |
+| `STORE_CORRUPTED` | A SQLite row couldn't be parsed back. |
+| `STORE_CLOSED` | The store was used after `close()`. |
+
+Exact messages and fixes are in [Errors](/reference/errors#zaileysstoreerror).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Storage" icon="database" href="/data/storage">
+    Pick an adapter, set it up, and read message history.
+  </Card>
+  <Card title="Auto-delete" icon="trash-2" href="/bots/auto-delete">
+    How `pruneMessages` is used and tuned.
+  </Card>
+  <Card title="Multiple accounts" icon="boxes" href="/data/multi-account">
+    One store per session.
+  </Card>
+  <Card title="Convex store recipe" icon="chef-hat" href="/recipes/convex-store">
+    A complete bot with its session in Convex.
+  </Card>
+</CardGroup>

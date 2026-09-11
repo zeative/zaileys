@@ -1,9 +1,266 @@
 ---
 title: "Utilities"
-description: "Helper functions exported by Zaileys."
+description: "Helper functions exported by Zaileys: JID checks and conversion, message IDs, links, media loading, chunking, logging, and connection helpers."
 icon: "wrench"
+keywords: ["jid helpers", "phoneToJid", "jidToPhone", "normalizeJid", "isJid", "jidDecode", "computeUniqueId", "extractLinks", "loadMedia", "chunk", "createLogger", "renderQrInTerminal", "validateE164"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/utilities](https://zeative.github.io/zaileys/utilities).
-</Note>
+import { Term } from "/snippets/glossary.jsx"
+
+These helpers are plain functions you import from `'zaileys'` and call anywhere — they need no connected client.
+
+```ts
+import { phoneToJid, normalizeJid, computeStaticId, extractLinks, loadMedia, chunk } from 'zaileys'
+```
+
+## JID helpers
+
+Functions for WhatsApp addresses (<Term id="jid" />s). [Addresses & JIDs](/concepts/jids) explains the formats.
+
+| Function | Signature | Returns |
+| --- | --- | --- |
+| `isJid` | `(value: string) => boolean` | `true` when `value` ends in `@s.whatsapp.net`, `@g.us`, `@lid`, `@newsletter`, `@broadcast`, or `@c.us`. |
+| `isLidJid` | `(jid: string) => boolean` | `true` for a <Term id="lid" /> (`@lid`). |
+| `isPnJid` | `(jid: string) => boolean` | `true` for a phone JID (`@s.whatsapp.net` or `@c.us`). |
+| `normalizeJid` | `(jid: string \| null \| undefined) => string \| null` | The JID without its device suffix. `null` for empty input. |
+| `jidToPhone` | `(jid: string) => string` | The digits of a phone JID. `''` for groups, LIDs, and anything else. |
+| `phoneToJid` | `(phone: string) => string` | A phone JID, with every non-digit removed first. It doesn't check that the number exists. |
+
+```ts
+import { isJid, isLidJid, isPnJid, jidToPhone, normalizeJid, phoneToJid } from 'zaileys'
+
+phoneToJid('+62 812-3456-7890')                // '6281234567890@s.whatsapp.net'
+jidToPhone('6281234567890@s.whatsapp.net')     // '6281234567890'
+jidToPhone('120363041234567890@g.us')          // ''
+normalizeJid('6281234567890:12@s.whatsapp.net') // '6281234567890@s.whatsapp.net'
+normalizeJid('')                               // null
+
+isJid('6281234567890@s.whatsapp.net') // true
+isJid('6281234567890')                // false
+isLidJid('104857600123456@lid')       // true
+isPnJid('6281234567890@s.whatsapp.net') // true
+```
+
+### Baileys JID helpers
+
+Re-exported from Baileys, so you don't need to import `baileys` yourself.
+
+| Function | Signature | Returns |
+| --- | --- | --- |
+| `jidDecode` | `(jid: string \| undefined) => { user, server, device?, domainType? } \| undefined` | The JID's parts. `undefined` for invalid input. |
+| `jidEncode` | `(user: string \| number \| null, server, device?, agent?) => string` | A JID built from parts. |
+| `jidNormalizedUser` | `(jid: string \| undefined) => string` | The JID without its device suffix. |
+| `areJidsSameUser` | `(a: string \| undefined, b: string \| undefined) => boolean` | `true` when both belong to the same user, ignoring devices. |
+| `isJidGroup` | `(jid: string \| undefined) => boolean \| undefined` | `true` for `@g.us`. |
+| `isJidBroadcast` | `(jid: string \| undefined) => boolean \| undefined` | `true` for `@broadcast`, including `status@broadcast`. |
+| `isJidNewsletter` | `(jid: string \| undefined) => boolean \| undefined` | `true` for a channel (`@newsletter`). |
+| `isLidUser` | `(jid: string \| undefined) => boolean \| undefined` | `true` for `@lid`. |
+| `isPnUser` | `(jid: string \| undefined) => boolean \| undefined` | `true` for `@s.whatsapp.net`. |
+| `getDevice` | `(id: string) => 'android' \| 'ios' \| 'web' \| 'desktop' \| 'unknown'` | A guess at the sending device from a **message ID** — not a JID — based on its length and first characters. |
+
+```ts
+import { areJidsSameUser, getDevice, isJidGroup, jidDecode, jidEncode, jidNormalizedUser } from 'zaileys'
+
+jidDecode('6281234567890:12@s.whatsapp.net')
+// { server: 's.whatsapp.net', user: '6281234567890', domainType: 0, device: 12 }
+jidEncode('6281234567890', 's.whatsapp.net')   // '6281234567890@s.whatsapp.net'
+jidNormalizedUser('6281234567890:12@s.whatsapp.net') // '6281234567890@s.whatsapp.net'
+areJidsSameUser('6281234567890:12@s.whatsapp.net', '6281234567890@s.whatsapp.net') // true
+isJidGroup('120363041234567890@g.us')          // true
+
+getDevice(msg.chatId) // msg.chatId is the message ID, e.g. 'web' or 'unknown'
+```
+
+To turn a LID into a phone JID and back, use the client methods `client.lidToPn()`, `client.pnToLid()`, and their bulk forms `lidToPns()` and `pnToLids()`. They ask WhatsApp, so they need a WhatsApp Web connection — see [LIDs](/concepts/jids#lids-when-whatsapp-hides-the-phone-number).
+
+## Message IDs
+
+The hashes behind `msg.uniqueId` and `msg.staticId`. Both return 16 uppercase hex characters and give the same output for the same input.
+
+| Function | Signature | Returns |
+| --- | --- | --- |
+| `computeUniqueId` | `(key: WAMessageKey) => string` | A hash of `remoteJid`, `id`, and `fromMe` — equals `msg.uniqueId`. |
+| `computeStaticId` | `(roomId: string \| null, senderId: string) => string` | A hash of the chat and sender — equals `msg.staticId`. |
+
+```ts
+import { computeStaticId, computeUniqueId } from 'zaileys'
+
+computeUniqueId({ remoteJid: '6281234567890@s.whatsapp.net', id: '3EB0C767D82B0A5E1F9A', fromMe: false })
+// '8FC34A3F8D055D30'
+
+computeStaticId('120363041234567890@g.us', '6281234567890@s.whatsapp.net')
+// '41C9687FBE75CDBA'
+```
+
+Use `computeStaticId` to key per-conversation data you save outside a handler, such as a cart stored in a database.
+
+## Text and time
+
+| Function | Signature | Returns |
+| --- | --- | --- |
+| `extractLinks` | `(text: string) => string[]` | Every `http://` and `https://` URL, with trailing `.,;:!?` trimmed. `[]` when there are none. |
+| `senderDeviceOf` | `(jid: string) => SenderDevice` | `'android'` (no device number, or `0`), `'ios'` (`2`), `'web'` (`3`), `'desktop'` (`4`), otherwise `'unknown'`. How `msg.senderDevice` is computed. |
+| `epochSecondsToMs` | `(value: unknown) => number` | Unix seconds as milliseconds. Accepts a number, numeric string, bigint, or Long object. `0` for anything invalid or not positive. |
+
+```ts
+import { epochSecondsToMs, extractLinks, senderDeviceOf } from 'zaileys'
+
+extractLinks('Menu: https://warung.example.com/menu. Map: http://maps.example.com/abc!')
+// ['https://warung.example.com/menu', 'http://maps.example.com/abc']
+
+senderDeviceOf('6281234567890@s.whatsapp.net')   // 'android'
+senderDeviceOf('6281234567890:2@s.whatsapp.net') // 'ios'
+
+epochSecondsToMs(1789120800)   // 1789120800000
+epochSecondsToMs('1789120800') // 1789120800000
+epochSecondsToMs(null)         // 0
+```
+
+`epochSecondsToMs` is handy for message-store data: `WAMessage.messageTimestamp` is in seconds, while `msg.timestamp` is already in milliseconds.
+
+## Media
+
+| Function | Signature | Returns |
+| --- | --- | --- |
+| `loadMedia` | `(src: string \| Buffer \| URL, options?: { timeoutMs?: number }) => Promise<{ buffer: Buffer; mime: string; size: number }>` | The bytes, detected type, and size of a URL (fetched), a file path or `file:` URL (read), or a `Buffer` (passed through). |
+| `detectMimeFromBuffer` | `(buffer: Buffer) => Promise<string>` | The file type from the bytes' signature. `application/octet-stream` for empty or unrecognized data. |
+
+```ts
+import { detectMimeFromBuffer, loadMedia } from 'zaileys'
+
+const photo = await loadMedia('https://example.com/menu.jpg', { timeoutMs: 10_000 })
+console.log(photo.mime, photo.size) // e.g. 'image/jpeg' 48213
+
+await detectMimeFromBuffer(Buffer.alloc(0)) // 'application/octet-stream'
+```
+
+`loadMedia` is what `client.send(jid).image()` and the other media methods use. URLs time out after 30 seconds by default. Every failure — a bad status, a network error, a timeout, a missing file — throws `ZaileysBuilderError` with code `MEDIA_LOAD_FAILED`.
+
+To convert or resize files — audio to MP3, images to JPEG, anything to a sticker — use the `Media` class. Its methods are listed in [Receiving media](/messaging/receiving-media#everything-media-can-do).
+
+## Arrays
+
+| Function | Signature | Returns |
+| --- | --- | --- |
+| `chunk` | `<T>(input: readonly T[], size: number) => T[][]` | The array split into batches of at most `size`. Throws `RangeError: chunk size must be positive` when `size` is 0 or less. |
+
+```ts
+import { chunk } from 'zaileys'
+
+chunk([1, 2, 3, 4, 5], 2) // [[1, 2], [3, 4], [5]]
+
+const customers = ['6281111111111@s.whatsapp.net', '6282222222222@s.whatsapp.net', '6283333333333@s.whatsapp.net']
+for (const batch of chunk(customers, 2)) {
+  await Promise.all(batch.map((to) => client.send(to).text('Our store opens at 09:00 tomorrow.')))
+}
+```
+
+For large lists, `client.broadcast()` adds rate limiting and retries — see [Broadcast & schedule](/bots/broadcast-and-schedule).
+
+## Logging
+
+| Function | Signature | Returns |
+| --- | --- | --- |
+| `createLogger` | `(options?: { sessionId?: string; level?: LoggerLevel }) => ZaileysLogger` | A `pino` logger — the one Zaileys uses by default. With `sessionId`, every line carries it. |
+| `adoptLogger` | `(logger: Logger \| Partial<Logger> \| undefined, fallback?: Logger) => Logger` | A complete `Logger`: yours unchanged if it has all five methods, missing methods filled with no-ops, or `fallback` (else a new `createLogger()`) when `undefined`. |
+
+`LoggerLevel` is `'silent' | 'fatal' | 'error' | 'warn' | 'info' | 'debug' | 'trace'`. Without `level`, the `ZAILEYS_DEBUG` environment variable decides: unset means `'silent'`, `1` means `'info'`, and a level name means that level.
+
+```ts
+import { adoptLogger, Client } from 'zaileys'
+
+const logger = adoptLogger({
+  warn: (...args: unknown[]) => console.warn('[bot]', ...args),
+  error: (...args: unknown[]) => console.error('[bot]', ...args),
+})
+
+const client = new Client({ logger })
+```
+
+Here `debug`, `info`, and `fatal` become no-ops, so only warnings and errors are printed.
+
+## Connection helpers
+
+| Function | Signature | Returns |
+| --- | --- | --- |
+| `mapDisconnectReason` | `(code: number \| undefined) => DisconnectReasonDomain` | The reason for a WhatsApp status code, such as `401` → `'logged-out'`. The full list is in the [disconnect table](/reference/events#disconnect). |
+| `isFatalDisconnect` | `(reason) => boolean` | `true` for `'logged-out'`, `'connection-replaced'`, and `'forbidden'`. |
+| `shouldReconnect` | `(reason) => boolean` | The opposite of `isFatalDisconnect`. |
+| `shouldClearAuth` | `(reason) => boolean` | `true` for the fatal reasons and `'bad-session'`. |
+| `isRateLimited` | `(reason) => boolean` | `true` for `'rate-limited'`. |
+| `normalizePhoneNumber` | `(raw: string) => string` | The number without spaces, dashes, parentheses, and `+`. |
+| `validateE164` | `(raw: string) => string` | The normalized number, or throws `phoneNumber must be E.164 with country code` unless it's 8–15 digits. |
+| `renderQrInTerminal` | `(qrString: string) => Promise<string>` | The QR code as terminal text. |
+| `printQrToTerminal` | `(qrString: string, write?: (s: string) => void) => Promise<void>` | Renders the QR code and writes it (to stdout by default). |
+
+Show the QR code with your own message instead of the built-in one:
+
+```ts bot.ts
+import { Client, renderQrInTerminal } from 'zaileys'
+
+const client = new Client({ qrTerminal: false })
+
+client.on('qr', async ({ qrString }) => {
+  const qr = await renderQrInTerminal(qrString)
+  console.log(`Scan with WhatsApp > Linked devices to connect the shop bot:\n${qr}`)
+})
+```
+
+Check a number before asking for a <Term id="pairing-code" />:
+
+```ts
+import { validateE164 } from 'zaileys'
+
+validateE164('+62 812-3456-7890') // '6281234567890'
+validateE164('0812')              // throws Error: phoneNumber must be E.164 with country code
+```
+
+## Commands and plugins
+
+| Function | Signature | Returns |
+| --- | --- | --- |
+| `parseCommand` | `(text: string, prefixes: string[]) => ParsedArgs` | The command name, arguments, flags, and JSON in a message. See [Commands reference](/reference/commands#parsecommand). |
+| `definePlugin` | `(plugin: Plugin) => Plugin` | Its input, unchanged — it only gives you autocomplete for the plugin shape. See [Plugins](/bots/plugins). |
+
+```ts plugins/ping.ts
+import { definePlugin } from 'zaileys'
+
+export default definePlugin({
+  name: 'ping',
+  description: 'Check the bot is online',
+  message: async (ctx) => {
+    await ctx.reply('pong')
+  },
+})
+```
+
+## Re-exported types
+
+`WAMessage`, `WAMessageKey`, `WAMessageContent`, and `AnyMessageContent` are re-exported from Baileys, so you can type raw messages and keys without importing `baileys`:
+
+```ts
+import type { WAMessageKey } from 'zaileys'
+
+const lastOrderMessage = new Map<string, WAMessageKey>()
+
+client.on('text', (msg) => {
+  if (msg.text.startsWith('order')) lastOrderMessage.set(msg.senderId, msg.message().key)
+})
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Addresses & JIDs" icon="at-sign" href="/concepts/jids">
+    JID formats, LIDs, and sending to a bare number.
+  </Card>
+  <Card title="Message context reference" icon="braces" href="/reference/message-context">
+    Where `uniqueId`, `staticId`, `links`, and `senderDevice` appear.
+  </Card>
+  <Card title="Receiving media" icon="file-down" href="/messaging/receiving-media">
+    Download files and convert them with `Media`.
+  </Card>
+  <Card title="Errors reference" icon="octagon-alert" href="/reference/errors">
+    What the media and connection helpers throw.
+  </Card>
+</CardGroup>

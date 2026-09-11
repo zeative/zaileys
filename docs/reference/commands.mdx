@@ -1,9 +1,378 @@
 ---
 title: "Commands & middleware"
-description: "Command, context, and middleware types."
+sidebarTitle: "Commands"
+description: "Exact signatures for client.command(), CommandSpec, CommandContext, Middleware, parseCommand(), the command events, and ZaileysCommandError codes."
 icon: "square-terminal"
+keywords: ["client.command", "CommandSpec", "CommandContext", "ctx.args", "ctx.flags", "Middleware", "client.use", "parseCommand", "command-blocked", "CommandBlockedReason", "ZaileysCommandError", "cooldown", "aliases"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/commands](https://zeative.github.io/zaileys/commands).
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+
+This page lists every type, method, and event of the command framework. For a walkthrough, read [Commands](/bots/commands) and [Middleware](/bots/middleware).
+
+<ProviderSupport web={true} cloud={false} note="Commands, middleware, and the command-* events need the WhatsApp Web connection. On the Cloud API, use parseCommand() in a text handler." />
+
+## At a glance
+
+| API | Signature |
+| --- | --- |
+| [`client.command()`](#clientcommand) | `(spec: string \| CommandSpec, handler: CommandHandler) => Client` |
+| [`client.unregisterCommand()`](#clientunregistercommand) | `(spec: string \| CommandSpec) => Client` |
+| [`client.commands()`](#clientcommands) | `() => RegisteredCommand[]` |
+| [`client.use()`](#clientuse) | `(middleware: Middleware) => Client` |
+| [`client.unuse()`](#clientunuse) | `(middleware: Middleware) => Client` |
+| [`parseCommand()`](#parsecommand) | `(text: string, prefixes: string[]) => ParsedArgs` |
+| [`CommandHandler`](#commandhandler) | `(ctx: CommandContext) => Promise<void> \| void` |
+| [`Middleware`](#middleware) | `(ctx: CommandContext, next: () => Promise<void>) => Promise<void> \| void` |
+
+## When commands run
+
+The client listens for commands only when all three are true:
+
+1. `commandPrefix` is set on `new Client()` — a string or an array such as `['/', '!']`.
+2. At least one command is registered.
+3. The WhatsApp Web connection is open. Commands registered before that start working once it opens, and keep working across reconnects.
+
+Commands are read from the `message` event, so a command in a photo or video caption runs too. Messages from the bot's own account are skipped unless `ignoreMe` is `false`.
+
+For each message, in order:
+
+1. **Parse.** The text must start with one of your prefixes, tried in the order you listed them. The first word after it is the command name, lowercased.
+2. **Match.** Zaileys picks the longest registered name that matches the first words — `/note add milk` runs `note add` before `note`. No match emits [`command-not-found`](#command-not-found), only while something listens.
+3. **Guards.** `group`/`private`, then `admin`, then `cooldown`. A blocked command emits [`command-blocked`](#command-blocked) and stops.
+4. **Middleware**, in the order you added it, then **your handler**.
+5. **Errors** from middleware or the handler emit [`command-error`](#command-error), or are logged when nothing listens.
+
+## client.command()
+
+```ts
+client.command('ping', async (ctx) => {
+  await ctx.reply('pong')
+})
+```
+
+Registers a handler and returns the client, so calls chain. Throws `ZaileysCommandError` right away — not later, when a message arrives — for a duplicate name (`DUPLICATE_COMMAND`) or an empty one (`INVALID_COMMAND_NAME`).
+
+<ParamField body="spec" type="string | CommandSpec" required>
+  A name, or a [`CommandSpec`](#commandspec) object. In the string form, `|` separates aliases (`'help|h|?'`) and a space makes a multi-word command (`'note add'`). Names are lowercased.
+</ParamField>
+<ParamField body="handler" type="CommandHandler" required>
+  Runs when the command matches and every guard passes.
+</ParamField>
+
+## client.unregisterCommand()
+
+```ts
+client.unregisterCommand('help')
+```
+
+Removes a command and all its aliases. Pass any one of its names; unknown names are ignored. Returns the client.
+
+## client.commands()
+
+```ts
+const visible = client.commands().filter((c) => !c.hidden)
+await ctx.reply(visible.map((c) => `/${c.name} — ${c.description ?? ''}`).join('\n'))
+```
+
+Returns every registered command, in registration order, as a `RegisteredCommand`:
+
+<ResponseField name="name" type="string">
+  The real name, such as `'note add'`.
+</ResponseField>
+<ResponseField name="aliases" type="string[]">
+  The other names. `[]` when there are none.
+</ResponseField>
+<ResponseField name="description, usage, category, hidden, metadata, group, private, admin, cooldown" type="optional">
+  Whatever you set in the [`CommandSpec`](#commandspec). Fields you didn't set are absent.
+</ResponseField>
+
+## client.use()
+
+```ts
+import type { Middleware } from 'zaileys'
+
+const logCommands: Middleware = async (ctx, next) => {
+  const started = Date.now()
+  await next()
+  console.log(`/${ctx.command} from ${ctx.senderId} took ${Date.now() - started} ms`)
+}
+
+client.use(logCommands)
+```
+
+Adds a [middleware](#middleware) that runs for every command, after the guards. Middleware runs in the order you add it, and one added while the bot runs applies from the next command on. Returns the client.
+
+## client.unuse()
+
+```ts
+import type { Middleware } from 'zaileys'
+
+const maintenance: Middleware = async (ctx) => {
+  await ctx.reply('The bot is under maintenance. Back at 14:00.')
+}
+
+client.use(maintenance)
+// Later, when maintenance is over:
+client.unuse(maintenance)
+```
+
+Removes a middleware. Pass the same function you gave `use()`. Returns the client. While `maintenance` is in place, every command gets that reply and never reaches its handler, because the middleware doesn't call `next()`.
+
+## CommandSpec
+
+The object form of `client.command()`. `CommandSpec` combines the name with `CommandMeta` (descriptive fields) and `CommandGuards` (checks before the handler runs).
+
+<ParamField body="name" type="string" required>
+  The command name. A space makes it a multi-word command.
+</ParamField>
+<ParamField body="aliases" type="string[]">
+  Other names that run the same handler. They may contain spaces too.
+</ParamField>
+<ParamField body="description" type="string">
+  One line for your help menu.
+</ParamField>
+<ParamField body="usage" type="string">
+  An argument hint, such as `<@member>`.
+</ParamField>
+<ParamField body="category" type="string">
+  Menu grouping. In a [plugin](/bots/plugins), defaults to the plugin's folder name.
+</ParamField>
+<ParamField body="hidden" type="boolean">
+  Keeps the command callable but marks it so you can leave it out of menus. `client.commands()` still returns it.
+</ParamField>
+<ParamField body="metadata" type="Record<string, unknown>">
+  Anything else you want to keep with the command. Zaileys never reads it.
+</ParamField>
+<ParamField body="group" type="boolean">
+  Only runs in a group. Otherwise blocked with `'group-only'`.
+</ParamField>
+<ParamField body="private" type="boolean">
+  Only runs in a one-to-one chat. Otherwise blocked with `'private-only'`.
+</ParamField>
+<ParamField body="admin" type="boolean">
+  Only runs for a group admin, and implies `group`. Zaileys fetches the group's members to check; if that fails, the sender counts as not an admin (`'admin-only'`).
+</ParamField>
+<ParamField body="cooldown" type="number">
+  Seconds the same sender must wait between runs of this command (`'cooldown'`, with `retryIn`). The wait starts when the guards pass — even if a middleware then stops the command.
+</ParamField>
+
+```ts
+client.command(
+  { name: 'announce', description: 'Post to the group', usage: '<text>', group: true, admin: true, cooldown: 30 },
+  async (ctx) => {
+    await ctx.send().text(`📢 ${ctx.args.join(' ')}`)
+  },
+)
+```
+
+Cooldowns live in one in-memory map, keyed by command name and sender, and shared by every `Client` in the process. A restart clears them.
+
+## CommandHandler
+
+```ts
+import type { CommandHandler } from 'zaileys'
+
+const price: CommandHandler = async (ctx) => {
+  await ctx.reply(`Price for ${ctx.args[0] ?? 'that item'}: Rp 25.000`)
+}
+
+client.command('price', price)
+```
+
+`(ctx: CommandContext) => Promise<void> | void`.
+
+## CommandContext
+
+Every field and method of the [message context](/reference/message-context) — `senderId`, `roomId`, `text`, `media`, `mentions`, `replied()`, and the rest — plus:
+
+<ResponseField name="command" type="string">
+  The matched command's real name, without the prefix. For an alias, the real name; for a multi-word command, the full name, such as `'note add'`.
+</ResponseField>
+<ResponseField name="args" type="string[]">
+  The words after the command name, with flags removed and their original case kept.
+</ResponseField>
+<ResponseField name="flags" type="Record<string, string | boolean>">
+  The `--flag` options — `true` for a flag without a value.
+</ResponseField>
+<ResponseField name="json" type="unknown">
+  The first argument that parsed as JSON, or `undefined`.
+</ResponseField>
+<ResponseField name="raw" type="string">
+  The full message text, prefix included.
+</ResponseField>
+<ResponseField name="client" type="Client">
+  The client that received the command.
+</ResponseField>
+<ResponseField name="send(to?)" type="(to?: string) => MessageBuilder">
+  Starts a message to `to`, or to the command's chat (`roomId ?? senderId`) when you leave it out. Chain any send method: `ctx.send().image('./menu.jpg')`.
+</ResponseField>
+<ResponseField name="reply(content, opts?)" type="(content: string, opts?: TextOptions) => Promise<WAMessageKey>">
+  Sends text that quotes the command message, copying its disappearing timer. Remembers the sent message for `edit()`.
+</ResponseField>
+<ResponseField name="react(emoji)" type="(emoji: string) => Promise<WAMessageKey>">
+  Reacts to the command message.
+</ResponseField>
+<ResponseField name="edit(content)" type="(content: string) => Promise<void>">
+  Replaces the text of the last message this handler sent with `ctx.reply()`. Throws `NO_SENT_MESSAGE` (`ctx.edit requires a prior ctx.reply`) before the first reply. Messages sent with `ctx.send()` aren't tracked.
+</ResponseField>
+
+```ts
+client.command('weather', async (ctx) => {
+  const city = ctx.args.join(' ') || 'Jakarta'
+  await ctx.reply(`Checking the weather in ${city}...`)
+  await ctx.edit(`${city}: 31°C, scattered clouds.`)
+})
+```
+
+A user who sends `/weather Bandung` sees one reply that changes from `Checking the weather in Bandung...` to `Bandung: 31°C, scattered clouds.`
+
+## Middleware
+
+```ts
+import type { Middleware } from 'zaileys'
+
+const OWNERS = ['6281234567890@s.whatsapp.net']
+
+const ownerOnly: Middleware = async (ctx, next) => {
+  const meta = ctx.client.commands().find((c) => c.name === ctx.command)
+  if (meta?.category === 'owner' && !OWNERS.includes(ctx.senderId)) return
+  await next()
+}
+
+client.use(ownerOnly)
+```
+
+`ctx` doesn't carry the command's `CommandSpec` fields; look them up with `client.commands()`, as above.
+
+`(ctx: CommandContext, next: () => Promise<void>) => Promise<void> | void`. The rules:
+
+- **Call `next()` once** to continue to the next middleware, and finally the handler. Code after `await next()` runs once everything after it has finished.
+- **Don't call `next()`** to stop the command. Nothing is sent and no event fires.
+- **Calling `next()` twice** throws `MIDDLEWARE_ERROR` (`next() called multiple times`).
+- **A middleware that throws** is wrapped in a `ZaileysCommandError` with code `MIDDLEWARE_ERROR` (`middleware threw during execution`), the original on `cause`. An error from the handler passes through the chain unchanged and becomes `HANDLER_ERROR`.
+
+Middleware runs for every command, after the guards.
+
+## parseCommand()
+
+```ts
+import { parseCommand } from 'zaileys'
+
+const parsed = parseCommand('/remind "call mom" tomorrow --at=18:00 --urgent', ['/'])
+// { matched: true, name: 'remind', args: ['call mom', 'tomorrow'],
+//   flags: { at: '18:00', urgent: true }, json: undefined,
+//   raw: '/remind "call mom" tomorrow --at=18:00 --urgent' }
+```
+
+The parser the command framework uses, exported so you can parse commands yourself — for example on the Cloud API. It returns `ParsedArgs`:
+
+<ResponseField name="matched" type="boolean">
+  Whether the text starts with one of `prefixes`. Empty prefixes never match.
+</ResponseField>
+<ResponseField name="name" type="string | undefined">
+  The first word after the prefix, lowercased. `''` for a bare prefix; absent when `matched` is `false`.
+</ResponseField>
+<ResponseField name="args" type="string[]">
+  Every other word. Unlike `ctx.args`, this includes the words of a multi-word command name.
+</ResponseField>
+<ResponseField name="flags" type="Record<string, string | boolean>">
+  The `--flag` options.
+</ResponseField>
+<ResponseField name="json" type="unknown">
+  The first argument starting with `{` or `[` that parses as JSON. It also stays in `args`.
+</ResponseField>
+<ResponseField name="raw" type="string">
+  The input text.
+</ResponseField>
+
+| Input after the name | Result |
+| --- | --- |
+| `a b` | `args: ['a', 'b']` |
+| `"a b"` or `'a b'` | `args: ['a b']` — quotes only count at the start of a word |
+| `"say \"hi\""` | `args: ['say "hi"']` — `\` escapes inside quotes |
+| `--force` | `flags: { force: true }` |
+| `--env=prod` or `--env prod` | `flags: { env: 'prod' }` — a flag takes the next word unless it starts with `--` |
+| `--` | `args: ['--']` |
+| `-f` | `args: ['-f']` — only `--` flags are recognized |
+| `{"a":1}` | `json: { a: 1 }`, and `args: ['{"a":1}']` |
+
+## Events
+
+The command events. Full payload fields are in the [Events catalog](/reference/events#command-blocked).
+
+### command-blocked
+
+`{ command: string; reason: CommandBlockedReason; retryIn?: number; ctx: CommandContext }`
+
+| `CommandBlockedReason` | The guard that stopped it |
+| --- | --- |
+| `'group-only'` | `group: true` (or `admin: true`) outside a group |
+| `'private-only'` | `private: true` in a group |
+| `'admin-only'` | `admin: true` and the sender isn't a group admin |
+| `'cooldown'` | `cooldown` hasn't run out — `retryIn` holds the seconds left, rounded up |
+
+```ts
+client.on('command-blocked', async ({ reason, ctx }) => {
+  if (reason === 'admin-only') await ctx.reply('Only group admins can do that.')
+})
+```
+
+### command-error
+
+`{ command: string; error: unknown; ctx: CommandContext }` — `error` is a `ZaileysCommandError` (`HANDLER_ERROR` or `MIDDLEWARE_ERROR`). While something listens, Zaileys doesn't log the failure itself.
+
+### command-not-found
+
+`{ command: string; message: MessageContext }` — emitted only while something listens, and not for a bare prefix.
+
+## Errors
+
+Every error here is a `ZaileysCommandError`. See [Errors](/reference/errors#zaileyscommanderror) for the class.
+
+| Code | Thrown when | Message |
+| --- | --- | --- |
+| `DUPLICATE_COMMAND` | A name or alias is already registered | `command "ping" is already registered` |
+| `INVALID_COMMAND_NAME` | The spec is empty, or has an empty alias | `command spec must not be empty`, `empty command segment in spec` |
+| `HANDLER_ERROR` | Your handler threw | `command handler failed` |
+| `MIDDLEWARE_ERROR` | A middleware threw, or called `next()` twice | `middleware threw during execution`, `next() called multiple times` |
+| `NO_SENT_MESSAGE` | `ctx.edit()` before any `ctx.reply()` | `ctx.edit requires a prior ctx.reply` |
+| `NOT_CONNECTED` | Declared, not thrown by the current release | — |
+
+## Lower-level exports
+
+The building blocks the client uses internally. You don't need them to write commands; they're useful for tests and custom dispatchers.
+
+| Export | Signature | What it does |
+| --- | --- | --- |
+| `CommandRegistry` | `new CommandRegistry()` | Holds commands: `register(spec, handler)`, `resolve(parsed)`, `unregister(spec)`, `list()`, `describe()`. |
+| `runMiddleware` | `(chain: Middleware[], ctx: CommandContext, final: () => Promise<void> \| void) => Promise<void>` | Runs a middleware chain, then `final`. |
+| `checkGuards` | `(guards: CommandGuards, ctx: CommandContext, deps) => Promise<GuardBlock \| null>` | Checks guards; `null` means the command may run. |
+| `resetCooldowns` | `() => void` | Clears every cooldown in the process. |
+| `attachCommandDispatcher` | `(deps: DispatcherDeps) => DispatcherHandle` | Wires a registry to a message source. |
+
+```ts
+import { resetCooldowns } from 'zaileys'
+
+// In a test's beforeEach, so one test's cooldown doesn't block the next:
+resetCooldowns()
+```
+
+Plugins register commands through the same framework — see [Plugins](/bots/plugins).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Commands" icon="square-terminal" href="/bots/commands">
+    Aliases, arguments, guards, and a help menu, step by step.
+  </Card>
+  <Card title="Middleware" icon="layers" href="/bots/middleware">
+    Owner-only access, rate limits, and error replies.
+  </Card>
+  <Card title="Message context reference" icon="braces" href="/reference/message-context">
+    Every field `ctx` inherits.
+  </Card>
+  <Card title="Command bot recipe" icon="chef-hat" href="/recipes/command-bot">
+    A complete bot to copy.
+  </Card>
+</CardGroup>

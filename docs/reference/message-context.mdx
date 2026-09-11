@@ -1,9 +1,643 @@
 ---
 title: "Message context"
-description: "Every field and method on the message context."
+description: "Every field and method on MessageContext, MentionContext, and MentionAllContext, and every shape msg.media can take — with exact types."
 icon: "braces"
+keywords: ["MessageContext", "msg fields", "roomId", "senderId", "chatId", "senderLid", "receiverId", "chatType", "msg.media", "ContextMedia", "isOld", "uniqueId", "staticId", "replied", "MentionContext"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/message-payload](https://zeative.github.io/zaileys/message-payload).
-</Note>
+import { Term } from "/snippets/glossary.jsx"
+
+This page lists every field and method on the `msg` object that message events hand your handler. For a guided tour, read [Message context](/concepts/message-context) first.
+
+## Where you get it
+
+| Events | Type |
+| --- | --- |
+| `message`, `text`, `image`, `video`, `audio`, `document`, `sticker` | `MessageContext` |
+| `mention` | [`MentionContext`](#mentioncontext) — adds `mentionedJids` and `selfJid` |
+| `mention-all` | [`MentionAllContext`](#mentionallcontext) — adds `isMentionAll`, `selfJid`, and `members` |
+| `command-not-found` (as `message`) | `MessageContext` |
+| Command handlers (as `ctx`) | `CommandContext` — every field below plus the parsed command ([Commands reference](/reference/commands#commandcontext)) |
+
+The same shape comes from both providers. Differences are listed in [On the Cloud API](#on-the-cloud-api).
+
+{/* snippet-check: skip — type outline for scanning; AdAttribution and BusinessInfo aren't exported by name */}
+```ts
+interface MessageContext {
+  // Identity
+  uniqueId: string
+  staticId: string
+  chatId: string // the message ID, not a chat
+  channelId: string
+  // Who and where
+  senderId: string
+  senderLid: string | null
+  senderName: string | null
+  senderUsername: string | null
+  senderDevice: SenderDevice
+  roomId: string | null
+  receiverId: string
+  addressingMode: 'pn' | 'lid'
+  business?: BusinessInfo
+  // Content
+  chatType: ChatType
+  text: string
+  media?: ContextMedia
+  mentions: string[]
+  mentionedGroups: string[]
+  links: string[]
+  timestamp: number
+  forwardCount: number
+  ephemeralDuration: number | null
+  ad?: AdAttribution
+  // Flags
+  isFromMe: boolean; isGroup: boolean; isNewsletter: boolean; isBroadcast: boolean
+  isViewOnce: boolean; isEphemeral: boolean; isForwarded: boolean; isOld: boolean
+  isQuestion: boolean; isPrefix: boolean; isTagMe: boolean; isEdited: boolean
+  isDeleted: boolean; isPinned: boolean; isUnPinned: boolean; isBot: boolean
+  isSpam: boolean; isHideTags: boolean; isStatusMention: boolean
+  isGroupStatusMention: boolean; isGroupStatus: boolean; isStory: boolean
+  // Methods
+  citation: { authors(): Promise<boolean>; banned(): Promise<boolean> }
+  roomName(): Promise<string | null>
+  receiverName(): Promise<string | null>
+  replied(): Promise<MessageContext | null>
+  message(): WAMessage
+  reply(content: string, opts?: TextOptions): Promise<WAMessageKey>
+  react(emoji: string): Promise<WAMessageKey>
+}
+```
+
+## Identity
+
+<ResponseField name="uniqueId" type="string">
+  A 16-character uppercase hex hash of the message key (chat, message ID, and `fromMe`), such as `8FC34A3F8D055D30`. Different for every message and the same every time the same message is decoded — use it to skip duplicates or to name saved files. `computeUniqueId()` produces the same value ([Utilities](/reference/utilities#message-ids)).
+</ResponseField>
+<ResponseField name="staticId" type="string">
+  A 16-character hash of `roomId` and `senderId`. The same for every message from one person in one chat — a key for per-conversation state such as a cart.
+</ResponseField>
+<ResponseField name="chatId" type="string">
+  **The message's ID**, such as `3EB0C767D82B0A5E1F9A` — not a chat address, despite the name. `''` when WhatsApp sent none.
+</ResponseField>
+<ResponseField name="channelId" type="string">
+  The `sessionId` of the client that received the message, such as `'default'`. Useful when one process runs [several accounts](/data/multi-account).
+</ResponseField>
+
+<Warning>
+  Never pass `msg.chatId` to `client.send()`. To answer in the chat the message came from, use `client.send(msg.roomId ?? msg.senderId)` or `msg.reply()`.
+</Warning>
+
+## Sender
+
+<ResponseField name="senderId" type="string">
+  Who sent the message, as a phone <Term id="jid" /> such as `6281234567890@s.whatsapp.net`. When WhatsApp addresses the sender by <Term id="lid" />, Zaileys asks WhatsApp for the phone JID and waits up to 3 seconds; if it gets none, `senderId` stays the `@lid` address.
+</ResponseField>
+<ResponseField name="senderLid" type="string | null">
+  The sender's LID, such as `104857600123456@lid`, whenever WhatsApp sent one. `null` otherwise.
+</ResponseField>
+<ResponseField name="senderName" type="string | null">
+  The display name the sender set in WhatsApp. Anyone can set any name, so don't use it for permissions.
+</ResponseField>
+<ResponseField name="senderUsername" type="string | null">
+  The sender's WhatsApp username, when WhatsApp included it.
+</ResponseField>
+<ResponseField name="senderDevice" type="SenderDevice">
+  The kind of device that sent the message, read from the device number in the sender's address — see [senderDevice values](#senderdevice-values). Treat it as a hint.
+</ResponseField>
+<ResponseField name="business" type="{ verifiedName: string } | undefined">
+  Set only for verified business senders. `verifiedName` is the WhatsApp-verified business name, which — unlike `senderName` — the sender can't choose.
+</ResponseField>
+
+## Chat
+
+<ResponseField name="roomId" type="string | null">
+  The chat the message is in: the group's JID in a group, the other person's JID in a private chat (also for messages your own account sent there). Zaileys fills it for every message it decodes; the `null` in the type is why you write `msg.roomId ?? msg.senderId`.
+</ResponseField>
+<ResponseField name="receiverId" type="string">
+  The account that received the message — the bot's own JID. On the Cloud API it's `<phone number ID>@s.whatsapp.net`, built from your <Term id="phone-number-id" />, not from the phone number.
+</ResponseField>
+<ResponseField name="addressingMode" type="'pn' | 'lid'">
+  `'lid'` when WhatsApp addressed the message by LID, `'pn'` otherwise.
+</ResponseField>
+<ResponseField name="isGroup" type="boolean">
+  Whether the chat is a group (`@g.us`).
+</ResponseField>
+
+| Situation | `senderId` | `roomId` |
+| --- | --- | --- |
+| Budi messages the bot directly | `6281234567890@s.whatsapp.net` | `6281234567890@s.whatsapp.net` |
+| Budi writes in the group "Weekend hiking" | `6281234567890@s.whatsapp.net` | `120363041234567890@g.us` |
+| Budi posts a status | `6281234567890@s.whatsapp.net` | `6281234567890@s.whatsapp.net`, with `isStory: true` |
+
+## Content
+
+<ResponseField name="chatType" type="ChatType">
+  What kind of message it is — see [chatType values](#chattype-values).
+</ResponseField>
+<ResponseField name="text" type="string">
+  The message's text, `''` when there's none. Which text depends on the event: `message` and `mention` give the body, the tapped button or list row, or the file's caption (for a document without a caption, its file name); `text` gives the body; the media events give the caption. @mentions of LIDs are rewritten to phone numbers when the mapping is known.
+</ResponseField>
+<ResponseField name="media" type="ContextMedia | undefined">
+  The attachment, or the details of a poll, location, contact, or other structured message. `undefined` for plain text. See [msg.media](#msgmedia).
+</ResponseField>
+<ResponseField name="mentions" type="string[]">
+  Everyone @mentioned, normalized, with LIDs turned into phone JIDs where WhatsApp shares the mapping.
+</ResponseField>
+<ResponseField name="mentionedGroups" type="string[]">
+  The JIDs of whole groups mentioned in the message. `[]` when none.
+</ResponseField>
+<ResponseField name="links" type="string[]">
+  Every `http://` and `https://` URL in `text`, with trailing `.,;:!?` trimmed.
+</ResponseField>
+<ResponseField name="timestamp" type="number">
+  When the message was sent, in **milliseconds** — pass it to `new Date()`. `0` when WhatsApp sent no timestamp.
+</ResponseField>
+<ResponseField name="forwardCount" type="number">
+  How many times the message was forwarded, as WhatsApp counts it. `0` for an original.
+</ResponseField>
+<ResponseField name="ephemeralDuration" type="number | null">
+  The chat's disappearing-message timer in seconds, or `null` when it's off.
+</ResponseField>
+<ResponseField name="ad" type="AdAttribution | undefined">
+  Set on the first message of a chat someone opened from a Meta ad (Click-to-WhatsApp).
+  <Expandable title="AdAttribution">
+    <ResponseField name="clickId" type="string | undefined">
+      The click ID, to join against Meta Ads reporting.
+    </ResponseField>
+    <ResponseField name="sourceId" type="string | undefined">
+      The ad's ID.
+    </ResponseField>
+    <ResponseField name="sourceUrl" type="string | undefined">
+      The ad's URL.
+    </ResponseField>
+    <ResponseField name="sourceApp" type="string | undefined">
+      Where the ad ran, such as `facebook` or `instagram`.
+    </ResponseField>
+    <ResponseField name="sourceType" type="string | undefined">
+      The ad's source type, as Meta sends it.
+    </ResponseField>
+    <ResponseField name="title" type="string | undefined">
+      The ad's headline.
+    </ResponseField>
+    <ResponseField name="body" type="string | undefined">
+      The ad's text.
+    </ResponseField>
+    <ResponseField name="thumbnailUrl" type="string | undefined">
+      The ad's thumbnail image URL.
+    </ResponseField>
+    <ResponseField name="ref" type="string | undefined">
+      The campaign reference you set on the ad.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```ts
+client.on('text', (msg) => {
+  if (msg.ad) console.log(`New lead from ${msg.ad.sourceApp ?? 'an ad'}: ${msg.ad.title ?? msg.ad.sourceId}`)
+})
+```
+
+## Flags
+
+Every flag is a `boolean`.
+
+<ResponseField name="isFromMe" type="boolean">
+  The bot's own account sent it. Only reaches your handlers with `ignoreMe: false`.
+</ResponseField>
+<ResponseField name="isGroup" type="boolean">
+  The chat is a group.
+</ResponseField>
+<ResponseField name="isNewsletter" type="boolean">
+  The chat is a channel (`@newsletter`).
+</ResponseField>
+<ResponseField name="isBroadcast" type="boolean">
+  The chat address ends in `@broadcast` — a broadcast list or a status.
+</ResponseField>
+<ResponseField name="isStory" type="boolean">
+  The message is a status post (`status@broadcast`).
+</ResponseField>
+<ResponseField name="isViewOnce" type="boolean">
+  The message is view-once.
+</ResponseField>
+<ResponseField name="isEphemeral" type="boolean">
+  The message is a disappearing message.
+</ResponseField>
+<ResponseField name="isForwarded" type="boolean">
+  The message was forwarded.
+</ResponseField>
+<ResponseField name="isOld" type="boolean">
+  WhatsApp replayed the message after a reconnect instead of delivering it live.
+</ResponseField>
+<ResponseField name="isQuestion" type="boolean">
+  `text`, trimmed, ends with `?`.
+</ResponseField>
+<ResponseField name="isPrefix" type="boolean">
+  `text` starts with one of your `commandPrefix` values. Always `false` when you set none.
+</ResponseField>
+<ResponseField name="isTagMe" type="boolean">
+  `mentions` includes the bot's own account.
+</ResponseField>
+<ResponseField name="isHideTags" type="boolean">
+  The message mentions people but its text has no `@<number>` — a hidden tag.
+</ResponseField>
+<ResponseField name="isEdited" type="boolean">
+  The message is an edit of an earlier one.
+</ResponseField>
+<ResponseField name="isDeleted" type="boolean">
+  The message is a "deleted for everyone" notice.
+</ResponseField>
+<ResponseField name="isPinned" type="boolean">
+  The message pins a message for everyone.
+</ResponseField>
+<ResponseField name="isUnPinned" type="boolean">
+  The message unpins a message for everyone.
+</ResponseField>
+<ResponseField name="isBot" type="boolean">
+  The message carries WhatsApp bot metadata — it came from a WhatsApp AI bot.
+</ResponseField>
+<ResponseField name="isStatusMention" type="boolean">
+  The message is a mention in someone's status.
+</ResponseField>
+<ResponseField name="isGroupStatusMention" type="boolean">
+  The message is a mention in a group status.
+</ResponseField>
+<ResponseField name="isGroupStatus" type="boolean">
+  The message is a group status post.
+</ResponseField>
+<ResponseField name="isSpam" type="boolean">
+  Always `false` in the current release.
+</ResponseField>
+
+## Methods
+
+### roomName()
+
+```ts
+const name = await msg.roomName() // 'Weekend hiking'
+```
+
+Resolves to the group's name in a group — fetched once per group, then remembered; `null` if the fetch fails — and to the sender's display name in a private chat.
+
+### receiverName()
+
+```ts
+const botName = await msg.receiverName() // 'Warung Budi Bot'
+```
+
+Resolves to the bot account's own display name, or `null`.
+
+### replied()
+
+```ts
+const original = await msg.replied()
+if (original) console.log(`${original.senderName ?? 'Someone'} said: ${original.text}`)
+```
+
+Resolves to the message this one replies to, as its own `MessageContext`, or `null` when it isn't a reply. Zaileys first looks the original up in the message store; if it isn't there, it rebuilds it from the quote WhatsApp embeds in the reply.
+
+### message()
+
+```ts
+await client.send(msg.roomId ?? msg.senderId).image('./chart.png').reply(msg.message())
+```
+
+Returns the raw Baileys `WAMessage`. Pass it to `.reply()` on the send builder to quote the message, or read `msg.message().key` for its key.
+
+### reply(content, opts?)
+
+```ts
+await msg.reply('We open at 09:00 every day.')
+```
+
+Sends `content` as text to the chat the message came from, quoting it, and resolves to the new message's key. `opts` takes the text options from [Text & replies](/messaging/text). In a chat with disappearing messages, the reply copies the quoted message's timer.
+
+### react(emoji)
+
+```ts
+await msg.react('✅')
+```
+
+Puts a reaction on the message and resolves to the reaction message's key.
+
+### citation
+
+```ts
+client.on('text', async (msg) => {
+  if (await msg.citation.banned()) return
+  if (msg.text === '/stats' && (await msg.citation.authors())) await msg.reply('128 orders today.')
+})
+```
+
+`authors()` and `banned()` resolve to whether the sender is on the lists from the `citation` client option — an array of JIDs or a function. Both resolve to `false` when the option isn't set. The check uses the sender's address exactly as WhatsApp sent it, so a sender addressed by LID is compared by LID ([set up the lists](/concepts/configuration#mark-owners-and-banned-users)).
+
+## chatType values
+
+| `chatType` | The message is | `media.type` |
+| --- | --- | --- |
+| `'text'` | Plain text, or text with a link preview | none, or `'link'` |
+| `'image'`, `'video'`, `'audio'`, `'document'`, `'sticker'` | A file | The same as `chatType` |
+| `'poll'` | A poll | `'poll'` |
+| `'contact'` | One or more contact cards | `'contact'` |
+| `'location'` | A location pin | `'location'` |
+| `'live-location'` | A live location | `'live-location'` |
+| `'event'` | A group event | `'event'` |
+| `'album'` | The header of an album | `'album'` |
+| `'group-invite'` | A group invite card | `'group-invite'` |
+| `'product'` | A product card | `'product'` |
+| `'order'` | An order | `'order'` |
+| `'payment'` | A payment request, payment, or payment invite | `'payment'` |
+| `'buttons'` | A buttons message | `'buttons'` |
+| `'list'` | A list message | `'list'` |
+| `'interactive'` | An interactive (native flow) message | `'interactive'` |
+| `'template'` | A template message | `'template'` |
+
+`ChatType` also includes `'unknown'`, but the current release never produces it — anything unrecognized is `'text'`.
+
+## senderDevice values
+
+| Device number in the sender's address | `senderDevice` |
+| --- | --- |
+| None or `0` (the main phone) | `'android'` |
+| `2` | `'ios'` |
+| `3` | `'web'` |
+| `4` | `'desktop'` |
+| Anything else, or an address that can't be decoded | `'unknown'` |
+
+A main phone always reads as `'android'`, even when it's an iPhone.
+
+## msg.media
+
+`msg.media` is a union, `ContextMedia`. Check `msg.media?.type` first — TypeScript then knows which fields exist:
+
+```ts
+client.on('message', async (msg) => {
+  if (msg.media?.type === 'poll') {
+    await msg.reply(`Poll "${msg.media.name}" has ${msg.media.options.length} options.`)
+  }
+})
+```
+
+The individual shapes aren't exported by name. To type a variable, pick one out of the union:
+
+```ts
+import type { ContextMedia } from 'zaileys'
+
+type PollMedia = Extract<ContextMedia, { type: 'poll' }>
+```
+
+Structured fields are `null` when WhatsApp left them out.
+
+### Files
+
+`type` is `'image'`, `'video'`, `'audio'`, `'document'`, or `'sticker'`.
+
+<ResponseField name="mimetype" type="string | null">
+  The file type, such as `image/jpeg`.
+</ResponseField>
+<ResponseField name="caption" type="string | null">
+  The caption.
+</ResponseField>
+<ResponseField name="fileName" type="string | null">
+  The file name, for documents.
+</ResponseField>
+<ResponseField name="fileSize" type="number | null">
+  Size in bytes.
+</ResponseField>
+<ResponseField name="ptt" type="boolean">
+  `true` for a voice note, `false` for an audio file and everything else.
+</ResponseField>
+<ResponseField name="isAnimated" type="boolean">
+  An animated sticker, or a video sent as a GIF.
+</ResponseField>
+<ResponseField name="duration" type="number | null">
+  Length in seconds, for audio and video.
+</ResponseField>
+<ResponseField name="width" type="number | null">
+  Width in pixels.
+</ResponseField>
+<ResponseField name="height" type="number | null">
+  Height in pixels.
+</ResponseField>
+<ResponseField name="pages" type="number | null">
+  Page count, for documents.
+</ResponseField>
+<ResponseField name="thumbnail" type="Buffer | null">
+  The small JPEG preview embedded in the message.
+</ResponseField>
+<ResponseField name="buffer()" type="() => Promise<Buffer>">
+  Downloads the whole file. WhatsApp Web only.
+</ResponseField>
+<ResponseField name="stream()" type="() => Promise<Readable>">
+  Downloads the file as a Node.js stream. WhatsApp Web only.
+</ResponseField>
+
+Downloads, saving, and the Cloud API alternative are in [Receiving media](/messaging/receiving-media).
+
+### Poll
+
+<ResponseField name="type" type="'poll'" />
+<ResponseField name="name" type="string | null">
+  The question.
+</ResponseField>
+<ResponseField name="options" type="string[]">
+  The option texts.
+</ResponseField>
+<ResponseField name="selectableCount" type="number">
+  How many options a voter may pick. `0` when WhatsApp didn't say.
+</ResponseField>
+
+### Contact card
+
+<ResponseField name="type" type="'contact'" />
+<ResponseField name="displayName" type="string | null">
+  The card's name. For several cards, the combined name WhatsApp shows.
+</ResponseField>
+<ResponseField name="vcard" type="string | null">
+  The vCard text of a single card. `null` for several cards.
+</ResponseField>
+<ResponseField name="contacts" type="Array<{ displayName: string | null; vcard: string | null }>">
+  Every card — one entry for a single card.
+</ResponseField>
+
+### Location
+
+`type` is `'location'` or `'live-location'`.
+
+<ResponseField name="latitude" type="number | null" />
+<ResponseField name="longitude" type="number | null" />
+<ResponseField name="name" type="string | null">
+  The place's name. Always `null` for live locations.
+</ResponseField>
+<ResponseField name="address" type="string | null">
+  The place's address. Always `null` for live locations.
+</ResponseField>
+<ResponseField name="accuracy" type="number | null">
+  Accuracy in meters.
+</ResponseField>
+<ResponseField name="speed" type="number | null">
+  Speed in meters per second.
+</ResponseField>
+<ResponseField name="caption" type="string | null">
+  The text attached to the location.
+</ResponseField>
+
+### Event
+
+<ResponseField name="type" type="'event'" />
+<ResponseField name="name" type="string | null" />
+<ResponseField name="description" type="string | null" />
+<ResponseField name="location" type="string | null">
+  The event location's name, or its address.
+</ResponseField>
+<ResponseField name="startTime" type="number | null">
+  As WhatsApp sends it.
+</ResponseField>
+<ResponseField name="endTime" type="number | null">
+  As WhatsApp sends it.
+</ResponseField>
+<ResponseField name="isCanceled" type="boolean" />
+
+### Album
+
+The message that opens an album. The photos and videos arrive as their own messages.
+
+<ResponseField name="type" type="'album'" />
+<ResponseField name="expectedImageCount" type="number | null" />
+<ResponseField name="expectedVideoCount" type="number | null" />
+
+### Group invite
+
+<ResponseField name="type" type="'group-invite'" />
+<ResponseField name="groupId" type="string | null">
+  The group's JID.
+</ResponseField>
+<ResponseField name="groupName" type="string | null" />
+<ResponseField name="inviteCode" type="string | null" />
+<ResponseField name="caption" type="string | null" />
+<ResponseField name="expiresAt" type="number | null">
+  The invite's expiry, as WhatsApp sends it.
+</ResponseField>
+
+### Product
+
+<ResponseField name="type" type="'product'" />
+<ResponseField name="productId" type="string | null" />
+<ResponseField name="title" type="string | null" />
+<ResponseField name="description" type="string | null" />
+<ResponseField name="price" type="number | null">
+  The price in the currency's normal units, such as `25000` for Rp 25.000.
+</ResponseField>
+<ResponseField name="currency" type="string | null">
+  An ISO currency code, such as `IDR`.
+</ResponseField>
+<ResponseField name="retailerId" type="string | null" />
+<ResponseField name="url" type="string | null" />
+<ResponseField name="businessOwnerId" type="string | null">
+  The JID of the business that owns the product.
+</ResponseField>
+
+### Order
+
+<ResponseField name="type" type="'order'" />
+<ResponseField name="orderId" type="string | null" />
+<ResponseField name="title" type="string | null" />
+<ResponseField name="itemCount" type="number | null" />
+<ResponseField name="total" type="number | null">
+  The total in the currency's normal units.
+</ResponseField>
+<ResponseField name="currency" type="string | null" />
+<ResponseField name="status" type="string | null">
+  `'inquiry'`, `'accepted'`, or `'declined'` when WhatsApp sends a known status code.
+</ResponseField>
+<ResponseField name="message" type="string | null" />
+
+### Payment
+
+<ResponseField name="type" type="'payment'" />
+<ResponseField name="kind" type="'request' | 'send' | 'invite'">
+  A payment request, a payment sent, or a payment invite.
+</ResponseField>
+<ResponseField name="amount" type="number | null">
+  The amount in the currency's normal units.
+</ResponseField>
+<ResponseField name="currency" type="string | null" />
+<ResponseField name="note" type="string | null" />
+<ResponseField name="expiresAt" type="number | null">
+  As WhatsApp sends it.
+</ResponseField>
+
+### Link preview
+
+Set on a text message with a link preview that has a title or description. `chatType` stays `'text'`.
+
+<ResponseField name="type" type="'link'" />
+<ResponseField name="url" type="string | null" />
+<ResponseField name="title" type="string | null" />
+<ResponseField name="description" type="string | null" />
+
+### Buttons, list, interactive, and template messages
+
+These describe a message that *shows* buttons — typically one sent by a business or another bot. A tap on buttons you sent arrives as [`button-click`](/reference/events#button-click) or [`list-select`](/reference/events#list-select) instead.
+
+| `type` | Fields |
+| --- | --- |
+| `'buttons'` | `contentText`, `footerText` (`string \| null`); `buttons: Array<{ id: string \| null; text: string \| null }>` |
+| `'list'` | `title`, `description`, `buttonText` (`string \| null`); `sections: Array<{ title: string \| null; rows: Array<{ id, title, description }> }>`, row fields `string \| null` |
+| `'interactive'` | `title`, `body`, `footer` (`string \| null`); `buttons: Array<{ name: string \| null; params: string \| null }>` — `params` is the button's raw JSON |
+| `'template'` | `text` (`string \| null`); `buttons: Array<{ id: string \| null; text: string \| null }>` |
+
+## MentionContext
+
+The `mention` event's payload: every `MessageContext` field, plus:
+
+<ResponseField name="mentionedJids" type="string[]">
+  Everyone mentioned in the message, the same as `mentions`.
+</ResponseField>
+<ResponseField name="selfJid" type="string">
+  The bot's own JID.
+</ResponseField>
+
+## MentionAllContext
+
+The `mention-all` event's payload: every `MessageContext` field, plus:
+
+<ResponseField name="isMentionAll" type="true">
+  Always `true`.
+</ResponseField>
+<ResponseField name="selfJid" type="string">
+  The bot's own JID.
+</ResponseField>
+<ResponseField name="members" type="string[] | undefined">
+  Declared on the type, but not filled in by the current release.
+</ResponseField>
+
+## On the Cloud API
+
+| Field or method | On the Cloud API |
+| --- | --- |
+| `isGroup`, `isViewOnce`, `isNewsletter`, `isStory` | Always `false`. `roomId` equals `senderId`. |
+| `senderLid` | Always `null`. |
+| `receiverId` | `<phone number ID>@s.whatsapp.net`. |
+| `roomName()` | The sender's profile name. |
+| `receiverName()` | Always `null`. |
+| `replied()` | Finds the earlier message only if it's still in the message store. |
+| `mentions`, `links` | `mentions` is always `[]`; `links` works as usual. |
+| `media.buffer()`, `media.stream()` | Don't work — use `client.downloadMedia(msg.message().key)` ([Receiving media](/messaging/receiving-media#differences-on-the-cloud-api)). |
+| `media.fileSize`, `duration`, `width`, `height`, `pages`, `thumbnail` | Always `null`. |
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Message context" icon="braces" href="/concepts/message-context">
+    The fields you'll use most, with examples.
+  </Card>
+  <Card title="Events catalog" icon="zap" href="/reference/events">
+    Which events hand you a message context.
+  </Card>
+  <Card title="Receiving media" icon="file-down" href="/messaging/receiving-media">
+    Download and convert `msg.media`.
+  </Card>
+  <Card title="Addresses & JIDs" icon="at-sign" href="/concepts/jids">
+    What `senderId`, `senderLid`, and `roomId` look like.
+  </Card>
+</CardGroup>

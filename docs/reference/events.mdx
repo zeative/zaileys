@@ -1,9 +1,943 @@
 ---
 title: "Events catalog"
-description: "Every event name, its payload, and the providers that emit it."
+sidebarTitle: "Events"
+description: "Every event Zaileys emits: when it fires, its payload type and fields, and whether WhatsApp Web or the Cloud API sends it."
 icon: "zap"
+keywords: ["events list", "event names", "client.on", "payload", "ClientEventMap", "reaction event", "group-join", "call-incoming", "disconnect reason", "message-status", "poll-vote", "button-click"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/events](https://zeative.github.io/zaileys/events).
-</Note>
+import { Term } from "/snippets/glossary.jsx"
+
+This page lists every event you can pass to `client.on()`, with the exact payload each handler receives.
+
+## Catalog
+
+| Event | Fires when | Payload | Web | Cloud |
+| --- | --- | --- | --- | --- |
+| [`message`](#message) | Any message with text or an attachment arrives | `MessageContext` | Yes | Yes |
+| [`text`](#text) | A message with a text body, or a poll, location, contact, and similar | `MessageContext` | Yes | Yes |
+| [`image`, `video`, `audio`, `document`, `sticker`](#media-events) | A file of that kind arrives | `MessageContext` | Yes | Yes |
+| [`mention`](#mention) | A message @mentions the bot's own account | `MentionContext` | Yes | No |
+| [`mention-all`](#mention-all) | A group message mentions a whole group | `MentionAllContext` | Yes | No |
+| [`reaction`](#reaction) | Someone adds or removes a reaction | `ReactionPayload` | Yes | Yes |
+| [`edit`](#edit) | Someone edits a message | `EditPayload` | Yes | No |
+| [`delete`](#delete) | Someone deletes a message | `DeletePayload` | Yes | No |
+| [`poll-vote`](#poll-vote) | Someone votes in a poll | `PollVotePayload` | Yes | No |
+| [`button-click`](#button-click) | Someone taps a button | `ButtonClickPayload` | Yes | Yes |
+| [`list-select`](#list-select) | Someone picks a list row | `ListSelectPayload` | Yes | Yes |
+| [`group-update`](#group-update) | A group's name, description, or settings change | `GroupUpdatePayload` | Yes | No |
+| [`group-join`](#group-join) | People join or are added to a group | `GroupJoinPayload` | Yes | No |
+| [`group-leave`](#group-leave) | People leave or are removed from a group | `GroupLeavePayload` | Yes | No |
+| [`member-tag`](#member-tag) | A member's label in a group changes | `MemberTagPayload` | Yes | No |
+| [`call-incoming`](#call-incoming) | Someone calls the bot's number | `CallPayload` (`kind: 'incoming'`) | Yes | No |
+| [`call-ended`](#call-ended) | A call stops ringing | `CallPayload` (`kind: 'ended'`) | Yes | No |
+| [`presence`](#presence) | A contact types, records, or goes online or offline | `PresencePayload` | Yes | No |
+| [`history-sync`](#history-sync) | A chat-history sync completes or pauses | `HistorySyncPayload` | Yes | No |
+| [`newsletter`](#newsletter) | A channel gets a reaction, views, or a settings change | `NewsletterPayload` | Yes | No |
+| [`limited`](#limited) | WhatsApp restricts the account | `LimitedPayload` | Yes | No |
+| [`qr`](#qr) | A QR code is ready to scan | `{ sessionId, qrString, expiresAt }` | Yes | No |
+| [`pairing-code`](#pairing-code) | A pairing code is ready to type in | `{ sessionId, code, expiresAt }` | Yes | No |
+| [`connect`](#connect) | The client is connected | `{ sessionId, me }` | Yes | Yes |
+| [`reconnecting`](#reconnecting) | A reconnect is scheduled | `{ sessionId, attempt, delayMs, reason }` | Yes | No |
+| [`disconnect`](#disconnect) | The connection closed | `{ sessionId, reason, willReconnect }` | Yes | Yes |
+| [`auth-exhausted`](#auth-exhausted) | Too many unused QR or pairing codes | `{ sessionId, kind, attempts, max }` | Yes | No |
+| [`error`](#error) | The automatic connect at startup failed | `{ sessionId, error }` | Yes | Yes |
+| [`command-blocked`](#command-blocked) | A guard stopped a command | `{ command, reason, retryIn?, ctx }` | Yes | No |
+| [`command-error`](#command-error) | A command handler or middleware threw | `{ command, error, ctx }` | Yes | No |
+| [`command-not-found`](#command-not-found) | A prefixed message matched no command | `{ command, message }` | Yes | No |
+| [`message-status`](#message-status) | A sent message is sent, delivered, read, or failed | `CloudStatusEvent` | No | Yes |
+| [`template-status`](#template-status) | Meta reviews one of your templates | `CloudTemplateStatusEvent` | No | Yes |
+| [`flow-response`](#flow-response) | Someone completes a WhatsApp Flow | `CloudFlowResponseEvent` | No | Yes |
+| [`order`](#order) | Someone orders from your catalog | `CloudOrderEvent` | No | Yes |
+
+Every payload type is exported from `'zaileys'`, and `ClientEventMap['event-name']` gives you the payload type of any event by name ([example](#type-helpers)). How events work — handler order, unsubscribing, errors in handlers — is in [Events](/concepts/events).
+
+## Messages
+
+These events hand your handler a [message context](/reference/message-context). One incoming message can fire several of them — a photo that @mentions the bot fires `message`, `image`, and `mention`.
+
+Messages the bot's own account sends are skipped unless you set `ignoreMe: false`. Messages WhatsApp replays after a reconnect arrive with `msg.isOld` set to `true`.
+
+### message
+
+Fires for every incoming message that has text or an attachment: plain text, captioned and uncaptioned files, polls, locations, contact cards, button and list taps, and more. Messages with neither — such as reactions, which have their own event — don't fire it.
+
+`msg.text` is the message body, the text of the tapped button or list row, or the file's caption. For a document with no caption, it's the file name.
+
+```ts
+client.on('message', async (msg) => {
+  if (msg.chatType === 'location' && msg.media?.type === 'location') {
+    await msg.reply(`Pickup point saved: ${msg.media.latitude}, ${msg.media.longitude}`)
+  }
+})
+```
+
+### text
+
+Fires for a message with a text body — plain text or a link preview — and for messages whose content is structured rather than a file: polls, locations, live locations, contact cards, events, albums, group invites, products, orders, payments, and buttons, list, interactive, and template messages. Their details are in `msg.media`.
+
+It does **not** fire for file captions or for button and list taps. Use `message` or the media events for those.
+
+```ts
+client.on('text', async (msg) => {
+  if (msg.text.toLowerCase() === 'hours') {
+    await msg.reply('We are open 09:00–21:00, Monday to Saturday.')
+  }
+})
+```
+
+### Media events
+
+`image`, `video`, `audio`, `document`, and `sticker` each fire when a message holds a file of that kind, including view-once and disappearing messages. `msg.text` is the caption, or `''`.
+
+`msg.media` is always a file attachment of that type, but TypeScript still sees the full `ContextMedia` union, so check `msg.media?.type` before reading file fields:
+
+```ts
+client.on('document', async (msg) => {
+  if (msg.media?.type !== 'document') return
+  await msg.reply(`Received ${msg.media.fileName ?? 'your file'} (${msg.media.pages ?? '?'} pages).`)
+})
+```
+
+Downloading is covered in [Receiving media](/messaging/receiving-media).
+
+### mention
+
+Fires when a message @mentions the bot's own account, by phone <Term id="jid" /> or by <Term id="lid" />. The payload is a `MentionContext`: every message context field, plus:
+
+<ResponseField name="mentionedJids" type="string[]">
+  Everyone mentioned in the message, with LIDs turned into phone JIDs where WhatsApp shares the mapping. Same as `msg.mentions`.
+</ResponseField>
+<ResponseField name="selfJid" type="string">
+  The bot's own JID.
+</ResponseField>
+
+```ts
+client.on('mention', async (msg) => {
+  if (msg.isGroup) await msg.reply(`Hi ${msg.senderName ?? 'there'}! Send /help to see what I can do.`)
+})
+```
+
+### mention-all
+
+Fires for a group message that carries a group mention — WhatsApp's @-mention of a whole group, rather than of people. The mentioned groups are in `msg.mentionedGroups`. The payload is a `MentionAllContext`: every message context field, plus:
+
+<ResponseField name="isMentionAll" type="true">
+  Always `true`.
+</ResponseField>
+<ResponseField name="selfJid" type="string">
+  The bot's own JID.
+</ResponseField>
+<ResponseField name="members" type="string[] | undefined">
+  Declared on the type, but not filled in by the current release — always `undefined`.
+</ResponseField>
+
+```ts
+client.on('mention-all', (msg) => {
+  console.log(`${msg.senderName} mentioned ${msg.mentionedGroups.join(', ')}`)
+})
+```
+
+## Changes to messages
+
+These payloads point at the original message with a Baileys `WAMessageKey` (`remoteJid`, `id`, `fromMe`, `participant`), which you can pass to `client.store.getMessage()`, `client.react()`, and similar calls.
+
+### reaction
+
+<ResponseField name="key" type="WAMessageKey">
+  The key of the message that got the reaction.
+</ResponseField>
+<ResponseField name="emoji" type="string | null">
+  The emoji, or `null` when the reaction was removed.
+</ResponseField>
+<ResponseField name="sender" type="SenderInfo">
+  Who reacted. See [SenderInfo](#senderinfo).
+</ResponseField>
+<ResponseField name="timestamp" type="number">
+  When the reaction was sent, in milliseconds. `0` when WhatsApp didn't include it.
+</ResponseField>
+
+```ts
+client.on('reaction', async ({ key, emoji }) => {
+  if (emoji === '👍' && key.remoteJid) {
+    await client.send(key.remoteJid).text('Thanks for the thumbs up!')
+  }
+})
+```
+
+### edit
+
+<ResponseField name="key" type="WAMessageKey">
+  The key of the message that was edited.
+</ResponseField>
+<ResponseField name="newContent" type="string">
+  The new text. `''` when the edited message has no text.
+</ResponseField>
+<ResponseField name="editedAt" type="number">
+  The update's `messageTimestamp` as WhatsApp sends it (Unix seconds), or `0`.
+</ResponseField>
+<ResponseField name="sender" type="SenderInfo">
+  Who edited it.
+</ResponseField>
+
+```ts
+client.on('edit', ({ key, newContent }) => {
+  console.log(`Message ${key.id} now says: ${newContent}`)
+})
+```
+
+### delete
+
+<ResponseField name="key" type="WAMessageKey">
+  The key of the deleted message. The payload doesn't carry its content — look it up with `client.store.getMessage(key)` if your store kept it.
+</ResponseField>
+<ResponseField name="deletedFor" type="'everyone' | 'me'">
+  `'me'` when the deletion arrives in the bot's chat with itself, `'everyone'` otherwise.
+</ResponseField>
+<ResponseField name="sender" type="SenderInfo">
+  Who deleted it.
+</ResponseField>
+<ResponseField name="timestamp" type="number">
+  The update's `messageTimestamp` as WhatsApp sends it (Unix seconds), or `0`.
+</ResponseField>
+
+```ts
+client.on('delete', async ({ key }) => {
+  const original = await client.store.getMessage(key)
+  console.log('Deleted:', original?.message?.conversation ?? '(not in the store)')
+})
+```
+
+### poll-vote
+
+<ResponseField name="pollKey" type="WAMessageKey">
+  The key of the poll.
+</ResponseField>
+<ResponseField name="selectedOptions" type="string[]">
+  The raw SHA-256 hashes WhatsApp sends, one per picked option, as hex. Use `options()` for readable text. Can be empty.
+</ResponseField>
+<ResponseField name="voter" type="SenderInfo">
+  Who voted.
+</ResponseField>
+<ResponseField name="timestamp" type="number">
+  The vote's `senderTimestampMs` (milliseconds). Falls back to the update's `messageTimestamp` (seconds), then `0`.
+</ResponseField>
+<ResponseField name="options()" type="() => Promise<string[]>">
+  The text of the options the voter picked. It needs the original poll in the message store, and resolves to `[]` when the poll isn't there.
+</ResponseField>
+
+```ts
+client.on('poll-vote', async (vote) => {
+  const picked = await vote.options()
+  console.log(`${vote.voter.pn ?? vote.voter.jid} voted for ${picked.join(', ') || 'nothing we can read'}`)
+})
+```
+
+## Interactions
+
+### button-click
+
+Fires for a tap on a reply button, a template button, or a native-flow button that carries an ID (`quick_reply`, `cta_url`, `cta_call`, `button_click`). On the Cloud API it fires for Meta's `button_reply`.
+
+<ResponseField name="key" type="WAMessageKey">
+  The key of the tap message itself — not of the message that showed the buttons.
+</ResponseField>
+<ResponseField name="buttonId" type="string">
+  The ID you gave the button.
+</ResponseField>
+<ResponseField name="buttonText" type="string | undefined">
+  The button's label, when WhatsApp includes it.
+</ResponseField>
+<ResponseField name="sender" type="SenderInfo">
+  Who tapped.
+</ResponseField>
+<ResponseField name="timestamp" type="number">
+  The tap message's `messageTimestamp` (Unix seconds), or `0`.
+</ResponseField>
+
+```ts
+client.on('button-click', async ({ buttonId, sender }) => {
+  if (buttonId === 'confirm-order') {
+    await client.send(sender.pn ?? sender.jid).text('Order confirmed. We will deliver within 2 hours.')
+  }
+})
+```
+
+### list-select
+
+Fires for a pick in a list message, or a native-flow `list_select` / `single_select` reply. On the Cloud API it fires for Meta's `list_reply`.
+
+<ResponseField name="key" type="WAMessageKey">
+  The key of the reply message.
+</ResponseField>
+<ResponseField name="rowId" type="string">
+  The ID you gave the row.
+</ResponseField>
+<ResponseField name="title" type="string | undefined">
+  The row's title, when WhatsApp includes it.
+</ResponseField>
+<ResponseField name="sender" type="SenderInfo">
+  Who picked it.
+</ResponseField>
+<ResponseField name="timestamp" type="number">
+  The reply's `messageTimestamp` (Unix seconds), or `0`.
+</ResponseField>
+
+```ts
+client.on('list-select', ({ rowId, title }) => {
+  console.log(`Picked ${title ?? rowId}`)
+})
+```
+
+Sending buttons and lists is covered in [Buttons & lists](/messaging/interactive).
+
+## Groups
+
+WhatsApp Web only.
+
+### group-update
+
+<ResponseField name="groupId" type="string">
+  The group's JID.
+</ResponseField>
+<ResponseField name="update" type="Partial<{ subject, description, announce, restrict, ephemeralDuration }>">
+  Only the settings that changed: `subject` (name) and `description` are strings, `announce` (only admins can send) and `restrict` (only admins can edit group info) are booleans, and `ephemeralDuration` is the disappearing-message timer in seconds.
+</ResponseField>
+<ResponseField name="timestamp" type="number">
+  When Zaileys received the update, in milliseconds.
+</ResponseField>
+
+```ts
+client.on('group-update', async ({ groupId, update }) => {
+  if (update.subject !== undefined) {
+    await client.send(groupId).text(`New group name: ${update.subject}`)
+  }
+})
+```
+
+### group-join
+
+<ResponseField name="groupId" type="string">
+  The group's JID.
+</ResponseField>
+<ResponseField name="participants" type="GroupParticipantInfo[]">
+  The people who joined. See [GroupParticipantInfo](#groupparticipantinfo).
+</ResponseField>
+<ResponseField name="action" type="'add' | 'invite' | 'invite-link'">
+  How they joined, as WhatsApp reports it.
+</ResponseField>
+<ResponseField name="by" type="string | undefined">
+  The JID of whoever made the change, when WhatsApp says.
+</ResponseField>
+<ResponseField name="timestamp" type="number">
+  When Zaileys received the update, in milliseconds.
+</ResponseField>
+
+```ts
+client.on('group-join', async ({ groupId, participants }) => {
+  const jids = participants.map((p) => p.jid)
+  const tags = jids.map((j) => `@${j.split('@')[0]}`).join(' ')
+  await client.send(groupId).text(`Welcome ${tags}! Please read the pinned rules.`).mentions(jids)
+})
+```
+
+### group-leave
+
+Same fields as `group-join`, except `action`:
+
+<ResponseField name="action" type="'remove' | 'leave'">
+  `'remove'` when someone was removed, `'leave'` when they left.
+</ResponseField>
+
+```ts
+client.on('group-leave', ({ groupId, participants, action }) => {
+  console.log(`${participants.length} member(s) ${action === 'leave' ? 'left' : 'were removed from'} ${groupId}`)
+})
+```
+
+### member-tag
+
+<ResponseField name="groupId" type="string">
+  The group's JID.
+</ResponseField>
+<ResponseField name="participant" type="string">
+  The member whose label changed.
+</ResponseField>
+<ResponseField name="participantAlt" type="string | undefined">
+  The member's other address (LID or phone JID), when WhatsApp includes it.
+</ResponseField>
+<ResponseField name="label" type="string">
+  The new label. `''` when WhatsApp sends none.
+</ResponseField>
+<ResponseField name="timestamp" type="number">
+  The update's timestamp as WhatsApp sends it, or the time Zaileys received it, in milliseconds, when it's missing.
+</ResponseField>
+
+```ts
+client.on('member-tag', ({ participant, label }) => {
+  console.log(`${participant} is now labelled "${label}"`)
+})
+```
+
+Member management is covered in [Members](/groups/members).
+
+## Calls
+
+WhatsApp Web only. Both events share these fields:
+
+<ResponseField name="kind" type="'incoming' | 'ended'">
+  Which event this is.
+</ResponseField>
+<ResponseField name="callId" type="string">
+  The call's ID. Pass it to `client.rejectCall()`.
+</ResponseField>
+<ResponseField name="from" type="string">
+  The caller's JID.
+</ResponseField>
+<ResponseField name="isGroup" type="boolean">
+  Whether it's a group call.
+</ResponseField>
+<ResponseField name="isVideo" type="boolean">
+  Whether it's a video call.
+</ResponseField>
+<ResponseField name="timestamp" type="number">
+  When the call event happened, in milliseconds.
+</ResponseField>
+<ResponseField name="status" type="string | undefined">
+  WhatsApp's call status — see each event below.
+</ResponseField>
+
+### call-incoming
+
+Fires while the call rings, with `status` `'offer'` or `'ringing'`. It also has:
+
+<ResponseField name="caller" type="CallerInfo | undefined">
+  Extra caller details from the raw call stanza, when WhatsApp sends them.
+  <Expandable title="CallerInfo">
+    <ResponseField name="platform" type="string | undefined">
+      The caller's platform, such as `iphone`, `android`, or `smba`.
+    </ResponseField>
+    <ResponseField name="appVersion" type="string | undefined">
+      The caller's WhatsApp version, such as `2.26.30.78`.
+    </ResponseField>
+    <ResponseField name="name" type="string | undefined">
+      The caller's display name.
+    </ResponseField>
+    <ResponseField name="countryCode" type="string | undefined">
+      The ISO 3166 country the caller is dialling from, such as `ID`.
+    </ResponseField>
+    <ResponseField name="phoneJid" type="string | undefined">
+      The caller's phone JID, present even when the call is addressed by LID.
+    </ResponseField>
+    <ResponseField name="networkMedium" type="number | undefined">
+      The raw network medium code the caller's device reported.
+    </ResponseField>
+    <ResponseField name="screen" type="{ width: number; height: number } | undefined">
+      The caller's screen size. Video calls only.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+```ts
+client.on('call-incoming', async (call) => {
+  await client.rejectCall(call)
+  await client.send(call.caller?.phoneJid ?? call.from).text('Sorry, this number cannot take calls. Please send a message.')
+})
+```
+
+To reject every call automatically, use the `autoRejectCall` option ([Configuration](/concepts/configuration#reject-incoming-calls)).
+
+### call-ended
+
+Fires once the call stops ringing, with `status` `'timeout'`, `'reject'`, `'accept'`, or `'terminate'`. It has no `caller`.
+
+```ts
+client.on('call-ended', ({ from, status }) => {
+  if (status === 'timeout') console.log(`Missed call from ${from}`)
+})
+```
+
+## Account and sync
+
+WhatsApp Web only.
+
+### presence
+
+Fires once per person in each presence update.
+
+<ResponseField name="jid" type="string">
+  The chat the update is about.
+</ResponseField>
+<ResponseField name="participant" type="string | undefined">
+  Who is typing or online. Zaileys always sets it.
+</ResponseField>
+<ResponseField name="status" type="'available' | 'unavailable' | 'composing' | 'recording' | 'paused'">
+  Online, offline, typing, recording audio, or stopped typing.
+</ResponseField>
+
+```ts
+client.on('presence', ({ participant, status }) => {
+  if (status === 'composing') console.log(`${participant} is typing…`)
+})
+```
+
+WhatsApp only sends presence for chats you subscribe to — see [Presence](/chats/presence#find-out-when-someone-is-typing-or-online).
+
+### history-sync
+
+Fires when a chat-history sync reports `complete` or `paused`. Other states are ignored.
+
+<ResponseField name="syncType" type="string">
+  WhatsApp's sync type, as a string.
+</ResponseField>
+<ResponseField name="status" type="'complete' | 'paused'">
+  Whether the sync finished or paused.
+</ResponseField>
+<ResponseField name="explicit" type="boolean">
+  The `explicit` flag from Baileys' `messaging-history.status` event.
+</ResponseField>
+
+```ts
+client.on('history-sync', ({ status }) => {
+  if (status === 'complete') console.log('History sync finished')
+})
+```
+
+### newsletter
+
+Every payload has `newsletterId` (the channel's JID) and `timestamp` (when Zaileys received it, in milliseconds), plus fields that depend on `action`:
+
+| `action` | Extra fields |
+| --- | --- |
+| `'reaction'` | `serverId?: string` — the channel post; `emoji?: string` |
+| `'view'` | `serverId?: string`; `count?: number` — the view count |
+| `'participants'` | None filled in. The type allows `count`, but Zaileys doesn't set it. |
+| `'settings'` | `update?: Record<string, unknown>` — the changed settings, as WhatsApp sends them |
+
+```ts
+client.on('newsletter', (event) => {
+  if (event.action === 'view') console.log(`Post ${event.serverId} has ${event.count ?? 0} views`)
+})
+```
+
+### limited
+
+Fires when WhatsApp restricts the account. `reason` tells you which restriction:
+
+| `reason` | Meaning | Extra fields |
+| --- | --- | --- |
+| `'reachout-timelock'` | You temporarily can't message people who haven't messaged you. | `retryAt: number` — when it lifts, in milliseconds; `0` if unknown |
+| `'chat-limit-reached'` | You've hit the cap on new chats. | `usedQuota?: number`, `totalQuota?: number` |
+
+```ts
+client.on('limited', (event) => {
+  if (event.reason === 'reachout-timelock') {
+    console.warn(`Outreach blocked until ${new Date(event.retryAt).toISOString()}`)
+  }
+})
+```
+
+## Connection
+
+Every connection payload has `sessionId` — the client's `sessionId` option, `'default'` unless you set one.
+
+### qr
+
+Fires each time WhatsApp issues a new QR code (WhatsApp Web, `authType: 'qr'`).
+
+<ResponseField name="qrString" type="string">
+  The QR code's content. Render it with any QR library, or with `renderQrInTerminal()` ([Utilities](/reference/utilities#connection-helpers)).
+</ResponseField>
+<ResponseField name="expiresAt" type="number">
+  When Zaileys considers the code expired: 60 seconds after it arrived, in milliseconds.
+</ResponseField>
+
+```ts
+client.on('qr', ({ qrString, expiresAt }) => {
+  console.log(`New QR (valid until ${new Date(expiresAt).toLocaleTimeString()}): ${qrString}`)
+})
+```
+
+### pairing-code
+
+Fires when a <Term id="pairing-code" /> is ready (`authType: 'pairing'`).
+
+<ResponseField name="code" type="string">
+  The code to type in WhatsApp → Linked devices → Link with phone number.
+</ResponseField>
+<ResponseField name="expiresAt" type="number">
+  When the code expires, in milliseconds.
+</ResponseField>
+
+```ts
+client.on('pairing-code', ({ code }) => {
+  console.log(`Enter this code on the phone: ${code}`)
+})
+```
+
+### connect
+
+<ResponseField name="me" type="{ id: string; lid?: string; name?: string }">
+  The bot's own account. On WhatsApp Web, `id` is its JID as WhatsApp reports it, `lid` its LID, and `name` its display name. On the Cloud API, `id` is the ID Meta returns for your <Term id="phone-number-id" /> and `name` is the number's verified business name.
+</ResponseField>
+
+```ts
+client.on('connect', ({ sessionId, me }) => {
+  console.log(`[${sessionId}] online as ${me.name ?? me.id}`)
+})
+```
+
+### reconnecting
+
+<ResponseField name="attempt" type="number">
+  Which attempt this is, starting at 1.
+</ResponseField>
+<ResponseField name="delayMs" type="number">
+  How long the client waits before this attempt.
+</ResponseField>
+<ResponseField name="reason" type="DisconnectReasonDomain">
+  Why the connection dropped. See the [reasons table](#disconnect).
+</ResponseField>
+
+```ts
+client.on('reconnecting', ({ attempt, delayMs, reason }) => {
+  console.log(`Reconnecting in ${Math.round(delayMs / 1000)}s (attempt ${attempt}, ${reason})`)
+})
+```
+
+### disconnect
+
+<ResponseField name="reason" type="DisconnectReasonDomain">
+  Why the connection closed — see the table below.
+</ResponseField>
+<ResponseField name="willReconnect" type="boolean">
+  Whether the client will reconnect on its own.
+</ResponseField>
+
+```ts
+client.on('disconnect', ({ reason, willReconnect }) => {
+  if (!willReconnect) console.error(`Disconnected for good: ${reason}`)
+})
+```
+
+| `reason` | WhatsApp status code | Reconnects? | Clears the login? |
+| --- | --- | --- | --- |
+| `'logged-out'` | 401 | No | Yes |
+| `'forbidden'` | 403 | No | Yes |
+| `'connection-replaced'` | 440 | No | Yes |
+| `'bad-session'` | 500 | Yes, with a new QR code | Yes |
+| `'connection-lost'` | 408 | Yes | No |
+| `'connection-closed'` | 428 | Yes | No |
+| `'multi-device-mismatch'` | 411 | Yes | No |
+| `'unavailable-service'` | 503 | Yes | No |
+| `'restart-required'` | 515 | Yes | No |
+| `'rate-limited'` | 429 | Yes, after `reconnect.rateLimitedDelayMs` (5 minutes by default) | No |
+| `'unknown'` | Anything else | Yes | No |
+
+`client.disconnect()` emits `disconnect` with `reason: 'unknown'` and `willReconnect: false`; after `client.logout()` the reason is `'logged-out'`. On the Cloud API, `disconnect` only fires when you call `client.disconnect()`. Retry timing is in [Error handling](/data/error-handling#what-zaileys-retries-for-you).
+
+### auth-exhausted
+
+Fires when too many QR or pairing codes went unused. The client then disconnects; call `connect()` to try again.
+
+<ResponseField name="kind" type="'qr' | 'pairing'">
+  Which login method ran out.
+</ResponseField>
+<ResponseField name="attempts" type="number">
+  How many codes were issued.
+</ResponseField>
+<ResponseField name="max" type="number">
+  The limit set by the `authGuard` option.
+</ResponseField>
+
+```ts
+client.on('auth-exhausted', ({ kind, attempts }) => {
+  console.error(`Nobody used the last ${attempts} ${kind} codes. Restart the bot to try again.`)
+})
+```
+
+### error
+
+Fires when the automatic connect started by `new Client()` fails — for example, because a database package for your store isn't installed. It's only emitted while something listens; otherwise the error goes to the logger.
+
+<ResponseField name="error" type="Error">
+  What went wrong, usually a Zaileys error class ([Errors](/reference/errors)).
+</ResponseField>
+
+```ts
+client.on('error', ({ sessionId, error }) => {
+  console.error(`[${sessionId}] could not connect:`, error.message)
+})
+```
+
+## Commands
+
+WhatsApp Web only, and only when `commandPrefix` is set. Details are in the [Commands reference](/reference/commands#events).
+
+### command-blocked
+
+<ResponseField name="command" type="string">
+  The command's name (the real name, even when an alias was typed).
+</ResponseField>
+<ResponseField name="reason" type="'group-only' | 'private-only' | 'admin-only' | 'cooldown'">
+  Which guard stopped it.
+</ResponseField>
+<ResponseField name="retryIn" type="number | undefined">
+  Seconds until the sender may retry, rounded up. Only when `reason` is `'cooldown'`.
+</ResponseField>
+<ResponseField name="ctx" type="CommandContext">
+  The command context, so you can `ctx.reply()`.
+</ResponseField>
+
+```ts
+client.on('command-blocked', async ({ reason, retryIn, ctx }) => {
+  if (reason === 'cooldown') await ctx.reply(`Slow down — try again in ${retryIn}s.`)
+})
+```
+
+### command-error
+
+Listening takes ownership: Zaileys stops logging command failures itself.
+
+<ResponseField name="command" type="string">
+  The command's name.
+</ResponseField>
+<ResponseField name="error" type="unknown">
+  A `ZaileysCommandError` with code `HANDLER_ERROR` or `MIDDLEWARE_ERROR`; the original error is on `error.cause`.
+</ResponseField>
+<ResponseField name="ctx" type="CommandContext">
+  The command context.
+</ResponseField>
+
+```ts
+client.on('command-error', async ({ command, error, ctx }) => {
+  console.error(`/${command} failed:`, error)
+  await ctx.reply('Something went wrong. Please try again.')
+})
+```
+
+### command-not-found
+
+Only emitted while something listens. A message that is only the prefix doesn't count.
+
+<ResponseField name="command" type="string">
+  The first word after the prefix, lowercased.
+</ResponseField>
+<ResponseField name="message" type="MessageContext">
+  The message, as a regular message context.
+</ResponseField>
+
+```ts
+client.on('command-not-found', async ({ command, message }) => {
+  if (!message.isGroup) await message.reply(`There's no /${command}. Send /help for the list.`)
+})
+```
+
+## Cloud API
+
+These arrive through the <Term id="webhook" /> and only fire with `provider: 'cloud'`. Meta sends timestamps in Unix **seconds**. Flow responses and orders fire only their own event, not `message`. More in [Cloud events](/cloud/events).
+
+A client handles every webhook payload you hand it — Zaileys doesn't filter by phone number ID, so route payloads yourself when one server serves several numbers. The webhook answers Meta with `200` once the signature checks out, even if your handlers fail, and those failures don't reach the `error` event.
+
+### message-status
+
+<ResponseField name="id" type="string">
+  The ID of the message you sent (Meta's `wamid`).
+</ResponseField>
+<ResponseField name="status" type="'sent' | 'delivered' | 'read' | 'failed'">
+  The new delivery state. Other statuses from Meta are ignored.
+</ResponseField>
+<ResponseField name="recipientId" type="string">
+  The recipient's JID.
+</ResponseField>
+<ResponseField name="timestamp" type="number">
+  When the status changed, in Unix seconds.
+</ResponseField>
+<ResponseField name="conversationId" type="string | undefined">
+  Meta's conversation ID, when included.
+</ResponseField>
+<ResponseField name="error" type="{ code?: number; title?: string; message?: string } | undefined">
+  The first error Meta reported, usually with `status: 'failed'`.
+</ResponseField>
+
+```ts
+client.on('message-status', ({ id, status, error }) => {
+  if (status === 'failed') console.error(`Message ${id} failed: ${error?.code} ${error?.title}`)
+})
+```
+
+### template-status
+
+Needs the `message_template_status_update` webhook field.
+
+<ResponseField name="event" type="string">
+  Meta's review result as-is, such as `APPROVED`, `REJECTED`, or `PAUSED`.
+</ResponseField>
+<ResponseField name="id" type="string">
+  The template's ID.
+</ResponseField>
+<ResponseField name="name" type="string">
+  The template's name.
+</ResponseField>
+<ResponseField name="language" type="string | undefined">
+  The template's language code, such as `en_US`.
+</ResponseField>
+<ResponseField name="reason" type="string | undefined">
+  Meta's reason, for rejections.
+</ResponseField>
+
+```ts
+client.on('template-status', ({ name, event, reason }) => {
+  console.log(`Template ${name}: ${event}${reason ? ` (${reason})` : ''}`)
+})
+```
+
+### flow-response
+
+<ResponseField name="id" type="string">
+  The ID of the response message.
+</ResponseField>
+<ResponseField name="name" type="string">
+  The flow reply's name from Meta, or `'flow'` when missing.
+</ResponseField>
+<ResponseField name="body" type="string | undefined">
+  The reply's body text.
+</ResponseField>
+<ResponseField name="response" type="Record<string, unknown>">
+  The form data, parsed from Meta's `response_json`. `{}` when it isn't valid JSON.
+</ResponseField>
+<ResponseField name="senderId" type="string">
+  The sender's JID.
+</ResponseField>
+<ResponseField name="senderName" type="string | undefined">
+  The sender's profile name.
+</ResponseField>
+<ResponseField name="timestamp" type="number">
+  Unix seconds.
+</ResponseField>
+
+```ts
+client.on('flow-response', async ({ response, senderId }) => {
+  const date = typeof response.date === 'string' ? response.date : 'your chosen day'
+  await client.send(senderId).text(`Booked for ${date}. See you then!`)
+})
+```
+
+### order
+
+<ResponseField name="id" type="string">
+  The ID of the order message.
+</ResponseField>
+<ResponseField name="catalogId" type="string">
+  The catalog the order came from.
+</ResponseField>
+<ResponseField name="text" type="string | undefined">
+  The note the customer added.
+</ResponseField>
+<ResponseField name="items" type="Array<{ productRetailerId: string; quantity: number; price: number; currency: string }>">
+  One entry per product line.
+</ResponseField>
+<ResponseField name="senderId" type="string">
+  The customer's JID.
+</ResponseField>
+<ResponseField name="senderName" type="string | undefined">
+  The customer's profile name.
+</ResponseField>
+<ResponseField name="timestamp" type="number">
+  Unix seconds.
+</ResponseField>
+
+```ts
+client.on('order', async ({ items, senderId }) => {
+  const total = items.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  await client.send(senderId).text(`Thanks! Your order of ${items.length} item(s) comes to ${total} ${items[0]?.currency ?? ''}.`)
+})
+```
+
+## Shared types
+
+### SenderInfo
+
+Who did something, in `reaction`, `edit`, `delete`, `poll-vote`, `button-click`, and `list-select`.
+
+<ResponseField name="jid" type="string">
+  The sender's normalized JID — a phone JID or a LID, whichever WhatsApp used.
+</ResponseField>
+<ResponseField name="deviceJid" type="string | undefined">
+  The raw JID including the device suffix, such as `6281234567890:12@s.whatsapp.net`.
+</ResponseField>
+<ResponseField name="lid" type="string | undefined">
+  The sender's LID, when WhatsApp sent one.
+</ResponseField>
+<ResponseField name="pn" type="string | undefined">
+  The sender's phone JID, when WhatsApp sent one.
+</ResponseField>
+<ResponseField name="username" type="string | undefined">
+  The sender's WhatsApp username, when WhatsApp sent one.
+</ResponseField>
+<ResponseField name="pushName" type="string | undefined">
+  The name the sender set in WhatsApp. Set on `button-click` and `list-select`; `reaction`, `edit`, `delete`, and `poll-vote` don't carry it.
+</ResponseField>
+<ResponseField name="isMe" type="boolean | undefined">
+  Whether the bot's own account did it.
+</ResponseField>
+
+To message the person, prefer `sender.pn ?? sender.jid`.
+
+### GroupParticipantInfo
+
+One member in `group-join` and `group-leave`.
+
+<ResponseField name="jid" type="string">
+  The member's JID as WhatsApp sent it — a phone JID or a LID.
+</ResponseField>
+<ResponseField name="participantAlt" type="string | undefined">
+  The member's other address (LID or phone JID), when WhatsApp includes it.
+</ResponseField>
+<ResponseField name="authorPn" type="string | undefined">
+  The phone JID of whoever made the change. The same on every entry.
+</ResponseField>
+<ResponseField name="authorUsername" type="string | undefined">
+  The username of whoever made the change. The same on every entry.
+</ResponseField>
+<ResponseField name="isAdmin" type="boolean | undefined">
+  Whether the member is an admin or the group's creator.
+</ResponseField>
+
+## Type helpers
+
+| Type | What it is |
+| --- | --- |
+| `ClientEventMap` | Every event name mapped to its payload type. |
+| `ClientEventName` | The union of every event name. |
+| `InboundEventMap`, `InboundEventName` | Only the message, group, call, and account events. |
+| `ConnectionEventMap`, `ConnectionEventName` | Only the connection, command, and Cloud API events. |
+| `ConnectionEventHandler<E>` | `(payload: ConnectionEventMap[E]) => void` |
+| `DisconnectReasonDomain` | The `reason` values in the [disconnect table](#disconnect). |
+
+```ts
+import type { ClientEventMap } from 'zaileys'
+
+const logVote = async (vote: ClientEventMap['poll-vote']) => {
+  console.log(await vote.options())
+}
+
+client.on('poll-vote', logVote)
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Events" icon="zap" href="/concepts/events">
+    How handlers run, unsubscribing, and handler errors.
+  </Card>
+  <Card title="Message context reference" icon="braces" href="/reference/message-context">
+    Every field on the `msg` object the message events hand you.
+  </Card>
+  <Card title="Commands reference" icon="square-terminal" href="/reference/commands">
+    The command events and their context.
+  </Card>
+  <Card title="Errors reference" icon="octagon-alert" href="/reference/errors">
+    The error classes behind `error` and `command-error`.
+  </Card>
+</CardGroup>

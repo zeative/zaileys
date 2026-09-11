@@ -26,17 +26,15 @@ Need groups, channels, polls, or status? Those only exist on WhatsApp Web. [Choo
 sequenceDiagram
   actor User as Customer
   participant WA as WhatsApp
-  participant Meta as Meta Cloud API
-  participant Hook as Your webhook
-  participant Bot as Your handler
-  User->>WA: Sends "hi"
-  WA->>Meta: Delivers the message
-  Meta->>Hook: POST, signed with your app secret
-  Hook->>Hook: client.webhook() checks the signature
-  Hook->>Bot: Emits the text event
-  Hook-->>Meta: 200 OK
-  Bot->>Meta: msg.reply() calls the Graph API
-  Meta->>WA: Sends the reply
+  participant Meta as Meta
+  participant App as Your server
+  User->>WA: "hi"
+  WA->>Meta: delivers it
+  Meta->>App: signed POST to your webhook
+  Note over App: client.webhook() checks the<br/>signature and emits "text"
+  App-->>Meta: 200 OK
+  App->>Meta: msg.reply() calls the Graph API
+  Meta->>WA: sends the reply
   WA->>User: "You said: hi"
 ```
 

@@ -1,9 +1,294 @@
 ---
 title: "Broadcast & schedule"
-description: "Send to many recipients with rate limits, or schedule messages for later."
+description: "Send one message to a list of chats at a safe pace, or queue a message to go out at a set time — with progress, retries, and cancel."
 icon: "megaphone"
+keywords: ["broadcast", "bulk message", "mass message", "send to many", "rate limit", "schedule message", "scheduleAt", "send later", "reminder", "announcement", "RateLimiter", "scheduleRateLimitPerSec"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/automation](https://zeative.github.io/zaileys/automation).
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+`client.broadcast()` sends one message to a list of chats at a steady pace, and `client.scheduleAt()` sends a message at a time you choose.
+
+<ProviderSupport web={true} cloud={false} note="Both need a WhatsApp Web connection for now. On the Cloud API, loop over client.send() instead." />
+
+<Warning>
+  On the Unofficial provider, WhatsApp bans numbers that send the same message to many people who didn't ask for it. Only message people who expect to hear from you, keep the rate low, and try a small list first. [Why this matters](/providers)
+</Warning>
+
+## Quick reference
+
+| To | Call | What happens |
+| --- | --- | --- |
+| Send one message to many chats | [`client.broadcast(jids, (b) => b.text('…'))`](#send-one-message-to-many-chats) | Sent one by one, 5 per second by default |
+| Retry failed sends | [`{ retry: { maxRetries, backoffMs } }`](#retry-failed-sends) | Each recipient gets extra attempts |
+| Send different text to each person | [`RateLimiter` and `client.send()`](#send-different-text-to-each-person) | Your own loop, with the same pacing |
+| Send at a set time | [`client.scheduleAt(date, (b) => b.to(jid).text('…'))`](#send-a-message-later) | Sent when the time comes |
+| Cancel a scheduled message | [`handle.cancel()`](#cancel-a-scheduled-message) | It never sends |
+| Keep scheduled messages after a restart | [A store that saves jobs](#keep-scheduled-messages-across-restarts) | Pending jobs load again on start |
+
+## Send one message to many chats
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client()
+
+const customers = [
+  '6281111111111@s.whatsapp.net',
+  '6282222222222@s.whatsapp.net',
+  '6283333333333@s.whatsapp.net',
+]
+
+client.on('connect', async () => {
+  const result = await client.broadcast(
+    customers,
+    (b) => b.text('Our store is closed on Friday for a public holiday. See you on Saturday!'),
+    {
+      rateLimitPerSec: 2,
+      onProgress: (done, total, jid, ok) => console.log(`[${done}/${total}] ${jid} ${ok ? 'sent' : 'failed'}`),
+    },
+  )
+  console.log(`Sent ${result.sent.length}, failed ${result.failed.length}`)
+})
+```
+
+Your terminal shows:
+
+```text
+[1/3] 6281111111111@s.whatsapp.net sent
+[2/3] 6282222222222@s.whatsapp.net sent
+[3/3] 6283333333333@s.whatsapp.net sent
+Sent 3, failed 0
+```
+
+Each customer gets an ordinary one-to-one message from your number. `broadcast()` doesn't create a WhatsApp broadcast list.
+
+- **Call it once connected** — inside `connect`, as above, or any time after. Before that, it rejects with `client not connected`.
+- **Anything you can send works.** The callback runs once per recipient with a builder already addressed to them, so `(b) => b.image('./flyer.jpg', { caption: 'Weekend sale' })` or a poll works the same way.
+- **Recipients** can be people or groups (`…@g.us`). See [Addresses & JIDs](/concepts/jids). Duplicates aren't removed, so a number listed twice gets the message twice.
+- **Sends go one at a time**, in list order. With the default of 5 per second, the first 5 go out immediately and then one every 0.2 seconds, so 500 recipients take about 100 seconds.
+
+<ParamField body="jids" type="string[]" required>
+  The chats to send to. An empty list resolves right away with nothing sent.
+</ParamField>
+<ParamField body="build" type="(b: MessageBuilder) => MessageBuilder" required>
+  Sets the content on a builder that's already addressed to one recipient. Return the builder, like `(b) => b.text('Hello')`.
+</ParamField>
+<ParamField body="rateLimitPerSec" type="number" default="5">
+  The most sends per second. The first `rateLimitPerSec` sends go out at once, then they settle into a steady pace. Must be above 0, or the call rejects with `RATE_LIMIT_INVALID`.
+</ParamField>
+<ParamField body="retry" type="{ maxRetries: number; backoffMs: (attempt: number) => number }">
+  Retries each failed send up to `maxRetries` times, waiting `backoffMs(attempt)` milliseconds before each try. `attempt` starts at 1. No retries by default.
+</ParamField>
+<ParamField body="onProgress" type="(done: number, total: number, jid: string, ok: boolean) => void">
+  Runs after each recipient. `done` counts successes and failures, and `ok` says which this one was.
+</ParamField>
+
+`broadcast()` resolves once every recipient has been tried:
+
+<ResponseField name="sent" type="string[]">
+  Recipients that got the message.
+</ResponseField>
+<ResponseField name="failed" type="{ jid: string; error: Error }[]">
+  Recipients whose send still failed after any retries, with the error.
+</ResponseField>
+
+One failed recipient never stops the rest, and `broadcast()` doesn't reject because of it.
+
+### Retry failed sends
+
+```ts
+declare const customers: string[]
+
+const result = await client.broadcast(customers, (b) => b.text('Your order has shipped.'), {
+  retry: { maxRetries: 3, backoffMs: (attempt) => attempt * 2000 },
+})
+
+for (const { jid, error } of result.failed) {
+  console.error(`Could not reach ${jid}: ${error.message}`)
+}
+```
+
+A failing send is tried again after 2, 4, and then 6 seconds before it counts as failed. Retries don't use up extra room in the rate limit — each recipient counts once.
+
+## Send different text to each person
+
+The `build` callback doesn't know who it's sending to. To use a name or a number per person, write the loop yourself and pace it with the exported `RateLimiter`:
+
+```ts
+import { RateLimiter } from 'zaileys'
+
+const customers = [
+  { jid: '6281111111111@s.whatsapp.net', name: 'Budi', points: 1200 },
+  { jid: '6282222222222@s.whatsapp.net', name: 'Sari', points: 450 },
+]
+
+const limiter = new RateLimiter({ perSec: 2 })
+
+for (const customer of customers) {
+  await limiter.acquire()
+  try {
+    await client.send(customer.jid).text(`Hi ${customer.name}, you have ${customer.points} points to spend this month.`)
+  } catch (error) {
+    console.error(`Could not reach ${customer.name}:`, error)
+  }
+}
+```
+
+Budi gets `Hi Budi, you have 1200 points to spend this month.` and Sari gets her own total. This loop also works on the Cloud API.
+
+<ParamField body="perSec" type="number" required>
+  Sends allowed per second, on average.
+</ParamField>
+<ParamField body="burst" type="number" default="perSec">
+  How many calls may go through at once before pacing starts.
+</ParamField>
+<ParamField body="perJidPerSec" type="number">
+  An extra per-recipient limit, applied when you call `limiter.acquire(jid)` with the address.
+</ParamField>
+
+Each value must be above 0, or `new RateLimiter()` throws `RATE_LIMIT_INVALID`.
+
+## Send a message later
+
+```ts
+const handle = await client.scheduleAt(new Date('2026-12-24T09:00:00+07:00'), (b) =>
+  b.to('6281234567890@s.whatsapp.net').text('Merry Christmas from all of us at Toko Sari!'),
+)
+
+console.log('Scheduled as', handle.id)
+```
+
+At 09:00 Jakarta time on December 24, the recipient gets the message.
+
+- **Call `.to(jid)` first.** Unlike `client.send(jid)`, the builder here starts without a recipient.
+- **The message is built right away**, when you call `scheduleAt()`: the text is fixed and media files are read then, not at send time. If building fails, `scheduleAt()` rejects with `SCHEDULE_INVALID`.
+- **One message per job.** Text and media work. An album or an interactive message, such as buttons or a list, rejects with `SCHEDULE_INVALID`.
+- **A time in the past** sends as soon as possible.
+- **You can schedule before connecting.** If the time comes while the bot is disconnected, the send fails, the job is kept, and it's sent when the connection opens again.
+
+<ParamField body="date" type="Date" required>
+  When to send. An invalid date rejects with `SCHEDULE_INVALID`.
+</ParamField>
+<ParamField body="build" type="(b: MessageBuilder) => MessageBuilder" required>
+  Sets the recipient with `.to()` and the content, then returns the builder.
+</ParamField>
+
+`scheduleAt()` resolves to a handle:
+
+<ResponseField name="id" type="string">
+  A random ID for the job.
+</ResponseField>
+<ResponseField name="cancel" type="() => void">
+  Cancels the job before it sends and removes it from the store.
+</ResponseField>
+
+### Cancel a scheduled message
+
+```ts
+const handle = await client.scheduleAt(new Date(Date.now() + 50 * 60_000), (b) =>
+  b.to('6281234567890@s.whatsapp.net').text('Reminder: your appointment starts in 10 minutes.'),
+)
+
+handle.cancel()
+```
+
+There's no method to list scheduled jobs or cancel one by ID, so keep the handle — for example, in a `Map` keyed by booking number — if you might need to cancel.
+
+### Pace a backlog of scheduled messages
+
+When many jobs are due at once — 50 reminders at 09:00, or overdue jobs after a reconnect — Zaileys sends them one per second by default. Change that with `scheduleRateLimitPerSec`:
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({ scheduleRateLimitPerSec: 2 })
+```
+
+<ParamField body="scheduleRateLimitPerSec" type="number" default="1">
+  The most scheduled messages sent per second. `0` turns pacing off. It only affects scheduled sends, not `broadcast()` or `client.send()`.
+</ParamField>
+
+### Keep scheduled messages across restarts
+
+Scheduled jobs are kept in memory unless your [store](/data/storage) can save them. Of the built-in stores, only Convex does:
+
+| Store | Pending jobs after a restart |
+| --- | --- |
+| Memory (the default) | Lost |
+| SQLite | Lost |
+| PostgreSQL | Lost |
+| Redis | Lost |
+| Convex | Loaded again and sent. Overdue jobs go out right away. |
+
+A custom store can support this by implementing `saveScheduledJob()`, `listScheduledJobs()`, and `deleteScheduledJob()` — see [Storage](/data/storage). While the process keeps running, jobs survive disconnects with any store.
+
+## On the Cloud API
+
+In the current release, both features need a WhatsApp Web connection. With `provider: 'cloud'`, `broadcast()` rejects with `client not connected`, and scheduled jobs are kept but never sent. Until that changes:
+
+- To send to a list, use the [`RateLimiter` loop](#send-different-text-to-each-person) with `client.send()`.
+- To send later, use your own timer or job runner and call `client.send()` when it fires.
+
+Also mind Meta's rules: outside the <Term id="service-window" />, the Cloud API only delivers approved templates. An announcement to people who haven't messaged you in the last 24 hours needs a [template](/cloud/templates). See [Limits](/cloud/limits) for Meta's sending limits.
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="What rate is safe on the Unofficial provider?">
+    WhatsApp doesn't publish one. Bans usually come from who you message more than how fast: unsolicited messages get reported. Keep lists to people who opted in, and lower `rateLimitPerSec` for large lists.
+  </Accordion>
+  <Accordion title="Can I broadcast to groups?">
+    Yes. Put group addresses (ending in `@g.us`) in the list, alongside or instead of people.
+  </Accordion>
+  <Accordion title="How do I send something every day at 9:00?">
+    `scheduleAt()` sends once. For a repeating message, schedule the next one each time a send happens, or run a scheduler library and call `client.send()`. See also the [scheduled broadcast recipe](/recipes/scheduled-broadcast).
+  </Accordion>
+  <Accordion title="What happens if the bot is off at the scheduled time?">
+    If the process is still running but disconnected, the message goes out when the connection comes back. If the process was stopped, the job is gone unless your store saves jobs — see [Keep scheduled messages across restarts](#keep-scheduled-messages-across-restarts).
+  </Accordion>
+</AccordionGroup>
+
+## When something fails
+
+| Error code | What went wrong | How to fix it |
+| --- | --- | --- |
+| `INVALID_OPTIONS` (message `client not connected`) | `broadcast()` ran before the client connected, or on the Cloud API. | Call it inside the `connect` event. On the Cloud API, use a `client.send()` loop. |
+| `RATE_LIMIT_INVALID` | `rateLimitPerSec`, `perSec`, `burst`, or `perJidPerSec` is 0 or negative. | Use a number above 0. |
+| `SCHEDULE_INVALID` | `scheduleAt()` got an invalid date, the builder threw or set no content, or it built an album or interactive message. | Pass a valid `Date`, call `.to()` and one content method, and read `error.cause` if the builder threw. |
+
+`INVALID_OPTIONS` is a `ZaileysBuilderError`. The other two are `ZaileysAutomationError`s:
+
+```ts
+import { ZaileysAutomationError } from 'zaileys'
+
+try {
+  await client.scheduleAt(new Date('not a date'), (b) => b.to(jid).text('Hello'))
+} catch (error) {
+  if (error instanceof ZaileysAutomationError && error.code === 'SCHEDULE_INVALID') {
+    console.error('Could not schedule:', error.message)
+  }
+}
+```
+
+This prints `Could not schedule: scheduleAt requires a valid Date`.
+
+A scheduled send that fails when its time comes doesn't throw anywhere you can catch. It's logged as `scheduled send failed; retaining job for retry` and tried again on the next connection. Set `ZAILEYS_DEBUG=warn` to see it, since the built-in logger is silent by default. More in [Error handling](/data/error-handling).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Scheduled broadcast recipe" icon="chef-hat" href="/recipes/scheduled-broadcast">
+    Broadcast to a list on a schedule with rate limiting.
+  </Card>
+  <Card title="Storage" icon="database" href="/data/storage">
+    Pick a store, including one that keeps scheduled jobs.
+  </Card>
+  <Card title="Templates" icon="file-text" href="/cloud/templates">
+    Message people outside the 24-hour window on the Cloud API.
+  </Card>
+  <Card title="Typing indicators" icon="keyboard" href="/chats/presence">
+    Show "typing…" before a message, for a more natural feel.
+  </Card>
+</CardGroup>

@@ -1,9 +1,344 @@
 ---
 title: "Plugins"
-description: "Package features as reusable plugins."
+description: "Split a bot into files — one per command or feature — that Zaileys loads from a folder and reloads when you save them."
 icon: "plug"
+keywords: ["plugins", "definePlugin", "plugin folder", "hot reload", "watch", "modular bot", "command files", "PluginContext", "setup", "onUnload", "event handlers"]
 ---
 
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+
+A plugin is a file that holds one command or feature. Point Zaileys at a folder of them, and it loads each file, wires it up, and reloads it when you save.
+
+<ProviderSupport web={true} cloud={false} note="Plugins load when a WhatsApp Web connection opens. The Cloud provider doesn't load them yet." />
+
+## Quick reference
+
+| To | Use | What happens |
+| --- | --- | --- |
+| Load a folder of plugins | [`plugins: { dir: './plugins' }`](#load-plugins-from-a-folder) | Every file in it loads once the bot connects |
+| Write a command | [`definePlugin({ name, message })`](#write-a-command-plugin) | `!name` runs `message` |
+| React to events | [`image`, `groupJoin`, and other methods](#listen-for-events-in-a-plugin) | Your method runs for every matching event |
+| Do more in one file | [`setup(ctx)`](#do-more-with-setup) | Several commands, middleware, timers, cleanup |
+| Group plugins | [Subfolders](#organize-plugins-in-folders) | The folder name becomes the commands' category |
+| Change code without restarting | [`watch: true`, the default](#reload-plugins-while-the-bot-runs) | A saved file reloads in place |
+
+## Load plugins from a folder
+
+<Steps>
+  <Step title="Write a plugin">
+
+    Create `plugins/ping.ts`:
+
+    ```ts plugins/ping.ts
+    import { definePlugin } from 'zaileys'
+
+    export default definePlugin({
+      name: 'ping',
+      description: 'Check the bot is online',
+      message: async (ctx) => {
+        await ctx.reply('pong')
+      },
+    })
+    ```
+
+  </Step>
+  <Step title="Point the client at the folder">
+
+    ```ts bot.ts
+    import { Client } from 'zaileys'
+
+    const client = new Client({
+      commandPrefix: '!',
+      plugins: { dir: './plugins' },
+    })
+    ```
+
+    Plugin commands need a `commandPrefix`, just like [commands](/bots/commands) you register with `client.command()`.
+
+  </Step>
+  <Step title="Run it and edit it">
+
+    Start the bot with `npx tsx bot.ts` and wait for `Connected as …`. From another account, send `!ping` — the bot replies `pong`.
+
+    Now change `'pong'` to `'pong!'` in `plugins/ping.ts` and save. The next `!ping` answers `pong!`, with no restart.
+
+  </Step>
+</Steps>
+
+<Tree>
+  <Tree.Folder name="your-project" defaultOpen>
+    <Tree.File name="bot.ts" />
+    <Tree.Folder name="plugins" defaultOpen>
+      <Tree.File name="ping.ts" />
+    </Tree.Folder>
+  </Tree.Folder>
+</Tree>
+
+- **Plugins load after the connection opens**, not when you create the client. They stay loaded through reconnects and unload when you call `client.disconnect()`.
+- **`dir` is relative to the folder you started the bot from**, like any relative path. It defaults to `./plugins`.
+- **Files are imported as they are.** `.ts` plugins need a runtime that runs TypeScript directly, such as `tsx` or Bun. If you compile your bot to JavaScript, point `dir` at the compiled folder.
+- **Each file default-exports one plugin.** A file that fails to import, or whose export has no `name`, is skipped and the rest still load.
+
+## Write a command plugin
+
+The plugin *is* the command. Its `name` is the command name, and its other fields describe and guard it — the same fields as a [command object](/bots/commands#limit-who-can-run-a-command):
+
+```ts plugins/dice.ts
+import { definePlugin } from 'zaileys'
+
+export default definePlugin({
+  name: 'dice',
+  aliases: ['roll'],
+  description: 'Roll a die',
+  usage: '[sides]',
+  cooldown: 3,
+  message: async (ctx) => {
+    const sides = Number(ctx.args[0] ?? 6)
+    if (!Number.isInteger(sides) || sides < 2) {
+      await ctx.reply('Usage: !dice [sides], for example !dice 20')
+      return
+    }
+    await ctx.reply(`🎲 You rolled ${Math.ceil(Math.random() * sides)} (1–${sides})`)
+  },
+})
+```
+
+Send `!dice 20` and the bot answers something like `🎲 You rolled 14 (1–20)`. `!roll` works too. Sending it again within 3 seconds is blocked with reason `cooldown` — handle that with the [`command-blocked` event](/bots/commands#tell-people-why-a-command-was-blocked).
+
+`definePlugin()` only adds type checking and autocomplete. It returns your object unchanged.
+
+<ParamField body="name" type="string" required>
+  Identifies the plugin and names its command. If two plugins share a name, the second one is skipped.
+</ParamField>
+<ParamField body="message" type="(ctx: CommandContext, plugin: PluginContext) => void | Promise<void>">
+  Handles the command. `ctx` is the full [command context](/bots/commands#answer-from-a-command). `plugin` is the [plugin context](#do-more-with-setup). Leave `message` out for a plugin that only listens to events.
+</ParamField>
+<ParamField body="aliases, description, usage, category, hidden, metadata" type="—">
+  Describe the command, exactly as on a [command object](/bots/commands#limit-who-can-run-a-command). `category` defaults to the plugin's folder.
+</ParamField>
+<ParamField body="group, private, admin, cooldown" type="—">
+  Guards for the command. They apply to `message` only, not to event methods.
+</ParamField>
+<ParamField body="setup" type="(ctx: PluginContext) => void | (() => void) | Promise<…>">
+  Runs once when the plugin loads. See [Do more with setup](#do-more-with-setup).
+</ParamField>
+<ParamField body="onUnload" type="() => void | Promise<void>">
+  Runs last when the plugin unloads.
+</ParamField>
+
 <Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/plugins](https://zeative.github.io/zaileys/plugins).
+  Upgrading from 4.11 or earlier? The command handler was called `command`. Since 4.12.0 it's `message` — rename the field and the plugin works as before.
 </Note>
+
+## Listen for events in a plugin
+
+Every incoming event has a matching method. Hyphenated event names become camelCase, so `group-join` is `groupJoin`. Each method gets the event payload, then the plugin context:
+
+```ts plugins/welcome.ts
+import { definePlugin } from 'zaileys'
+
+export default definePlugin({
+  name: 'welcome',
+  groupJoin: async (event, plugin) => {
+    try {
+      const count = event.participants.length
+      await plugin.client
+        .send(event.groupId)
+        .text(count === 1 ? 'Welcome to the group! Please read the pinned rules.' : `Welcome, all ${count} of you!`)
+    } catch (error) {
+      plugin.logger?.error(error, 'welcome message failed')
+    }
+  },
+})
+```
+
+When someone joins a group the bot is in, the group gets `Welcome to the group! Please read the pinned rules.` This plugin has no `message`, so it adds no command.
+
+The methods are `text`, `image`, `video`, `audio`, `document`, `sticker`, `reaction`, `edit`, `delete`, `pollVote`, `buttonClick`, `listSelect`, `mention`, `mentionAll`, `groupUpdate`, `groupJoin`, `groupLeave`, `memberTag`, `callIncoming`, `callEnded`, `historySync`, `limited`, `presence`, and `newsletter`. Each payload is typed from the [event list](/concepts/events), so you don't annotate it.
+
+- **There's no method for the `message` event** — on a plugin, `message` is the command handler. To see every message, use [`setup`](#do-more-with-setup) and `ctx.on('message', …)`.
+- **Guards don't apply here.** An `image` method runs for every photo, in any chat. Check `payload.isGroup` yourself if you need to.
+- **Payloads don't carry the client.** Use the second argument: `plugin.client`.
+
+<Warning>
+  Catch errors inside event methods, as in the example. Zaileys doesn't wait for them, so a rejected promise becomes an unhandled rejection — which stops a Node.js process by default.
+</Warning>
+
+## Do more with setup
+
+`setup(ctx)` runs once when the plugin loads, after the fields above are wired up. Use it to register several commands from one file, add middleware, or start a timer. Return a function to clean up — it runs when the plugin unloads.
+
+```ts plugins/notes.ts
+import { definePlugin } from 'zaileys'
+
+const notes = new Map<string, string[]>()
+
+export default definePlugin({
+  name: 'notes',
+  setup(ctx) {
+    ctx.command({ name: 'note add', description: 'Save a note', usage: '<text>' }, async (c) => {
+      const list = notes.get(c.senderId) ?? []
+      list.push(c.args.join(' '))
+      notes.set(c.senderId, list)
+      await c.reply(`Saved. You have ${list.length} note(s).`)
+    })
+
+    ctx.command({ name: 'note list', description: 'List your notes' }, async (c) => {
+      const list = notes.get(c.senderId) ?? []
+      await c.reply(list.length > 0 ? list.map((note, i) => `${i + 1}. ${note}`).join('\n') : 'No notes yet.')
+    })
+
+    const daily = setInterval(() => notes.clear(), 24 * 60 * 60 * 1000)
+    return () => clearInterval(daily)
+  },
+})
+```
+
+`!note add buy milk` answers `Saved. You have 1 note(s).`, and `!note list` answers `1. buy milk`. Notes clear once a day. Because `setup` returns `clearInterval`, reloading the file doesn't stack up timers.
+
+If `setup` throws, everything it registered is undone and the plugin is skipped.
+
+The `ctx` that `setup` receives — and that `message` and event methods get as their second argument — has:
+
+<ResponseField name="client" type="Client">
+  The full client. Call any client method from here.
+</ResponseField>
+<ResponseField name="logger" type="Logger | undefined">
+  The client's logger. The built-in one is silent unless you set `ZAILEYS_DEBUG` — see [Common questions](#common-questions).
+</ResponseField>
+<ResponseField name="pluginDir" type="string">
+  The folder this plugin file is in. Use it to read files that sit next to the plugin.
+</ResponseField>
+<ResponseField name="category" type="string | undefined">
+  The subfolder this plugin is in, or `undefined` for a file directly in `dir`.
+</ResponseField>
+<ResponseField name="command(spec, handler)" type="void">
+  Registers a command, like [`client.command()`](/bots/commands#add-a-command). The category defaults to `ctx.category`.
+</ResponseField>
+<ResponseField name="use(middleware)" type="void">
+  Adds [middleware](/bots/middleware), like `client.use()`.
+</ResponseField>
+<ResponseField name="on(event, handler)" type="() => void">
+  Listens to a client event and returns a function that stops listening.
+</ResponseField>
+<ResponseField name="once(event, handler)" type="() => void">
+  Like `on`, but only for the first time the event fires.
+</ResponseField>
+
+Everything registered through `ctx` is removed automatically when the plugin unloads, so you never clean up commands, middleware, or listeners yourself.
+
+## Organize plugins in folders
+
+Subfolders are scanned too. The first folder under `dir` becomes the `category` of that plugin's commands — handy for a [help menu](/bots/commands#build-a-help-menu):
+
+<Tree>
+  <Tree.Folder name="plugins" defaultOpen>
+    <Tree.File name="ping.ts" />
+    <Tree.Folder name="fun" defaultOpen>
+      <Tree.File name="dice.ts" />
+    </Tree.Folder>
+    <Tree.Folder name="admin" defaultOpen>
+      <Tree.File name="kick.ts" />
+      <Tree.File name="_helpers.ts" />
+    </Tree.Folder>
+  </Tree.Folder>
+</Tree>
+
+- `ping` has no category, `dice` is in `fun`, and `kick` is in `admin`. A `category` set on the plugin or command always wins.
+- Files and folders whose names start with `_` are skipped, and so are `.d.ts` files. Put shared helpers there, like `_helpers.ts` above.
+
+## Reload plugins while the bot runs
+
+With `watch` on (the default), saving a plugin file:
+
+1. Unloads the old version: runs the cleanup function `setup` returned, removes its commands, middleware, and listeners, then calls `onUnload`.
+2. Imports the file again and loads it.
+
+Deleting a file unloads its plugin, and adding a file loads it. Saves that land within 150 ms of each other are handled together.
+
+- **Only the plugin file reloads.** Modules it imports, such as `_helpers.ts`, stay cached until you restart, and saving a `_` file doesn't trigger a reload.
+- **State at the top of the file starts over.** After a reload, a `Map` like `notes` above is empty.
+- **Turn watching off in production** with `watch: false`.
+- If the system can't watch the folder, Zaileys logs `plugin: watch unavailable; hot-reload disabled` and keeps the plugins it already loaded.
+
+## Options
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({
+  commandPrefix: '!',
+  plugins: {
+    dir: './dist/plugins',
+    pattern: /\.js$/,
+    watch: process.env.NODE_ENV !== 'production',
+    onError: (error, file) => console.error(`Could not load ${file}:`, error),
+  },
+})
+```
+
+<ParamField body="dir" type="string" default="'./plugins'">
+  The folder to load plugins from, including subfolders.
+</ParamField>
+<ParamField body="watch" type="boolean" default="true">
+  Reload plugins when their files change.
+</ParamField>
+<ParamField body="pattern" type="RegExp" default="/\.(ts|js|mjs|cjs)$/">
+  Which file names count as plugins.
+</ParamField>
+<ParamField body="ignore" type="RegExp" default="/(\.d\.ts$|^_|[/\\]_)/">
+  Which files and folders to skip. Setting it replaces the default, so include `\.d\.ts$` and `^_` again if you still want those skipped.
+</ParamField>
+<ParamField body="onError" type="(error: unknown, file: string) => void">
+  Called when a file fails to import or doesn't export a plugin with a `name`. It isn't called when `setup` throws — that's only logged.
+</ParamField>
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="My plugin loaded, but its command doesn't answer">
+    Check that the client has a `commandPrefix` and that the plugin has a `message` field. If another plugin or `client.command()` already uses the name, the plugin is skipped with `plugin: setup failed; skipped`.
+  </Accordion>
+  <Accordion title="Why don't I see any plugin messages in my terminal?">
+    The built-in logger is silent by default. Start the bot with `ZAILEYS_DEBUG=info npx tsx bot.ts` to see `ctx.logger` output and load warnings, or pass your own `logger` to `new Client()`.
+  </Accordion>
+  <Accordion title="Can plugins share code?">
+    Yes. Put shared code in a file starting with `_`, such as `plugins/_db.ts`, and import it from your plugins. Remember it doesn't hot-reload.
+  </Accordion>
+  <Accordion title="Are plugins sandboxed?">
+    No. A plugin runs inside your bot with full access to the client and to Node.js. Only load plugin files you wrote or trust.
+  </Accordion>
+  <Accordion title="Can one plugin handle several commands?">
+    Yes — register them in `setup` with `ctx.command()`, as in the [notes example](#do-more-with-setup).
+  </Accordion>
+</AccordionGroup>
+
+## When a plugin doesn't load
+
+A plugin that fails never stops the others. Zaileys logs why:
+
+| Log message | What went wrong | How to fix it |
+| --- | --- | --- |
+| `plugin: import failed; skipped` | The file threw while importing — a syntax error or missing package — or its export has no `name`. | Run the file on its own to see the error, and check `export default`. `onError` gets the file path. |
+| `plugin: duplicate name; skipped` | Another loaded plugin already has this `name`. | Rename one of them. |
+| `plugin: setup failed; skipped` | `setup` threw, or a command it registers already exists. Its registrations are undone. | Fix the error and save the file — with `watch` on, it loads again. |
+| `plugin: watch unavailable; hot-reload disabled` | The system can't watch the folder. | Restart the bot to pick up changes. |
+
+Set `ZAILEYS_DEBUG=warn` to see these messages.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Plugin starter recipe" icon="chef-hat" href="/recipes/plugin-starter">
+    Scaffold and load your own plugin.
+  </Card>
+  <Card title="Commands" icon="square-terminal" href="/bots/commands">
+    Arguments, guards, and the command context your plugins use.
+  </Card>
+  <Card title="Middleware" icon="layers" href="/bots/middleware">
+    Share checks across every command, including plugin ones.
+  </Card>
+  <Card title="Events" icon="radio" href="/concepts/events">
+    Every event a plugin method can listen to.
+  </Card>
+</CardGroup>

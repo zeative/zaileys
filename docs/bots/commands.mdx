@@ -1,9 +1,433 @@
 ---
 title: "Commands"
-description: "Route /commands with prefixes and aliases."
+description: "Answer /help, /price, and other commands — with aliases, arguments, flags, guards like cooldowns and admin-only, and a generated help menu."
 icon: "square-terminal"
+keywords: ["commands", "command handler", "prefix", "commandPrefix", "bot commands", "slash command", "aliases", "arguments", "flags", "cooldown", "admin only", "help menu", "command-blocked", "command-error", "command-not-found"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/commands](https://zeative.github.io/zaileys/commands).
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+
+A command is a message that starts with a prefix, like `/ping` or `!weather Jakarta`. You register a handler for each name, and Zaileys splits out the arguments and runs it.
+
+<ProviderSupport web={true} cloud={false} note="Commands only run on a WhatsApp Web connection for now." />
+
+## Quick reference
+
+| To | Call | What happens |
+| --- | --- | --- |
+| Turn commands on | [`new Client({ commandPrefix: '/' })`](#turn-on-commands) | Messages starting with `/` are checked for a command |
+| Add a command | [`client.command('ping', handler)`](#add-a-command) | `/ping` runs `handler` |
+| Describe it and limit who can run it | [`client.command({ name, admin, cooldown }, handler)`](#limit-who-can-run-a-command) | Blocked attempts emit `command-blocked` instead |
+| Read what was typed | [`ctx.args`, `ctx.flags`, `ctx.json`](#read-arguments-and-flags) | `/remind "call mom" --at=18:00` arrives already split |
+| Answer | [`ctx.reply()`, `ctx.send()`, `ctx.react()`, `ctx.edit()`](#answer-from-a-command) | Replies quote the command message |
+| Build a help menu | [`client.commands()`](#build-a-help-menu) | Every command with its description and usage |
+| Handle problems | [`command-blocked`, `command-error`, `command-not-found`](#handle-blocked-failed-and-unknown-commands) | You decide what the user sees |
+| Remove a command | [`client.unregisterCommand('ping')`](#remove-a-command) | The name and its aliases stop working |
+
+## Turn on commands
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client({ commandPrefix: '/' })
+
+client.command('ping', async (ctx) => {
+  await ctx.reply('pong')
+})
+```
+
+Send `/ping` to the bot and it replies `pong`, quoting your message.
+
+- Commands stay off until you set `commandPrefix`. Without it, `client.command()` handlers never run.
+- You can register commands before the client connects. Zaileys starts listening once the connection opens.
+- Command names are case-insensitive: `/PING` and `/Ping` also run `ping`. Arguments keep their case.
+- A command can also be the caption of a photo or video — see [Run a command from a caption](#run-a-command-from-a-caption).
+
+<ParamField body="commandPrefix" type="string | string[]">
+  The prefix, or several prefixes, that mark a message as a command. With `['/', '!', '.']`, the messages `/ping`, `!ping`, and `.ping` all run `ping`. Empty strings are ignored, so `''` and `[]` leave commands off.
+</ParamField>
+
+<Warning>
+  A prefix matches the start of the message literally. A `.` prefix also catches messages like `...` or `.hello`, so pick a character people rarely start a normal message with.
+</Warning>
+
+## Add a command
+
+`client.command(name, handler)` registers a handler. It returns the client, so you can chain calls:
+
+```ts
+client
+  .command('ping', async (ctx) => {
+    await ctx.reply('pong')
+  })
+  .command('help|h|?', async (ctx) => {
+    await ctx.reply('Commands: /ping, /weather <city>, /help')
+  })
+```
+
+- **Aliases:** separate extra names with `|`. The first name is the real one: `/help`, `/h`, and `/?` all run the same handler, and `ctx.command` is `'help'` for all three.
+- **Subcommands:** a name with a space, like `'note add'`, is its own command. Zaileys picks the longest name that matches, so `/note add buy milk` runs `note add` with `ctx.args` set to `['buy', 'milk']`.
+
+```ts
+client.command('note add', async (ctx) => {
+  await ctx.reply(`Saved: ${ctx.args.join(' ')}`)
+})
+
+client.command('note list', async (ctx) => {
+  await ctx.reply('You have no notes yet.')
+})
+```
+
+Each name and alias can only be registered once. Registering `ping` a second time throws `DUPLICATE_COMMAND` from the `client.command()` call itself.
+
+## Limit who can run a command
+
+Pass an object instead of a string to describe the command and add **guards** — conditions Zaileys checks before your handler runs:
+
+```ts
+client.command(
+  {
+    name: 'kick',
+    aliases: ['remove'],
+    description: 'Remove the members you mention',
+    usage: '<@member>',
+    category: 'admin',
+    admin: true,
+    cooldown: 10,
+  },
+  async (ctx) => {
+    if (ctx.roomId === null) return
+    await ctx.client.group.removeMember(ctx.roomId, ctx.mentions)
+    await ctx.reply(`Removed ${ctx.mentions.length} member(s).`)
+  },
+)
+```
+
+`ctx.roomId` is the chat's address — here, the group's. It's typed `string | null`, so the check keeps TypeScript happy; the `admin` guard already guarantees a group.
+
+A group admin who sends `/kick @Budi` removes Budi. Anyone else, or the same admin within 10 seconds, gets nothing — a blocked command sends no message on its own. Listen for [`command-blocked`](#tell-people-why-a-command-was-blocked) to explain why.
+
+<ParamField body="name" type="string" required>
+  The command name. A space makes it a subcommand, exactly like the string form.
+</ParamField>
+<ParamField body="aliases" type="string[]">
+  Other names that run the same handler.
+</ParamField>
+<ParamField body="description" type="string">
+  One line explaining the command, for your help menu.
+</ParamField>
+<ParamField body="usage" type="string">
+  An argument hint shown next to the name, such as `<@member>`.
+</ParamField>
+<ParamField body="category" type="string">
+  Groups commands in a menu. In a [plugin](/bots/plugins), it defaults to the plugin's folder name.
+</ParamField>
+<ParamField body="hidden" type="boolean" default="false">
+  Marks the command as hidden. It still runs, and `client.commands()` still returns it with `hidden: true` — skip it when you build a menu.
+</ParamField>
+<ParamField body="metadata" type="Record<string, unknown>">
+  Anything else you want to keep with the command. Zaileys never reads it.
+</ParamField>
+<ParamField body="group" type="boolean" default="false">
+  Only runs in a group. Elsewhere it's blocked with reason `group-only`.
+</ParamField>
+<ParamField body="private" type="boolean" default="false">
+  Only runs in a one-to-one chat. In a group it's blocked with reason `private-only`.
+</ParamField>
+<ParamField body="admin" type="boolean" default="false">
+  Only runs for an admin of the group, and implies `group`. Zaileys fetches the group's member list to check. If that fails, the sender counts as not an admin.
+</ParamField>
+<ParamField body="cooldown" type="number">
+  Seconds the same person must wait before running this command again. The wait counts from their last run that got through, and attempts blocked by another guard don't start it. Cooldowns live in memory, so a restart clears them.
+</ParamField>
+
+Guards run in this order: `group` or `private`, then `admin`, then `cooldown`. They all run before [middleware](/bots/middleware).
+
+## Read arguments and flags
+
+Everything after the command name is split into `ctx.args`, `ctx.flags`, and `ctx.json`. Take this message:
+
+```text
+/remind "call mom" tomorrow --at=18:00 --urgent
+```
+
+```ts
+client.command('remind', async (ctx) => {
+  const [what, when] = ctx.args // 'call mom', 'tomorrow'
+  const at = ctx.flags.at // '18:00'
+  const urgent = ctx.flags.urgent === true
+  await ctx.reply(`Reminder set: ${what}, ${when} at ${at}${urgent ? ' (urgent)' : ''}`)
+})
+```
+
+The bot replies `Reminder set: call mom, tomorrow at 18:00 (urgent)`.
+
+| You type | You get |
+| --- | --- |
+| `/say hello world` | `args: ['hello', 'world']` |
+| `/say "hello world"` | `args: ['hello world']` — quotes keep spaces together |
+| `/say "she said \"hi\""` | `args: ['she said "hi"']` — `\` escapes a character inside quotes |
+| `/deploy --force` | `flags: { force: true }` |
+| `/deploy --env=prod` | `flags: { env: 'prod' }` |
+| `/deploy --env prod` | `flags: { env: 'prod' }` — the next word becomes the value |
+| `/config {"theme":"dark"}` | `json: { theme: 'dark' }`, and the text also stays in `args` |
+
+- A flag followed by a plain word takes that word as its value. `/deploy --force app1` sets `flags.force` to `'app1'`, so put yes/no flags last or write `--force=true`.
+- Only the first argument that starts with `{` or `[` and is valid JSON lands in `ctx.json`. Spaces split arguments, so quote JSON that contains spaces: `/config '{"theme": "dark"}'`.
+
+## Answer from a command
+
+The handler's `ctx` has everything a normal [message context](/concepts/message-context) has — `ctx.senderId`, `ctx.senderName`, `ctx.roomId` (the chat's address), `ctx.isGroup`, `ctx.mentions`, `ctx.media`, `ctx.replied()` — plus the command details and helpers below.
+
+```ts
+client.command('report', async (ctx) => {
+  await ctx.react('⏳')
+  await ctx.reply('Building your report...')
+  const orders = 42
+  await ctx.edit(`Report ready: ${orders} orders today.`)
+  await ctx.send().document(Buffer.from('order,total\n1001,120000\n'), {
+    fileName: 'orders.csv',
+    mimetype: 'text/csv',
+  })
+})
+```
+
+The sender sees a ⏳ reaction on their message, a reply that changes from `Building your report...` to `Report ready: 42 orders today.`, and then the file `orders.csv`.
+
+<ResponseField name="command" type="string">
+  The name that matched, without the prefix. For an alias, this is the real name. For a subcommand, it's the full name, such as `'note add'`.
+</ResponseField>
+<ResponseField name="args" type="string[]">
+  The arguments after the command name, with flags removed.
+</ResponseField>
+<ResponseField name="flags" type="Record<string, string | boolean>">
+  The `--flag` options. `true` for a flag without a value.
+</ResponseField>
+<ResponseField name="json" type="unknown">
+  The first argument that parsed as JSON, or `undefined`.
+</ResponseField>
+<ResponseField name="raw" type="string">
+  The full message text, prefix included.
+</ResponseField>
+<ResponseField name="client" type="Client">
+  The client that received the command, so a handler in another file doesn't need to import it.
+</ResponseField>
+<ResponseField name="send(to?)" type="MessageBuilder">
+  Starts a message to this chat, or to `to` when you pass an address. Chain any send method, such as `.image()` or `.poll()`.
+</ResponseField>
+<ResponseField name="reply(content, opts?)" type="Promise<WAMessageKey>">
+  Sends text that quotes the command message. `opts` takes the text options from [Text & replies](/messaging/text).
+</ResponseField>
+<ResponseField name="react(emoji)" type="Promise<WAMessageKey>">
+  Reacts to the command message.
+</ResponseField>
+<ResponseField name="edit(content)" type="Promise<void>">
+  Changes the text of the last message this handler sent with `ctx.reply()`. Throws `NO_SENT_MESSAGE` if the handler hasn't replied yet.
+</ResponseField>
+
+In a chat with disappearing messages turned on, `ctx.reply()` uses the command message's timer and `ctx.send()` uses the chat's timer, so your answers disappear along with the conversation.
+
+## Run a command from a caption
+
+Commands also run when they're the caption of a photo or video. `ctx.text` holds the caption, and `ctx.media` holds the file:
+
+```ts
+client.command('sticker', async (ctx) => {
+  if (ctx.media?.type !== 'image') {
+    await ctx.reply('Send a photo with the caption /sticker')
+    return
+  }
+  await ctx.send().sticker(await ctx.media.buffer())
+})
+```
+
+Send a photo captioned `/sticker` and the bot answers with the photo as a sticker. Send `/sticker` as plain text and it explains what to do.
+
+## Build a help menu
+
+`client.commands()` returns every registered command with the fields you gave it, so your menu never gets out of date:
+
+```ts
+client.command({ name: 'ping', description: 'Check the bot is online', category: 'general' }, async (ctx) => {
+  await ctx.reply('pong')
+})
+
+client.command({ name: 'dice', description: 'Roll a die', usage: '[sides]', category: 'fun' }, async (ctx) => {
+  const sides = Number(ctx.args[0] ?? 6)
+  await ctx.reply(`You rolled ${Math.ceil(Math.random() * sides)}`)
+})
+
+client.command({ name: 'help', aliases: ['menu'], description: 'Show this menu', category: 'general' }, async (ctx) => {
+  const sections = new Map<string, string[]>()
+  for (const command of client.commands()) {
+    if (command.hidden) continue
+    const category = command.category ?? 'other'
+    const line = `/${command.name}${command.usage ? ` ${command.usage}` : ''} — ${command.description ?? ''}`
+    sections.set(category, [...(sections.get(category) ?? []), line])
+  }
+  const menu = [...sections].map(([category, lines]) => `*${category}*\n${lines.join('\n')}`).join('\n\n')
+  await ctx.reply(menu)
+})
+```
+
+Sending `/help` or `/menu` gets this reply, with the category names in bold:
+
+```text
+*general*
+/ping — Check the bot is online
+/help — Show this menu
+
+*fun*
+/dice [sides] — Roll a die
+```
+
+Each entry has `name`, `aliases`, and every field from [the command object](#limit-who-can-run-a-command) you set.
+
+## Handle blocked, failed, and unknown commands
+
+Zaileys never answers these on its own. It emits an event, so the wording — and the language — stay yours.
+
+### Tell people why a command was blocked
+
+```ts
+client.on('command-blocked', async ({ reason, retryIn, ctx }) => {
+  const messages = {
+    'group-only': 'This command only works in groups.',
+    'private-only': 'Send this command to me in a private chat.',
+    'admin-only': 'Only group admins can use this command.',
+    cooldown: `Please wait ${retryIn} seconds before trying again.`,
+  }
+  await ctx.reply(messages[reason])
+})
+```
+
+<ResponseField name="command" type="string">
+  The command that was blocked.
+</ResponseField>
+<ResponseField name="reason" type="'group-only' | 'private-only' | 'admin-only' | 'cooldown'">
+  Which guard stopped it: a group command in a private chat, a private command in a group, a sender who isn't a group admin, or a cooldown that hasn't run out.
+</ResponseField>
+<ResponseField name="retryIn" type="number">
+  Seconds left, rounded up. Only set when `reason` is `cooldown`.
+</ResponseField>
+<ResponseField name="ctx" type="CommandContext">
+  The full command context, so you can `ctx.reply()`.
+</ResponseField>
+
+### Catch a command that throws
+
+```ts
+client.on('command-error', async ({ command, error, ctx }) => {
+  console.error(`/${command} failed:`, error)
+  await ctx.reply('Something went wrong. Please try again later.')
+})
+```
+
+- `error` is a `ZaileysCommandError`: `HANDLER_ERROR` when your handler threw, `MIDDLEWARE_ERROR` when a middleware did. The original error is on `error.cause`.
+- Listening takes over the error — Zaileys doesn't also log it. With no listener, it's logged and the bot keeps running.
+
+<Warning>
+  Zaileys' built-in logger is silent unless you set the `ZAILEYS_DEBUG` environment variable (for example `ZAILEYS_DEBUG=error`) or pass your own `logger`. Without a `command-error` listener, a failing command can go completely unnoticed.
+</Warning>
+
+### Answer unknown commands
+
+```ts
+client.on('command-not-found', async ({ command, message }) => {
+  if (message.isGroup) return
+  await message.reply(`There's no /${command} command. Send /help to see what I can do.`)
+})
+```
+
+- It fires when a message starts with your prefix but matches no command. A bare prefix, like a message that's only `/`, doesn't count.
+- `command` is the first word after the prefix, in lowercase. `message` is a regular [message context](/concepts/message-context), not a command context.
+- Zaileys only does this work while something is listening.
+
+Answering every unknown command makes a bot noisy in busy groups, which is why the example skips them.
+
+## Remove a command
+
+```ts
+client.unregisterCommand('note add')
+```
+
+Pass any of the command's names. The command and all its aliases stop working. Names that aren't registered are ignored.
+
+## On the Cloud API
+
+In the current release, commands only run on a WhatsApp Web connection. With `provider: 'cloud'`, `client.command()` handlers, [middleware](/bots/middleware), and the `command-*` events never fire. Until that changes, parse commands yourself in a `text` handler with the exported `parseCommand()`:
+
+```ts
+import { parseCommand } from 'zaileys'
+
+client.on('text', async (msg) => {
+  const parsed = parseCommand(msg.text, ['/'])
+  if (!parsed.matched) return
+
+  if (parsed.name === 'ping') await msg.reply('pong')
+  if (parsed.name === 'price') await msg.reply(`Price for ${parsed.args[0] ?? 'that item'}: Rp 25.000`)
+})
+```
+
+`parseCommand()` follows the same rules as [above](#read-arguments-and-flags) and returns `matched`, `name` (lowercased), `args`, `flags`, `json`, and `raw`. `name` is only the first word, so check `args[0]` yourself for subcommands.
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="My command doesn't respond">
+    Check that you set `commandPrefix` and the message starts with it exactly, that you're messaging from a different account than the bot's own (its own messages are ignored), and that you're on the Unofficial provider. Then add a `command-error` listener — a handler that throws fails silently otherwise.
+  </Accordion>
+  <Accordion title="How do I make a command only for me, the bot owner?">
+    Guards cover groups and group admins. For a fixed list of numbers, check `ctx.senderId` in a [middleware](/bots/middleware#allow-only-the-bot-owner).
+  </Accordion>
+  <Accordion title="Can an argument contain spaces?">
+    Yes — wrap it in double or single quotes: `/say "good morning everyone"` gives `ctx.args` as `['good morning everyone']`.
+  </Accordion>
+  <Accordion title="Does a cooldown survive a restart?">
+    No. Cooldowns are kept in memory and reset when the process restarts.
+  </Accordion>
+  <Accordion title="Should I use client.command() or plugins?">
+    They're the same commands underneath. `client.command()` suits a few commands in one file. [Plugins](/bots/plugins) put each command in its own file and reload them when you save.
+  </Accordion>
+</AccordionGroup>
+
+## When something fails
+
+| Error code | What went wrong | How to fix it |
+| --- | --- | --- |
+| `DUPLICATE_COMMAND` | `client.command()` got a name or alias that's already registered. | Rename one of them, or remove the old one with `unregisterCommand()` first. |
+| `INVALID_COMMAND_NAME` | The name is empty, or an alias is empty (two pipes in a row). | Give every name at least one character. |
+| `HANDLER_ERROR` | Your handler threw. Delivered through `command-error`. | Read `error.cause` for the original error. |
+| `MIDDLEWARE_ERROR` | A middleware threw, or called `next()` more than once. | See [Middleware](/bots/middleware#stop-a-command). |
+| `NO_SENT_MESSAGE` | `ctx.edit()` ran before any `ctx.reply()` in the same handler. | Reply first, then edit. |
+
+Check the code on a caught error:
+
+```ts
+import { ZaileysCommandError } from 'zaileys'
+
+client.on('command-error', ({ error }) => {
+  if (error instanceof ZaileysCommandError && error.code === 'HANDLER_ERROR') {
+    console.error('Handler failed:', error.cause)
+  }
+})
+```
+
+More in [Error handling](/data/error-handling).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Middleware" icon="layers" href="/bots/middleware">
+    Run logging, permission checks, and rate limits before every command.
+  </Card>
+  <Card title="Plugins" icon="plug" href="/bots/plugins">
+    Put each command in its own file and reload it without restarting.
+  </Card>
+  <Card title="Command bot recipe" icon="chef-hat" href="/recipes/command-bot">
+    A bot with /commands, aliases, and middleware.
+  </Card>
+  <Card title="Commands reference" icon="square-code" href="/reference/commands">
+    Every type, field, and event, with exact signatures.
+  </Card>
+</CardGroup>

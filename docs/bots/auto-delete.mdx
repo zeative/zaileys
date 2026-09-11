@@ -1,9 +1,157 @@
 ---
 title: "Auto-delete"
-description: "Delete messages automatically after a delay."
+description: "Keep the bot's message store small — Zaileys prunes stored messages older than 30 days by default. Change the window, cap each chat, or turn it off."
 icon: "timer"
+keywords: ["auto delete", "autoDelete", "prune messages", "message retention", "cleanup", "store size", "maxAgeMs", "maxPerChat", "delete old messages", "database size", "memory usage"]
 ---
 
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+
+Auto-delete regularly removes old messages from the bot's own message store, so memory and database size don't grow forever. Nothing is deleted from WhatsApp.
+
+<ProviderSupport web={true} cloud={false} note="The cleanup runs on WhatsApp Web connections. On the Cloud API, stored messages aren't pruned yet." />
+
 <Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/auto-delete](https://zeative.github.io/zaileys/auto-delete).
+  This only touches the copy Zaileys keeps in its [store](/data/storage). Messages stay on WhatsApp and on everyone's phones. To delete a message in the chat, see [Edit, delete & react](/messaging/edit-delete-react). To make messages vanish for everyone after a while, use disappearing messages — see [Text & replies](/messaging/text).
 </Note>
+
+## It's on by default
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client()
+```
+
+With no options, Zaileys checks the store every 60 seconds and removes messages older than 30 days. The first check runs a minute after the connection opens. Cleanup stops when you call `client.disconnect()` and starts again on the next connection.
+
+Removing a message only means Zaileys can't read it back later. For example, `msg.replied()` looks up the quoted original in the store first, so it can't find a quoted message older than the window there.
+
+## Keep messages for a different time
+
+Pass `autoDelete` with the fields you want to change. The others keep their defaults:
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({
+  autoDelete: { maxAgeMs: 7 * 24 * 60 * 60 * 1000 },
+})
+```
+
+This keeps one week of messages instead of 30 days.
+
+## Keep only the latest messages in each chat
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({
+  autoDelete: {
+    maxPerChat: 500,
+    chats: (jid) => jid.endsWith('@g.us'),
+    intervalMs: 5 * 60_000,
+  },
+})
+```
+
+Every 5 minutes, each group keeps its newest 500 messages and loses anything older than 30 days. Private chats aren't touched, because `chats` limits both rules to groups.
+
+To cap by count only, with no age limit, clear `maxAgeMs`:
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({
+  autoDelete: { maxAgeMs: undefined, maxPerChat: 1000 },
+})
+```
+
+## Turn it off
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({ autoDelete: false })
+```
+
+The store then keeps every message until you clear it yourself. With the default in-memory store, that means memory use keeps growing while the bot runs.
+
+## Options
+
+<ParamField body="autoDelete" type="AutoDeleteOptions | false" default="{ maxAgeMs: 2592000000 }">
+  The cleanup settings, merged over the defaults. `false` turns cleanup off.
+</ParamField>
+<ParamField body="maxAgeMs" type="number" default="2592000000 (30 days)">
+  Removes messages whose timestamp is older than now minus this many milliseconds. The window moves with the clock, so messages are removed a little at a time, not all at once.
+</ParamField>
+<ParamField body="maxPerChat" type="number">
+  Keeps only the newest N messages in each chat, whatever their age. Off unless you set it.
+</ParamField>
+<ParamField body="intervalMs" type="number" default="60000">
+  How often cleanup runs, in milliseconds. Also the wait before the first run.
+</ParamField>
+<ParamField body="chats" type="'all' | ((jid: string) => boolean)" default="'all'">
+  Which chats to clean. Pass a function to clean only the chats whose address it returns `true` for.
+</ParamField>
+
+If you clear `maxAgeMs` and don't set `maxPerChat`, cleanup has nothing to do and never runs.
+
+## How cleanup works with your store
+
+All five built-in stores — memory, SQLite, PostgreSQL, Redis, and Convex — remove old messages in a single efficient operation. For a [custom store](/data/storage), Zaileys uses the best method it offers:
+
+1. **`pruneMessages(opts)`** — your store removes the messages itself and returns how many it removed. This is the method to implement.
+2. **`deleteMessage(key)`** — if there's no `pruneMessages`, Zaileys walks every chat and removes old messages one by one.
+3. **Neither** — cleanup turns itself off and logs a warning once.
+
+`pruneMessages` receives:
+
+<ParamField body="olderThan" type="number">
+  Remove messages whose `messageTimestamp` is before this time, in **seconds** since 1970 — the same unit WhatsApp stores timestamps in.
+</ParamField>
+<ParamField body="maxPerChat" type="number">
+  Keep only this many of the newest messages in each chat.
+</ParamField>
+<ParamField body="chatFilter" type="(jid: string) => boolean">
+  Only clean chats whose address passes this check.
+</ParamField>
+
+Cleanup never keeps your process running on its own, and it skips a run if the previous one is still going — useful with a slow database.
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Does this delete messages from WhatsApp or my phone?">
+    No. It only removes Zaileys' local copy. Everyone in the chat still sees every message.
+  </Accordion>
+  <Accordion title="My bot's memory keeps growing. Will this help?">
+    With the default in-memory store, the bot holds up to 30 days of messages. Lower `maxAgeMs`, set `maxPerChat`, or move to a database store — see [Storage](/data/storage).
+  </Accordion>
+  <Accordion title="Is anything deleted the moment the bot starts?">
+    No. The first cleanup runs one `intervalMs` (60 seconds by default) after the connection opens.
+  </Accordion>
+  <Accordion title="I use the Cloud API. How do I prune old messages?">
+    Automatic cleanup doesn't run there yet. Call `pruneMessages()` on the store you passed to `new Client({ store })` from your own timer, with the options above.
+  </Accordion>
+</AccordionGroup>
+
+## If cleanup isn't running
+
+Cleanup never throws into your code. When something's wrong, it logs one of these at warning level. The built-in logger is silent, so set `ZAILEYS_DEBUG=warn` to see them:
+
+| Log message | What went wrong | How to fix it |
+| --- | --- | --- |
+| `autoDelete: store implements neither pruneMessages nor deleteMessage; sweeper disabled` | Your custom store has neither method, so cleanup turned off. The log entry carries the code `AUTO_DELETE_UNSUPPORTED`. | Add `pruneMessages()` to the store. |
+| `autoDelete sweep failed` | The store threw during cleanup, for example because the database was unreachable. | Nothing is lost — it tries again at the next interval. Check the store's connection. |
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Storage" icon="database" href="/data/storage">
+    Pick a store and see what it keeps.
+  </Card>
+  <Card title="Configuration" icon="sliders-horizontal" href="/concepts/configuration">
+    Every `new Client()` option, including `autoDelete`.
+  </Card>
+</CardGroup>

@@ -1,0 +1,199 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "aspen",
+  "name": "Zaileys",
+  "description": "Zaileys is a type-safe WhatsApp framework for Node.js and TypeScript. One API for WhatsApp Web (unofficial) and the Meta Cloud API (official): typed events, a chainable send builder, commands, plugins, and pluggable storage.",
+  "colors": {
+    "primary": "#237F2A",
+    "light": "#7ED957",
+    "dark": "#1F7A1F"
+  },
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg",
+    "href": "/"
+  },
+  "favicon": "/favicon.png",
+  "icons": {
+    "library": "lucide"
+  },
+  "appearance": {
+    "default": "system"
+  },
+  "navbar": {
+    "links": [
+      { "label": "Discord", "href": "https://discord.gg/HUcQe4xGr3" },
+      { "label": "npm", "href": "https://www.npmjs.com/package/zaileys" }
+    ],
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/zeative/zaileys"
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Guides",
+        "icon": "book-open",
+        "groups": [
+          {
+            "group": "Get started",
+            "pages": ["index", "quickstart", "installation", "providers", "whatsapp-web", "feature-matrix", "ai"]
+          },
+          {
+            "group": "Core concepts",
+            "pages": [
+              "concepts/client",
+              "concepts/configuration",
+              "concepts/events",
+              "concepts/message-context",
+              "concepts/jids"
+            ]
+          },
+          {
+            "group": "Messaging",
+            "pages": [
+              "messaging/text",
+              "messaging/media",
+              "messaging/polls-and-more",
+              "messaging/edit-delete-react",
+              "messaging/receiving-media",
+              "messaging/interactive",
+              "messaging/rich-responses"
+            ]
+          },
+          {
+            "group": "Bots & automation",
+            "pages": [
+              "bots/commands",
+              "bots/middleware",
+              "bots/plugins",
+              "bots/broadcast-and-schedule",
+              "bots/auto-delete"
+            ]
+          },
+          {
+            "group": "Chats & contacts",
+            "pages": ["chats/profile", "chats/presence", "chats/chats", "chats/contacts", "chats/privacy"]
+          },
+          {
+            "group": "Groups & channels",
+            "tag": "WEB ONLY",
+            "pages": [
+              "groups/groups",
+              "groups/members",
+              "groups/invites",
+              "groups/communities",
+              "groups/newsletters"
+            ]
+          },
+          {
+            "group": "Data & production",
+            "pages": [
+              "data/storage",
+              "data/business",
+              "data/multi-account",
+              "data/error-handling",
+              "data/runtimes"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Cloud API",
+        "icon": "cloud",
+        "groups": [
+          {
+            "group": "Get started",
+            "pages": ["cloud/overview", "cloud/setup", "cloud/webhook"]
+          },
+          {
+            "group": "Features",
+            "pages": ["cloud/messaging", "cloud/templates", "cloud/events", "cloud/business"]
+          },
+          {
+            "group": "Operate",
+            "pages": ["cloud/limits"]
+          }
+        ]
+      },
+      {
+        "tab": "Recipes",
+        "icon": "chef-hat",
+        "groups": [
+          {
+            "group": "Bots",
+            "pages": [
+              "recipes/auto-reply",
+              "recipes/command-bot",
+              "recipes/order-bot",
+              "recipes/ai-bot",
+              "recipes/scheduled-broadcast"
+            ]
+          },
+          {
+            "group": "Integrations",
+            "pages": [
+              "recipes/multi-account",
+              "recipes/express",
+              "recipes/cloud-servers",
+              "recipes/convex-store",
+              "recipes/plugin-starter"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Reference",
+        "icon": "square-code",
+        "groups": [
+          {
+            "group": "API",
+            "pages": [
+              "reference/client",
+              "reference/client-options",
+              "reference/send-builder",
+              "reference/events",
+              "reference/message-context",
+              "reference/commands",
+              "reference/storage",
+              "reference/errors",
+              "reference/utilities"
+            ]
+          },
+          {
+            "group": "Resources",
+            "pages": ["reference/troubleshooting", "reference/glossary", "reference/migration", "reference/changelog"]
+          }
+        ]
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/zeative/zaileys",
+      "discord": "https://discord.gg/HUcQe4xGr3"
+    }
+  },
+  "integrations": {
+    "ga4": {
+      "measurementId": "G-B76YYS1K85"
+    }
+  },
+  "seo": {
+    "indexing": "navigable",
+    "metatags": {
+      "canonical": "https://zaileys.kejaa.id",
+      "og:site_name": "Zaileys",
+      "og:image": "https://repository-images.githubusercontent.com/982777390/83fdf9a5-8357-4a53-ade6-883355d77051",
+      "twitter:card": "summary_large_image",
+      "google-site-verification": "k0WKK9pKRwONXog26MOpUJG9e3FNniwBf0SaR9OD4pw"
+    }
+  },
+  "search": {
+    "prompt": "Search — try \"send image\" or \"pairing code\""
+  },
+  "contextual": {
+    "options": ["copy", "view", "chatgpt", "claude", "perplexity", "cursor", "vscode"]
+  }
+}

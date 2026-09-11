@@ -8,6 +8,20 @@
     "light": "#7ED957",
     "dark": "#1F7A1F"
   },
+  "background": {
+    "decoration": "grid",
+    "color": {
+      "light": "#F4F6F8",
+      "dark": "#0B0D10"
+    }
+  },
+  "fonts": {
+    "family": "Geist",
+    "heading": {
+      "family": "Geist",
+      "weight": 600
+    }
+  },
   "logo": {
     "light": "/logo/light.svg",
     "dark": "/logo/dark.svg",
@@ -18,7 +32,7 @@
     "library": "lucide"
   },
   "appearance": {
-    "default": "system"
+    "default": "dark"
   },
   "navbar": {
     "links": [

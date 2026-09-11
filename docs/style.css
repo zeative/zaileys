@@ -1,0 +1,53 @@
+/* Stainless-steel decoration over Aspen: metal neutrals and chrome hairlines; brand color stays Zaileys green. */
+@import url('https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400;500&display=swap');
+
+:root {
+  --steel-edge: linear-gradient(90deg, transparent, #9aa5b1 25%, #e2e8f0 50%, #9aa5b1 75%, transparent);
+  --steel-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0));
+  --steel-title: linear-gradient(180deg, #0f172a 0%, #4b5563 100%);
+}
+
+html.dark {
+  --steel-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0));
+  --steel-title: linear-gradient(180deg, #f8fafc 0%, #9aa5b1 100%);
+}
+
+/* Brushed-metal navbar with a chrome hairline in place of a flat border. */
+#navbar {
+  background-image: var(--steel-sheen);
+}
+#navbar::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 1px;
+  background: var(--steel-edge);
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* Page titles read as polished metal; both gradient ends keep ≥ 6.9:1 contrast on their background. */
+#page-title {
+  background-image: var(--steel-title);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+[data-component-part='code-block-root'] {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+code,
+pre,
+kbd {
+  font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/* Forced-colors mode drops background images, so transparent gradient text would vanish. */
+@media (forced-colors: active) {
+  #page-title {
+    color: CanvasText;
+    background: none;
+  }
+}

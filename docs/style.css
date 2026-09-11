@@ -44,6 +44,24 @@ kbd {
   font-family: 'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 
+/* Real brand marks on the navbar's community links; their official colors are kept on purpose. */
+#navbar a[href^='https://discord.gg/']::before,
+#navbar a[href^='https://www.npmjs.com/']::before {
+  content: '';
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  margin-right: 6px;
+  vertical-align: -2px;
+  background: center / contain no-repeat;
+}
+#navbar a[href^='https://discord.gg/']::before {
+  background-image: url('/icons/discord.svg');
+}
+#navbar a[href^='https://www.npmjs.com/']::before {
+  background-image: url('/icons/npm.svg');
+}
+
 /* Forced-colors mode drops background images, so transparent gradient text would vanish. */
 @media (forced-colors: active) {
   #page-title {

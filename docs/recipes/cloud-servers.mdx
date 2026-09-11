@@ -1,9 +1,397 @@
 ---
 title: "Cloud API servers"
-description: "Run a Cloud API bot on Express, Hono, or Next.js."
+description: "A complete Cloud API echo bot for Express, Hono, Next.js, or plain Node.js — webhook verification, signed messages, replies, and delivery receipts."
 icon: "cloud-cog"
+keywords: ["cloud api webhook", "express webhook", "hono webhook", "next.js route handler", "node http server", "raw body", "x-hub-signature-256", "invalid signature", "meta webhook server"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, see [`examples/cloud-express.ts`](https://github.com/zeative/zaileys/blob/main/examples/cloud-express.ts) on GitHub.
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+Each tab below is a complete Cloud API bot for the server you already use: it answers Meta's <Term id="webhook" /> checks, replies to every text, and logs whether each reply was delivered.
+
+<ProviderSupport web={false} cloud={true} note="Only the Cloud API needs a webhook server. WhatsApp Web bots connect out on their own." />
+
+```text
+You: hi
+Bot: You said: hi
+```
+
+## What you need
+
+- A Meta app with the WhatsApp product, and four values from it: access token, <Term id="phone-number-id" />, verify token, and app secret. [Get them](/cloud/setup)
+- A public HTTPS URL that reaches your machine. A tunnel such as `ngrok http 3000` gives you one.
+
+Every version reads the four values from environment variables:
+
+```bash
+export WA_TOKEN="your-access-token"
+export WA_PHONE_ID="your-phone-number-id"
+export WA_VERIFY_TOKEN="any-secret-string-you-choose"
+export WA_APP_SECRET="your-app-secret"
+```
+
+## The code
+
+Pick your server. The bot logic is the same in every tab; only the lines that connect it to the server change.
+
+<Tabs>
+  <Tab title="Express">
+
+    ```bash
+    npm install zaileys express
+    ```
+
+    ```ts server.ts
+    import express from 'express'
+    import { Client } from 'zaileys'
+
+    const client = new Client({
+      provider: 'cloud',
+      cloud: {
+        accessToken: process.env.WA_TOKEN!,
+        phoneNumberId: process.env.WA_PHONE_ID!,
+        verifyToken: process.env.WA_VERIFY_TOKEN!,
+        appSecret: process.env.WA_APP_SECRET!,
+      },
+    })
+
+    client.on('error', ({ error }) => console.error('Zaileys error:', error.message))
+
+    client.on('text', async (msg) => {
+      try {
+        await client.markRead(msg.chatId, { typing: true })
+        await msg.reply(`You said: ${msg.text}`)
+      } catch (error) {
+        console.error('reply failed:', error)
+      }
+    })
+
+    client.on('message-status', (status) => {
+      console.log(`message ${status.id} is ${status.status}`)
+    })
+
+    const webhook = client.webhook()
+    const app = express()
+
+    app.all('/webhook', express.raw({ type: '*/*' }), async (req, res) => {
+      const headers = new Headers()
+      for (const [name, value] of Object.entries(req.headers)) {
+        if (typeof value === 'string') headers.set(name, value)
+      }
+      const response = await webhook(
+        new Request(`http://localhost${req.originalUrl}`, {
+          method: req.method,
+          headers,
+          body: req.method === 'POST' ? req.body : undefined,
+        }),
+      )
+      res.status(response.status).type('text/plain').send(await response.text())
+    })
+
+    app.listen(3000, () => console.log('Webhook listening on http://localhost:3000/webhook'))
+    ```
+
+    Run it with `npx tsx server.ts`. Your callback URL is your public URL followed by `/webhook`.
+
+    `express.raw()` is what makes this work — see [Why Express needs the raw body](#why-express-needs-the-raw-body).
+
+  </Tab>
+  <Tab title="Hono">
+
+    ```bash
+    npm install zaileys hono @hono/node-server
+    ```
+
+    ```ts server.ts
+    import { serve } from '@hono/node-server'
+    import { Hono } from 'hono'
+    import { Client } from 'zaileys'
+
+    const client = new Client({
+      provider: 'cloud',
+      cloud: {
+        accessToken: process.env.WA_TOKEN!,
+        phoneNumberId: process.env.WA_PHONE_ID!,
+        verifyToken: process.env.WA_VERIFY_TOKEN!,
+        appSecret: process.env.WA_APP_SECRET!,
+      },
+    })
+
+    client.on('error', ({ error }) => console.error('Zaileys error:', error.message))
+
+    client.on('text', async (msg) => {
+      try {
+        await client.markRead(msg.chatId, { typing: true })
+        await msg.reply(`You said: ${msg.text}`)
+      } catch (error) {
+        console.error('reply failed:', error)
+      }
+    })
+
+    client.on('message-status', (status) => {
+      console.log(`message ${status.id} is ${status.status}`)
+    })
+
+    const webhook = client.webhook()
+    const app = new Hono()
+
+    app.all('/webhook', (c) => webhook(c.req.raw))
+
+    serve({ fetch: app.fetch, port: 3000 }, () => {
+      console.log('Webhook listening on http://localhost:3000/webhook')
+    })
+    ```
+
+    Run it with `npx tsx server.ts`. Your callback URL is your public URL followed by `/webhook`.
+
+    `c.req.raw` is the standard `Request` Hono received, body unread, so it goes straight to the handler. On Bun, drop `@hono/node-server` and the `serve()` call, add `export default app`, and run `bun server.ts`.
+
+  </Tab>
+  <Tab title="Next.js">
+
+    ```bash
+    npm install zaileys
+    ```
+
+    ```ts app/api/whatsapp/route.ts
+    import { Client } from 'zaileys'
+
+    const client = new Client({
+      provider: 'cloud',
+      autoConnect: false,
+      cloud: {
+        accessToken: process.env.WA_TOKEN!,
+        phoneNumberId: process.env.WA_PHONE_ID!,
+        verifyToken: process.env.WA_VERIFY_TOKEN!,
+        appSecret: process.env.WA_APP_SECRET!,
+      },
+    })
+
+    client.on('text', async (msg) => {
+      try {
+        await client.markRead(msg.chatId, { typing: true })
+        await msg.reply(`You said: ${msg.text}`)
+      } catch (error) {
+        console.error('reply failed:', error)
+      }
+    })
+
+    client.on('message-status', (status) => {
+      console.log(`message ${status.id} is ${status.status}`)
+    })
+
+    const webhook = client.webhook()
+    const ready = client.connect()
+    ready.catch((error) => console.error('Zaileys could not connect:', error))
+
+    export const GET = webhook
+
+    export async function POST(req: Request) {
+      await ready
+      return webhook(req)
+    }
+    ```
+
+    Start your app as usual, for example with `npm run dev`. Your callback URL is your public URL followed by `/api/whatsapp`. Put the four variables in `.env.local` or your host's settings.
+
+    - **Route handlers receive a standard `Request`** with the body unread, so `GET` passes straight to the handler.
+    - **`POST` waits for `ready` first.** Replies need a connected client, and connecting checks your token with Meta. On a cold start, the first message can arrive before that check finishes; awaiting the same `connect()` promise in every `POST` makes each reply wait for it. If the token is rejected, `POST` fails with a `500`, and Meta retries the delivery later.
+    - **Keep the Node.js runtime,** the default for route handlers. Zaileys needs Node.js APIs such as `node:crypto`.
+
+    <Note>
+      Zaileys answers Meta with `200 OK` as soon as the signature checks out, and your handlers keep running after the response. If your host stops the function once the response is sent, a reply can be cut off. Deploy where the process keeps running, or use one of the other tabs on a server.
+    </Note>
+
+  </Tab>
+  <Tab title="Node.js http">
+
+    ```bash
+    npm install zaileys
+    ```
+
+    ```ts server.ts
+    import { createServer } from 'node:http'
+    import { Client } from 'zaileys'
+
+    const client = new Client({
+      provider: 'cloud',
+      cloud: {
+        accessToken: process.env.WA_TOKEN!,
+        phoneNumberId: process.env.WA_PHONE_ID!,
+        verifyToken: process.env.WA_VERIFY_TOKEN!,
+        appSecret: process.env.WA_APP_SECRET!,
+      },
+    })
+
+    client.on('error', ({ error }) => console.error('Zaileys error:', error.message))
+
+    client.on('text', async (msg) => {
+      try {
+        await client.markRead(msg.chatId, { typing: true })
+        await msg.reply(`You said: ${msg.text}`)
+      } catch (error) {
+        console.error('reply failed:', error)
+      }
+    })
+
+    client.on('message-status', (status) => {
+      console.log(`message ${status.id} is ${status.status}`)
+    })
+
+    const webhook = client.webhook()
+
+    const server = createServer(async (req, res) => {
+      const url = new URL(req.url ?? '/', 'http://localhost')
+      if (url.pathname !== '/webhook') {
+        res.writeHead(404).end()
+        return
+      }
+
+      const chunks: Buffer[] = []
+      for await (const chunk of req) chunks.push(chunk as Buffer)
+
+      const headers = new Headers()
+      for (const [name, value] of Object.entries(req.headers)) {
+        if (typeof value === 'string') headers.set(name, value)
+      }
+
+      const response = await webhook(
+        new Request(url, {
+          method: req.method,
+          headers,
+          body: req.method === 'POST' ? Buffer.concat(chunks) : undefined,
+        }),
+      )
+      res.writeHead(response.status, { 'content-type': 'text/plain' })
+      res.end(await response.text())
+    })
+
+    server.listen(3000, () => console.log('Webhook listening on http://localhost:3000/webhook'))
+    ```
+
+    Run it with `npx tsx server.ts`. Your callback URL is your public URL followed by `/webhook`.
+
+    Node's `http` module hands you a stream, so the handler collects the raw bytes and builds a standard `Request` from them — the same thing the Express tab does with `express.raw()`.
+
+  </Tab>
+</Tabs>
+
+## How it works
+
+- **`client.webhook()` returns one function, `(req: Request) => Promise<Response>`.** It answers Meta's `GET` verification with your verify token, checks the signature on every `POST` with your app secret, and feeds the messages into your handlers. The tabs only differ in how they hand it a standard `Request`.
+- **Hono and Next.js already speak `Request`,** so they pass it through. **Express and Node.js `http`** use Node's own request objects, so those tabs rebuild a `Request` from the method, headers, and raw body. The host in the rebuilt URL doesn't matter — the handler only reads the query string, for verification.
+- **`client.markRead(msg.chatId, { typing: true })`** marks the incoming message as read and shows a typing indicator while the reply is on its way. `msg.chatId` is the ID of the message — despite its name — which is exactly what `markRead()` takes. To send somewhere yourself, use `msg.roomId ?? msg.senderId`.
+- **`msg.reply()`** answers in the same chat, within the <Term id="service-window" /> that the person's message opened.
+- **Every handler catches its own errors.** Zaileys doesn't wait for async handlers, so a rejected promise would become an unhandled rejection — which stops a Node.js process by default.
+- **`message-status`** reports each message you send as `sent`, `delivered`, `read`, or `failed`.
+- **The `error` event** prints a failed startup check, such as a rejected access token. The Next.js tab catches the `connect()` promise instead, because it connects on its own.
+
+The full request and response reference is on the [Webhook](/cloud/webhook) page.
+
+## Why Express needs the raw body
+
+Meta signs every `POST`: the `X-Hub-Signature-256` header is an HMAC of the exact bytes it sent, keyed with your app secret. Zaileys computes the same HMAC over the body it receives and rejects the request if they differ.
+
+`express.json()` turns the body into an object. Nothing turns that object back into the original bytes — spacing and escaped characters come out differently — so every `POST` fails with `401 invalid signature`, and your handlers never run. `express.raw({ type: '*/*' })` keeps the body as the exact `Buffer` Meta sent.
+
+If your app already calls `app.use(express.json())`, register the webhook route **before** that line. Express runs middleware in order, and a JSON parser registered first consumes the body before the webhook route sees it.
+
+## Run it
+
+<Steps>
+  <Step title="Start the server">
+
+    Export the four variables from [What you need](#what-you-need) and start the server with its tab's command. Then make port 3000 reachable over HTTPS, for example with `ngrok http 3000`.
+
+  </Step>
+  <Step title="Check the webhook locally">
+
+    Before involving Meta, send the same verification request it will send:
+
+    ```bash
+    curl "http://localhost:3000/webhook?hub.mode=subscribe&hub.verify_token=$WA_VERIFY_TOKEN&hub.challenge=1234567890"
+    ```
+
+    The server prints back `1234567890`. With a wrong token, it answers `forbidden`. On Next.js, use `/api/whatsapp` instead of `/webhook`.
+
+  </Step>
+  <Step title="Register the webhook with Meta">
+
+    In the Meta dashboard, open **WhatsApp → Configuration → Webhook**. Set **Callback URL** to your public URL plus the path, set **Verify token** to the value of `WA_VERIFY_TOKEN`, click **Verify and save**, and subscribe to the **messages** field. [Webhook](/cloud/webhook) covers this screen in detail.
+
+  </Step>
+  <Step title="Send it a message">
+
+    From your phone, send `hi` to the business number. The bot marks it read, shows it's typing, and answers `You said: hi`.
+
+  </Step>
+</Steps>
+
+## What you'll see
+
+When the server starts — on Next.js, when the route first loads — the client checks your token:
+
+```text
+[zaileys] Connecting to WhatsApp (session: default)...
+[zaileys] Connected as 106540352242922.
+```
+
+The number after `Connected as` is your phone number ID. After you message the bot, each status update of its reply is logged:
+
+```text
+message wamid.HBgN… is sent
+message wamid.HBgN… is delivered
+message wamid.HBgN… is read
+```
+
+The message IDs are shortened here. `read` only appears once the person opens the chat, and only if they have read receipts on.
+
+## If something fails
+
+| What you see | Cause | How to fix it |
+| --- | --- | --- |
+| Meta can't verify the callback URL, and your server answered `403` `forbidden` | The verify token in Meta doesn't match `WA_VERIFY_TOKEN`. | Set both to the same value, and check the variable is set where the server runs. |
+| Messages never reach your handlers, and your server answered `401` `invalid signature` | The body changed before Zaileys saw it, or the app secret is wrong. | On Express, register the webhook route before `express.json()`. Check `WA_APP_SECRET`. |
+| Your server answered `400` `malformed body` | The handler got an empty body, or one that isn't JSON. | Pass the raw bytes, as in the tabs above. |
+| The server stops at startup with `provider 'cloud' requires cloud.accessToken` | `WA_TOKEN` isn't set. The same happens with `cloud.phoneNumberId` when `WA_PHONE_ID` is missing. | Export the variable in the shell that starts the server. |
+| The terminal prints `cloud auth rejected (401) — check accessToken/phoneNumberId` | Meta rejected the token, or it doesn't belong to that phone number ID. | Generate a new token and check the phone number ID in **WhatsApp → API Setup**. |
+| Replies fail with `client not connected` | A message arrived before the startup token check finished, or the check failed. | Look for an error above it. On serverless hosts, use the pattern from the Next.js tab. |
+| Replies fail with error `131047` | More than 24 hours passed since the person last wrote. | Send an approved [template](/cloud/templates) instead. |
+
+## Variations
+
+<AccordionGroup>
+  <Accordion title="Serve several phone numbers from one webhook">
+
+    A Meta app sends events for all its numbers to one callback URL. Create one client per number and route each request by `phone_number_id` — the code is in [Serve several Cloud API numbers from one webhook](/data/multi-account#serve-several-cloud-api-numbers-from-one-webhook).
+
+  </Accordion>
+  <Accordion title="Send messages from your own API too">
+
+    The webhook route and your own endpoints can share one server. The [Express integration](/recipes/express) recipe adds a `POST /messages` endpoint, and its Cloud API variation mounts this webhook next to it.
+
+  </Accordion>
+  <Accordion title="Answer buttons and lists">
+
+    Taps on buttons and list rows arrive through the same webhook as `button-click` and `list-select` events. See [Buttons & lists](/messaging/interactive) and [Cloud API events](/cloud/events).
+
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Webhook" icon="webhook" href="/cloud/webhook">
+    Every request and response the webhook handles.
+  </Card>
+  <Card title="Cloud API events" icon="radio" href="/cloud/events">
+    Delivery receipts, template reviews, orders, and flows.
+  </Card>
+  <Card title="Templates" icon="file-text" href="/cloud/templates">
+    Message people outside the 24-hour window.
+  </Card>
+  <Card title="Express integration" icon="server" href="/recipes/express">
+    Put your own HTTP API next to the webhook.
+  </Card>
+</CardGroup>

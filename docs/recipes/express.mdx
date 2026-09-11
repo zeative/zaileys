@@ -1,9 +1,291 @@
 ---
 title: "Express integration"
-description: "Expose your bot through an Express HTTP API."
+description: "Put an HTTP API in front of your bot: other apps POST a phone number and text to Express, and Zaileys delivers it on WhatsApp."
 icon: "server"
+keywords: ["express", "rest api", "http api", "send whatsapp from api", "notification api", "express whatsapp", "api key", "send message endpoint", "order notifications"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, see [`examples/express-integration.ts`](https://github.com/zeative/zaileys/blob/main/examples/express-integration.ts) on GitHub.
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+
+This recipe builds a small HTTP API that your other apps call to send WhatsApp messages — your shop posts `{ "to": "6281234567890", "text": "Your order has shipped." }`, and the bot's number delivers it.
+
+<ProviderSupport web={true} cloud={true} note="On the Cloud API, mount the webhook on the same app — see Variations." />
+
+## What you need
+
+- A Node.js 20+ project.
+- A phone with WhatsApp for the bot's number. You link it by scanning a QR code, as in the [Quickstart](/quickstart).
+- A second WhatsApp account to receive the test message.
+
+## The code
+
+```ts server.ts
+import express, { type ErrorRequestHandler, type RequestHandler } from 'express'
+import { Client, ZaileysBuilderError, phoneToJid } from 'zaileys'
+
+const API_KEY = process.env.API_KEY ?? ''
+const PORT = Number(process.env.PORT ?? 3000)
+
+if (API_KEY.length < 16) {
+  console.error('Set API_KEY to a random string of at least 16 characters.')
+  process.exit(1)
+}
+
+const client = new Client()
+const app = express()
+
+app.use(express.json({ limit: '100kb' }))
+
+const requireApiKey: RequestHandler = (req, res, next) => {
+  if (req.get('authorization') !== `Bearer ${API_KEY}`) {
+    res.status(401).json({ error: 'missing or wrong API key' })
+    return
+  }
+  next()
+}
+
+app.get('/health', (_req, res) => {
+  res.json({ whatsapp: client.state })
+})
+
+app.post('/messages', requireApiKey, async (req, res) => {
+  const { to, text } = (req.body ?? {}) as { to?: unknown; text?: unknown }
+  const digits = typeof to === 'string' ? to.replace(/\D/g, '') : ''
+
+  if (digits.length < 8 || digits.length > 15) {
+    res.status(400).json({ error: 'to must be a phone number with country code, like 6281234567890' })
+    return
+  }
+  if (typeof text !== 'string' || text.trim() === '') {
+    res.status(400).json({ error: 'text must be a non-empty string' })
+    return
+  }
+  if (text.length > 4096) {
+    res.status(400).json({ error: 'text must be 4096 characters or fewer' })
+    return
+  }
+  if (client.state !== 'connected') {
+    res.status(503).json({ error: 'WhatsApp is not connected yet' })
+    return
+  }
+
+  try {
+    const key = await client.send(phoneToJid(digits)).text(text)
+    res.status(201).json({ id: key.id })
+  } catch (error) {
+    console.error('send failed:', error)
+    if (error instanceof ZaileysBuilderError && error.code === 'SEND_FAILED') {
+      res.status(502).json({ error: 'WhatsApp refused the message' })
+    } else {
+      res.status(500).json({ error: 'could not send the message' })
+    }
+  }
+})
+
+const handleBodyErrors: ErrorRequestHandler = (error, _req, res, _next) => {
+  if (error?.type === 'entity.parse.failed') {
+    res.status(400).json({ error: 'body must be valid JSON' })
+  } else if (error?.type === 'entity.too.large') {
+    res.status(413).json({ error: 'body is larger than 100kb' })
+  } else {
+    console.error(error)
+    res.status(500).json({ error: 'internal error' })
+  }
+}
+app.use(handleBodyErrors)
+
+app.listen(PORT, '127.0.0.1', () => {
+  console.log(`HTTP API listening on http://127.0.0.1:${PORT}`)
+})
+```
+
+## How it works
+
+- **The bot and the server start together.** `new Client()` connects in the background while Express starts listening. `GET /health` reports the connection as `client.state` — `connecting`, `qr-pending`, `connected`, `reconnecting`, and so on.
+- **Every request is checked before anything is sent.** `requireApiKey` rejects calls without the right `Authorization: Bearer …` header. The body must hold a phone number with 8 to 15 digits and a non-empty `text`. Spaces, dashes, and a leading `+` are stripped, so `+62 812-3456-7890` works. The 4,096-character cap is this API's own rule — change it to suit you.
+- **`phoneToJid()` turns the number into a chat address.** `6281234567890` becomes `6281234567890@s.whatsapp.net`, the format `client.send()` expects. [Addresses & JIDs](/concepts/jids) explains the format.
+- **Sends wait for the connection.** Before the bot is connected — while it waits for a QR scan or reconnects — the API answers `503` instead of letting the send fail with `client not connected`.
+- **The response carries the WhatsApp message ID.** `client.send(...).text()` resolves to the message key, and `key.id` identifies the message on WhatsApp. Store it if you want to match it to later events.
+- **Failures become clear HTTP errors.** WhatsApp refusing the message (`SEND_FAILED`) becomes `502`, and the original reason is logged. Malformed or oversized JSON gets a JSON error instead of Express's default HTML page.
+- **The server only listens on `127.0.0.1`,** so other machines can't reach it until you decide how to expose it — see the warning below.
+
+## Run it
+
+Install Express next to Zaileys:
+
+```bash
+npm install zaileys express
+```
+
+For editor types, also add `@types/express` as a dev dependency. Then set a key and start the server:
+
+```bash
+export API_KEY="replace-with-a-long-random-string"
+npx tsx server.ts
+```
+
+Your terminal shows a QR code and these lines — the order can vary:
+
+```text
+HTTP API listening on http://127.0.0.1:3000
+[zaileys] Connecting to WhatsApp (session: default)...
+[zaileys] Scan the QR code above with WhatsApp > Linked devices to authenticate.
+```
+
+Scan the code from **WhatsApp → Settings → Linked devices → Link a device** on the bot's phone. Once `Connected as …` appears, send a message through the API, using your second account's number:
+
+```bash
+curl -X POST http://127.0.0.1:3000/messages \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"to": "+62 812-3456-7890", "text": "Your order #1042 has shipped."}'
+```
+
+The API answers `201` with the message ID, and the second account receives `Your order #1042 has shipped.` from the bot's number:
+
+```json
+{"id":"3EB0C5A1F2D4B6E8A7C9"}
+```
+
+The ID above is an example — yours differs for every message.
+
+## Responses
+
+| Status | Body | When |
+| --- | --- | --- |
+| `201` | `{"id": "…"}` | The message was sent. |
+| `400` | `{"error": "to must be a phone number with country code, like 6281234567890"}` | `to` is missing, or has fewer than 8 or more than 15 digits. |
+| `400` | `{"error": "text must be a non-empty string"}` | `text` is missing, empty, or not a string. |
+| `400` | `{"error": "text must be 4096 characters or fewer"}` | `text` is too long. |
+| `400` | `{"error": "body must be valid JSON"}` | The body isn't JSON. |
+| `401` | `{"error": "missing or wrong API key"}` | The `Authorization` header is missing or wrong. |
+| `413` | `{"error": "body is larger than 100kb"}` | The body is over the `express.json()` limit. |
+| `503` | `{"error": "WhatsApp is not connected yet"}` | The bot is still connecting, waiting for a QR scan, or reconnecting. Check `GET /health`. |
+| `502` | `{"error": "WhatsApp refused the message"}` | The send failed with `SEND_FAILED`. The reason is in your server log. |
+| `500` | `{"error": "could not send the message"}` | Any other send error. The details are in your server log. |
+
+<Warning>
+  **Protect this endpoint.** Anyone who can call `POST /messages` can message anyone from your number.
+
+  - Keep `API_KEY` long, random, and out of your code. Rotate it if it leaks.
+  - To call the API from other machines, put it behind a reverse proxy with HTTPS rather than changing `127.0.0.1` to `0.0.0.0`.
+  - Rate-limit requests — for example with the `express-rate-limit` package. WhatsApp bans numbers that send too much, too fast.
+  - Never let end users choose `to` freely, or your number becomes a spam relay.
+</Warning>
+
+## Variations
+
+<AccordionGroup>
+  <Accordion title="Send a photo with a caption">
+
+    Accept an optional `imageUrl` and pick the send method from it:
+
+    ```ts send.ts
+    import { Client } from 'zaileys'
+
+    export async function sendMessage(client: Client, jid: string, text: string, imageUrl?: string) {
+      const key = imageUrl
+        ? await client.send(jid).image(imageUrl, { caption: text })
+        : await client.send(jid).text(text)
+      return key.id
+    }
+    ```
+
+    The image URL must answer within 30 seconds, or the send fails with `MEDIA_LOAD_FAILED` — answer that with a `422`. Other file types are in [Send media](/messaging/media).
+
+  </Accordion>
+  <Accordion title="Run it on the Official Cloud API">
+
+    Switch the client to `provider: 'cloud'` and add a webhook route so Meta can deliver incoming messages. Register the webhook route **before** `app.use(express.json())` — the signature check needs the raw body, and a JSON parser that runs first consumes it:
+
+    ```ts server.ts
+    import express from 'express'
+    import { Client } from 'zaileys'
+
+    const client = new Client({
+      provider: 'cloud',
+      cloud: {
+        accessToken: process.env.WA_TOKEN!,
+        phoneNumberId: process.env.WA_PHONE_ID!,
+        verifyToken: process.env.WA_VERIFY_TOKEN!,
+        appSecret: process.env.WA_APP_SECRET!,
+      },
+    })
+
+    const webhook = client.webhook()
+    const app = express()
+
+    app.all('/webhook', express.raw({ type: '*/*' }), async (req, res) => {
+      const headers = new Headers()
+      for (const [name, value] of Object.entries(req.headers)) {
+        if (typeof value === 'string') headers.set(name, value)
+      }
+      const response = await webhook(
+        new Request(`http://localhost${req.originalUrl}`, {
+          method: req.method,
+          headers,
+          body: req.method === 'POST' ? req.body : undefined,
+        }),
+      )
+      res.status(response.status).type('text/plain').send(await response.text())
+    })
+
+    app.use(express.json({ limit: '100kb' }))
+    // …then the /health and /messages routes from above, unchanged.
+    ```
+
+    The `/messages` route works as is. On the Cloud API you can only send free-form text within 24 hours of the person's last message; outside that window, sends fail with `SEND_FAILED` — use an approved [template](/cloud/templates) instead. [Cloud API servers](/recipes/cloud-servers) explains the webhook route line by line.
+
+  </Accordion>
+  <Accordion title="Send to groups too">
+
+    Groups have addresses ending in `@g.us`. Accept those as they are and only run `phoneToJid()` on phone numbers:
+
+    ```ts recipient.ts
+    import { phoneToJid } from 'zaileys'
+
+    export function toRecipient(to: string): string {
+      return to.endsWith('@g.us') ? to : phoneToJid(to)
+    }
+    ```
+
+    Groups exist only on WhatsApp Web. The bot must be a member of the group, and you can find group IDs with [`client.group`](/groups/groups).
+
+  </Accordion>
+  <Accordion title="Message many people at once">
+
+    Don't loop over `POST /messages` for a mailing list. `client.broadcast()` spaces the sends out so WhatsApp doesn't flag the number — see [Broadcast & schedule](/bots/broadcast-and-schedule). It needs a WhatsApp Web connection.
+
+  </Accordion>
+</AccordionGroup>
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Why does POST /messages return 503 right after I start the server?">
+    The bot hasn't finished connecting — it's still starting up or waiting for you to scan the QR code. Call `GET /health` and send once it reports `"whatsapp": "connected"`.
+  </Accordion>
+  <Accordion title="Do I have to restart and scan again after every deploy?">
+    No. The login is saved in `./.zaileys`, so restarts reconnect on their own. On a host without a persistent disk, keep the login in a database instead — see [Storage](/data/storage).
+  </Accordion>
+  <Accordion title="Can the same server answer incoming messages?">
+    Yes. Add `client.on('text', …)` handlers to `server.ts` — the client that sends for the API also receives messages. See [Events](/concepts/events).
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Cloud API servers" icon="cloud-cog" href="/recipes/cloud-servers">
+    Serve the Cloud API webhook from Express, Hono, or Next.js.
+  </Card>
+  <Card title="Error handling" icon="triangle-alert" href="/data/error-handling">
+    Every error code a send can fail with.
+  </Card>
+  <Card title="Send media" icon="image" href="/messaging/media">
+    Photos, documents, and voice notes from your API.
+  </Card>
+  <Card title="Storage" icon="database" href="/data/storage">
+    Keep the login across deploys.
+  </Card>
+</CardGroup>

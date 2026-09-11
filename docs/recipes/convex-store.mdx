@@ -1,9 +1,336 @@
 ---
 title: "Convex store"
-description: "Store sessions and messages in Convex."
+description: "Keep your bot's WhatsApp login and message history in Convex, so restarts and redeploys on hosts without a persistent disk don't need a new QR scan."
 icon: "database-zap"
+keywords: ["convex", "convex database", "serverless storage", "persist session", "ConvexAuthStore", "ConvexMessageStore", "zaileys_kv", "npx convex dev", "store session in the cloud"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, see [`examples/convex-store.ts`](https://github.com/zeative/zaileys/blob/main/examples/convex-store.ts) on GitHub.
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+This recipe moves your bot's login and message history into [Convex](https://convex.dev), so a redeploy or a fresh container reconnects without asking you to scan a QR code again.
+
+<ProviderSupport web={true} cloud="partial" note="The Cloud API has no login to store, so only the message store is used there." />
+
+## What you need
+
+- A Node.js 20+ project.
+- A Convex account. The first `npx convex dev` run asks you to log in and creates a project if you don't have one.
+- A phone with WhatsApp for the bot's number, and a second account to test with.
+
+## The code
+
+Two files go in your Convex project's `convex/` folder, and the bot sits next to it:
+
+<Tree>
+  <Tree.Folder name="your-project" defaultOpen>
+    <Tree.File name="bot.ts" />
+    <Tree.Folder name="convex" defaultOpen>
+      <Tree.File name="schema.ts" />
+      <Tree.File name="zaileys.ts" />
+    </Tree.Folder>
+  </Tree.Folder>
+</Tree>
+
+<Tabs>
+  <Tab title="convex/schema.ts">
+
+    One table holds everything, split by namespace. Already have a schema? Add the `zaileys_kv` table to it.
+
+    ```ts convex/schema.ts
+    import { defineSchema, defineTable } from 'convex/server'
+    import { v } from 'convex/values'
+
+    export default defineSchema({
+      zaileys_kv: defineTable({
+        namespace: v.string(),
+        key: v.string(),
+        value: v.string(),
+        sortKey: v.optional(v.number()),
+      }).index('by_ns_key', ['namespace', 'key']),
+    })
+    ```
+
+  </Tab>
+  <Tab title="convex/zaileys.ts">
+
+    The five functions Zaileys calls. Keep the file name — the adapters call them as `zaileys:get`, `zaileys:set`, and so on. `./_generated/server` is the typed module Convex generates from your schema when you run `npx convex dev`.
+
+    {/* snippet-check: skip — imports ./_generated/server, which only exists inside a Convex project */}
+    ```ts convex/zaileys.ts
+    import { v } from 'convex/values'
+    import { mutation, query, type DatabaseReader } from './_generated/server'
+
+    const byKey = (db: DatabaseReader, namespace: string, key: string) =>
+      db
+        .query('zaileys_kv')
+        .withIndex('by_ns_key', (q) => q.eq('namespace', namespace).eq('key', key))
+        .unique()
+
+    export const get = query({
+      args: { namespace: v.string(), keys: v.array(v.string()) },
+      handler: async (ctx, { namespace, keys }) => {
+        const out: { key: string; value: string }[] = []
+        for (const key of keys) {
+          const row = await byKey(ctx.db, namespace, key)
+          if (row) out.push({ key: row.key, value: row.value })
+        }
+        return out
+      },
+    })
+
+    export const set = mutation({
+      args: {
+        namespace: v.string(),
+        items: v.array(v.object({ key: v.string(), value: v.string(), sortKey: v.optional(v.number()) })),
+      },
+      handler: async (ctx, { namespace, items }) => {
+        for (const item of items) {
+          const row = await byKey(ctx.db, namespace, item.key)
+          const doc = { namespace, key: item.key, value: item.value, sortKey: item.sortKey }
+          if (row) await ctx.db.patch(row._id, doc)
+          else await ctx.db.insert('zaileys_kv', doc)
+        }
+      },
+    })
+
+    export const del = mutation({
+      args: { namespace: v.string(), keys: v.array(v.string()) },
+      handler: async (ctx, { namespace, keys }) => {
+        for (const key of keys) {
+          const row = await byKey(ctx.db, namespace, key)
+          if (row) await ctx.db.delete(row._id)
+        }
+      },
+    })
+
+    export const clear = mutation({
+      args: { namespace: v.string(), prefix: v.optional(v.string()) },
+      handler: async (ctx, { namespace, prefix }) => {
+        const rows = await ctx.db
+          .query('zaileys_kv')
+          .withIndex('by_ns_key', (q) => q.eq('namespace', namespace))
+          .collect()
+        for (const row of rows) {
+          if (prefix === undefined || row.key.startsWith(prefix)) await ctx.db.delete(row._id)
+        }
+      },
+    })
+
+    export const list = query({
+      args: {
+        namespace: v.string(),
+        prefix: v.string(),
+        before: v.optional(v.number()),
+        limit: v.optional(v.number()),
+      },
+      handler: async (ctx, { namespace, prefix, before, limit }) => {
+        // '\uffff' sorts after every other character, so the range covers every key starting with prefix.
+        const rows = await ctx.db
+          .query('zaileys_kv')
+          .withIndex('by_ns_key', (q) =>
+            q.eq('namespace', namespace).gte('key', prefix).lt('key', prefix + '\uffff'),
+          )
+          .collect()
+        let out = rows.map((r) => ({ key: r.key, value: r.value, sortKey: r.sortKey }))
+        if (typeof before === 'number') out = out.filter((r) => (r.sortKey ?? 0) < before)
+        out.sort((a, b) => (b.sortKey ?? 0) - (a.sortKey ?? 0))
+        if (typeof limit === 'number') out = out.slice(0, limit)
+        return out
+      },
+    })
+    ```
+
+  </Tab>
+  <Tab title="bot.ts">
+
+    The bot keeps its login in the `wa-auth` namespace and its history in `wa-history`. Send it `history` to see the last messages it stored.
+
+    ```ts bot.ts
+    import { Client, ConvexAuthStore, ConvexMessageStore } from 'zaileys'
+
+    const url = process.env.CONVEX_URL
+    if (!url) {
+      console.error('Set CONVEX_URL to your deployment URL, like https://happy-otter-123.convex.cloud')
+      process.exit(1)
+    }
+
+    const client = new Client({
+      auth: new ConvexAuthStore({ url, namespace: 'wa-auth' }),
+      store: new ConvexMessageStore({ url, namespace: 'wa-history' }),
+    })
+
+    client.on('error', ({ error }) => console.error('Zaileys error:', error))
+
+    client.on('text', async (msg) => {
+      if (msg.text.trim().toLowerCase() !== 'history') return
+      try {
+        const chat = msg.message().key.remoteJid
+        if (!chat) return
+        const recent = await client.store.listMessages(chat, { limit: 5 })
+        const lines = recent
+          .map((m) => m.message?.conversation ?? m.message?.extendedTextMessage?.text)
+          .filter((text): text is string => typeof text === 'string')
+        await msg.reply(lines.length > 0 ? `Latest messages in this chat:\n${lines.join('\n')}` : 'No history yet.')
+      } catch (error) {
+        console.error('history lookup failed:', error)
+      }
+    })
+    ```
+
+  </Tab>
+</Tabs>
+
+## How it works
+
+- **Convex is reached through functions you deploy.** Unlike SQLite or Redis, Zaileys can't open the database directly — it calls `zaileys:get`, `zaileys:set`, `zaileys:del`, `zaileys:clear`, and `zaileys:list` over HTTP. That's why `convex/zaileys.ts` must keep its name.
+- **Everything lives in one table.** Each row has a `namespace`, a `key`, and a `value`. The `by_ns_key` index makes lookups by namespace and key fast.
+- **Two namespaces keep the login and the history apart.** The auth store is cleared when WhatsApp logs the device out, and clearing wipes the store's whole namespace. With one shared namespace, a logout would also delete your message history.
+- **The login is saved byte for byte.** Values are JSON strings with binary data encoded, so the <Term id="session" /> keys come back exactly as they were written.
+- **Messages are sorted by time.** Each message row carries its WhatsApp timestamp as `sortKey`, so `client.store.listMessages()` returns the newest first and honors `limit` and `before`.
+- **Scheduled messages are stored too.** Pending `client.scheduleAt()` jobs go in the message store's namespace, so they survive a restart — see [Broadcast & schedule](/bots/broadcast-and-schedule).
+- **`url` is all the adapters need.** With it, Zaileys creates its own Convex HTTP client the first time it reads or writes. The `convex` package is only loaded at that point.
+- **`history` reads from Convex.** It looks the chat up by the message's own address (`msg.message().key.remoteJid`) — the same address the store saves messages under.
+
+<Warning>
+  The functions in `convex/zaileys.ts` are public Convex functions: anyone who knows your deployment URL can call them, including `zaileys:get` on the `wa-auth` namespace — which returns the bot's login. Keep the bot on a deployment whose URL you don't publish, not one that a website or mobile app also talks to.
+</Warning>
+
+## Run it
+
+<Steps>
+  <Step title="Install Zaileys and Convex">
+
+    ```bash
+    npm install zaileys convex
+    ```
+
+  </Step>
+  <Step title="Deploy the functions">
+
+    With `convex/schema.ts` and `convex/zaileys.ts` in place, run Convex's own CLI:
+
+    ```bash
+    npx convex dev
+    ```
+
+    It pushes the table and functions to your development deployment and keeps watching for changes. The functions stay deployed after you stop it. For a production deployment, use `npx convex deploy`.
+
+  </Step>
+  <Step title="Start the bot">
+
+    Copy your deployment URL from the Convex dashboard — it ends in `.convex.cloud` — and start the bot:
+
+    ```bash
+    export CONVEX_URL="https://happy-otter-123.convex.cloud"
+    npx tsx bot.ts
+    ```
+
+    Scan the QR code from **WhatsApp → Settings → Linked devices → Link a device**.
+
+  </Step>
+</Steps>
+
+## What you'll see
+
+The first start asks for a QR code, like any new login:
+
+```text
+[zaileys] Connecting to WhatsApp (session: default)...
+[zaileys] Scan the QR code above with WhatsApp > Linked devices to authenticate.
+[zaileys] Connected as 6281234567890@s.whatsapp.net.
+```
+
+Open the `zaileys_kv` table in the Convex dashboard. Rows in the `wa-auth` namespace hold the login — a `creds` row and many `signal:…` rows. Rows in `wa-history` hold messages (`msg:…`), chats (`chat:…`), and contacts (`contact:…`).
+
+Stop the bot and start it again — even on another machine with the same `CONVEX_URL`. It connects without a QR code, and there's no `.zaileys` folder anywhere:
+
+```text
+[zaileys] Connecting to WhatsApp (session: default)...
+[zaileys] Connected as 6281234567890@s.whatsapp.net.
+```
+
+From your second account, send a few messages and then `history`. The bot answers with the latest stored texts from that chat, newest first.
+
+<Warning>
+  Don't run two copies of the bot on the same `CONVEX_URL` and namespaces. Both connect as the same linked device, WhatsApp closes one with `connection-replaced`, and you have to link the number again.
+</Warning>
+
+## Variations
+
+<AccordionGroup>
+  <Accordion title="Run several accounts on one deployment">
+
+    Give every account its own pair of namespaces:
+
+    ```ts bot.ts
+    import { Client, ConvexAuthStore, ConvexMessageStore } from 'zaileys'
+
+    const url = process.env.CONVEX_URL!
+
+    function createAccount(id: string) {
+      return new Client({
+        sessionId: id,
+        auth: new ConvexAuthStore({ url, namespace: `wa-${id}-auth` }),
+        store: new ConvexMessageStore({ url, namespace: `wa-${id}-history` }),
+      })
+    }
+
+    const support = createAccount('support')
+    const sales = createAccount('sales')
+    ```
+
+    The [Multi-account bot](/recipes/multi-account) recipe shows the rest of a multi-number setup.
+
+  </Accordion>
+  <Accordion title="Store only the login in Convex">
+
+    Leave out `store` to keep message history in memory, the default. Only the login goes to Convex:
+
+    ```ts bot.ts
+    import { Client, ConvexAuthStore } from 'zaileys'
+
+    const client = new Client({
+      auth: new ConvexAuthStore({ url: process.env.CONVEX_URL!, namespace: 'wa-auth' }),
+    })
+    ```
+
+  </Accordion>
+  <Accordion title="Log the bot out and start fresh">
+
+    Delete the rows in the `wa-auth` namespace from the Convex dashboard, then restart the bot — it asks for a new QR code. Also remove the linked device from the phone under **Settings → Linked devices**.
+
+  </Accordion>
+</AccordionGroup>
+
+## When something fails
+
+Convex errors arrive as `ZaileysStoreError`. When the client connects on its own, they reach the `error` event, which the bot above prints.
+
+| Error code | Message | How to fix it |
+| --- | --- | --- |
+| `STORE_NOT_AVAILABLE` | `convex peer dependency missing. Run: pnpm add convex` | Install the package: `npm install convex`. |
+| `STORE_CONNECTION_FAILED` | `ConvexKv requires either client or url` | `CONVEX_URL` is empty. Set it, or pass `client`. |
+| `STORE_CONNECTION_FAILED` | `pass either client OR url, not both` | Remove one of the two options. |
+| `STORE_READ_FAILED` | `convex read failed` | The functions aren't deployed, the URL points at another deployment, or the file isn't named `convex/zaileys.ts`. Convex's own message is on `error.cause`. |
+| `STORE_WRITE_FAILED` | `convex write failed` | Same causes as a failed read. Check `error.cause`. |
+| `STORE_CLOSED` | `ConvexMessageStore is closed` | The store was used after `client.disconnect()`. Create a new client instead. |
+
+More on store errors in [Error handling](/data/error-handling).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Storage" icon="database" href="/data/storage">
+    Compare Convex with SQLite, Postgres, and Redis.
+  </Card>
+  <Card title="Multi-account bot" icon="boxes" href="/recipes/multi-account">
+    Run several numbers, each with its own namespaces.
+  </Card>
+  <Card title="Broadcast & schedule" icon="calendar-clock" href="/bots/broadcast-and-schedule">
+    Scheduled messages that survive a restart.
+  </Card>
+  <Card title="Error handling" icon="triangle-alert" href="/data/error-handling">
+    Catch store and send errors.
+  </Card>
+</CardGroup>

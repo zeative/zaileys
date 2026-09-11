@@ -1,9 +1,253 @@
 ---
 title: "Plugin starter"
-description: "Scaffold and load your own plugin."
+description: "A ready-to-copy plugin setup: a plugins folder with a command, an event listener, a template for new plugins, and hot reload."
 icon: "puzzle"
+keywords: ["plugin template", "plugin starter", "definePlugin", "plugins folder", "hot reload", "modular bot", "message handler", "command plugin", "scaffold plugin"]
 ---
 
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+
+This recipe sets up a bot whose features live in a `plugins` folder — two working plugins, plus a template you copy to add the next one without restarting.
+
+<ProviderSupport web={true} cloud={false} note="Plugins load when a WhatsApp Web connection opens. The Cloud provider doesn't load them yet." />
+
+```text
+You: !hello
+Bot: Hi Budi! Send !stats to see how busy this chat is.
+
+You: !helo
+Bot: There's no !helo command. Try !hello.
+```
+
+## What you need
+
+- A Node.js 20+ project with `zaileys` installed.
+- A way to run TypeScript directly, such as `tsx` or Bun. Plugin files are imported as they are, so `.ts` plugins need a runtime that understands TypeScript.
+- A phone with WhatsApp for the bot's number, and a second account to test with.
+
+## The code
+
+<Tree>
+  <Tree.Folder name="your-project" defaultOpen>
+    <Tree.File name="bot.ts" />
+    <Tree.Folder name="plugins" defaultOpen>
+      <Tree.File name="hello.ts" />
+      <Tree.File name="stats.ts" />
+      <Tree.File name="_template.ts" />
+    </Tree.Folder>
+  </Tree.Folder>
+</Tree>
+
+<Tabs>
+  <Tab title="bot.ts">
+
+    ```ts bot.ts
+    import { Client } from 'zaileys'
+
+    const client = new Client({
+      commandPrefix: '!',
+      plugins: {
+        dir: './plugins',
+        watch: process.env.NODE_ENV !== 'production',
+        onError: (error, file) => console.error(`Could not load ${file}:`, error),
+      },
+    })
+
+    client.on('command-not-found', ({ command, message }) => {
+      message.reply(`There's no !${command} command. Try !hello.`).catch(console.error)
+    })
+    ```
+
+  </Tab>
+  <Tab title="plugins/hello.ts">
+
+    ```ts plugins/hello.ts
+    import { definePlugin } from 'zaileys'
+
+    export default definePlugin({
+      name: 'hello',
+      aliases: ['hi'],
+      description: 'Say hello',
+      cooldown: 5,
+      message: async (ctx) => {
+        await ctx.reply(`Hi ${ctx.senderName ?? 'there'}! Send !stats to see how busy this chat is.`)
+      },
+    })
+    ```
+
+  </Tab>
+  <Tab title="plugins/stats.ts">
+
+    ```ts plugins/stats.ts
+    import { definePlugin } from 'zaileys'
+
+    const counts = new Map<string, number>()
+
+    export default definePlugin({
+      name: 'stats',
+      description: 'Count the text messages in this chat',
+      text: (msg) => {
+        const chat = msg.roomId ?? msg.senderId
+        counts.set(chat, (counts.get(chat) ?? 0) + 1)
+      },
+      message: async (ctx) => {
+        const chat = ctx.roomId ?? ctx.senderId
+        await ctx.reply(`Text messages counted in this chat: ${counts.get(chat) ?? 0}`)
+      },
+      setup() {
+        const daily = setInterval(() => counts.clear(), 24 * 60 * 60 * 1000)
+        return () => clearInterval(daily)
+      },
+    })
+    ```
+
+  </Tab>
+  <Tab title="plugins/_template.ts">
+
+    ```ts plugins/_template.ts
+    import { definePlugin } from 'zaileys'
+
+    export default definePlugin({
+      name: 'template',
+      description: 'Describe what the command does',
+      usage: '<text>',
+      message: async (ctx) => {
+        if (ctx.args.length === 0) {
+          await ctx.reply(`Usage: !${ctx.command} <text>`)
+          return
+        }
+        await ctx.reply(`You sent: ${ctx.args.join(' ')}`)
+      },
+    })
+    ```
+
+  </Tab>
+</Tabs>
+
+## How it works
+
+- **`plugins: { dir }` turns the loader on.** Every file in `./plugins` loads once the WhatsApp Web connection opens, stays loaded through reconnects, and unloads when you call `client.disconnect()`.
+- **Plugin commands need `commandPrefix`,** exactly like commands you register with `client.command()`.
+- **The plugin is the command.** In `hello.ts`, `name: 'hello'` answers `!hello`, `aliases` adds `!hi`, and `cooldown: 5` blocks the same sender from repeating it within 5 seconds. The `message` function handles it and gets the full [command context](/bots/commands#answer-from-a-command) — `ctx.reply()`, `ctx.args`, `ctx.senderName`, and more.
+- **Event methods listen without adding a command.** In `stats.ts`, the `text` method runs for every text message the bot receives, in any chat. Every incoming event has a method like it — `image`, `groupJoin`, `pollVote`, and so on.
+- **`setup` handles everything else.** `stats.ts` starts a timer that clears the counts every 24 hours, and returns `clearInterval`, so reloading the file never leaves an old timer running.
+- **Files starting with `_` are skipped.** That's why `_template.ts` never loads — it's a starting point to copy, not a plugin.
+- **`watch` reloads plugins when you save them.** It's on while you develop and off when `NODE_ENV` is `production`.
+- **Load problems don't stop the bot.** A file that fails to import, or doesn't export a plugin with a `name`, is skipped, and `onError` tells you which one.
+- **`command-not-found` catches typos.** Zaileys only emits it when something listens, so without the handler, unknown commands are ignored.
+
 <Note>
-  This page is being rewritten for the new docs. Until then, see [`examples/quickstart-plugins.ts`](https://github.com/zeative/zaileys/blob/main/examples/quickstart-plugins.ts) on GitHub.
+  Upgrading from 4.11 or earlier? The command handler was called `command`. Since 4.12.0 it's `message`, and a plugin without `setup` loads since 4.11.1.
 </Note>
+
+## Run it
+
+```bash
+npx tsx bot.ts
+```
+
+Scan the QR code from **WhatsApp → Settings → Linked devices → Link a device**, and wait for:
+
+```text
+[zaileys] Connected as 6281234567890@s.whatsapp.net.
+```
+
+From your second account:
+
+- Send `!hello` or `!hi` — the bot greets you by your WhatsApp name.
+- Send `!stats` — it answers with the number of text messages it has counted in that chat since it started.
+- Send `!helo` — it answers `There's no !helo command. Try !hello.`
+
+## Add a plugin without restarting
+
+With the bot still running, copy the template:
+
+```bash
+cp plugins/_template.ts plugins/echo.ts
+```
+
+In `plugins/echo.ts`, change `name: 'template'` to `name: 'echo'` and save. Send `!echo good morning` — the bot answers `You sent: good morning`. The loader picked up the new file on its own.
+
+Saving a plugin works the same way: the old version unloads — its timer cleanup, commands, and listeners included — and the new one loads. Values kept at the top of a file start over, so `!stats` counts from zero after you save `stats.ts`.
+
+## Variations
+
+<AccordionGroup>
+  <Accordion title="Group plugins into folders for a help menu">
+
+    Put plugins in subfolders such as `plugins/fun/` and `plugins/admin/`. The folder name becomes each command's `category`, which you can use to build a `!help` menu. See [Organize plugins in folders](/bots/plugins#organize-plugins-in-folders) and [Build a help menu](/bots/commands#build-a-help-menu).
+
+  </Accordion>
+  <Accordion title="Time every command with middleware">
+
+    A plugin can add [middleware](/bots/middleware) from `setup`. This one logs how long each command takes:
+
+    ```ts plugins/timing.ts
+    import { definePlugin } from 'zaileys'
+
+    export default definePlugin({
+      name: 'timing',
+      setup(ctx) {
+        ctx.use(async (c, next) => {
+          const started = Date.now()
+          await next()
+          console.log(`!${c.command} from ${c.senderId} took ${Date.now() - started} ms`)
+        })
+      },
+    })
+    ```
+
+    It has no `message`, so it adds no `!timing` command. The middleware is removed when the plugin unloads.
+
+  </Accordion>
+  <Accordion title="Run compiled JavaScript in production">
+
+    If you compile the bot to JavaScript, point `dir` at the compiled plugins and only load `.js` files:
+
+    ```ts bot.ts
+    import { Client } from 'zaileys'
+
+    const client = new Client({
+      commandPrefix: '!',
+      plugins: { dir: './dist/plugins', pattern: /\.js$/, watch: false },
+    })
+    ```
+
+  </Accordion>
+  <Accordion title="Share code between plugins">
+
+    Put shared code in a file starting with `_`, such as `plugins/_format.ts`, and import it from your plugins. The loader skips it. Saving a `_` file doesn't reload anything — restart the bot to pick up changes to it.
+
+  </Accordion>
+</AccordionGroup>
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="My plugin loaded, but its command doesn't answer">
+    Check that the client has a `commandPrefix`, that the plugin has a `message` function, and that no other plugin or `client.command()` uses the same name — a duplicate is skipped.
+  </Accordion>
+  <Accordion title="Nothing happens on the Cloud API">
+    Plugins, commands, and middleware all need a WhatsApp Web connection, so none of them run on the Cloud provider. Handle messages there with `client.on('text', …)` instead.
+  </Accordion>
+  <Accordion title="Why don't I see any plugin messages in my terminal?">
+    Zaileys' built-in logger is silent by default. Start the bot with `ZAILEYS_DEBUG=warn npx tsx bot.ts` to see load warnings such as `plugin: import failed; skipped`.
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Plugins guide" icon="plug" href="/bots/plugins">
+    Every plugin field, event method, and loader option.
+  </Card>
+  <Card title="Commands" icon="square-terminal" href="/bots/commands">
+    Arguments, guards, and the command context.
+  </Card>
+  <Card title="Command bot recipe" icon="chef-hat" href="/recipes/command-bot">
+    A complete command bot to copy.
+  </Card>
+  <Card title="Middleware" icon="layers" href="/bots/middleware">
+    Share checks across every command.
+  </Card>
+</CardGroup>

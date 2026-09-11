@@ -1,9 +1,247 @@
 ---
 title: "Multi-account bot"
-description: "Run several numbers from one process."
+description: "Run a support number and a sales number from one Node.js process, connecting them one at a time and shutting both down cleanly."
 icon: "boxes"
+keywords: ["multi account bot", "multiple whatsapp numbers", "two numbers one bot", "multi session", "sessionId", "several accounts", "account registry", "multi device bot"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, see [`examples/multi-account.ts`](https://github.com/zeative/zaileys/blob/main/examples/multi-account.ts) on GitHub.
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+This recipe builds one bot that runs two WhatsApp numbers — support and sales — and answers each customer from the number they wrote to.
+
+<ProviderSupport web={true} cloud={true} note="This file uses WhatsApp Web. Several Cloud API numbers need webhook routing — see Variations." />
+
+```text
+Customer → support number: hi
+Support:  Thanks for contacting support. Describe the problem and we'll reply shortly.
+
+Customer → sales number: hi
+Sales:    Thanks for contacting sales. Which product are you interested in?
+```
+
+## What you need
+
+- A Node.js 20+ project with `zaileys` installed.
+- Two phones (or two WhatsApp accounts) for the bot's numbers — one for support, one for sales.
+- A third WhatsApp account to test with, since each number ignores its own messages.
+
+## The code
+
+```ts bot.ts
+import { Client, type MessageContext } from 'zaileys'
+
+const greetings: Record<string, string> = {
+  support: "Thanks for contacting support. Describe the problem and we'll reply shortly.",
+  sales: 'Thanks for contacting sales. Which product are you interested in?',
+}
+
+const clients = new Map<string, Client>()
+
+async function answer(msg: MessageContext) {
+  try {
+    await msg.reply(greetings[msg.channelId] ?? 'Hello!')
+  } catch (error) {
+    console.error(`[${msg.channelId}] reply failed:`, error)
+  }
+}
+
+for (const id of Object.keys(greetings)) {
+  const client = new Client({ sessionId: id, autoConnect: false })
+
+  client.on('connect', ({ me }) => console.log(`[${id}] ready as ${me.id}`))
+  client.on('disconnect', ({ reason, willReconnect }) => {
+    console.warn(`[${id}] disconnected (${reason})${willReconnect ? ', reconnecting' : ''}`)
+  })
+  client.on('text', answer)
+
+  clients.set(id, client)
+}
+
+async function connectAll() {
+  for (const [id, client] of clients) {
+    try {
+      await client.connect()
+    } catch (error) {
+      console.error(`[${id}] could not connect:`, error)
+    }
+  }
+}
+
+async function shutdown() {
+  await Promise.allSettled([...clients.values()].map((client) => client.disconnect()))
+  process.exit(0)
+}
+
+process.on('SIGINT', shutdown)
+process.on('SIGTERM', shutdown)
+
+void connectAll()
+```
+
+## How it works
+
+- **One `Client` per number.** Each client has its own connection, <Term id="session" />, reconnect logic, and message store. A logout or ban on one number doesn't touch the other.
+- **`sessionId` names the account.** It picks the login folder (`./.zaileys/auth/support` and `./.zaileys/auth/sales`) and shows up in the terminal lines, on every connection event, and on every message as `msg.channelId`.
+- **`autoConnect: false` plus a loop connects one account at a time.** `connect()` resolves once that account is connected, so you scan one QR code, then the next. Without it, both clients start at once and print two QR codes back to back.
+- **One handler serves both numbers.** `answer` is registered on each client, and `msg.channelId` tells it which account received the message. `msg.reply()` always answers through that same account, so a customer never hears back from the wrong number.
+- **A failed account doesn't block the other.** Each `connect()` has its own `try`/`catch`. If nobody scans, a client stops after 5 QR codes and its `connect()` rejects, so the loop moves on.
+- **`shutdown` closes every connection** — and every store — before the process exits. `Promise.allSettled` keeps one failing disconnect from skipping the rest.
+
+## Run it
+
+```bash
+npx tsx bot.ts
+```
+
+The support account connects first:
+
+```text
+[zaileys] Connecting to WhatsApp (session: support)...
+[zaileys] Scan the QR code above with WhatsApp > Linked devices to authenticate.
+```
+
+Scan the QR code with the **support** phone, from **WhatsApp → Settings → Linked devices → Link a device**. Once it's linked, the sales account starts:
+
+```text
+[zaileys] Connected as 6281234567890@s.whatsapp.net.
+[support] ready as 6281234567890@s.whatsapp.net
+[zaileys] Connecting to WhatsApp (session: sales)...
+[zaileys] Scan the QR code above with WhatsApp > Linked devices to authenticate.
+```
+
+Scan the second QR code with the **sales** phone. From your test account, message each number — each answers with its own greeting.
+
+The logins are saved, so the next start connects both accounts without a QR code:
+
+<Tree>
+  <Tree.Folder name="your-project" defaultOpen>
+    <Tree.File name="bot.ts" />
+    <Tree.Folder name=".zaileys" defaultOpen>
+      <Tree.Folder name="auth" defaultOpen>
+        <Tree.Folder name="support" />
+        <Tree.Folder name="sales" />
+      </Tree.Folder>
+    </Tree.Folder>
+  </Tree.Folder>
+</Tree>
+
+<Warning>
+  Add `.zaileys` to your `.gitignore` — it holds both logins. And never start two clients with the same `sessionId`: they connect as the same linked device, WhatsApp closes one with `connection-replaced`, and you have to link that number again.
+</Warning>
+
+## Variations
+
+<AccordionGroup>
+  <Accordion title="Link with pairing codes instead of QR codes">
+
+    Give each account its own number, country code first and digits only:
+
+    ```ts bot.ts
+    import { Client } from 'zaileys'
+
+    const numbers: Record<string, string> = {
+      support: '6281234567890',
+      sales: '6281298765432',
+    }
+
+    const clients = Object.entries(numbers).map(
+      ([id, phoneNumber]) => new Client({ sessionId: id, autoConnect: false, authType: 'pairing', phoneNumber }),
+    )
+    ```
+
+    Each account prints its own code when you call `connect()`:
+
+    ```text
+    [zaileys] Connecting to WhatsApp (session: support)...
+    [zaileys] Pairing code: ABCD1234 — enter it in WhatsApp > Linked devices > Link with phone number.
+    ```
+
+    Enter it on that number's phone under **Linked devices → Link a device → Link with phone number instead**.
+
+  </Accordion>
+  <Accordion title="Store each account in a database">
+
+    `sessionId` only separates the default login folder. With your own store, give each account its own space — for Redis, a namespace built from the account ID:
+
+    ```ts bot.ts
+    import { Client, RedisAuthStore, RedisMessageStore } from 'zaileys'
+
+    const REDIS_URL = 'redis://localhost:6379'
+
+    function createAccount(id: string) {
+      return new Client({
+        sessionId: id,
+        autoConnect: false,
+        auth: new RedisAuthStore({ url: REDIS_URL, namespace: `wa:${id}:auth` }),
+        store: new RedisMessageStore({ url: REDIS_URL, namespace: `wa:${id}:history` }),
+      })
+    }
+    ```
+
+    SQLite needs one file per account, and Postgres one schema per account. The full table is in [Keep each account's storage separate](/data/multi-account#keep-each-accounts-storage-separate).
+
+  </Accordion>
+  <Accordion title="Add an account while the bot runs">
+
+    Nothing ties the list to startup. Create and connect a client whenever you need one — from an admin command, for example:
+
+    ```ts accounts.ts
+    import { Client } from 'zaileys'
+
+    const clients = new Map<string, Client>()
+
+    export async function addAccount(id: string): Promise<Client> {
+      const existing = clients.get(id)
+      if (existing) return existing
+
+      const client = new Client({ sessionId: id, autoConnect: false })
+      client.on('text', async (msg) => {
+        await msg.reply(`You reached ${id}.`)
+      })
+      clients.set(id, client)
+      await client.connect()
+      return client
+    }
+    ```
+
+    Checking the map first keeps two clients from ever sharing one `sessionId`.
+
+  </Accordion>
+  <Accordion title="Serve several Cloud API numbers">
+
+    Cloud API clients use `provider: 'cloud'` and a `phoneNumberId` each. A Meta app sends events for all of its numbers to one webhook, so route each request to the right client by `phone_number_id` — the code is in [Serve several Cloud API numbers from one webhook](/data/multi-account#serve-several-cloud-api-numbers-from-one-webhook).
+
+  </Accordion>
+</AccordionGroup>
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Why did one account log out when I started the other?">
+    Both clients used the same login — the same `sessionId`, or the same database file, schema, or namespace. Give each account its own, then link the logged-out number again.
+  </Accordion>
+  <Accordion title="The second QR code never shows up">
+    The loop waits for the first account. `connect()` only resolves after that number is linked, or rejects after 5 unscanned QR codes. Scan the first code, or wait for it to give up.
+  </Accordion>
+  <Accordion title="Can I use msg.roomId to send from the other account?">
+    You can call `sales.send(msg.roomId ?? msg.senderId)` from a support handler, but the customer then gets a message from a number they didn't write to. Use `msg.reply()` unless that's what you want.
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Multiple accounts guide" icon="boxes" href="/data/multi-account">
+    Storage isolation, registries, and resource planning in depth.
+  </Card>
+  <Card title="Storage" icon="database" href="/data/storage">
+    Pick a store for each account.
+  </Card>
+  <Card title="Express integration" icon="server" href="/recipes/express">
+    Put an HTTP API in front of your bot.
+  </Card>
+  <Card title="Error handling" icon="triangle-alert" href="/data/error-handling">
+    Catch failures without stopping every account.
+  </Card>
+</CardGroup>

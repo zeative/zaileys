@@ -1,9 +1,488 @@
 ---
 title: "Storage"
-description: "Persist sessions and message history with file, SQLite, Redis, Postgres, and more."
+description: "Keep the WhatsApp login and message history across restarts with file, memory, SQLite, Postgres, Redis, or Convex storage."
 icon: "database"
+keywords: ["storage", "session", "persist session", "auth store", "message store", "sqlite", "better-sqlite3", "postgres", "redis", "convex", "database", "message history", "scan qr every restart"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/storage](https://zeative.github.io/zaileys/storage).
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+Zaileys saves two things for you: the WhatsApp login, so a restart doesn't ask for a new QR code, and the message history, so your bot can look up past messages.
+
+<ProviderSupport web={true} cloud="partial" note="The Cloud API signs in with an access token, so only the message store applies — and auto-delete pruning doesn't run there." />
+
+## The auth store and the message store
+
+|  | Auth store | Message store |
+| --- | --- | --- |
+| Client option | `auth` | `store` |
+| What it holds | The <Term id="session" />: login credentials and encryption keys | Messages, chats, contacts, and presence |
+| When it's written | When you link the device, and whenever WhatsApp rotates keys | As messages and chat updates arrive |
+| Default | `FileAuthStore`, in `./.zaileys/auth/<sessionId>` | `MemoryMessageStore` — emptied on every restart |
+| If you lose it | You scan a new QR code | Older messages can't be forwarded or looked up |
+
+This is what `new Client()` uses when you pass nothing:
+
+```ts bot.ts
+import { Client, FileAuthStore, MemoryMessageStore } from 'zaileys'
+
+const client = new Client({
+  sessionId: 'default',
+  auth: new FileAuthStore({ basePath: './.zaileys/auth/default' }),
+  store: new MemoryMessageStore(),
+})
+```
+
+The two are independent: pair any auth store with any message store. Zaileys reads the message store to forward a message by its key and to find the message a reply quotes. You can query it yourself too — see [Read message history](#read-message-history).
+
+## Which adapter should I use?
+
+| Your situation | Auth store | Message store |
+| --- | --- | --- |
+| One bot on your own machine or a VPS | `FileAuthStore` (default) | `MemoryMessageStore` (default), or SQLite to keep history |
+| Tests and throwaway scripts | `MemoryAuthStore` | `MemoryMessageStore` |
+| One server, history that survives restarts | `SqliteAuthStore` | `SqliteMessageStore` |
+| Containers or several servers sharing a database | `PostgresAuthStore` | `PostgresMessageStore` |
+| Many sessions and fast history on one Redis server | `RedisAuthStore` | `RedisMessageStore` |
+| Serverless hosting, or scheduled messages that must survive a restart | `ConvexAuthStore` | `ConvexMessageStore` |
+
+| Adapter | Auth store | Message store | Install |
+| --- | --- | --- | --- |
+| File | `FileAuthStore` | — | Nothing |
+| Memory | `MemoryAuthStore` | `MemoryMessageStore` | Nothing |
+| SQLite | `SqliteAuthStore` | `SqliteMessageStore` | `better-sqlite3` 11.x |
+| Postgres | `PostgresAuthStore` | `PostgresMessageStore` | `pg` 8.11 or newer |
+| Redis | `RedisAuthStore` | `RedisMessageStore` | `redis` 4.7 or newer 4.x |
+| Convex | `ConvexAuthStore` | `ConvexMessageStore` | `convex` 1.x |
+
+There is no file-based message store. The database packages are optional: Zaileys loads one the first time its store is used, so a missing package fails with `STORE_NOT_AVAILABLE` when the client connects — never at install time.
+
+## Set up an adapter
+
+<Tabs>
+  <Tab title="File">
+
+    The default auth store. It keeps the login as JSON files and needs nothing installed.
+
+    ```ts bot.ts
+    import { Client, FileAuthStore } from 'zaileys'
+
+    const client = new Client({
+      auth: new FileAuthStore({ basePath: './sessions/support-bot' }),
+    })
+    ```
+
+    <Tree>
+      <Tree.Folder name="sessions" defaultOpen>
+        <Tree.Folder name="support-bot" defaultOpen>
+          <Tree.File name="creds.json" />
+          <Tree.Folder name="signal" />
+        </Tree.Folder>
+      </Tree.Folder>
+    </Tree>
+
+    `creds.json` is the login; `signal/` holds one folder per kind of encryption key. Each file is written to a temporary file first and then renamed, so a crash mid-write never leaves a half-written file.
+
+    <ParamField body="basePath" type="string" default="'./.zaileys/auth'">
+      Folder for `creds.json` and `signal/`, relative to the folder you start the bot from. When you don't pass `auth` at all, the client uses `./.zaileys/auth/<sessionId>`.
+    </ParamField>
+
+  </Tab>
+  <Tab title="Memory">
+
+    Everything stays in memory and disappears when the process exits. Nothing to install, no options.
+
+    ```ts bot.ts
+    import { Client, MemoryAuthStore, MemoryMessageStore } from 'zaileys'
+
+    const client = new Client({
+      auth: new MemoryAuthStore(),
+      store: new MemoryMessageStore(),
+    })
+    ```
+
+    <Warning>
+      `MemoryAuthStore` forgets the login on exit, so you scan a new QR code on every start. Use it for tests, not for a bot you keep running.
+    </Warning>
+
+  </Tab>
+  <Tab title="SQLite">
+
+    A single database file on disk, through `better-sqlite3`:
+
+    ```bash
+    npm install better-sqlite3@11
+    ```
+
+    ```ts bot.ts
+    import { Client, SqliteAuthStore, SqliteMessageStore } from 'zaileys'
+
+    const client = new Client({
+      auth: new SqliteAuthStore({ database: './whatsapp.db' }),
+      store: new SqliteMessageStore({ database: './whatsapp.db' }),
+    })
+    ```
+
+    Both stores can share one file — the auth store uses the `auth_creds` and `auth_signal` tables, the message store uses `messages`, `chats`, `contacts`, and `presence`. Tables are created on first use. The database runs in WAL mode, so you'll also see `whatsapp.db-wal` and `whatsapp.db-shm` next to it.
+
+    <ParamField body="database" type="string | Buffer" required>
+      Path to the database file, created if it doesn't exist.
+    </ParamField>
+    <ParamField body="readonly" type="boolean" default="false">
+      Open the database read-only.
+    </ParamField>
+
+    One SQLite file holds one login. Running several accounts? Give each its own file — see [Multiple accounts](/data/multi-account).
+
+  </Tab>
+  <Tab title="Postgres">
+
+    A Postgres database, through `pg`:
+
+    ```bash
+    npm install pg
+    ```
+
+    ```ts bot.ts
+    import { Client, PostgresAuthStore, PostgresMessageStore } from 'zaileys'
+
+    const url = process.env.DATABASE_URL!
+
+    const client = new Client({
+      auth: new PostgresAuthStore({ connectionString: url, max: 5 }),
+      store: new PostgresMessageStore({ connectionString: url }),
+    })
+    ```
+
+    Already have a pool in your app? Pass it instead:
+
+    ```ts bot.ts
+    import { Pool } from 'pg'
+    import { Client, PostgresAuthStore, PostgresMessageStore } from 'zaileys'
+
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL })
+
+    const client = new Client({
+      auth: new PostgresAuthStore({ pool }),
+      store: new PostgresMessageStore({ pool }),
+    })
+    ```
+
+    The tables `zaileys_auth_creds`, `zaileys_auth_signal`, `zaileys_messages`, `zaileys_chats`, `zaileys_contacts`, and `zaileys_presence` are created on first use.
+
+    <ParamField body="connectionString" type="string">
+      A Postgres URL, such as `postgres://bot:secret@db.internal:5432/whatsapp`. The store creates its own pool and closes it on disconnect.
+    </ParamField>
+    <ParamField body="pool" type="Pool">
+      A `pg` pool you created. You own it — call `pool.end()` yourself when you're done.
+    </ParamField>
+    <ParamField body="max" type="number">
+      Maximum connections in the pool the store creates. Only used with `connectionString`; `pg`'s own default applies otherwise.
+    </ParamField>
+
+    Pass exactly one of `connectionString` and `pool`. Passing both, or neither, throws `STORE_CONNECTION_FAILED` right away.
+
+  </Tab>
+  <Tab title="Redis">
+
+    A Redis server, through the `redis` package (version 4):
+
+    ```bash
+    npm install redis@4
+    ```
+
+    ```ts bot.ts
+    import { Client, RedisAuthStore, RedisMessageStore } from 'zaileys'
+
+    const client = new Client({
+      auth: new RedisAuthStore({ url: 'redis://localhost:6379', namespace: 'shop-bot:auth' }),
+      store: new RedisMessageStore({ url: 'redis://localhost:6379', namespace: 'shop-bot:history' }),
+    })
+    ```
+
+    To share one connection, connect a client yourself first:
+
+    ```ts bot.ts
+    import { createClient } from 'redis'
+    import { Client, RedisAuthStore, RedisMessageStore } from 'zaileys'
+
+    const redis = createClient({ url: 'redis://localhost:6379' })
+    await redis.connect()
+
+    const client = new Client({
+      auth: new RedisAuthStore({ client: redis, namespace: 'shop-bot:auth' }),
+      store: new RedisMessageStore({ client: redis, namespace: 'shop-bot:history' }),
+    })
+    ```
+
+    Keys look like `shop-bot:auth:creds` and `shop-bot:history:msg:<jid>`. Presence entries expire after 5 minutes.
+
+    <ParamField body="url" type="string">
+      A Redis URL. The store connects on first use and disconnects when the client does.
+    </ParamField>
+    <ParamField body="client" type="RedisClientType">
+      A client you created and already connected with `await redis.connect()`. An unconnected client fails with `STORE_CONNECTION_FAILED`.
+    </ParamField>
+    <ParamField body="namespace" type="string" default="'zaileys'">
+      Prefix for every key the store writes.
+    </ParamField>
+
+    <Warning>
+      Give the auth store and the message store different namespaces, and don't make one a prefix of the other. Clearing the message store deletes every key matching `<namespace>:*` — with the message store on `shop-bot` and the auth store on `shop-bot:auth`, that would delete the login too.
+    </Warning>
+
+  </Tab>
+  <Tab title="Convex">
+
+    Convex is reached through functions you deploy, so it needs a one-time setup:
+
+    <Steps>
+      <Step title="Deploy the functions">
+
+        In your Convex project, merge the `zaileys_kv` table from [`examples/convex/schema.ts`](https://github.com/zeative/zaileys/blob/main/examples/convex/schema.ts) into `convex/schema.ts`, and copy [`examples/convex/zaileys.ts`](https://github.com/zeative/zaileys/blob/main/examples/convex/zaileys.ts) to `convex/zaileys.ts`. Then deploy:
+
+        ```bash
+        npx convex dev
+        ```
+
+        This adds the functions `zaileys:get`, `zaileys:set`, `zaileys:del`, `zaileys:clear`, and `zaileys:list`.
+
+      </Step>
+      <Step title="Install the Convex client">
+
+        ```bash
+        npm install convex
+        ```
+
+      </Step>
+      <Step title="Point the client at your deployment">
+
+        ```ts bot.ts
+        import { Client, ConvexAuthStore, ConvexMessageStore } from 'zaileys'
+
+        const url = process.env.CONVEX_URL!
+
+        const client = new Client({
+          auth: new ConvexAuthStore({ url, namespace: 'wa-auth' }),
+          store: new ConvexMessageStore({ url, namespace: 'wa-store' }),
+        })
+        ```
+
+      </Step>
+    </Steps>
+
+    <ParamField body="url" type="string">
+      Your deployment URL, such as `https://happy-otter-123.convex.cloud`.
+    </ParamField>
+    <ParamField body="client" type="ConvexHttpClient">
+      A Convex client you created, instead of `url`.
+    </ParamField>
+    <ParamField body="namespace" type="string" default="'zaileys'">
+      Partition inside the `zaileys_kv` table.
+    </ParamField>
+
+    <Warning>
+      Use different namespaces for the auth store and the message store. Clearing a Convex store deletes its whole namespace, and the auth store is cleared when WhatsApp logs the device out — with a shared namespace, you'd lose the message history too.
+    </Warning>
+
+    A complete bot is in the [Convex store recipe](/recipes/convex-store).
+
+  </Tab>
+</Tabs>
+
+## Read message history
+
+The client records every message and chat update into the message store as they arrive. Query it through `client.store`:
+
+```ts bot.ts
+import { Client, SqliteMessageStore } from 'zaileys'
+
+const client = new Client({ store: new SqliteMessageStore({ database: './history.db' }) })
+
+client.on('text', async (msg) => {
+  if (msg.text !== '/history') return
+  const chat = msg.roomId ?? msg.senderId
+  const recent = await client.store.listMessages(chat, { limit: 10 })
+  await msg.reply(`I have ${recent.length} saved messages from this chat.`)
+})
+```
+
+Send `/history` and the bot answers with a count, such as `I have 10 saved messages from this chat.` Messages are stored per chat address: `msg.roomId` is the group in a group chat, or the other person in a private chat.
+
+| Method | Returns |
+| --- | --- |
+| `listMessages(jid, { limit, before })` | Messages from one chat, newest first |
+| `getMessage(key)` | One message by its key, or `undefined` |
+| `listChats({ archived })` | Every chat; `{ archived: true }` returns only archived ones |
+| `getChat(jid)` | One chat, or `undefined` |
+| `listContacts()`, `getContact(jid)` | Saved contacts |
+| `getPresence(jid)` | The last known presence, such as online or typing |
+
+Messages come back as raw WhatsApp `WAMessage` objects; `messageTimestamp` is in seconds. To page backwards, pass the oldest timestamp you have as `before`:
+
+```ts
+const firstPage = await client.store.listMessages(jid, { limit: 50 })
+const oldest = firstPage.at(-1)
+
+if (oldest) {
+  const nextPage = await client.store.listMessages(jid, {
+    limit: 50,
+    before: Number(oldest.messageTimestamp),
+  })
+}
+```
+
+<ParamField body="limit" type="number">
+  Most messages to return. SQLite, Postgres, and Redis default to 100; Memory and Convex return everything.
+</ParamField>
+<ParamField body="before" type="number">
+  Unix time in seconds. Only messages strictly older than this are returned.
+</ParamField>
+
+## Mix adapters
+
+Each store picks its own backend. This keeps the login on disk and the history in Redis:
+
+```ts bot.ts
+import { Client, FileAuthStore, RedisMessageStore } from 'zaileys'
+
+const client = new Client({
+  auth: new FileAuthStore({ basePath: './.zaileys/auth/default' }),
+  store: new RedisMessageStore({ url: 'redis://localhost:6379', namespace: 'shop-bot:history' }),
+})
+```
+
+## Prune old messages automatically
+
+Pruning is on by default on WhatsApp Web: once the client connects, it deletes messages older than 30 days from the message store every minute. All built-in message stores support it. It doesn't run on the Cloud API. Change the limits with `autoDelete`:
+
+```ts bot.ts
+import { Client, SqliteMessageStore } from 'zaileys'
+
+const client = new Client({
+  store: new SqliteMessageStore({ database: './history.db' }),
+  autoDelete: { maxAgeMs: 7 * 24 * 60 * 60 * 1000, maxPerChat: 500 },
+})
+```
+
+This keeps one week of history and at most 500 messages per chat. Your fields are merged over the defaults, so `{ maxPerChat: 500 }` alone still keeps the 30-day limit. Pass `autoDelete: false` to keep everything. Every option is in [Auto-delete](/bots/auto-delete).
+
+## Keep scheduled messages across restarts
+
+Scheduled messages (a WhatsApp Web feature) are saved to the message store only when it can hold them, and today only `ConvexMessageStore` can. With every other store, pending scheduled messages live in memory and are lost when the bot restarts. See [Broadcast & schedule](/bots/broadcast-and-schedule).
+
+## Move from files to a database
+
+The simplest move is to link again: point `auth` at the new store, start the bot, scan a fresh QR code, and delete the old `.zaileys/auth/<sessionId>` folder. The default message history lives in memory, so there's nothing else to move.
+
+To keep the existing login instead, copy it with a one-off script:
+
+<Steps>
+  <Step title="Stop the bot">
+    The file store is written while the bot runs, so stop it before copying.
+  </Step>
+  <Step title="Copy the login">
+
+    ```ts copy-auth.ts
+    import { readdir } from 'node:fs/promises'
+    import path from 'node:path'
+    import { FileAuthStore, SqliteAuthStore, type AuthStore, type AuthStoreKey } from 'zaileys'
+
+    const from = './.zaileys/auth/default'
+    const source = new FileAuthStore({ basePath: from })
+    const target = new SqliteAuthStore({ database: './whatsapp.db' })
+
+    const creds = await source.creds.readCreds()
+    if (!creds) throw new Error(`No login found in ${from}`)
+    await target.creds.writeCreds(creds)
+
+    // File names escape every character outside [a-zA-Z0-9._-], such as ":" or "@", as "_" plus its hex code.
+    const idFromFile = (file: string) =>
+      file.slice(0, -'.json'.length).replace(/_([0-9a-f]{2})/g, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)))
+
+    const signalDir = path.join(from, 'signal')
+    for (const type of (await readdir(signalDir)) as AuthStoreKey[]) {
+      const files = await readdir(path.join(signalDir, type))
+      const ids = files.filter((file) => file.endsWith('.json')).map(idFromFile)
+      const values = await source.signal.read(type, ids)
+      await target.signal.write({ [type]: values } as Parameters<AuthStore['write']>[0])
+    }
+
+    await target.signal.close()
+    console.log('Copied the login to ./whatsapp.db')
+    ```
+
+    Run it once with `npx tsx copy-auth.ts`.
+
+  </Step>
+  <Step title="Point the client at the new store">
+
+    ```ts bot.ts
+    import { Client, SqliteAuthStore } from 'zaileys'
+
+    const client = new Client({ auth: new SqliteAuthStore({ database: './whatsapp.db' }) })
+    ```
+
+    Start the bot. It should print `Connected as …` without showing a QR code. Once it does, delete the old folder.
+
+  </Step>
+</Steps>
+
+## Keep stored sessions safe
+
+<Warning>
+  Anyone who gets the auth store — the `.zaileys` folder, the database file, or the rows in your database — can use the WhatsApp account as a linked device. Zaileys stores it as plain JSON; it doesn't encrypt it.
+</Warning>
+
+- Add `.zaileys/` and any SQLite files (`*.db`, `*.db-wal`, `*.db-shm`) to `.gitignore`, and keep them out of Docker images. Mount a volume instead.
+- Read database URLs and passwords from environment variables, and give the bot a database user that can only reach its own tables.
+- Turn on disk or database encryption if your host offers it.
+- To end a session for good, call `await client.logout()`. It logs the device out and clears the auth store.
+- Zaileys also clears the auth store on its own when WhatsApp reports `logged-out`, `connection-replaced`, `forbidden`, or `bad-session`.
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Why do I have to scan the QR code after every restart?">
+    The login isn't surviving the restart. Common causes: you're using `MemoryAuthStore`; the bot runs in a container without a volume for `.zaileys`; or you start it from a different folder, so the relative path `./.zaileys/auth` points somewhere new. Use an absolute `basePath` or a database store to rule out the last one.
+  </Accordion>
+  <Accordion title="Can the auth store and the message store use the same database?">
+    Yes. SQLite and Postgres use different tables for each, so one file or database works. On Redis and Convex, use one server but give each store its own namespace.
+  </Accordion>
+  <Accordion title="Where is my message history with the default setup?">
+    In memory. `client.store` works while the bot runs, but the history is empty after a restart. Pick a SQLite, Postgres, Redis, or Convex message store to keep it.
+  </Accordion>
+  <Accordion title="Can I write my own adapter?">
+    Yes. An auth store is any object with `creds` and `signal` parts (the `AuthStoreBundle` type); a message store implements `MessageStore`. Both interfaces are in the [Storage reference](/reference/storage).
+  </Accordion>
+</AccordionGroup>
+
+## When storage fails
+
+| Error code | What went wrong | How to fix it |
+| --- | --- | --- |
+| `STORE_NOT_AVAILABLE` | The database package isn't installed. The message names the package. | Install it: `better-sqlite3@11`, `pg`, `redis@4`, or `convex`. |
+| `STORE_CONNECTION_FAILED` | The database couldn't be opened or reached, creating tables failed, or you passed both or neither of `url`/`client` (`connectionString`/`pool`). | Check the URL, credentials, and network access. The driver's error is on `error.cause`. |
+| `STORE_READ_FAILED`, `STORE_WRITE_FAILED` | A query or file operation failed. | Check disk space, permissions, and database health. The original error is on `error.cause`. |
+| `STORE_CORRUPTED` | A SQLite row couldn't be read back. | Delete the damaged database file and link again. |
+| `STORE_CLOSED` | A store was used after `client.disconnect()` closed it. | Create a new `Client`, with new store instances, to connect again. |
+
+These surface when the client connects: `await client.connect()` rejects with the error, or — with the default `autoConnect` — the client emits it on the `error` event. More in [Error handling](/data/error-handling).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Auto-delete" icon="trash-2" href="/bots/auto-delete">
+    Tune how long message history is kept.
+  </Card>
+  <Card title="Multiple accounts" icon="boxes" href="/data/multi-account">
+    Keep each account's storage separate.
+  </Card>
+  <Card title="Storage reference" icon="square-code" href="/reference/storage">
+    Every store interface, method, and option.
+  </Card>
+  <Card title="Convex store recipe" icon="chef-hat" href="/recipes/convex-store">
+    A complete bot with its session in Convex.
+  </Card>
+</CardGroup>

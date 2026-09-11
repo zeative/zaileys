@@ -1,9 +1,204 @@
 ---
 title: "Runtimes"
-description: "Run Zaileys on Node.js, Bun, Deno, and Termux."
+description: "Run Zaileys on Node.js, Bun, Deno, or Termux on Android, with ES modules or CommonJS."
 icon: "server"
+keywords: ["node version", "nodejs 20", "bun", "deno", "termux", "android", "commonjs", "require", "esm", "sharp install failed", "ffmpeg not found", "legacy-peer-deps"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/runtimes](https://zeative.github.io/zaileys/runtimes).
-</Note>
+Zaileys runs anywhere Node.js 20 or newer runs, and on runtimes that are compatible with Node: Bun, Deno, and Termux on Android.
+
+## At a glance
+
+| Runtime | Version | Run a TypeScript bot | Notes |
+| --- | --- | --- | --- |
+| Node.js | 20 or newer | `npx tsx bot.ts` | The main target, and what Zaileys' test suite runs on. |
+| Bun | Current release | `bun run bot.ts` | Runs TypeScript directly. The examples in the Zaileys repository run this way. |
+| Deno | 2 | `deno run -A bot.ts` | Import with the `npm:` prefix. |
+| Termux (Android) | Node.js from `pkg` | `npx tsx bot.ts` | Install with `--legacy-peer-deps`, and install ffmpeg. |
+
+## Set up your runtime
+
+<Tabs>
+  <Tab title="Node.js">
+
+    <CodeGroup>
+
+    ```bash npm
+    npm install zaileys
+    ```
+
+    ```bash pnpm
+    pnpm add zaileys
+    ```
+
+    ```bash yarn
+    yarn add zaileys
+    ```
+
+    </CodeGroup>
+
+    Run TypeScript directly with tsx:
+
+    ```bash
+    npx tsx bot.ts
+    ```
+
+    Or compile first and run the JavaScript output, for example `node dist/bot.js`.
+
+    Node.js 18 and older aren't supported — Zaileys and the WhatsApp Web library it's built on both require Node.js 20 or newer. Check with `node --version` and upgrade if needed.
+
+  </Tab>
+  <Tab title="Bun">
+
+    ```bash
+    bun add zaileys
+    ```
+
+    Bun runs `.ts` files directly, with no build step:
+
+    ```bash
+    bun run bot.ts
+    ```
+
+    Your code is the same as on Node.js — `import { Client } from 'zaileys'`.
+
+  </Tab>
+  <Tab title="Deno">
+
+    Import Zaileys with the `npm:` prefix:
+
+    {/* snippet-check: skip — the npm: specifier only resolves under Deno */}
+    ```ts bot.ts
+    import { Client } from 'npm:zaileys'
+
+    const client = new Client()
+
+    client.on('text', async (msg) => {
+      await msg.reply(`You said: ${msg.text}`)
+    })
+    ```
+
+    Give npm packages a real `node_modules` folder, as on Node.js, with a `deno.json` next to your bot:
+
+    ```json deno.json
+    {
+      "nodeModulesDir": "auto"
+    }
+    ```
+
+    Then run it:
+
+    ```bash
+    deno run -A bot.ts
+    ```
+
+    `-A` grants every permission. Zaileys needs network access for WhatsApp, file access for the login folder, environment access, and permission to start ffmpeg for audio and stickers — narrow the flags to those once the bot works.
+
+    Deno doesn't run npm install scripts by default. Packages that build native code during install, such as `better-sqlite3` for the SQLite store, need them allowed with `--allow-scripts`.
+
+    <Note>
+      Zaileys' automated tests don't run on Deno. If something behaves differently from Node.js, please [open an issue](https://github.com/zeative/zaileys/issues).
+    </Note>
+
+  </Tab>
+  <Tab title="Termux">
+
+    Termux runs Zaileys as a normal Node.js project on an Android phone:
+
+    <Steps>
+      <Step title="Install Node.js and ffmpeg">
+
+        ```bash
+        pkg update && pkg upgrade
+        pkg install nodejs-lts ffmpeg
+        ```
+
+      </Step>
+      <Step title="Install Zaileys without peer dependencies">
+
+        ```bash
+        npm install zaileys --legacy-peer-deps
+        ```
+
+      </Step>
+      <Step title="Run the bot">
+
+        ```bash
+        npx tsx bot.ts
+        ```
+
+      </Step>
+    </Steps>
+
+    **Why `--legacy-peer-deps`?** The WhatsApp Web library Zaileys uses lists the `sharp` image library as a peer dependency, so a plain `npm install` installs it too. On Android, `sharp` has no ready-made binary and tries to compile from source, which usually fails. The flag tells npm to skip peer dependencies. Zaileys doesn't need `sharp` — without it, images are processed in pure JavaScript.
+
+    **Why install ffmpeg?** Zaileys bundles ffmpeg for Windows, macOS, and Linux only. On Android it uses the `ffmpeg` on your `PATH`, which `pkg install ffmpeg` provides. Without it, voice notes, stickers, and other conversions fail with `MEDIA_LOAD_FAILED`.
+
+    Native packages, such as `better-sqlite3` for the SQLite store, compile from source on Android and need a build toolchain first: `pkg install python make clang`. The file store needs nothing extra.
+
+    <Note>
+      Zaileys' automated tests don't run on Termux. If something behaves differently from Node.js, please [open an issue](https://github.com/zeative/zaileys/issues).
+    </Note>
+
+  </Tab>
+</Tabs>
+
+## Use ES modules or CommonJS
+
+Zaileys ships both an ES module build and a CommonJS build, so `import` and `require` both work:
+
+<CodeGroup>
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client()
+```
+
+```js bot.cjs
+const { Client } = require('zaileys')
+
+const client = new Client()
+```
+
+</CodeGroup>
+
+In TypeScript, set `moduleResolution` to `NodeNext` or `Bundler` so the compiler picks up the package's type definitions. The published code imports Node.js built-ins with the `node:` prefix (`node:fs`, `node:path`, …), which Bun and Deno understand.
+
+## Optional native packages
+
+The core of Zaileys installs without a compiler. These extras are loaded only when you use them:
+
+| Package | What it's for | If it's missing |
+| --- | --- | --- |
+| `sharp` | Faster image processing, such as thumbnails | Zaileys falls back to its bundled pure-JavaScript image library. |
+| ffmpeg and ffprobe | Converting audio, video, and stickers | Bundled for Windows, macOS, and Linux. Elsewhere, Zaileys uses `ffmpeg` and `ffprobe` from your `PATH`. |
+| `better-sqlite3` | The SQLite stores | Using a SQLite store fails with `STORE_NOT_AVAILABLE`. |
+| `pg`, `redis`, `convex` | The Postgres, Redis, and Convex stores | Using that store fails with `STORE_NOT_AVAILABLE`. |
+
+Install only what you use — see [Storage](/data/storage) for the database packages.
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="npm install fails while building sharp">
+    `sharp` came in as a peer dependency and has no ready-made binary for your platform, which is common on Android and some minimal Linux images. Install with `npm install zaileys --legacy-peer-deps` to skip it; Zaileys works without it.
+  </Accordion>
+  <Accordion title="Do I need to install ffmpeg?">
+    Not on Windows, macOS, or Linux — Zaileys bundles it. On Termux and other platforms without a bundled binary, install ffmpeg so it's on your `PATH`.
+  </Accordion>
+  <Accordion title="Can I use require() instead of import?">
+    Yes. `const { Client } = require('zaileys')` loads the CommonJS build with the same API.
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Installation" icon="download" href="/installation">
+    Package managers and optional extras.
+  </Card>
+  <Card title="Storage" icon="database" href="/data/storage">
+    Pick a store that works on your runtime.
+  </Card>
+</CardGroup>

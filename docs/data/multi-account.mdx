@@ -1,9 +1,330 @@
 ---
 title: "Multiple accounts"
-description: "Run several WhatsApp accounts in one process."
+description: "Run several WhatsApp numbers from one process: one Client per account, separate storage, and replies that come from the right number."
 icon: "boxes"
+keywords: ["multiple accounts", "multi account", "multi session", "several numbers", "sessionId", "two whatsapp numbers", "multi device", "account registry", "multiple phone numbers cloud api"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/multi-account](https://zeative.github.io/zaileys/multi-account).
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+To run several WhatsApp numbers from one Node.js process, create one `Client` per account — each with its own session, storage, and handlers.
+
+<ProviderSupport web={true} cloud={true} note="Several Cloud API numbers on one webhook need routing — see below." />
+
+## Run two accounts
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const support = new Client({ sessionId: 'support' })
+const sales = new Client({ sessionId: 'sales' })
+
+support.on('text', async (msg) => {
+  await msg.reply('Hi! You reached support.')
+})
+
+sales.on('text', async (msg) => {
+  await msg.reply('Hi! You reached sales.')
+})
+
+process.on('SIGINT', async () => {
+  await Promise.all([support.disconnect(), sales.disconnect()])
+  process.exit(0)
+})
+```
+
+Run `npx tsx bot.ts`. Each account connects on its own:
+
+```text
+[zaileys] Connecting to WhatsApp (session: support)...
+[zaileys] Connecting to WhatsApp (session: sales)...
+```
+
+Each account gets its own QR code; scan each with the phone of that number. From then on, a message to the support number is answered by the support client, and a message to the sales number by the sales client. Two QR codes printed back to back are easy to mix up — [Start accounts one at a time](#start-accounts-one-at-a-time) fixes that.
+
+Every client is independent: its own connection, <Term id="session" />, reconnects, and message store. A logout or ban on one number doesn't affect the others.
+
+## Give each account its own sessionId
+
+`sessionId` names the account. It picks the default login folder, appears in the terminal lines, and is on every connection event (`sessionId`) and every message (`msg.channelId`).
+
+<Tree>
+  <Tree.Folder name=".zaileys" defaultOpen>
+    <Tree.Folder name="auth" defaultOpen>
+      <Tree.Folder name="support" />
+      <Tree.Folder name="sales" />
+    </Tree.Folder>
+  </Tree.Folder>
+</Tree>
+
+<Warning>
+  Never start two clients on the same login — the same `sessionId` with the default store, or the same storage location. Both connect as the same linked device, WhatsApp closes one with `connection-replaced`, and Zaileys treats that as a logout: it clears the login, and you have to link the number again.
+</Warning>
+
+## Keep each account's storage separate
+
+`sessionId` only changes the default login folder. As soon as you pass your own `auth` or `store`, keeping accounts apart is up to you:
+
+| Store | How to separate accounts |
+| --- | --- |
+| File (default auth) | Automatic — the folder includes the `sessionId`. With your own `FileAuthStore`, give each account its own `basePath`. |
+| Memory (default messages) | Automatic — every `Client` creates its own. |
+| SQLite | One database file per account. A file holds a single login. |
+| Postgres | One database or schema per account. The table names and the login row are fixed, so two accounts in one schema overwrite each other. |
+| Redis | A different `namespace` per account. The default, `'zaileys'`, is the same for everyone. |
+| Convex | A different `namespace` per account. |
+
+On Redis, build the namespaces from the account ID:
+
+```ts bot.ts
+import { Client, RedisAuthStore, RedisMessageStore } from 'zaileys'
+
+const REDIS_URL = 'redis://localhost:6379'
+
+function createAccount(id: string) {
+  return new Client({
+    sessionId: id,
+    auth: new RedisAuthStore({ url: REDIS_URL, namespace: `wa:${id}:auth` }),
+    store: new RedisMessageStore({ url: REDIS_URL, namespace: `wa:${id}:history` }),
+  })
+}
+
+const support = createAccount('support')
+const sales = createAccount('sales')
+```
+
+On Postgres, give each account its own schema. Create them once:
+
+```sql
+CREATE SCHEMA support;
+CREATE SCHEMA sales;
+```
+
+Then point each account's connection at its schema with the `search_path` option. Zaileys creates its tables in that schema:
+
+```ts bot.ts
+import { Client, PostgresAuthStore, PostgresMessageStore } from 'zaileys'
+
+const base = process.env.DATABASE_URL!
+
+function createAccount(id: string) {
+  const connectionString = `${base}?options=-c%20search_path%3D${id}`
+  return new Client({
+    sessionId: id,
+    auth: new PostgresAuthStore({ connectionString }),
+    store: new PostgresMessageStore({ connectionString }),
+  })
+}
+
+const support = createAccount('support')
+const sales = createAccount('sales')
+```
+
+This assumes `DATABASE_URL` has no query string yet; if it does, join with `&` instead of `?`. Use lowercase account IDs, since they become schema names.
+
+<Warning>
+  Never pass one store instance to two clients. Stored messages have no account field, and a store records only the connection that used it last — the accounts would read each other's history.
+</Warning>
+
+## Start accounts one at a time
+
+Set `autoConnect: false` and connect the accounts in order. `connect()` resolves once the account is connected, so you scan one QR code at a time:
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const accounts = ['support', 'sales', 'billing'].map(
+  (id) => new Client({ sessionId: id, autoConnect: false }),
+)
+
+for (const account of accounts) {
+  try {
+    await account.connect()
+  } catch (error) {
+    console.error(`[${account.sessionId}] could not connect:`, error)
+  }
+}
+```
+
+After the first run, saved logins connect without a QR code, so the loop finishes in seconds. If nobody scans, a client gives up after 5 QR codes and its `connect()` rejects, so the loop moves on to the next account.
+
+## Reply from the right account
+
+Handlers belong to one client, and `msg.reply()` always answers through the account that received the message. To share one handler across accounts, register the same function on each client and use `msg.channelId` to tell them apart:
+
+```ts bot.ts
+import { Client, type MessageContext } from 'zaileys'
+
+const greetings: Record<string, string> = {
+  support: 'Support here — how can we help?',
+  sales: 'Sales here — looking for a quote?',
+}
+
+async function greet(msg: MessageContext) {
+  await msg.reply(greetings[msg.channelId] ?? 'Hello!')
+}
+
+for (const id of Object.keys(greetings)) {
+  const client = new Client({ sessionId: id })
+  client.on('text', greet)
+}
+```
+
+`msg.channelId` is the `sessionId` of the account that received the message.
+
+<Warning>
+  The classic multi-account bug is receiving on one account and sending through another. Use `msg.reply()`, or the client whose handler is running.
+</Warning>
+
+## Keep a registry of accounts
+
+Past two or three accounts, keep them in a `Map`. It gives you one place to add logging, look an account up by ID, and shut everything down:
+
+```ts accounts.ts
+import { Client, type ClientOptions } from 'zaileys'
+
+const accounts = new Map<string, Client>()
+
+export function addAccount(id: string, options: ClientOptions = {}): Client {
+  const existing = accounts.get(id)
+  if (existing) return existing
+
+  const client = new Client({ ...options, sessionId: id, autoConnect: false })
+  client.on('connect', ({ me }) => console.log(`[${id}] connected as ${me.id}`))
+  client.on('disconnect', ({ reason, willReconnect }) => {
+    console.warn(`[${id}] disconnected (${reason})${willReconnect ? ', reconnecting' : ''}`)
+  })
+  client.on('error', ({ error }) => console.error(`[${id}]`, error))
+
+  accounts.set(id, client)
+  return client
+}
+
+export const getAccount = (id: string) => accounts.get(id)
+
+export async function shutdown() {
+  await Promise.allSettled([...accounts.values()].map((client) => client.disconnect()))
+}
+
+process.on('SIGINT', () => void shutdown().then(() => process.exit(0)))
+process.on('SIGTERM', () => void shutdown().then(() => process.exit(0)))
+```
+
+To message someone from a specific number, look it up first: `await getAccount('sales')?.send(jid).text('Your quote is ready.')`.
+
+`disconnect()` closes the account's connection and its stores. `Promise.allSettled` makes sure one account failing to close doesn't stop the others.
+
+## Mix WhatsApp Web and Cloud API accounts
+
+Unofficial and Official clients run side by side — for example, your own number for groups and a Cloud API number for customer messages:
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const community = new Client({ sessionId: 'community' })
+
+const customers = new Client({
+  sessionId: 'customers',
+  provider: 'cloud',
+  cloud: {
+    accessToken: process.env.WA_TOKEN!,
+    phoneNumberId: process.env.WA_PHONE_ID!,
+    verifyToken: process.env.WA_VERIFY_TOKEN!,
+    appSecret: process.env.WA_APP_SECRET!,
+  },
+})
+```
+
+`client.provider` is `'baileys'` or `'cloud'`. Check it in shared code before using a WhatsApp Web-only feature such as `client.group` — on a Cloud API client it throws `UNSUPPORTED_ON_CLOUD`. The [feature matrix](/feature-matrix) lists what works where.
+
+## Serve several Cloud API numbers from one webhook
+
+A Meta app has one callback URL, and every phone number in it sends its events there. A client doesn't check which number an event is for, so if you pass the same request to two clients, both handle it and your customers get two replies.
+
+Route each request to the client for its number, using `metadata.phone_number_id` from the payload:
+
+```ts webhook.ts
+import { Client, type WebhookHandler } from 'zaileys'
+
+const phoneNumberIds = [process.env.WA_PHONE_ID_SUPPORT!, process.env.WA_PHONE_ID_SALES!]
+const handlers = new Map<string, WebhookHandler>()
+
+for (const phoneNumberId of phoneNumberIds) {
+  const client = new Client({
+    sessionId: phoneNumberId,
+    provider: 'cloud',
+    cloud: {
+      accessToken: process.env.WA_TOKEN!,
+      phoneNumberId,
+      verifyToken: process.env.WA_VERIFY_TOKEN!,
+      appSecret: process.env.WA_APP_SECRET!,
+    },
+  })
+  handlers.set(phoneNumberId, client.webhook())
+}
+
+type WebhookBody = {
+  entry?: { changes?: { value?: { metadata?: { phone_number_id?: string } } }[] }[]
+}
+
+export async function handleWebhook(req: Request): Promise<Response> {
+  if (req.method === 'GET') return handlers.get(phoneNumberIds[0]!)!(req)
+
+  const raw = await req.arrayBuffer()
+  const body = JSON.parse(new TextDecoder().decode(raw)) as WebhookBody
+  const phoneNumberId = body.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id
+  const handler = phoneNumberId ? handlers.get(phoneNumberId) : undefined
+  if (!handler) return new Response('OK', { status: 200 })
+
+  return handler(new Request(req.url, { method: 'POST', headers: req.headers, body: raw }))
+}
+```
+
+- `GET` is Meta's verification request. All numbers share the verify token, so any handler can answer it.
+- The original bytes are passed on unchanged, so the signature check against your app secret still passes.
+- Unknown numbers get `200 OK` so Meta doesn't keep retrying.
+
+Mount `handleWebhook` like any webhook handler — for example, `app.all('/webhook', (c) => handleWebhook(c.req.raw))` in Hono. See [Webhook](/cloud/webhook) for other frameworks.
+
+Prefer no routing code? Create one Meta app per number instead, each with its own callback URL and its own client.
+
+## Plan resources
+
+- **Memory grows with each account.** Every connected client keeps its own connection, key cache, and message store. With the default memory message store, history grows until [auto-delete](/bots/auto-delete) removes messages older than 30 days. With many accounts, use a database message store — see [Storage](/data/storage).
+- **Limits are per number.** WhatsApp's rate limits and ban risk apply to each number separately, and `broadcast()` rate-limits per client. Ten accounts broadcasting at once are ten numbers at risk. Keep a risky outreach number apart from your main support number.
+- **One process or several?** One process is simplest, but one crash stops every account. Running a process per account (with PM2, systemd, or one container each) isolates them, at the cost of more to deploy. Either way, keep each account's storage separate.
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="How many accounts can one process run?">
+    Zaileys sets no limit. Memory, CPU for media conversion, and WhatsApp's rules for each number are what limit you in practice.
+  </Accordion>
+  <Accordion title="Can I add an account while the bot is running?">
+    Yes. Create a new `Client` whenever you need one. With the default `autoConnect`, it starts connecting straight away; with `autoConnect: false`, call `connect()`.
+  </Accordion>
+  <Accordion title="Why did one account get logged out when I started another?">
+    Both clients used the same login — the same `sessionId` with the default store, or the same SQLite file, Postgres schema, or Redis/Convex namespace. Give every account its own, then link the logged-out number again.
+  </Accordion>
+  <Accordion title="Each Cloud API message gets answered twice. Why?">
+    The same webhook request reached two clients. Route requests by `phone_number_id`, as in [Serve several Cloud API numbers from one webhook](#serve-several-cloud-api-numbers-from-one-webhook).
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Storage" icon="database" href="/data/storage">
+    Pick and configure a store for each account.
+  </Card>
+  <Card title="Multi-account recipe" icon="chef-hat" href="/recipes/multi-account">
+    A complete multi-account bot to copy.
+  </Card>
+  <Card title="Webhook" icon="webhook" href="/cloud/webhook">
+    Serve the Cloud API webhook from your framework.
+  </Card>
+  <Card title="Error handling" icon="triangle-alert" href="/data/error-handling">
+    Catch failures without taking down every account.
+  </Card>
+</CardGroup>

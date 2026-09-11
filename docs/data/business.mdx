@@ -1,9 +1,248 @@
 ---
 title: "Business catalog"
-description: "Manage WhatsApp Business profiles and product catalogs."
+description: "Read business profiles, browse catalogs and collections, look up orders, and add, edit, or remove products on a WhatsApp Business account."
 icon: "store"
+keywords: ["whatsapp business", "catalog", "products", "add product", "business profile", "collections", "order details", "shop", "commerce"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/business](https://zeative.github.io/zaileys/business).
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+`client.business` reads business profiles and catalogs, looks up orders, and manages the products in your own WhatsApp Business catalog.
+
+<ProviderSupport web={true} cloud={false} note="On the Cloud API, use the commerce features in Cloud API → Business instead." />
+
+## Quick reference
+
+| To | Call | What you get |
+| --- | --- | --- |
+| Read a business profile | [`profile(jid)`](#read-a-business-profile) | Description, category, address, and more |
+| Browse a catalog | [`catalog({ jid, limit, cursor })`](#browse-a-catalog) | A page of products |
+| List collections | [`collections(jid, limit)`](#list-collections) | Product groups, each with its products |
+| Look up an order | [`orderDetails(orderId, token)`](#look-up-an-order) | The order's products and total |
+| Add a product | [`createProduct({ ... })`](#add-a-product) | The new product, with its `id` |
+| Edit a product | [`updateProduct(id, { ... })`](#edit-a-product) | The updated product |
+| Remove products | [`deleteProduct(...ids)`](#remove-products) | `{ deleted }`, the number removed |
+
+## Before you start
+
+- **Connect first.** Every method needs a live connection. Called too early, it throws `ZaileysDomainError` with code `NOT_CONNECTED` — call them from a handler or after the `connect` event.
+- **Managing products needs a business account.** `createProduct`, `updateProduct`, and `deleteProduct` change your own catalog, so the bot's number must be on the WhatsApp Business app. Reading another business's profile or catalog works from any account.
+- **Results are raw WhatsApp objects.** Zaileys returns them as WhatsApp sends them and types them `unknown`, so describe the fields you use with a type, as the examples below do.
+
+`jid` is the business's address, such as `6281234567890@s.whatsapp.net` — see [Addresses & JIDs](/concepts/jids) for the <Term id="jid" /> format.
+
+## Read a business profile
+
+```ts
+type BusinessProfile = { description?: string; category?: string; address?: string; website?: string[] }
+
+const profile = (await client.business.profile('6281234567890@s.whatsapp.net')) as BusinessProfile | undefined
+
+console.log(profile?.description, profile?.category)
+```
+
+You get the business's description, category, address, email, websites, and opening hours, as far as the business filled them in. A normal (non-business) account has no profile.
+
+<ParamField body="jid" type="string" required>
+  The business's address.
+</ParamField>
+
+## Browse a catalog
+
+```ts
+type Product = { id: string; name: string; description: string; price: number; currency: string }
+type CatalogPage = { products: Product[]; nextPageCursor?: string }
+
+const page = (await client.business.catalog({ limit: 10 })) as CatalogPage
+
+for (const product of page.products) {
+  console.log(`${product.name} — ${product.price} ${product.currency}`)
+}
+```
+
+With no `jid`, you get your own catalog. To fetch the next page, pass the cursor from the previous one:
+
+```ts
+type CatalogPage = { products: { id: string; name: string }[]; nextPageCursor?: string }
+
+const store = '6281234567890@s.whatsapp.net'
+const first = (await client.business.catalog({ jid: store, limit: 20 })) as CatalogPage
+
+if (first.nextPageCursor) {
+  const second = (await client.business.catalog({ jid: store, limit: 20, cursor: first.nextPageCursor })) as CatalogPage
+  console.log(`Loaded ${first.products.length + second.products.length} products`)
+}
+```
+
+<ParamField body="jid" type="string">
+  The business whose catalog to read. Leave it out for your own.
+</ParamField>
+<ParamField body="limit" type="number">
+  How many products to return.
+</ParamField>
+<ParamField body="cursor" type="string">
+  `nextPageCursor` from the previous page.
+</ParamField>
+
+## List collections
+
+Collections are the groups a business sorts its products into, such as "New arrivals" or "Drinks".
+
+```ts
+type Collection = { id: string; name: string; products: { name: string }[] }
+
+const { collections } = (await client.business.collections(undefined, 5)) as { collections: Collection[] }
+
+for (const collection of collections) {
+  console.log(`${collection.name}: ${collection.products.length} products`)
+}
+```
+
+<ParamField body="jid" type="string">
+  The business whose collections to read. Pass `undefined` for your own.
+</ParamField>
+<ParamField body="limit" type="number">
+  How many collections to return.
+</ParamField>
+
+## Look up an order
+
+When a customer sends an order from your catalog, it arrives as a message whose `media.type` is `'order'`. The order ID is on `msg.media`; the token WhatsApp needs to open it is on the raw message:
+
+```ts
+type OrderDetails = { price: { total: number; currency: string }; products: { name: string; quantity: number }[] }
+
+client.on('message', async (msg) => {
+  if (msg.media?.type !== 'order' || !msg.media.orderId) return
+
+  const token = msg.message().message?.orderMessage?.token
+  if (!token) return
+
+  const order = (await client.business.orderDetails(msg.media.orderId, token)) as OrderDetails
+  const items = order.products.map((p) => `${p.quantity}× ${p.name}`).join(', ')
+  await msg.reply(`Thanks! We got your order: ${items}.`)
+})
+```
+
+The customer sees a reply such as `Thanks! We got your order: 2× Iced latte, 1× Croissant.`
+
+<ParamField body="orderId" type="string" required>
+  The order's ID, from `msg.media.orderId`.
+</ParamField>
+<ParamField body="tokenBase64" type="string" required>
+  The order token, from the raw `orderMessage.token`.
+</ParamField>
+
+## Add a product
+
+```ts
+type Product = { id: string; name: string }
+
+const product = (await client.business.createProduct({
+  name: 'Iced latte',
+  description: 'Double shot, oat milk, 400 ml.',
+  price: 32000,
+  currency: 'IDR',
+  images: [{ url: 'https://example.com/menu/iced-latte.jpg' }],
+  originCountryCode: undefined,
+})) as Product
+
+console.log('Created product', product.id)
+```
+
+The product appears in your catalog, where customers can open it from your business profile.
+
+<ParamField body="name" type="string" required>
+  The product name.
+</ParamField>
+<ParamField body="description" type="string" required>
+  The product description.
+</ParamField>
+<ParamField body="price" type="number" required>
+  The price, passed to WhatsApp as you give it.
+</ParamField>
+<ParamField body="currency" type="string" required>
+  A currency code, such as `IDR` or `USD`.
+</ParamField>
+<ParamField body="images" type="Array<{ url: string } | Buffer>" required>
+  Product photos, as URLs or bytes.
+</ParamField>
+<ParamField body="originCountryCode" type="string | undefined" required>
+  ISO code of the country the product comes from, such as `ID`. Pass `undefined` for none.
+</ParamField>
+<ParamField body="retailerId" type="string">
+  Your own SKU or product code.
+</ParamField>
+<ParamField body="url" type="string">
+  A link to the product on your website.
+</ParamField>
+<ParamField body="isHidden" type="boolean">
+  Keep the product out of the public catalog.
+</ParamField>
+
+## Edit a product
+
+Pass the product's `id` and its new values:
+
+```ts
+await client.business.updateProduct('7234567890123456', {
+  name: 'Iced latte',
+  description: 'Double shot, oat milk, 400 ml.',
+  price: 29000,
+  currency: 'IDR',
+  images: [{ url: 'https://example.com/menu/iced-latte.jpg' }],
+  isHidden: false,
+})
+```
+
+It takes the same fields as `createProduct`, except `originCountryCode`.
+
+## Remove products
+
+```ts
+const { deleted } = await client.business.deleteProduct('7234567890123456', '7234567890123457')
+
+console.log(`${deleted} products removed`)
+```
+
+Pass one or more product IDs. The result tells you how many were removed.
+
+## On the Cloud API
+
+`client.business` belongs to WhatsApp Web. On the Cloud API, reading `client.business` throws `ZaileysProviderError` with code `UNSUPPORTED_ON_CLOUD`. The Cloud API has its own business features, such as the business profile and the `order` event for catalog orders — see [Cloud API → Business](/cloud/business).
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Why do the methods return unknown?">
+    Zaileys passes WhatsApp's answer through unchanged, and its shape isn't guaranteed. Declare the fields you rely on, as in the examples, and check them before use.
+  </Accordion>
+  <Accordion title="Do I need the WhatsApp Business app?">
+    Only to change a catalog. Creating, editing, and removing products act on your own catalog, which only a business account has. Reading someone else's profile or catalog works from a normal account too.
+  </Accordion>
+  <Accordion title="Where do I find a product's ID?">
+    It's the `id` returned by `createProduct`, and the `id` of each product in `catalog()` or `collections()`.
+  </Accordion>
+</AccordionGroup>
+
+## When a call fails
+
+| Error | What went wrong | How to fix it |
+| --- | --- | --- |
+| `NOT_CONNECTED` (`ZaileysDomainError`) | The method ran before the client connected. | Call it from a handler, or after the `connect` event. |
+| `UNSUPPORTED_ON_CLOUD` (`ZaileysProviderError`) | `client.business` was used with `provider: 'cloud'`. | Use the Cloud API's [Business](/cloud/business) features. |
+| Any other error | WhatsApp refused the request — for example, a catalog change from a non-business account. | The error from WhatsApp is passed through unchanged. Check the account type and the product fields. |
+
+More in [Error handling](/data/error-handling).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Cloud API business" icon="cloud" href="/cloud/business">
+    Commerce on the official Cloud API.
+  </Card>
+  <Card title="Buttons & lists" icon="mouse-pointer-click" href="/messaging/interactive">
+    Let customers tap through your products.
+  </Card>
+</CardGroup>

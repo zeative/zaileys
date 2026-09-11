@@ -1,9 +1,348 @@
 ---
 title: "Error handling"
-description: "Catch, classify, and recover from errors."
+description: "Catch Zaileys errors by class and code, listen for background and command errors, and know what Zaileys retries for you."
 icon: "triangle-alert"
+keywords: ["error", "try catch", "error codes", "ZaileysBuilderError", "SEND_FAILED", "client not connected", "reconnect", "command-error", "error event", "debug logging", "ZAILEYS_DEBUG", "unhandled rejection"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/error-handling](https://zeative.github.io/zaileys/error-handling).
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+
+Every error Zaileys throws is a class with a stable `code`, so your bot can react to a specific failure — retry a send, ask for a new QR scan, alert you — instead of parsing error messages.
+
+<ProviderSupport web={true} cloud={true} note="ZaileysCloudError and ZaileysProviderError only occur on the Cloud API." />
+
+## Catch an error
+
+Check the class with `instanceof`, then the `code`:
+
+```ts
+import { ZaileysBuilderError } from 'zaileys'
+
+try {
+  await client.send(jid).text('Your order has shipped 📦')
+} catch (error) {
+  if (error instanceof ZaileysBuilderError) {
+    switch (error.code) {
+      case 'INVALID_OPTIONS':
+        console.error('Check the message options:', error.message)
+        break
+      case 'SEND_FAILED':
+        console.error('WhatsApp refused the message:', error.cause)
+        break
+      default:
+        console.error(`${error.name} [${error.code}]: ${error.message}`)
+    }
+  } else {
+    throw error
+  }
+}
+```
+
+Every Zaileys error has:
+
+- `name` — the class name, such as `'ZaileysBuilderError'`.
+- `code` — a fixed string. Your editor autocompletes the possible codes and flags typos.
+- `message` — a readable description, such as `client not connected`.
+- `cause` — the lower-level error that triggered it, when there is one: a driver error, a network failure, or WhatsApp's own rejection. It's typed `unknown`, so check `error.cause instanceof Error` before reading its `message`.
+
+`ZaileysProviderError` has `feature` — the name of the Web-only feature you called — instead of `cause`.
+
+## Which class is which
+
+| Class | Thrown by | Codes you'll see most |
+| --- | --- | --- |
+| `ZaileysBuilderError` | `client.send()`, `msg.reply()`, edits, and forwards | `INVALID_OPTIONS`, `MEDIA_LOAD_FAILED`, `SEND_FAILED` |
+| `ZaileysDomainError` | `client.group`, `privacy`, `newsletter`, `community`, `profile`, `chat`, `contact`, `business` | `NOT_CONNECTED`, `OPERATION_FAILED` |
+| `ZaileysCommandError` | Commands and middleware | `HANDLER_ERROR`, `DUPLICATE_COMMAND` |
+| `ZaileysAutomationError` | Broadcasts, scheduling, presence, and rate limits | `SCHEDULE_INVALID`, `PRESENCE_FAILED` |
+| `ZaileysStoreError` | Auth and message stores | `STORE_NOT_AVAILABLE`, `STORE_CONNECTION_FAILED` |
+| `ZaileysCloudError` | Cloud API requests | `AUTH`, `RATE_LIMITED`, `NOT_IMPLEMENTED` |
+| `ZaileysProviderError` | Web-only features used on the Cloud API | `UNSUPPORTED_ON_CLOUD` |
+
+All of them are exported from `'zaileys'`. The [Errors reference](/reference/errors) lists every code of every class.
+
+## Fix common errors
+
+### Sending
+
+| Code | What went wrong | How to fix it |
+| --- | --- | --- |
+| `INVALID_OPTIONS` with `client not connected` | You sent before the client finished connecting. On the Cloud API, `broadcast()`, scheduled sends, and forwards always fail this way, because they need a WhatsApp Web connection. | Send from a handler, or after the `connect` event. On the Cloud API, send to each recipient with `client.send()` instead. |
+| `INVALID_OPTIONS` | An option failed validation — for example, too few poll options, too many buttons, invalid coordinates, or a bad JID in `mentions`. | `error.message` names the method and the problem. |
+| `EMPTY_CONTENT` | Empty input, such as `text('')`, or you awaited the builder before adding any content (`no content set`). | Check the value before sending. |
+| `MEDIA_LOAD_FAILED` | A URL didn't answer within 30 seconds, a file doesn't exist, or conversion failed. | See [Send media](/messaging/media#when-a-send-fails). |
+| `SEND_FAILED` | WhatsApp refused the message, or returned no message key. | Read `error.cause`. Retrying once often helps — see [Retry a failed send](#retry-a-failed-send). |
+| `USERNAME_NOT_FOUND` | An `@username` couldn't be turned into an address. | Check the spelling, or use the phone number. |
+| `MESSAGE_NOT_FOUND` | You forwarded a message that isn't in the message store. | Keep history in a database store — see [Storage](/data/storage). |
+
+### Connecting and setup
+
+| Error | What went wrong | How to fix it |
+| --- | --- | --- |
+| `STORE_NOT_AVAILABLE` | The database package for your store isn't installed. | Install it — see [Storage](/data/storage#when-storage-fails). |
+| `STORE_CONNECTION_FAILED` | The database couldn't be reached, or the store's options are wrong. | Check the URL and credentials; the driver error is on `error.cause`. |
+| `NOT_CONNECTED` | A group, profile, presence, or other module call ran before the client connected. | Call it from a handler, or after the `connect` event. |
+| `phoneNumber is required when authType is "pairing"` | You chose pairing-code login without `phoneNumber`. This one is a plain `Error`. | Add `phoneNumber: '6281234567890'` to the client options. |
+
+### Commands
+
+| Code | What went wrong | How to fix it |
+| --- | --- | --- |
+| `DUPLICATE_COMMAND` | The same command was registered twice. | Register each command once, or call `unregisterCommand()` first. |
+| `INVALID_COMMAND_NAME` | A command name is empty or has an empty part. | Give every command a name, such as `'price'`. |
+| `HANDLER_ERROR` | Your command handler threw. The original error is on `error.cause`. | Fix the handler — and listen for [`command-error`](#handle-errors-in-commands). |
+| `MIDDLEWARE_ERROR` | A middleware threw, or called `next()` twice. | Call `next()` exactly once. |
+| `NO_SENT_MESSAGE` | `ctx.edit()` ran before any `ctx.reply()`. | Reply first, then edit. |
+
+### Automation
+
+| Code | What went wrong | How to fix it |
+| --- | --- | --- |
+| `SCHEDULE_INVALID` | `scheduleAt()` got something other than a valid `Date`, or the message builder threw or added no content. | Pass a `Date` and build a complete message. |
+| `RATE_LIMIT_INVALID` | A rate limit was set to 0 or less. | Use a positive number. |
+| `PRESENCE_FAILED` | A typing or recording indicator couldn't be sent. | Usually temporary; the reason is on `error.cause`. |
+
+### Cloud API
+
+| Code | What went wrong | How to fix it |
+| --- | --- | --- |
+| `CONFIG` | A required option is missing — `accessToken`, `phoneNumberId`, or `wabaId` for management calls — or `webhook()` was called on the WhatsApp Web provider. | Add the option named in the message. |
+| `AUTH` | Meta rejected the access token or phone number ID. | Generate a fresh token and check the phone number ID. See [Setup](/cloud/setup). |
+| `RATE_LIMITED` | Meta kept answering `429 Too Many Requests`. | Slow down. See [Limits](/cloud/limits). |
+| `REQUEST_FAILED` | A Graph API request failed or returned no ID. | Read `error.message` and `error.cause`. |
+| `NOT_IMPLEMENTED` | That message type isn't supported on the Cloud API yet. From `client.send()` or `msg.reply()`, it arrives as a `ZaileysBuilderError` with code `SEND_FAILED` and `error.cause.code === 'NOT_IMPLEMENTED'`. | See [Send on the Cloud API](/cloud/messaging) for what's supported. |
+| `UNSUPPORTED_ON_CLOUD` | You used a WhatsApp Web-only feature, such as `client.group`. | Check `client.provider` first, or use the [feature matrix](/feature-matrix). |
+
+## Listen for background errors
+
+With the default `autoConnect`, the client connects in the background, so there's no `await` for you to wrap. If that connection fails — for example, because a database package is missing — the client emits `error` instead:
+
+```ts bot.ts
+import { Client, SqliteAuthStore, ZaileysStoreError } from 'zaileys'
+
+const client = new Client({ auth: new SqliteAuthStore({ database: './whatsapp.db' }) })
+
+client.on('error', ({ sessionId, error }) => {
+  if (error instanceof ZaileysStoreError && error.code === 'STORE_NOT_AVAILABLE') {
+    console.error(`[${sessionId}] Install the database package: ${error.message}`)
+    return
+  }
+  console.error(`[${sessionId}] Could not connect:`, error)
+})
+```
+
+<Warning>
+  Zaileys emits `error` only when something listens for it. Without a listener, the failure goes to the logger — which is silent by default — and the bot just sits there. Add an `error` listener to every client.
+</Warning>
+
+Prefer to handle it inline? Set `autoConnect: false` and wrap the call yourself:
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client({ autoConnect: false })
+
+try {
+  await client.connect()
+} catch (error) {
+  console.error('Could not connect:', error)
+  process.exit(1)
+}
+```
+
+## Catch errors in your own handlers
+
+If an `async` handler throws, Zaileys doesn't catch it. The rejected promise becomes an unhandled rejection, which stops a Node.js process by default. Wrap the work inside each handler:
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client()
+
+client.on('text', async (msg) => {
+  try {
+    const res = await fetch(`https://api.example.com/orders/${encodeURIComponent(msg.text)}`)
+    const order = (await res.json()) as { status: string }
+    await msg.reply(`Your order is ${order.status}.`)
+  } catch (error) {
+    console.error('Order lookup failed:', error)
+    await msg.reply('Sorry, I could not check that order right now.')
+  }
+})
+```
+
+A handler that throws synchronously is caught and sent to the logger, so the other handlers still run.
+
+## Handle errors in commands
+
+Commands are different: Zaileys catches every error from a command handler or middleware and wraps it in a `ZaileysCommandError` (`HANDLER_ERROR` or `MIDDLEWARE_ERROR`). Listen for `command-error` to answer the user:
+
+```ts bot.ts
+import { Client, ZaileysCommandError } from 'zaileys'
+
+const client = new Client()
+
+client.on('command-error', async ({ command, error, ctx }) => {
+  const reason = error instanceof ZaileysCommandError ? error.cause : error
+  console.error(`Command "${command}" failed:`, reason)
+  await ctx.reply('Sorry, something went wrong. Please try again.')
+})
+```
+
+When you listen for `command-error`, Zaileys stops logging those failures itself — handling them is up to you. Guards that stop a command, such as a cooldown, emit `command-blocked` instead; see [Commands](/bots/commands). Commands and middleware only run on WhatsApp Web connections — on the Cloud API, handle messages with `client.on()`.
+
+## What Zaileys retries for you
+
+The connection rows apply to WhatsApp Web; a Cloud API client has no connection to lose.
+
+| Situation | Retried? | What happens |
+| --- | --- | --- |
+| The connection drops — network loss, a restart request from WhatsApp, the service being unavailable | Yes, with no limit by default | Waits about 3 seconds, doubling each time up to 60 seconds, give or take 20%. |
+| WhatsApp rate-limits the connection (HTTP 429) | Yes | Waits 5 minutes before reconnecting. |
+| `bad-session` | Yes | Clears the login and reconnects, so you get a new QR code. |
+| `logged-out` right after connecting | Yes, up to 2 times | Zaileys first assumes it was spurious and reconnects. A real logout clears the login on the next close. |
+| `logged-out`, `connection-replaced`, `forbidden` | No | Clears the login and stops. Link the number again. |
+| Nobody scans the QR or enters the pairing code | Stops after 5 QR codes or 3 pairing codes | Emits `auth-exhausted`. Call `connect()` to try again. |
+| A Cloud API request gets `429` or a `5xx` answer | Yes, up to 3 attempts | Waits 0.5 s, then 1 s. Then throws `RATE_LIMITED` or `REQUEST_FAILED`. |
+| A send fails (`SEND_FAILED`, `MEDIA_LOAD_FAILED`) | No | Retry yourself — see below. |
+| Recording a message into the message store fails | No | The message is skipped silently; the bot keeps running. |
+
+Watch reconnects as they happen:
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client()
+
+client.on('reconnecting', ({ attempt, delayMs, reason }) => {
+  console.log(`Reconnecting in ${Math.round(delayMs / 1000)}s (attempt ${attempt}, ${reason})`)
+})
+
+client.on('disconnect', ({ reason, willReconnect }) => {
+  if (!willReconnect) console.error(`Disconnected for good: ${reason}`)
+})
+
+client.on('auth-exhausted', ({ kind, attempts }) => {
+  console.error(`Gave up after ${attempts} ${kind} attempts. Restart to try again.`)
+})
+```
+
+The terminal shows the same, for example:
+
+```text
+[zaileys] Connection lost (connection-lost). Reconnecting in 3.2s (attempt 1)...
+[zaileys] Disconnected (logged-out).
+```
+
+Tune reconnects with the `reconnect` option:
+
+<ParamField body="reconnect.enabled" type="boolean" default="true">
+  Set `false` to never reconnect automatically.
+</ParamField>
+<ParamField body="reconnect.maxAttempts" type="number" default="Infinity">
+  Give up after this many attempts in a row.
+</ParamField>
+<ParamField body="reconnect.initialDelayMs" type="number" default="3000">
+  Wait before the first attempt. Each later attempt waits twice as long.
+</ParamField>
+<ParamField body="reconnect.maxDelayMs" type="number" default="60000">
+  The longest wait between attempts.
+</ParamField>
+<ParamField body="reconnect.jitterFactor" type="number" default="0.2">
+  Random spread applied to each wait, so many bots don't reconnect at the same moment.
+</ParamField>
+<ParamField body="reconnect.rateLimitedDelayMs" type="number" default="300000">
+  The wait after WhatsApp rate-limits the connection.
+</ParamField>
+
+## Retry a failed send
+
+Sends aren't retried automatically. For an important message, retry a failed send a couple of times:
+
+```ts
+import { ZaileysBuilderError } from 'zaileys'
+
+async function sendWithRetry(to: string, text: string, attempts = 3) {
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    try {
+      return await client.send(to).text(text)
+    } catch (error) {
+      const retryable = error instanceof ZaileysBuilderError && error.code === 'SEND_FAILED'
+      if (!retryable || attempt === attempts) throw error
+      await new Promise((resolve) => setTimeout(resolve, 1000 * attempt))
+    }
+  }
+}
+
+await sendWithRetry(jid, 'Your appointment is tomorrow at 10:00.')
+```
+
+On WhatsApp Web, `client.broadcast()` never rejects because of one bad recipient. It collects failures in `failed`, and it can retry each recipient for you:
+
+```ts
+const recipients = ['6281111111111@s.whatsapp.net', '6282222222222@s.whatsapp.net']
+
+const result = await client.broadcast(recipients, (b) => b.text('We open at 09:00 tomorrow.'), {
+  retry: { maxRetries: 2, backoffMs: (attempt) => attempt * 1000 },
+})
+
+for (const { jid, error } of result.failed) {
+  console.error(`Could not reach ${jid}: ${error.message}`)
+}
+```
+
+More in [Broadcast & schedule](/bots/broadcast-and-schedule).
+
+## Turn on logging
+
+Zaileys' internal logger is silent by default. Set `ZAILEYS_DEBUG` to see what's happening:
+
+```bash
+ZAILEYS_DEBUG=1 npx tsx bot.ts
+```
+
+`1` shows `info` and above. You can also name a level: `fatal`, `error`, `warn`, `info`, `debug`, or `trace`.
+
+To send the logs to your own logger instead, pass `logger` — any object with `debug`, `info`, `warn`, `error`, and `fatal` methods:
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client({ logger: { ...console, fatal: console.error } })
+```
+
+The `[zaileys] …` connection lines are separate: they go to stderr whatever the log level, and `statusLog: false` turns them off.
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="My bot stopped, or never connected, and printed no error">
+    Two usual causes: an `async` handler threw and the unhandled rejection ended the process, or the background connection failed with no `error` listener. Wrap handler code in `try`/`catch`, add `client.on('error', …)`, and run with `ZAILEYS_DEBUG=1` to see the rest.
+  </Accordion>
+  <Accordion title="What does “… is not supported by the official WhatsApp Cloud API” mean?">
+    You used a WhatsApp Web-only feature, such as groups or presence, on a client with `provider: 'cloud'`. It's a `ZaileysProviderError`, and `error.feature` names the feature. The [feature matrix](/feature-matrix) shows what each provider supports.
+  </Accordion>
+  <Accordion title="Why does a send right after new Client() fail with “client not connected”?">
+    `new Client()` starts connecting, but the connection isn't ready yet. Send from a message handler, after the `connect` event, or after `await client.connect()`.
+  </Accordion>
+  <Accordion title="Should I retry every failed send?">
+    Only `SEND_FAILED`, and only a few times. `INVALID_OPTIONS`, `EMPTY_CONTENT`, and `MEDIA_LOAD_FAILED` fail the same way every time until you fix the input or the file.
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Errors reference" icon="square-code" href="/reference/errors">
+    Every error class and every code.
+  </Card>
+  <Card title="Troubleshooting" icon="life-buoy" href="/reference/troubleshooting">
+    Fixes for common real-world problems.
+  </Card>
+  <Card title="Commands" icon="square-terminal" href="/bots/commands">
+    Guards, `command-blocked`, and `command-not-found`.
+  </Card>
+  <Card title="Storage" icon="database" href="/data/storage">
+    Store errors and how to avoid them.
+  </Card>
+</CardGroup>

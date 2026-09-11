@@ -1,9 +1,351 @@
 ---
 title: "Command bot"
-description: "A bot with /commands, aliases, and middleware."
+description: "A bot that answers /ping, /time, /remind, and a generated /help — with aliases, a cooldown, logging middleware, and friendly errors."
 icon: "square-terminal"
+keywords: ["command bot", "slash commands", "bot commands", "prefix", "help menu", "reminder bot", "middleware", "cooldown", "command router", "command handler"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, see [`examples/command-bot.ts`](https://github.com/zeative/zaileys/blob/main/examples/command-bot.ts) on GitHub.
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { StackBlitz } from "/snippets/stackblitz.jsx"
+
+This recipe builds a bot that answers slash commands — it tells the time in other cities, sets reminders, and lists its own commands in a help menu it writes for you.
+
+<ProviderSupport web={true} cloud={false} note="Commands only run on a WhatsApp Web connection for now." />
+
+## What you'll build
+
+```text
+You: /help
+Bot: Commands
+     /ping — Check that the bot is alive
+     /time <city> — The time right now in a city
+     /remind <minutes> <text> — Remind you after some minutes
+     /help — Show this list
+You: /time tokyo
+Bot: It's 14:05 in Tokyo.
+You: /remind 10 take the laundry out
+Bot: OK, I'll remind you in 10 minutes.
+     (10 minutes later)
+Bot: ⏰ Reminder: take the laundry out
+You: /weather
+Bot: There's no /weather command. Send /help to see what I can do.
+```
+
+- `/` and `!` both work as the prefix, and `/h` or `/?` open the same help menu.
+- `/remind` has a 30-second cooldown per person, and the bot says how long to wait.
+- Every command is logged in your terminal with how long it took.
+- A command that crashes answers with an apology instead of going silent.
+
+## What you need
+
+- Node.js 20 or newer, with `zaileys` installed: `npm install zaileys`.
+- A WhatsApp account for the bot, and a second account to send commands from.
+
+## The complete bot
+
+Save this as `bot.ts`:
+
+```ts bot.ts
+import { Client, type Middleware } from 'zaileys'
+
+const CITIES: Record<string, { name: string; timeZone: string }> = {
+  jakarta: { name: 'Jakarta', timeZone: 'Asia/Jakarta' },
+  bali: { name: 'Bali', timeZone: 'Asia/Makassar' },
+  singapore: { name: 'Singapore', timeZone: 'Asia/Singapore' },
+  tokyo: { name: 'Tokyo', timeZone: 'Asia/Tokyo' },
+  london: { name: 'London', timeZone: 'Europe/London' },
+  'new york': { name: 'New York', timeZone: 'America/New_York' },
+}
+
+const client = new Client({ commandPrefix: ['/', '!'] })
+
+const logCommands: Middleware = async (ctx, next) => {
+  const started = Date.now()
+  await next()
+  console.log(`/${ctx.command} from ${ctx.senderId} took ${Date.now() - started} ms`)
+}
+
+client.use(logCommands)
+
+client.command({ name: 'ping', description: 'Check that the bot is alive' }, async (ctx) => {
+  await ctx.reply('pong')
+})
+
+client.command({ name: 'time', description: 'The time right now in a city', usage: '<city>' }, async (ctx) => {
+  const city = CITIES[ctx.args.join(' ').toLowerCase()]
+  if (!city) {
+    await ctx.reply(`Usage: /time <city>. I know: ${Object.values(CITIES).map((c) => c.name).join(', ')}.`)
+    return
+  }
+  const time = new Intl.DateTimeFormat('en-GB', { timeZone: city.timeZone, hour: '2-digit', minute: '2-digit' })
+  await ctx.reply(`It's ${time.format(new Date())} in ${city.name}.`)
+})
+
+client.command(
+  { name: 'remind', description: 'Remind you after some minutes', usage: '<minutes> <text>', cooldown: 30 },
+  async (ctx) => {
+    const [minutesArg, ...words] = ctx.args
+    const minutes = Number(minutesArg)
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440 || words.length === 0) {
+      await ctx.reply('Usage: /remind <minutes> <text>, for example /remind 10 take the laundry out')
+      return
+    }
+    const chat = ctx.roomId ?? ctx.senderId
+    await client.scheduleAt(new Date(Date.now() + minutes * 60_000), (b) =>
+      b.to(chat).text(`⏰ Reminder: ${words.join(' ')}`),
+    )
+    await ctx.reply(`OK, I'll remind you in ${minutes} minute${minutes === 1 ? '' : 's'}.`)
+  },
+)
+
+client.command({ name: 'help', aliases: ['h', '?'], description: 'Show this list' }, async (ctx) => {
+  const lines = client
+    .commands()
+    .filter((c) => !c.hidden)
+    .map((c) => `/${c.name}${c.usage ? ` ${c.usage}` : ''} — ${c.description ?? ''}`)
+  await ctx.reply(['*Commands*', ...lines].join('\n'))
+})
+
+client.on('command-blocked', async ({ reason, retryIn, ctx }) => {
+  if (reason === 'cooldown') await ctx.reply(`Please wait ${retryIn} seconds before using /${ctx.command} again.`)
+})
+
+client.on('command-not-found', async ({ command, message }) => {
+  if (message.isGroup) return
+  await message.reply(`There's no /${command} command. Send /help to see what I can do.`)
+})
+
+client.on('command-error', async ({ command, error, ctx }) => {
+  console.error(`/${command} failed:`, error)
+  await ctx.reply('Sorry, that command failed. Please try again.')
+})
+
+client.on('connect', ({ me }) => console.log(`Command bot ready as ${me.id}`))
+```
+
+Or run it in your browser, and scan the QR code that appears in its terminal:
+
+<StackBlitz code={"import { Client, type Middleware } from 'zaileys'\n\nconst CITIES: Record<string, { name: string; timeZone: string }> = {\n  jakarta: { name: 'Jakarta', timeZone: 'Asia/Jakarta' },\n  bali: { name: 'Bali', timeZone: 'Asia/Makassar' },\n  singapore: { name: 'Singapore', timeZone: 'Asia/Singapore' },\n  tokyo: { name: 'Tokyo', timeZone: 'Asia/Tokyo' },\n  london: { name: 'London', timeZone: 'Europe/London' },\n  'new york': { name: 'New York', timeZone: 'America/New_York' },\n}\n\nconst client = new Client({ commandPrefix: ['/', '!'] })\n\nconst logCommands: Middleware = async (ctx, next) => {\n  const started = Date.now()\n  await next()\n  console.log(`/${ctx.command} from ${ctx.senderId} took ${Date.now() - started} ms`)\n}\n\nclient.use(logCommands)\n\nclient.command({ name: 'ping', description: 'Check that the bot is alive' }, async (ctx) => {\n  await ctx.reply('pong')\n})\n\nclient.command({ name: 'time', description: 'The time right now in a city', usage: '<city>' }, async (ctx) => {\n  const city = CITIES[ctx.args.join(' ').toLowerCase()]\n  if (!city) {\n    await ctx.reply(`Usage: /time <city>. I know: ${Object.values(CITIES).map((c) => c.name).join(', ')}.`)\n    return\n  }\n  const time = new Intl.DateTimeFormat('en-GB', { timeZone: city.timeZone, hour: '2-digit', minute: '2-digit' })\n  await ctx.reply(`It's ${time.format(new Date())} in ${city.name}.`)\n})\n\nclient.command(\n  { name: 'remind', description: 'Remind you after some minutes', usage: '<minutes> <text>', cooldown: 30 },\n  async (ctx) => {\n    const [minutesArg, ...words] = ctx.args\n    const minutes = Number(minutesArg)\n    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440 || words.length === 0) {\n      await ctx.reply('Usage: /remind <minutes> <text>, for example /remind 10 take the laundry out')\n      return\n    }\n    const chat = ctx.roomId ?? ctx.senderId\n    await client.scheduleAt(new Date(Date.now() + minutes * 60_000), (b) =>\n      b.to(chat).text(`⏰ Reminder: ${words.join(' ')}`),\n    )\n    await ctx.reply(`OK, I'll remind you in ${minutes} minute${minutes === 1 ? '' : 's'}.`)\n  },\n)\n\nclient.command({ name: 'help', aliases: ['h', '?'], description: 'Show this list' }, async (ctx) => {\n  const lines = client\n    .commands()\n    .filter((c) => !c.hidden)\n    .map((c) => `/${c.name}${c.usage ? ` ${c.usage}` : ''} — ${c.description ?? ''}`)\n  await ctx.reply(['*Commands*', ...lines].join('\\n'))\n})\n\nclient.on('command-blocked', async ({ reason, retryIn, ctx }) => {\n  if (reason === 'cooldown') await ctx.reply(`Please wait ${retryIn} seconds before using /${ctx.command} again.`)\n})\n\nclient.on('command-not-found', async ({ command, message }) => {\n  if (message.isGroup) return\n  await message.reply(`There's no /${command} command. Send /help to see what I can do.`)\n})\n\nclient.on('command-error', async ({ command, error, ctx }) => {\n  console.error(`/${command} failed:`, error)\n  await ctx.reply('Sorry, that command failed. Please try again.')\n})\n\nclient.on('connect', ({ me }) => console.log(`Command bot ready as ${me.id}`))\n"} title="Zaileys command bot" />
+
+## How it works
+
+### Turn on commands with two prefixes
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({ commandPrefix: ['/', '!'] })
+```
+
+Commands stay off until you set `commandPrefix`. With two prefixes, `/ping` and `!ping` run the same command. Names are case-insensitive, so `/PING` works too, while arguments keep their case.
+
+You can register commands before the client connects — Zaileys starts listening once the connection opens.
+
+### Describe each command so the help menu writes itself
+
+```ts
+client.command({ name: 'time', description: 'The time right now in a city', usage: '<city>' }, async (ctx) => {
+  await ctx.reply('…')
+})
+
+client.command({ name: 'help', aliases: ['h', '?'], description: 'Show this list' }, async (ctx) => {
+  const lines = client.commands().map((c) => `/${c.name}${c.usage ? ` ${c.usage}` : ''} — ${c.description ?? ''}`)
+  await ctx.reply(lines.join('\n'))
+})
+```
+
+- Passing an object instead of a name lets you attach a `description` and a `usage` hint.
+- `client.commands()` returns every registered command in the order you added it, with those fields. `/help` builds its list from it, so a new command shows up in the menu without touching `/help`.
+- `aliases` are extra names for the same command. Inside the handler, `ctx.command` is always the real name — `'help'`, even when someone typed `/?`.
+
+The full list of fields, including `category` and `hidden`, is in [Commands](/bots/commands#limit-who-can-run-a-command).
+
+### Read the arguments
+
+```ts
+client.command('time', async (ctx) => {
+  const city = ctx.args.join(' ').toLowerCase()
+  await ctx.reply(`You asked about: ${city}`)
+})
+```
+
+`ctx.args` holds the words after the command name. `/time new york` gives `['new', 'york']`, which the bot joins back into `new york` to look up the city. Wrap an argument in quotes to keep its spaces: `/remind 5 "call mom"` gives `['5', 'call mom']`.
+
+### Schedule the reminder
+
+```ts
+client.command('remind', async (ctx) => {
+  const chat = ctx.roomId ?? ctx.senderId
+  await client.scheduleAt(new Date(Date.now() + 10 * 60_000), (b) => b.to(chat).text('⏰ Reminder: stretch'))
+})
+```
+
+- `ctx.roomId` is the chat the command came from — the group in a group, the other person in a private chat. The reminder goes back to the same place.
+- `scheduleAt()` hands you a builder without a recipient, so call `.to(chat)` first.
+- If the bot is disconnected when the reminder is due, it's sent once the connection is back. If the process stops, pending reminders are lost with the default store — see [Broadcast & schedule](/bots/broadcast-and-schedule#keep-scheduled-messages-across-restarts).
+
+### Slow down a command with a cooldown
+
+```ts
+client.command({ name: 'remind', cooldown: 30 }, async (ctx) => {
+  await ctx.reply('Reminder set.')
+})
+
+client.on('command-blocked', async ({ reason, retryIn, ctx }) => {
+  if (reason === 'cooldown') await ctx.reply(`Please wait ${retryIn} seconds before using /${ctx.command} again.`)
+})
+```
+
+`cooldown: 30` makes each person wait 30 seconds between `/remind` runs. A blocked attempt sends nothing on its own — the `command-blocked` event is where you explain why. `retryIn` is the number of seconds left, rounded up.
+
+The wait counts from the last run that got past the guard, including one that only answered with the usage line.
+
+### Log every command with middleware
+
+```ts
+import type { Middleware } from 'zaileys'
+
+const logCommands: Middleware = async (ctx, next) => {
+  const started = Date.now()
+  await next()
+  console.log(`/${ctx.command} from ${ctx.senderId} took ${Date.now() - started} ms`)
+}
+
+client.use(logCommands)
+```
+
+Middleware runs before every command handler. `await next()` runs the handler, so the code after it measures the whole command. Middleware only sees commands that matched and passed their guards. More patterns, like owner-only access and rate limits, are in [Middleware](/bots/middleware).
+
+### Answer unknown and failed commands
+
+```ts
+client.on('command-not-found', async ({ command, message }) => {
+  if (message.isGroup) return
+  await message.reply(`There's no /${command} command. Send /help to see what I can do.`)
+})
+
+client.on('command-error', async ({ command, error, ctx }) => {
+  console.error(`/${command} failed:`, error)
+  await ctx.reply('Sorry, that command failed. Please try again.')
+})
+```
+
+- `command-not-found` fires when a message starts with a prefix but matches no command. The bot skips groups, where answering every typo gets noisy.
+- `command-error` fires when a handler throws. Without a listener, a failing command is silent unless you've turned on Zaileys' logger, so this one both logs the error and tells the user.
+
+## Run it
+
+```bash
+npx tsx bot.ts
+```
+
+Scan the QR code from **WhatsApp → Settings → Linked devices → Link a device**. Once linked, the terminal prints:
+
+```text
+[zaileys] Connected as 6281234567890@s.whatsapp.net.
+Command bot ready as 6281234567890@s.whatsapp.net
+```
+
+## Try it
+
+From another account, send `/help`. The bot answers with the command list, quoting your message. Then:
+
+- `/time bali` answers with the current time in Bali.
+- `/remind 1 check the oven` confirms right away, and sends `⏰ Reminder: check the oven` a minute later.
+- `/remind 1 again` within 30 seconds answers `Please wait … seconds before using /remind again.`
+- `/weather` answers `There's no /weather command. Send /help to see what I can do.`
+
+Each command also prints a line like `/time from 6289876543210@s.whatsapp.net took 380 ms` in your terminal.
+
+## Make it your own
+
+### Add an owner-only command
+
+Keep a command out of the help menu with `hidden`, and let middleware decide who may run it:
+
+```ts
+const OWNERS = new Set(['6281234567890@s.whatsapp.net'])
+const counts = new Map<string, number>()
+
+client.use(async (ctx, next) => {
+  if (ctx.command === 'stats' && !OWNERS.has(ctx.senderId)) {
+    await ctx.reply('Only the bot owner can use /stats.')
+    return
+  }
+  counts.set(ctx.command, (counts.get(ctx.command) ?? 0) + 1)
+  await next()
+})
+
+client.command({ name: 'stats', hidden: true }, async (ctx) => {
+  const lines = [...counts].map(([name, count]) => `/${name}: ${count}`)
+  await ctx.reply(lines.join('\n'))
+})
+```
+
+The owner sends `/stats` and sees how often each command ran since the bot started. Anyone else gets `Only the bot owner can use /stats.`
+
+### Limit a command to group admins
+
+```ts
+client.command({ name: 'announce', description: 'Post an announcement', usage: '<text>', admin: true }, async (ctx) => {
+  await ctx.send().text(`📢 ${ctx.args.join(' ')}`)
+})
+
+client.on('command-blocked', async ({ reason, ctx }) => {
+  if (reason === 'admin-only') await ctx.reply('Only group admins can use this command.')
+})
+```
+
+`admin: true` only lets group admins through, and blocks it everywhere else. `ctx.send()` starts a message to the same chat, without quoting the command. The other guards — `group`, `private`, and `cooldown` — are in [Commands](/bots/commands#limit-who-can-run-a-command).
+
+### Show the help menu as a table
+
+```ts
+client.command({ name: 'menu', description: 'Show commands as a table' }, async (ctx) => {
+  const rows = client
+    .commands()
+    .filter((c) => !c.hidden)
+    .map((c) => `| /${c.name} ${c.usage ?? ''} | ${c.description ?? ''} |`)
+  await ctx.reply(['| Command | What it does |', '| --- | --- |', ...rows].join('\n'), { rich: true, title: 'Help' })
+})
+```
+
+The menu arrives as a rich message with a real table. See [Rich responses](/messaging/rich-responses).
+
+### Put each command in its own file
+
+When the bot grows past a handful of commands, move each one into a plugin file. Plugins register the same commands, and reload when you save the file. See [Plugins](/bots/plugins) and the [plugin starter](/recipes/plugin-starter).
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="My command doesn't respond">
+    Check that the message starts with `/` or `!` exactly, that you're messaging from a different account than the bot's own, and that the bot runs on the Unofficial provider. If the terminal shows `… failed:` from the `command-error` listener, the handler threw.
+  </Accordion>
+  <Accordion title="Do reminders survive a restart?">
+    Not with the default memory store — pending reminders are lost when the process stops. They do survive disconnects while the process keeps running. To keep them across restarts, use a store that saves scheduled jobs, such as [Convex](/data/storage).
+  </Accordion>
+  <Accordion title="Can I run this bot on the Cloud API?">
+    Not as written — commands and middleware only run on a WhatsApp Web connection for now. On the Cloud API, parse commands in a `text` handler with the exported `parseCommand()`, as shown in [Commands](/bots/commands#on-the-cloud-api).
+  </Accordion>
+  <Accordion title="Why was /remind blocked after I mistyped it?">
+    The cooldown starts whenever a run gets past the guard — even one that only answered with the usage line. Lower `cooldown`, or remove it while you test.
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Commands" icon="square-terminal" href="/bots/commands">
+    Arguments, flags, guards, subcommands, and every command event.
+  </Card>
+  <Card title="Middleware" icon="layers" href="/bots/middleware">
+    Logging, owner-only access, and rate limits for every command.
+  </Card>
+  <Card title="Plugin starter" icon="plug" href="/recipes/plugin-starter">
+    Split commands into files that reload on save.
+  </Card>
+  <Card title="Commands reference" icon="square-code" href="/reference/commands">
+    Every type, field, and event, with exact signatures.
+  </Card>
+</CardGroup>

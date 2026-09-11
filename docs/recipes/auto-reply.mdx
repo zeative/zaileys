@@ -1,9 +1,356 @@
 ---
 title: "Auto-reply bot"
-description: "A minimal bot that answers every message."
+description: "Greet customers, answer common questions by keyword, and send a friendly fallback for everything else — on WhatsApp Web or the Cloud API."
 icon: "reply"
+keywords: ["auto reply", "autoresponder", "auto responder", "faq bot", "keyword reply", "away message", "customer service bot", "simple bot", "echo bot"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, see [`examples/simple-bot.ts`](https://github.com/zeative/zaileys/blob/main/examples/simple-bot.ts) on GitHub.
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { StackBlitz } from "/snippets/stackblitz.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+This recipe builds a customer-service bot for a small restaurant that answers the questions people ask most, so nobody waits for a human to type "we open at 10".
+
+<ProviderSupport web={true} cloud={true} note="The bot logic is identical on both providers. Only the client setup differs." />
+
+## What you'll build
+
+A customer messages the restaurant's number:
+
+```text
+Budi: hi, what time do you open?
+Bot:  Hi Budi! Thanks for messaging Warung Sari.
+      We're open every day from 10:00 to 22:00.
+Budi: do you deliver?
+Bot:  Yes, we deliver within 5 km. Send your order here and we'll confirm the total.
+Budi: can I book a table for 8 people?
+Bot:  Thanks! A team member will reply soon. Meanwhile, ask me about our *hours*, *address*, *menu*, or *delivery*.
+```
+
+- Every answer quotes the message it replies to.
+- The greeting appears once per person every 12 hours, not on every message.
+- Anything the bot doesn't recognize gets a fallback that lists what it can answer.
+- Group chats, status updates, and channel posts are ignored.
+
+## What you need
+
+<Tabs>
+  <Tab title="Unofficial">
+
+    - Node.js 20 or newer, with `zaileys` installed: `npm install zaileys`.
+    - A WhatsApp account for the bot, and a second account to test from — the bot ignores its own messages.
+
+  </Tab>
+  <Tab title="Official">
+
+    - Node.js 20 or newer, with Zaileys and a small web server installed: `npm install zaileys hono @hono/node-server`.
+    - A Meta app with the WhatsApp product, and four values from it: access token, <Term id="phone-number-id" />, verify token, and app secret. [Get them](/cloud/setup)
+    - A public HTTPS URL that reaches your machine, for the <Term id="webhook" />. A tunnel such as ngrok gives you one.
+
+  </Tab>
+</Tabs>
+
+New to Zaileys? The [Quickstart](/quickstart) covers connecting in more detail.
+
+## The complete bot
+
+Save this as `bot.ts`:
+
+<Tabs>
+  <Tab title="Unofficial">
+
+    ```ts bot.ts
+    import { Client } from 'zaileys'
+
+    const BUSINESS = 'Warung Sari'
+    const GREET_EVERY_MS = 12 * 60 * 60 * 1000
+
+    const answers = [
+      { keywords: ['hours', 'open', 'close', 'closing'], reply: "We're open every day from 10:00 to 22:00." },
+      { keywords: ['address', 'where', 'location', 'map'], reply: "We're at Jl. Sunset Road 88, Kuta, Bali, next to the petrol station." },
+      { keywords: ['menu', 'price', 'prices'], reply: 'Nasi Goreng Rp25.000 · Mie Ayam Rp20.000 · Es Teh Rp5.000 · Kopi Susu Rp15.000' },
+      { keywords: ['delivery', 'deliver'], reply: "Yes, we deliver within 5 km. Send your order here and we'll confirm the total." },
+    ]
+
+    const FALLBACK =
+      'Thanks! A team member will reply soon. Meanwhile, ask me about our *hours*, *address*, *menu*, or *delivery*.'
+
+    const lastGreeted = new Map<string, number>()
+
+    const client = new Client()
+
+    client.on('text', async (msg) => {
+      if (msg.isGroup || msg.isStory || msg.isNewsletter || msg.isOld) return
+
+      const words = new Set(msg.text.toLowerCase().match(/[a-z]+/g) ?? [])
+      const match = answers.find((a) => a.keywords.some((k) => words.has(k)))
+
+      const now = Date.now()
+      const greet = now - (lastGreeted.get(msg.senderId) ?? 0) > GREET_EVERY_MS
+      if (greet) lastGreeted.set(msg.senderId, now)
+
+      const greeting = `Hi ${msg.senderName ?? 'there'}! Thanks for messaging ${BUSINESS}.`
+      const answer = match?.reply ?? FALLBACK
+      await msg.reply(greet ? `${greeting}\n${answer}` : answer)
+    })
+    ```
+
+    Or run it in your browser, and scan the QR code that appears in its terminal:
+
+    <StackBlitz code={"import { Client } from 'zaileys'\n\nconst BUSINESS = 'Warung Sari'\nconst GREET_EVERY_MS = 12 * 60 * 60 * 1000\n\nconst answers = [\n  { keywords: ['hours', 'open', 'close', 'closing'], reply: \"We're open every day from 10:00 to 22:00.\" },\n  { keywords: ['address', 'where', 'location', 'map'], reply: \"We're at Jl. Sunset Road 88, Kuta, Bali, next to the petrol station.\" },\n  { keywords: ['menu', 'price', 'prices'], reply: 'Nasi Goreng Rp25.000 · Mie Ayam Rp20.000 · Es Teh Rp5.000 · Kopi Susu Rp15.000' },\n  { keywords: ['delivery', 'deliver'], reply: \"Yes, we deliver within 5 km. Send your order here and we'll confirm the total.\" },\n]\n\nconst FALLBACK =\n  'Thanks! A team member will reply soon. Meanwhile, ask me about our *hours*, *address*, *menu*, or *delivery*.'\n\nconst lastGreeted = new Map<string, number>()\n\nconst client = new Client()\n\nclient.on('text', async (msg) => {\n  if (msg.isGroup || msg.isStory || msg.isNewsletter || msg.isOld) return\n\n  const words = new Set(msg.text.toLowerCase().match(/[a-z]+/g) ?? [])\n  const match = answers.find((a) => a.keywords.some((k) => words.has(k)))\n\n  const now = Date.now()\n  const greet = now - (lastGreeted.get(msg.senderId) ?? 0) > GREET_EVERY_MS\n  if (greet) lastGreeted.set(msg.senderId, now)\n\n  const greeting = `Hi ${msg.senderName ?? 'there'}! Thanks for messaging ${BUSINESS}.`\n  const answer = match?.reply ?? FALLBACK\n  await msg.reply(greet ? `${greeting}\\n${answer}` : answer)\n})\n"} title="Zaileys auto-reply bot" />
+
+  </Tab>
+  <Tab title="Official">
+
+    ```ts bot.ts
+    import { serve } from '@hono/node-server'
+    import { Hono } from 'hono'
+    import { Client } from 'zaileys'
+
+    const BUSINESS = 'Warung Sari'
+    const GREET_EVERY_MS = 12 * 60 * 60 * 1000
+
+    const answers = [
+      { keywords: ['hours', 'open', 'close', 'closing'], reply: "We're open every day from 10:00 to 22:00." },
+      { keywords: ['address', 'where', 'location', 'map'], reply: "We're at Jl. Sunset Road 88, Kuta, Bali, next to the petrol station." },
+      { keywords: ['menu', 'price', 'prices'], reply: 'Nasi Goreng Rp25.000 · Mie Ayam Rp20.000 · Es Teh Rp5.000 · Kopi Susu Rp15.000' },
+      { keywords: ['delivery', 'deliver'], reply: "Yes, we deliver within 5 km. Send your order here and we'll confirm the total." },
+    ]
+
+    const FALLBACK =
+      'Thanks! A team member will reply soon. Meanwhile, ask me about our *hours*, *address*, *menu*, or *delivery*.'
+
+    const lastGreeted = new Map<string, number>()
+
+    const client = new Client({
+      provider: 'cloud',
+      cloud: {
+        accessToken: process.env.WA_TOKEN!,
+        phoneNumberId: process.env.WA_PHONE_ID!,
+        verifyToken: process.env.WA_VERIFY_TOKEN!,
+        appSecret: process.env.WA_APP_SECRET!,
+      },
+    })
+
+    client.on('text', async (msg) => {
+      if (msg.isGroup || msg.isStory || msg.isNewsletter || msg.isOld) return
+
+      const words = new Set(msg.text.toLowerCase().match(/[a-z]+/g) ?? [])
+      const match = answers.find((a) => a.keywords.some((k) => words.has(k)))
+
+      const now = Date.now()
+      const greet = now - (lastGreeted.get(msg.senderId) ?? 0) > GREET_EVERY_MS
+      if (greet) lastGreeted.set(msg.senderId, now)
+
+      const greeting = `Hi ${msg.senderName ?? 'there'}! Thanks for messaging ${BUSINESS}.`
+      const answer = match?.reply ?? FALLBACK
+      await msg.reply(greet ? `${greeting}\n${answer}` : answer)
+    })
+
+    const webhook = client.webhook()
+    const app = new Hono()
+    app.all('/webhook', (c) => webhook(c.req.raw))
+
+    serve({ fetch: app.fetch, port: 3000 })
+    ```
+
+    The handler is exactly the same as on the Unofficial tab. Only the client options and the webhook server at the end are new — Meta delivers every incoming message to `http://localhost:3000/webhook`.
+
+  </Tab>
+</Tabs>
+
+## How it works
+
+### Answer only one-to-one chats
+
+```ts
+client.on('text', async (msg) => {
+  if (msg.isGroup || msg.isStory || msg.isNewsletter || msg.isOld) return
+  await msg.reply('…')
+})
+```
+
+The `text` event fires for every incoming text message, wherever it comes from. The first line skips anything that isn't a private chat:
+
+- `isGroup` — the message was sent in a group.
+- `isStory` — it's a status update from one of your contacts.
+- `isNewsletter` — it's a post in a WhatsApp channel.
+- `isOld` — WhatsApp delivered it as history rather than as a new message, so the bot doesn't answer old conversations it syncs.
+
+Your own messages never reach the handler, because `ignoreMe` defaults to `true`.
+
+### Match keywords
+
+```ts
+const answers = [{ keywords: ['hours', 'open'], reply: "We're open every day from 10:00 to 22:00." }]
+
+client.on('text', async (msg) => {
+  const words = new Set(msg.text.toLowerCase().match(/[a-z]+/g) ?? [])
+  const match = answers.find((a) => a.keywords.some((k) => words.has(k)))
+  if (match) await msg.reply(match.reply)
+})
+```
+
+- The message is split into lowercase words, so `Open?`, `OPEN`, and `open` all match `open`.
+- Only whole words match: `opening` doesn't count as `open`. Add every form you expect to the list.
+- The first entry that matches wins, so put specific answers above general ones.
+- `[a-z]+` only finds unaccented Latin letters. To match words in any script, use `/\p{L}+/gu` instead.
+
+### Greet each person once every 12 hours
+
+```ts
+const GREET_EVERY_MS = 12 * 60 * 60 * 1000
+const lastGreeted = new Map<string, number>()
+
+client.on('text', async (msg) => {
+  const now = Date.now()
+  const greet = now - (lastGreeted.get(msg.senderId) ?? 0) > GREET_EVERY_MS
+  if (greet) lastGreeted.set(msg.senderId, now)
+})
+```
+
+- `msg.senderId` is the sender's address, such as `6281234567890@s.whatsapp.net`. It stays the same for a person, so it works as a key. See [Addresses & JIDs](/concepts/jids).
+- `msg.senderName` is the name the sender set in their WhatsApp profile, or `null` when WhatsApp doesn't include one — hence `?? 'there'`.
+- The map lives in memory, so after a restart the bot greets everyone again.
+
+### Reply in the same chat
+
+`msg.reply(text)` sends text into the chat the message came from and quotes the original. To send anything else there — a photo or buttons — start from `client.send(msg.roomId ?? msg.senderId)`. Don't use `msg.chatId` for this: despite its name, it's the ID of the message, not the chat.
+
+## Run it
+
+<Tabs>
+  <Tab title="Unofficial">
+
+    ```bash
+    npx tsx bot.ts
+    ```
+
+    Your terminal shows a QR code and these lines:
+
+    ```text
+    [zaileys] Connecting to WhatsApp (session: default)...
+    [zaileys] Scan the QR code above with WhatsApp > Linked devices to authenticate.
+    ```
+
+    On the bot's phone, open **WhatsApp → Settings → Linked devices → Link a device** and scan the code. The bot is live once the terminal prints:
+
+    ```text
+    [zaileys] Connected as 6281234567890@s.whatsapp.net.
+    ```
+
+  </Tab>
+  <Tab title="Official">
+
+    ```bash
+    export WA_TOKEN="your-access-token"
+    export WA_PHONE_ID="your-phone-number-id"
+    export WA_VERIFY_TOKEN="any-secret-string-you-choose"
+    export WA_APP_SECRET="your-app-secret"
+
+    npx tsx bot.ts
+    ```
+
+    Make port 3000 reachable over HTTPS — for example with `ngrok http 3000` — and register the public URL followed by `/webhook` as the callback URL in the Meta dashboard, with the same verify token. [Webhook setup](/cloud/webhook) walks through it.
+
+  </Tab>
+</Tabs>
+
+## Try it
+
+From another WhatsApp account, send the bot `hi, what time do you open?`. It answers with the greeting and the opening hours, quoting your message. Send `do you deliver?` next: this time there's no greeting, only the answer. Send something it doesn't know, like `can I book a table?`, and you get the fallback.
+
+On the Official provider, your first message also opens the <Term id="service-window" />, so the bot can answer freely for the next 24 hours.
+
+## Make it your own
+
+### Send an away message outside opening hours
+
+```ts
+const isOpen = (date = new Date()): boolean => date.getHours() >= 10 && date.getHours() < 22
+
+client.on('text', async (msg) => {
+  if (msg.isGroup || msg.isStory || msg.isNewsletter || msg.isOld) return
+  if (!isOpen()) {
+    await msg.reply("We're closed right now. We open again at 10:00 and will answer you then.")
+    return
+  }
+  await msg.reply('…the keyword answers from above…')
+})
+```
+
+`getHours()` uses the server's time zone. If your server runs in another zone than your shop, start the bot with the zone set, for example `TZ=Asia/Makassar npx tsx bot.ts`.
+
+### React to show you've seen the message
+
+```ts
+client.on('text', async (msg) => {
+  await msg.react('👀')
+  await msg.reply('Thanks! Checking that for you now.')
+})
+```
+
+The customer sees 👀 appear on their message before the answer arrives. Reactions work on both providers.
+
+### Only answer the numbers you choose
+
+While you test, keep the bot from answering real customers:
+
+```ts
+const TESTERS = new Set(['6281234567890@s.whatsapp.net', '6289876543210@s.whatsapp.net'])
+
+client.on('text', async (msg) => {
+  if (!TESTERS.has(msg.senderId)) return
+  await msg.reply(`Echo: ${msg.text}`)
+})
+```
+
+### Answer with a rich message
+
+On WhatsApp Web, the same reply can carry a real table. Pass `rich: true`:
+
+```ts
+client.on('text', async (msg) => {
+  if (msg.text.trim().toLowerCase() !== 'menu') return
+  await msg.reply(
+    ['*Our menu*', '', '| Dish | Price |', '| --- | --- |', '| Nasi Goreng | Rp25.000 |', '| Mie Ayam | Rp20.000 |'].join('\n'),
+    { rich: true, title: 'Warung Sari' },
+  )
+})
+```
+
+Rich messages are WhatsApp Web only — on the Cloud API the send fails. See [Rich responses](/messaging/rich-responses) for everything the format can show.
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="The bot doesn't answer me">
+    Message it from a different account than the bot's own — its own messages are skipped. Also check that you're writing in a private chat, since groups are ignored, and that the terminal shows `Connected as …` (Unofficial) or that the webhook is verified (Official).
+  </Accordion>
+  <Accordion title="Can it answer in groups?">
+    Yes. Remove `msg.isGroup` from the first check, and answer only when someone mentions the bot so it doesn't reply to every message in the group: `if (msg.isGroup && !msg.isTagMe) return`. Groups are WhatsApp Web only.
+  </Accordion>
+  <Accordion title="Why does everyone get greeted again after a restart?">
+    `lastGreeted` is a `Map` in memory, and it's empty when the process starts. To keep it, save it to a file or a database and load it on start.
+  </Accordion>
+  <Accordion title="Can I change the answers without restarting?">
+    Not with the answers written into the code. Load them from a JSON file inside the handler instead, and edits take effect on the next message.
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Command bot" icon="square-terminal" href="/recipes/command-bot">
+    Answer `/help`, `/time`, and other commands.
+  </Card>
+  <Card title="Order bot with buttons" icon="shopping-cart" href="/recipes/order-bot">
+    Let customers order from a menu by tapping.
+  </Card>
+  <Card title="Events" icon="radio" href="/concepts/events">
+    Every event your bot can listen for.
+  </Card>
+  <Card title="Message context" icon="message-square" href="/concepts/message-context">
+    Everything `msg` tells you about a message.
+  </Card>
+</CardGroup>

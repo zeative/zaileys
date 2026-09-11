@@ -1,9 +1,371 @@
 ---
 title: "Scheduled broadcast"
-description: "Broadcast to a list on a schedule with rate limiting."
+description: "Send a daily announcement to a subscriber list at a set time — rate-limited, retried, logged, and with STOP to unsubscribe."
 icon: "calendar-clock"
+keywords: ["scheduled broadcast", "daily message", "send every day", "bulk message", "announcement", "newsletter", "cron", "rate limit", "unsubscribe", "opt out", "scheduleAt"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, see [`examples/broadcast.ts`](https://github.com/zeative/zaileys/blob/main/examples/broadcast.ts) on GitHub.
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+This recipe builds a bot that sends a restaurant's daily special to a list of subscribers every morning at 09:00, at a pace WhatsApp tolerates, and lets anyone opt out by replying STOP.
+
+<ProviderSupport web={true} cloud={false} note="broadcast() needs a WhatsApp Web connection for now. See the Cloud API section for the alternative." />
+
+<Warning>
+  On the Unofficial provider, WhatsApp bans numbers that send the same message to people who didn't ask for it. Only put numbers on the list that signed up, keep the rate low, and test with a few numbers first. [Why this matters](/providers)
+</Warning>
+
+## What you'll build
+
+Every morning at 09:00, each subscriber gets a one-to-one message from the restaurant's number:
+
+```text
+Bot:  Good morning from Warung Sari! Today's special: Wednesday: Nasi Goreng Kampung, Rp22.000. Reply STOP to unsubscribe.
+Sari: STOP
+Bot:  You're unsubscribed. Reply START to get the daily special again.
+```
+
+Your terminal logs each run:
+
+```text
+Sending today's special to 3 subscribers...
+[1/3] 6281111111111@s.whatsapp.net sent
+[2/3] 6282222222222@s.whatsapp.net sent
+[3/3] 6283333333333@s.whatsapp.net sent
+Done: 3 sent, 0 failed.
+Next broadcast: 17/09/2026, 09:00:00
+```
+
+- Messages go out one per second, and a failed send is retried twice before it counts as failed.
+- Anyone who replies `STOP` is skipped from the next run on, even after a restart.
+- If the bot is disconnected at 09:00, it sends as soon as the connection comes back.
+
+## What you need
+
+- Node.js 20 or newer, with `zaileys` installed: `npm install zaileys`.
+- A WhatsApp account for the bot, and the numbers of people who agreed to get your messages.
+
+## The complete bot
+
+Save this as `broadcast.ts`:
+
+```ts broadcast.ts
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { Client } from 'zaileys'
+
+const SUBSCRIBERS = [
+  '6281111111111@s.whatsapp.net',
+  '6282222222222@s.whatsapp.net',
+  '6283333333333@s.whatsapp.net',
+]
+
+const SEND_AT = { hour: 9, minute: 0 }
+
+const SPECIALS = [
+  'Sunday: Nasi Campur, Rp28.000.',
+  'Monday: Mie Ayam with extra chicken, Rp20.000.',
+  'Tuesday: Sate Ayam, 10 skewers for Rp30.000.',
+  'Wednesday: Nasi Goreng Kampung, Rp22.000.',
+  'Thursday: Soto Ayam, Rp18.000.',
+  'Friday: Ikan Bakar, Rp45.000.',
+  'Saturday: Babi Guling, Rp40.000.',
+]
+
+const OPT_OUT_FILE = './opted-out.json'
+const optedOut = new Set<string>(existsSync(OPT_OUT_FILE) ? JSON.parse(readFileSync(OPT_OUT_FILE, 'utf8')) : [])
+const saveOptOuts = (): void => writeFileSync(OPT_OUT_FILE, JSON.stringify([...optedOut], null, 2))
+
+const client = new Client()
+
+const nextRunAfter = (now: Date): Date => {
+  const next = new Date(now)
+  next.setHours(SEND_AT.hour, SEND_AT.minute, 0, 0)
+  if (next <= now) next.setDate(next.getDate() + 1)
+  return next
+}
+
+async function sendDailySpecial(): Promise<void> {
+  const recipients = SUBSCRIBERS.filter((jid) => !optedOut.has(jid))
+  const text = `Good morning from Warung Sari! Today's special: ${SPECIALS[new Date().getDay()]} Reply STOP to unsubscribe.`
+
+  console.log(`Sending today's special to ${recipients.length} subscribers...`)
+  const result = await client.broadcast(recipients, (b) => b.text(text), {
+    rateLimitPerSec: 1,
+    retry: { maxRetries: 2, backoffMs: (attempt) => attempt * 5000 },
+    onProgress: (done, total, jid, ok) => console.log(`[${done}/${total}] ${jid} ${ok ? 'sent' : 'failed'}`),
+  })
+
+  console.log(`Done: ${result.sent.length} sent, ${result.failed.length} failed.`)
+  for (const { jid, error } of result.failed) console.error(`Could not reach ${jid}: ${error.message}`)
+}
+
+async function runWhenConnected(): Promise<void> {
+  if (client.state !== 'connected') {
+    console.log('Not connected. Sending as soon as the connection is back.')
+    const off = client.on('connect', () => {
+      off()
+      void runWhenConnected()
+    })
+    return
+  }
+
+  try {
+    await sendDailySpecial()
+  } catch (error) {
+    console.error('Broadcast failed:', error)
+  }
+  scheduleNextRun()
+}
+
+function scheduleNextRun(): void {
+  const at = nextRunAfter(new Date())
+  console.log(`Next broadcast: ${at.toLocaleString('en-GB')}`)
+  setTimeout(() => void runWhenConnected(), at.getTime() - Date.now())
+}
+
+client.on('text', async (msg) => {
+  if (msg.isGroup || msg.isOld || !SUBSCRIBERS.includes(msg.senderId)) return
+
+  const word = msg.text.trim().toUpperCase()
+  if (word === 'STOP') {
+    optedOut.add(msg.senderId)
+    saveOptOuts()
+    await msg.reply("You're unsubscribed. Reply START to get the daily special again.")
+  } else if (word === 'START') {
+    optedOut.delete(msg.senderId)
+    saveOptOuts()
+    await msg.reply("You're subscribed again. See you tomorrow at 09:00!")
+  }
+})
+
+let started = false
+client.on('connect', () => {
+  if (started) return
+  started = true
+  if (process.env.SEND_NOW === '1') void runWhenConnected()
+  else scheduleNextRun()
+})
+```
+
+## How it works
+
+### Send to the whole list at a safe pace
+
+```ts
+declare const recipients: string[]
+declare const text: string
+
+const result = await client.broadcast(recipients, (b) => b.text(text), {
+  rateLimitPerSec: 1,
+  retry: { maxRetries: 2, backoffMs: (attempt) => attempt * 5000 },
+  onProgress: (done, total, jid, ok) => console.log(`[${done}/${total}] ${jid} ${ok ? 'sent' : 'failed'}`),
+})
+```
+
+- `broadcast()` sends to one recipient at a time, in list order. Each person gets an ordinary one-to-one message — it doesn't create a WhatsApp broadcast list.
+- `rateLimitPerSec: 1` means one message per second, so 300 subscribers take about five minutes. The default is 5.
+- `retry` tries a failed send again after 5 seconds, then 10 seconds. Only then does it land in `result.failed`.
+- One failure never stops the rest, and `broadcast()` doesn't reject because of it — check `result.failed` instead.
+
+Every option is in [Broadcast & schedule](/bots/broadcast-and-schedule#send-one-message-to-many-chats).
+
+### Work out the next 09:00
+
+```ts
+const nextRunAfter = (now: Date): Date => {
+  const next = new Date(now)
+  next.setHours(9, 0, 0, 0)
+  if (next <= now) next.setDate(next.getDate() + 1)
+  return next
+}
+```
+
+Started at 08:30, the next run is 09:00 today. Started at 10:15, it's 09:00 tomorrow. `scheduleNextRun()` waits until then with `setTimeout`, and schedules the following day after each run.
+
+`setHours()` uses the server's time zone. If your server runs elsewhere — cloud servers often run in UTC — set the zone when you start the bot: `TZ=Asia/Makassar npx tsx broadcast.ts`.
+
+### Start the schedule once
+
+```ts
+declare function scheduleNextRun(): void
+
+let started = false
+client.on('connect', () => {
+  if (started) return
+  started = true
+  scheduleNextRun()
+})
+```
+
+`connect` fires again after every reconnect. Without the `started` flag, each reconnect would add another daily timer, and subscribers would get the message several times.
+
+### Wait out a disconnect
+
+```ts
+declare function sendDailySpecial(): Promise<void>
+
+async function runWhenConnected(): Promise<void> {
+  if (client.state !== 'connected') {
+    const off = client.on('connect', () => {
+      off()
+      void runWhenConnected()
+    })
+    return
+  }
+  await sendDailySpecial()
+}
+```
+
+Messages can't go out while the connection is down. So at 09:00 the bot checks `client.state` first, and if it isn't `'connected'`, it waits for the next `connect` event instead of sending into a dead connection. `client.on()` returns a function that removes the listener, which `off()` calls so the listener runs only once.
+
+### Let people opt out
+
+```ts
+declare const SUBSCRIBERS: string[]
+
+client.on('text', async (msg) => {
+  if (msg.isGroup || msg.isOld || !SUBSCRIBERS.includes(msg.senderId)) return
+  if (msg.text.trim().toUpperCase() === 'STOP') await msg.reply("You're unsubscribed.")
+})
+```
+
+- Only subscribers get an answer, so a stranger typing `STOP` doesn't get a confusing reply.
+- `msg.senderId` is the sender's address, in the same `6281111111111@s.whatsapp.net` form as the list. See [Addresses & JIDs](/concepts/jids).
+- Opt-outs are written to `opted-out.json`, so they survive a restart. Delete a number from that file to resubscribe it by hand.
+
+## Run it
+
+Test with `SEND_NOW=1` first, so you don't wait until 09:00. Put your own second number on the list, then run:
+
+```bash
+SEND_NOW=1 npx tsx broadcast.ts
+```
+
+Scan the QR code from **WhatsApp → Settings → Linked devices → Link a device**. Once connected, the bot sends straight away and logs each recipient, then schedules the next 09:00.
+
+For daily use, start it without `SEND_NOW` and keep the process running — for example with a process manager such as pm2 or a systemd service:
+
+```bash
+TZ=Asia/Makassar npx tsx broadcast.ts
+```
+
+```text
+[zaileys] Connecting to WhatsApp (session: default)...
+[zaileys] Connected as 6289876543210@s.whatsapp.net.
+Next broadcast: 17/09/2026, 09:00:00
+```
+
+The `Next broadcast` time is printed in day/month/year order. The timer lives in the process — if the process stops, nothing is sent until you start it again.
+
+## Make it your own
+
+### Skip weekends
+
+```ts
+const nextWeekdayRunAfter = (now: Date): Date => {
+  const next = new Date(now)
+  next.setHours(9, 0, 0, 0)
+  if (next <= now) next.setDate(next.getDate() + 1)
+  while (next.getDay() === 0 || next.getDay() === 6) next.setDate(next.getDate() + 1)
+  return next
+}
+```
+
+Use it in place of `nextRunAfter()`. A run that would fall on Saturday or Sunday moves to Monday.
+
+### Greet each subscriber by name
+
+The `broadcast()` callback doesn't know who it's sending to. For a different text per person, loop yourself and pace it with the exported `RateLimiter`:
+
+```ts
+import { RateLimiter } from 'zaileys'
+
+const subscribers = [
+  { jid: '6281111111111@s.whatsapp.net', name: 'Budi' },
+  { jid: '6282222222222@s.whatsapp.net', name: 'Sari' },
+]
+
+const limiter = new RateLimiter({ perSec: 1 })
+
+for (const subscriber of subscribers) {
+  await limiter.acquire()
+  try {
+    await client.send(subscriber.jid).text(`Good morning, ${subscriber.name}! Today's special: Soto Ayam, Rp18.000.`)
+  } catch (error) {
+    console.error(`Could not reach ${subscriber.name}:`, error)
+  }
+}
+```
+
+### Send a photo of the special
+
+Anything you can send works in the `broadcast()` callback:
+
+```ts
+declare const recipients: string[]
+
+await client.broadcast(recipients, (b) => b.image('./specials/wednesday.jpg', { caption: "Today's special: Nasi Goreng Kampung, Rp22.000" }), {
+  rateLimitPerSec: 1,
+})
+```
+
+The photo is loaded once per recipient. See [Send media](/messaging/media) for sources and options.
+
+### Queue a one-off announcement
+
+For a single date, `client.scheduleAt()` queues a message without a timer of your own. Schedule one job per subscriber:
+
+```ts
+declare const recipients: string[]
+
+const christmasMorning = new Date('2026-12-25T09:00:00+08:00')
+
+for (const jid of recipients) {
+  await client.scheduleAt(christmasMorning, (b) =>
+    b.to(jid).text('Merry Christmas from Warung Sari! We are open 10:00–15:00 today.'),
+  )
+}
+```
+
+At 09:00 Bali time on December 25, the jobs go out one per second, paced by the `scheduleRateLimitPerSec` client option. Jobs are kept in memory, so they're lost if the process stops before then — unless your [store](/data/storage) saves them, as the Convex store does. Details in [Broadcast & schedule](/bots/broadcast-and-schedule#send-a-message-later).
+
+## On the Cloud API
+
+`broadcast()` and `scheduleAt()` need a WhatsApp Web connection in the current release — on the Cloud API, `broadcast()` rejects with `client not connected`. Build the same bot with your own timer and the [`RateLimiter` loop](#greet-each-subscriber-by-name) above, which works on both providers.
+
+Meta also only delivers free-form messages inside the <Term id="service-window" />. A morning announcement to people who haven't messaged you in the last 24 hours has to be an approved [template](/cloud/templates). Meta's sending limits are in [Limits](/cloud/limits).
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Nobody got the message at 09:00">
+    Check that the process was running at 09:00 and that `Next broadcast` in the terminal shows the time you expect — a server in UTC runs hours apart from your shop unless you set `TZ`. Then look for `Could not reach …` lines, which carry the reason each send failed.
+  </Accordion>
+  <Accordion title="Some subscribers got the message twice">
+    A number listed twice in `SUBSCRIBERS` gets the message twice — `broadcast()` doesn't remove duplicates. Also make sure only one copy of the bot is running.
+  </Accordion>
+  <Accordion title="Can I send to groups?">
+    Yes. Put group addresses, which end in `@g.us`, in the list. The opt-out check skips group messages, so remove the group yourself if it asks.
+  </Accordion>
+  <Accordion title="Where does the subscriber list come from in a real bot?">
+    Load it from your database or a file at the start of `sendDailySpecial()` instead of the `SUBSCRIBERS` constant. Then new sign-ups are included in the next run without a restart.
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Broadcast & schedule" icon="megaphone" href="/bots/broadcast-and-schedule">
+    Every option for `broadcast()`, `scheduleAt()`, and `RateLimiter`.
+  </Card>
+  <Card title="Storage" icon="database" href="/data/storage">
+    Keep scheduled jobs and messages across restarts.
+  </Card>
+  <Card title="Templates" icon="file-text" href="/cloud/templates">
+    Message people outside the 24-hour window on the Cloud API.
+  </Card>
+  <Card title="Auto-reply bot" icon="reply" href="/recipes/auto-reply">
+    Answer the questions people send back.
+  </Card>
+</CardGroup>

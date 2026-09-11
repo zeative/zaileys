@@ -1,9 +1,336 @@
 ---
 title: "AI rich-response bot"
-description: "Reply with Meta-AI-style rich messages."
+sidebarTitle: "AI bot"
+description: "Answer questions with a language model and reply with rich messages — tables, highlighted code, and suggestion pills — with memory per chat."
 icon: "bot"
+keywords: ["ai bot", "chatgpt whatsapp", "llm bot", "ai assistant", "chatbot", "rich response", "airich", "meta ai style", "gpt", "claude", "gemini"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, see [`examples/airich-bot.ts`](https://github.com/zeative/zaileys/blob/main/examples/airich-bot.ts) on GitHub.
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+
+This recipe builds an assistant that answers questions with the language model of your choice and sends each answer as a rich message, the kind Meta AI replies with.
+
+<ProviderSupport web={true} cloud={false} note="Rich messages and typing indicators are WhatsApp Web only. The Cloud API variant below sends plain text." />
+
+## What you'll build
+
+Once you connect a model, a conversation looks like this:
+
+```text
+Budi: what do you recommend for lunch?
+      (the bot shows "typing…")
+Bot:  [rich message]
+      Our lunch favorites:
+      ┌─────────────┬──────────┐
+      │ Dish        │ Price    │
+      ├─────────────┼──────────┤
+      │ Nasi Goreng │ Rp25.000 │
+      │ Mie Ayam    │ Rp20.000 │
+      └─────────────┴──────────┘
+      (pills) Is it spicy? | Do you deliver?
+```
+
+- The answer arrives as a rich message: a text block, a real table, and tappable suggestion pills.
+- The bot remembers the last 12 messages of each chat, so follow-up questions make sense.
+- In groups, it only answers when someone mentions it.
+- `/reset` makes it forget the conversation.
+
+Until you connect a model, a placeholder answers every question with a sample rich message, so you can see the formatting straight away.
+
+## What you need
+
+- Node.js 20 or newer, with `zaileys` installed: `npm install zaileys`.
+- A WhatsApp account for the bot, and a second account to chat from.
+- Access to a language model — any provider's SDK or HTTP API. The file below runs without one.
+
+## The complete bot
+
+Save this as `bot.ts`:
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+type Turn = { role: 'user' | 'assistant'; content: string }
+
+const SYSTEM_PROMPT = [
+  'You are Sari, the assistant of Warung Sari, a small restaurant in Kuta, Bali.',
+  'Answer briefly in markdown. Use *bold*, fenced code blocks, and tables with a header row when they help.',
+  'End every answer with two or three follow-up questions, written exactly like this:',
+  ':::suggest',
+  'First question | Second question',
+  ':::',
+].join('\n')
+
+const MAX_TURNS = 12
+const history = new Map<string, Turn[]>()
+
+// Replace this body with a call to your model provider, and return its answer as markdown.
+async function askModel(system: string, turns: Turn[]): Promise<string> {
+  const question = turns.at(-1)?.content ?? ''
+  return [
+    `*You asked:* ${question}`,
+    '',
+    'This is a placeholder. Connect a language model in askModel() to answer for real.',
+    '',
+    '| Dish | Price |',
+    '| --- | --- |',
+    '| Nasi Goreng | Rp25.000 |',
+    '| Mie Ayam | Rp20.000 |',
+    '',
+    ':::suggest',
+    'What do you recommend? | Are you open today?',
+    ':::',
+  ].join('\n')
+}
+
+const client = new Client()
+
+client.on('text', async (msg) => {
+  if (msg.isOld || msg.isStory || msg.isNewsletter) return
+  if (msg.isGroup && !msg.isTagMe) return
+
+  const chat = msg.roomId ?? msg.senderId
+  const question = msg.text.replace(/@\d+/g, '').trim()
+  if (!question) return
+
+  if (question.toLowerCase() === '/reset') {
+    history.delete(chat)
+    await msg.reply('Done. I forgot our conversation.')
+    return
+  }
+
+  const turns: Turn[] = [...(history.get(chat) ?? []), { role: 'user', content: question }]
+  await client.presence.typing(chat, 20_000).catch(() => undefined)
+
+  let answer: string
+  try {
+    answer = await askModel(SYSTEM_PROMPT, turns)
+  } catch (error) {
+    console.error('Model call failed:', error)
+    await msg.reply('Sorry, I could not answer that right now. Please try again in a minute.')
+    return
+  }
+
+  const updated: Turn[] = [...turns, { role: 'assistant', content: answer }]
+  history.set(chat, updated.slice(-MAX_TURNS))
+
+  try {
+    await msg.reply(answer, {
+      rich: true,
+      title: 'Sari · AI assistant',
+      footer: 'AI answers can be wrong. Ask our staff to confirm prices.',
+    })
+  } catch (error) {
+    console.error('Rich reply failed, sending plain text instead:', error)
+    await msg.reply(answer)
+  }
+})
+```
+
+## How it works
+
+### Connect your model
+
+Everything model-specific lives in `askModel()`. It receives two things and returns the answer as a markdown string:
+
+- `system` — the instructions in `SYSTEM_PROMPT`.
+- `turns` — the conversation so far, oldest first, ending with the new question. Each turn is `{ role: 'user' | 'assistant', content }`.
+
+Most model APIs take a system prompt plus a list of role-and-content messages, so `turns` usually maps straight onto them. Call your provider's SDK or HTTP API inside the function and return the text of its reply. If the call throws, the bot apologizes to the user and logs the error — the conversation isn't saved.
+
+### Tell the model what the bubble can show
+
+A rich message renders a specific kind of markdown, so the system prompt spells it out:
+
+```ts
+const SYSTEM_PROMPT = [
+  'Answer briefly in markdown. Use *bold*, fenced code blocks, and tables with a header row when they help.',
+  'End every answer with two or three follow-up questions, written exactly like this:',
+  ':::suggest',
+  'First question | Second question',
+  ':::',
+].join('\n')
+```
+
+- **Tables** need a header row and a `| --- |` separator row. They become real tables in the bubble.
+- **Fenced code blocks** with a language get syntax highlighting.
+- **`:::suggest`** becomes suggestion pills under the answer. Zaileys has no dedicated event for pill taps.
+
+Models answer in markdown by habit, and anything the renderer doesn't recognize stays in the text block as written. The full syntax, including images and product cards, is in [Rich responses](/messaging/rich-responses).
+
+### Answer in groups only when mentioned
+
+```ts
+client.on('text', async (msg) => {
+  if (msg.isGroup && !msg.isTagMe) return
+  const question = msg.text.replace(/@\d+/g, '').trim()
+})
+```
+
+- `msg.isTagMe` is `true` when the message mentions the bot's number.
+- The mention itself arrives in the text as `@` followed by digits, so `replace(/@\d+/g, '')` removes it before the question reaches the model.
+
+### Remember each conversation
+
+```ts
+type Turn = { role: 'user' | 'assistant'; content: string }
+
+const MAX_TURNS = 12
+const history = new Map<string, Turn[]>()
+```
+
+- History is keyed by `msg.roomId ?? msg.senderId` — the chat, so everyone in a group shares one conversation. Don't key it by `msg.chatId`: that's the ID of the message.
+- Only the last 12 turns are kept, which caps how much you send to the model on every question.
+- `/reset` deletes the chat's history. It's plain text, so it works without turning on [commands](/bots/commands).
+- The map lives in memory and empties when the process restarts.
+
+### Show "typing…" while the model thinks
+
+```ts
+const chat = msg.roomId ?? msg.senderId
+await client.presence.typing(chat, 20_000).catch(() => undefined)
+```
+
+The user sees `typing…` under the chat name while `askModel()` runs. The second argument clears it after 20 seconds, in case the model call fails. The indicator is cosmetic, so a failure to send it is ignored rather than stopping the answer.
+
+### Fall back to plain text
+
+```ts
+declare const answer: string
+
+try {
+  await msg.reply(answer, { rich: true, title: 'Sari · AI assistant' })
+} catch {
+  await msg.reply(answer)
+}
+```
+
+If the answer can't be sent as a rich message — for example, nothing in it could be rendered — the same text goes out as a normal reply. `title` is a short label shown with the message, and `footer` adds small text after the answer.
+
+## Run it
+
+```bash
+npx tsx bot.ts
+```
+
+Scan the QR code from **WhatsApp → Settings → Linked devices → Link a device**. The bot is live once the terminal prints:
+
+```text
+[zaileys] Connected as 6281234567890@s.whatsapp.net.
+```
+
+If your `askModel()` uses a provider SDK, install that package too, and pass its API key the way the provider documents — usually an environment variable.
+
+## Try it
+
+From another account, send the bot `what do you recommend?`. It shows `typing…`, then answers with a rich message. With the placeholder, that's `You asked: what do you recommend?`, a two-row table of dishes, and two suggestion pills. Send `/reset`, and it answers `Done. I forgot our conversation.`
+
+In a group with the bot, a message without a mention gets no answer. Mention the bot, as in `@Sari are you open today?`, and it answers in the group.
+
+## Make it your own
+
+### Run on the Cloud API too
+
+The Cloud API has no rich messages and no `client.presence`. Branch on the provider, and use `markRead()` to show a typing indicator there:
+
+```ts
+client.on('text', async (msg) => {
+  const onCloud = client.provider === 'cloud'
+
+  if (onCloud) await client.markRead(msg.chatId, { typing: true })
+  else await client.presence.typing(msg.roomId ?? msg.senderId, 20_000)
+
+  const answer = '*Nasi Goreng* is our best seller.'
+  await msg.reply(answer, { rich: !onCloud })
+})
+```
+
+Here `msg.chatId` is exactly right: `markRead()` takes the ID of the message to mark as read. On the Cloud API, `*bold*` and other WhatsApp formatting still show, while tables and `:::` blocks arrive as the characters the model wrote — so drop them from the system prompt there.
+
+### Cite your sources
+
+When the answer comes from pages you looked up, show them as source chips:
+
+```ts
+await msg.reply('Delivery is free within 5 km of Kuta. [](https://example.com/delivery)', {
+  rich: true,
+  title: 'Sari · AI assistant',
+  sources: [['https://example.com/favicon.ico', 'https://example.com/delivery', 'Delivery policy']],
+})
+```
+
+The `[](url)` becomes a numbered citation in the text, and each `sources` entry is a chip with an icon, a link, and a name.
+
+### Only answer a command
+
+In a busy group, answering only `/ask` keeps the bot quiet otherwise. Turn on commands and pass the arguments to the model:
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({ commandPrefix: '/' })
+
+client.command('ask', async (ctx) => {
+  const question = ctx.args.join(' ')
+  if (!question) {
+    await ctx.reply('Usage: /ask <question>')
+    return
+  }
+  const answer = `*You asked:* ${question}`
+  await ctx.reply(answer, { rich: true, title: 'Sari · AI assistant' })
+})
+```
+
+`ctx.reply()` takes the same rich options as `msg.reply()`. See [Commands](/bots/commands).
+
+### Add product cards from your catalog
+
+Let the model answer the question, then append cards built from your own data, so prices and photos are always right:
+
+```ts
+const products = [
+  { title: 'Nasi Goreng', price: 'Rp25.000', image: 'https://example.com/menu/nasi-goreng.jpg' },
+  { title: 'Mie Ayam', price: 'Rp20.000', image: 'https://example.com/menu/mie-ayam.jpg' },
+]
+
+const answer = 'Here are our most popular dishes:'
+const cards = [':::product', ...products.map((p) => `- title: ${p.title} | price: ${p.price} | image: ${p.image}`), ':::']
+
+await msg.reply([answer, '', ...cards].join('\n'), { rich: true })
+```
+
+The user sees the answer followed by a row of product cards they can swipe through. Image URLs must be public — the recipient's phone loads them.
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Which model should I use?">
+    Any model that answers in markdown works, from any provider. Zaileys never calls the model itself — it only sends whatever string `askModel()` returns.
+  </Accordion>
+  <Accordion title="Part of the answer is missing from the bubble">
+    An unclosed code fence or `:::` block swallows everything after it. Ask the model to close every block, or check the markdown before sending. [Rich responses](/messaging/rich-responses#common-questions) lists the other causes.
+  </Accordion>
+  <Accordion title="Can I stream the answer word by word?">
+    Not as one rich message — it's sent once, complete. You can send a short plain reply first and edit it as text streams in with [edit](/messaging/edit-delete-react), then send the rich version at the end.
+  </Accordion>
+  <Accordion title="How do I keep costs down?">
+    Lower `MAX_TURNS` so each request carries less history, keep answering only in private chats or on mention, and add a per-person limit like the one in [Middleware](/bots/middleware#limit-how-often-each-person-runs-commands).
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Rich responses" icon="wand-sparkles" href="/messaging/rich-responses">
+    Every block a rich message can show.
+  </Card>
+  <Card title="Typing indicators" icon="keyboard" href="/chats/presence">
+    Show typing, recording, and online status.
+  </Card>
+  <Card title="Command bot" icon="square-terminal" href="/recipes/command-bot">
+    Route `/ask`, `/help`, and other commands.
+  </Card>
+  <Card title="Message context" icon="message-square" href="/concepts/message-context">
+    Everything `msg` tells you about a message.
+  </Card>
+</CardGroup>

@@ -53,21 +53,13 @@ Media accepts a URL, a file path, or a `Buffer`. Zaileys uploads the file to Met
 Meta only lets you send **free-form** messages — anything built with `client.send()` or `msg.reply()` — within 24 hours of the customer's last message to you. This is the <Term id="service-window" />. Outside it, you can only send an approved [template](/cloud/templates).
 
 ```mermaid
-stateDiagram-v2
-  direction LR
-  [*] --> Closed
-  Closed --> Open: Customer messages you
-  Open --> Open: Customer messages again (24 hours restart)
-  Open --> Closed: 24 hours with no customer message
-  Closed --> Closed: You send a template
-  note right of Open
-    Any message works: text, media,
-    buttons, lists, templates
-  end note
-  note left of Closed
-    Templates only. Free-form
-    sends fail with Meta code 131047
-  end note
+flowchart TD
+  closed["<b>Window closed</b><br/>Templates only — free-form sends<br/>fail with Meta code 131047"]
+  open["<b>Window open</b><br/>Any message works: text, media,<br/>buttons, lists, templates"]
+  closed -->|"customer messages you"| open
+  open -->|"customer messages again:<br/>the 24 hours restart"| open
+  open -->|"24 hours with no<br/>customer message"| closed
+  closed -->|"you send a template<br/>(the window stays closed)"| closed
 ```
 
 - **A customer's message opens the window.** Every new message from them restarts the 24 hours.

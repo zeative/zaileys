@@ -275,8 +275,8 @@ There is no file-based message store. The database packages are optional: Zailey
     <ParamField body="url" type="string">
       Your deployment URL, such as `https://happy-otter-123.convex.cloud`.
     </ParamField>
-    <ParamField body="client" type="ConvexHttpClient">
-      A Convex client you created, instead of `url`.
+    <ParamField body="client" type="{ query(name, args), mutation(name, args) }">
+      An object that calls Convex functions by name, instead of `url`. Convex's own `ConvexHttpClient` works at runtime, but TypeScript rejects it because its methods expect function references rather than names — so pass `url` unless you're wrapping your own client.
     </ParamField>
     <ParamField body="namespace" type="string" default="'zaileys'">
       Partition inside the `zaileys_kv` table.

@@ -65,6 +65,7 @@ This bot replies to every text message. Pick a provider — the choice follows y
 
     const client = new Client({
       provider: 'cloud',
+      autoConnect: false,
       cloud: {
         accessToken: process.env.WA_TOKEN!,
         phoneNumberId: process.env.WA_PHONE_ID!,
@@ -72,6 +73,7 @@ This bot replies to every text message. Pick a provider — the choice follows y
         appSecret: process.env.WA_APP_SECRET!,
       },
     })
+    const ready = client.connect()
 
     client.on('text', async (msg) => {
       await msg.reply(`You said: ${msg.text}`)
@@ -79,10 +81,15 @@ This bot replies to every text message. Pick a provider — the choice follows y
 
     const webhook = client.webhook()
     export const GET = webhook
-    export const POST = webhook
+    export async function POST(request: Request) {
+      await ready
+      return webhook(request)
+    }
     ```
 
     This is a Next.js route. Meta sends every incoming message to it, so register its public URL as your webhook in the Meta dashboard ([how](/cloud/webhook)). Then message your business number: send `hi` and it answers `You said: hi`.
+
+    `await ready` makes the first message wait until Zaileys has checked your token — on serverless, a message can otherwise arrive before the client is ready.
 
   </Tab>
 </Tabs>

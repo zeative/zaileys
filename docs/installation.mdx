@@ -86,29 +86,31 @@ Zaileys saves the WhatsApp login and message history through storage adapters. T
 | Install | To use | Adapter classes |
 | --- | --- | --- |
 | Nothing | Files (the default for logins) or memory | `FileAuthStore`, `MemoryAuthStore`, `MemoryMessageStore` |
-| `better-sqlite3` | SQLite | `SqliteAuthStore`, `SqliteMessageStore` |
+| `better-sqlite3@11` | SQLite | `SqliteAuthStore`, `SqliteMessageStore` |
 | `pg` | PostgreSQL | `PostgresAuthStore`, `PostgresMessageStore` |
-| `redis` | Redis (the official `redis` v4 client, not `ioredis`) | `RedisAuthStore`, `RedisMessageStore` |
+| `redis@4` | Redis (the official `redis` client, not `ioredis`) | `RedisAuthStore`, `RedisMessageStore` |
 | `convex` | Convex | `ConvexAuthStore`, `ConvexMessageStore` |
+
+Keep the version tags: Zaileys supports `better-sqlite3` 11 and `redis` 4, and a plain `npm install redis` would pull a newer major version outside that range.
 
 For example, to keep the login in a SQLite file:
 
 <CodeGroup>
 
 ```bash npm
-npm install better-sqlite3
+npm install better-sqlite3@11
 ```
 
 ```bash pnpm
-pnpm add better-sqlite3
+pnpm add better-sqlite3@11
 ```
 
 ```bash yarn
-yarn add better-sqlite3
+yarn add better-sqlite3@11
 ```
 
 ```bash bun
-bun add better-sqlite3
+bun add better-sqlite3@11
 ```
 
 </CodeGroup>

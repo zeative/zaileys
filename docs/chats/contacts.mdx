@@ -1,9 +1,179 @@
 ---
 title: "Contacts"
-description: "Look up contacts and check which numbers are on WhatsApp."
+description: "Check whether phone numbers are on WhatsApp, and save, rename, or remove contacts on the bot's account."
 icon: "contact"
+keywords: ["check number", "is number on whatsapp", "number registered", "onWhatsApp", "validate phone number", "save contact", "add contact", "remove contact", "contact name"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/contacts](https://zeative.github.io/zaileys/contacts).
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+`client.contact` tells you whether a phone number has WhatsApp, and manages the contacts saved on the bot's account.
+
+<ProviderSupport web={true} cloud={false} note="The Cloud API has no number lookup or address book." />
+
+## Quick reference
+
+| To | Call | Resolves to |
+| --- | --- | --- |
+| Check one number | [`exists(number)`](#check-whether-a-number-is-on-whatsapp) | `true` or `false` |
+| Check a list of numbers | [`check(...numbers)`](#check-many-numbers-at-once) | The numbers that are on WhatsApp, with their JIDs |
+| Save or rename a contact | [`save(jid, name)`](#save-or-rename-a-contact) | Nothing, once saved |
+| Remove a contact | [`remove(jid)`](#remove-a-contact) | Nothing, once removed |
+| Look up a synced contact | [`client.store.getContact(jid)`](#look-up-a-saved-contact) | Their saved name and the name they set |
+
+These methods need a live connection, so call them from a handler or the `connect` event. Before the client has a connection, they throw `NOT_CONNECTED`.
+
+## Check whether a number is on WhatsApp
+
+```ts
+const number = '6281234567890'
+
+if (await client.contact.exists(number)) {
+  await client.send(`${number}@s.whatsapp.net`).text('Hi Budi, your order is ready for pickup!')
+} else {
+  console.log(`${number} is not on WhatsApp`)
+}
+```
+
+Write the number in international format: country code first, digits only. A local number like `0812-3456-7890` has to become `6281234567890` first.
+
+<ParamField body="number" type="string" required>
+  A phone number with country code — `6281234567890` or `+6281234567890` — or a <Term id="jid" /> like `6281234567890@s.whatsapp.net`. Remove spaces and dashes first. A <Term id="lid" /> can't be checked, so `exists()` returns `false` for one.
+</ParamField>
+
+## Check many numbers at once
+
+`check()` looks up a whole list in one request:
+
+```ts
+const numbers = ['6281234567890', '6289876543210', '6285550001111']
+
+const registered = await client.contact.check(...numbers)
+const found = new Set(registered.map((r) => r.jid))
+const missing = numbers.filter((n) => !found.has(`${n}@s.whatsapp.net`))
+
+console.log(registered) // [{ jid: '6281234567890@s.whatsapp.net', exists: true }, …]
+console.log(missing)    // the numbers that aren't on WhatsApp
+```
+
+Only numbers that are on WhatsApp come back. The others are left out, not returned with `exists: false` — compare against your input to find them, as above.
+
+Each result has:
+
+<ResponseField name="jid" type="string">
+  The number's JID, such as `6281234567890@s.whatsapp.net`. Send to this.
+</ResponseField>
+<ResponseField name="exists" type="boolean">
+  Always `true`, since only numbers on WhatsApp are returned.
+</ResponseField>
+<ResponseField name="lid" type="string">
+  The person's LID. It's part of the type, but the current WhatsApp Web connection doesn't return it, so expect it to be missing.
+</ResponseField>
+
+Planning to message everyone on a list? Filter it with `check()` first, then send with [`client.broadcast()`](/bots/broadcast-and-schedule), which spaces the messages out for you.
+
+## Save or rename a contact
+
+```ts
+await client.contact.save('6281234567890', {
+  firstName: 'Budi',
+  lastName: 'Santoso',
+  fullName: 'Budi Santoso',
+})
+```
+
+This saves the number as a contact on the bot's WhatsApp account — the same as adding a contact from inside WhatsApp. Call it again with a different name to rename the contact.
+
+A value without `@` is turned into a JID for you: every character that isn't a digit is removed, then `@s.whatsapp.net` is added. So `'+62 812-3456-7890'` works here too.
+
+<ParamField body="jid" type="string" required>
+  The contact's phone number or JID.
+</ParamField>
+<ParamField body="name" type="{ firstName?: string; lastName?: string; fullName?: string }" required>
+  The name to save. Set any of the three fields.
+</ParamField>
+
+## Remove a contact
+
+```ts
+await client.contact.remove('6281234567890')
+```
+
+The number is no longer saved as a contact on the bot's account. It accepts a number or a JID, cleaned up the same way as `save()`.
+
+<ParamField body="jid" type="string" required>
+  The contact's phone number or JID.
+</ParamField>
+
+## Look up a saved contact
+
+The contacts WhatsApp syncs to the bot are kept in `client.store`:
+
+```ts
+const contact = await client.store.getContact('6281234567890@s.whatsapp.net')
+
+console.log(contact?.name)   // the name saved on the bot's account
+console.log(contact?.notify) // the name they set for themselves
+```
+
+`client.store.listContacts()` returns all of them. The default store lives in memory and starts empty after every restart — see [Storage](/data/storage) to keep it.
+
+For the person who sent a message, you don't need a lookup: `msg.senderName` already holds the name they set for themselves.
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="check() returned fewer results than the numbers I passed">
+    That's expected. Only numbers that are on WhatsApp come back — find the rest by comparing with your input, as shown in [Check many numbers at once](#check-many-numbers-at-once).
+  </Accordion>
+  <Accordion title="exists() says false for a number I know is on WhatsApp">
+    Check the format. The number needs its country code and no spaces, dashes, or leading `0`: `0812-3456-7890` becomes `6281234567890`. `number.replace(/\D/g, '')` strips everything that isn't a digit.
+  </Accordion>
+  <Accordion title="Can I check numbers on the Cloud API?">
+    No. The Cloud API has no lookup, and `client.contact` throws `UNSUPPORTED_ON_CLOUD` there.
+  </Accordion>
+  <Accordion title="What's the difference between a number and a JID?">
+    A JID is the full WhatsApp address of a chat, like `6281234567890@s.whatsapp.net`. [Addresses & JIDs](/concepts/jids) explains every kind.
+  </Accordion>
+</AccordionGroup>
+
+## When a call fails
+
+| Error | What went wrong | How to fix it |
+| --- | --- | --- |
+| `UNSUPPORTED_ON_CLOUD` | You used `client.contact` with `provider: 'cloud'`. | Contacts are WhatsApp Web only. Switch the provider, or drop the lookup. |
+| `NOT_CONNECTED` | The client had no connection yet. | Call contact methods inside a handler or the `connect` event. |
+
+`NOT_CONNECTED` comes from `ZaileysDomainError`:
+
+```ts
+import { ZaileysDomainError } from 'zaileys'
+
+try {
+  await client.contact.exists('6281234567890')
+} catch (error) {
+  if (error instanceof ZaileysDomainError && error.code === 'NOT_CONNECTED') {
+    console.error('Connect before checking numbers')
+  }
+}
+```
+
+More in [Error handling](/data/error-handling).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Broadcast & schedule" icon="megaphone" href="/bots/broadcast-and-schedule">
+    Message a checked list of numbers without getting flagged.
+  </Card>
+  <Card title="Privacy & blocking" icon="shield" href="/chats/privacy">
+    Block numbers and manage the block list.
+  </Card>
+  <Card title="Profile" icon="user" href="/chats/profile">
+    Read someone's profile picture and about text.
+  </Card>
+  <Card title="Addresses & JIDs" icon="at-sign" href="/concepts/jids">
+    Phone numbers, JIDs, and LIDs explained.
+  </Card>
+</CardGroup>

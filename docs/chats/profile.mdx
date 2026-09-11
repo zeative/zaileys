@@ -1,9 +1,228 @@
 ---
 title: "Profile"
-description: "Read and update profile names, pictures, and status."
+description: "Change the bot's name, about text, and profile picture, and read the picture or about text of any person or group."
 icon: "user"
+keywords: ["profile picture", "change profile photo", "avatar", "display name", "push name", "about", "status text", "group picture", "get profile picture url"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/profile](https://zeative.github.io/zaileys/profile).
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+`client.profile` changes how the bot's account looks to other people, and reads other people's pictures and about text.
+
+<ProviderSupport web={true} cloud={false} note="On the Cloud API, edit the business profile with client.cloud.profile instead." />
+
+## Quick reference
+
+| To | Call | What happens |
+| --- | --- | --- |
+| Change the bot's name | [`setName(name)`](#change-the-display-name) | People who haven't saved the number see the new name |
+| Change the about text | [`setStatus(text)`](#change-the-about-text) | The text on the bot's profile changes |
+| Change the bot's or a group's picture | [`setPicture(jid, image)`](#change-the-profile-picture) | The new picture shows wherever the account or group appears |
+| Remove a picture | [`removePicture(jid)`](#remove-the-profile-picture) | The default avatar comes back |
+| Get someone's picture | [`getPicture(jid, hd?)`](#get-someones-profile-picture) | Resolves to a link to the image |
+| Read someone's about text | [`getStatus(jid)`](#read-someones-about-text) | Resolves to their about text and when they set it |
+
+Every method needs a live connection, so call them from a handler or the `connect` event. Before the client has a connection, they throw `NOT_CONNECTED`.
+
+## Change the display name
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client()
+
+client.on('connect', async () => {
+  await client.profile.setName('Kopi Senja Bot')
+})
+```
+
+People who haven't saved the bot's number see this name next to its messages, for example in groups. People who saved the number keep seeing the name they saved it under.
+
+<ParamField body="name" type="string" required>
+  The new display name.
+</ParamField>
+
+## Change the about text
+
+```ts
+await client.profile.setStatus('Open 08:00–22:00 · Type menu to order')
+```
+
+People see it when they open the bot's profile.
+
+<ParamField body="status" type="string" required>
+  The new about text.
+</ParamField>
+
+## Change the profile picture
+
+Pass the account's own <Term id="jid" /> — `me.id` from the `connect` event — and the image:
+
+```ts bot.ts
+import { readFile } from 'node:fs/promises'
+import { Client } from 'zaileys'
+
+const client = new Client()
+
+client.on('connect', async ({ me }) => {
+  await client.profile.setPicture(me.id, await readFile('./brand/avatar.jpg'))
+})
+```
+
+To change a group's picture, pass the group's JID instead. The bot needs permission to edit the group's info, which usually means being an admin:
+
+```ts
+await client.profile.setPicture('120363025246125888@g.us', { url: 'https://example.com/team-logo.png' })
+```
+
+The image is scaled to 640 × 640 pixels and saved as a JPEG, so use a square image — a rectangular one gets cropped.
+
+<ParamField body="jid" type="string" required>
+  The bot's own JID, or a group JID to change that group's picture.
+</ParamField>
+<ParamField body="image" type="Buffer | { url: string | URL } | { stream: Readable }" required>
+  The picture. A `url` can be a web address or a path to a file on disk. A plain string isn't accepted — wrap a path as `{ url: './avatar.jpg' }`.
+</ParamField>
+
+## Remove the profile picture
+
+```ts
+client.on('connect', async ({ me }) => {
+  await client.profile.removePicture(me.id)
+})
+```
+
+Everyone sees the default avatar again. Pass a group JID to remove that group's picture.
+
+<ParamField body="jid" type="string" required>
+  The bot's own JID, or a group JID.
+</ParamField>
+
+## Get someone's profile picture
+
+This bot sends people their own profile picture when they type `my photo`:
+
+```ts
+client.on('text', async (msg) => {
+  if (msg.text !== 'my photo') return
+
+  try {
+    const url = await client.profile.getPicture(msg.senderId, true)
+    if (url) await client.send(msg.roomId ?? msg.senderId).image(url, { caption: 'Your current profile picture' })
+  } catch {
+    await msg.reply("I can't see your profile picture.")
+  }
+})
+```
+
+The call resolves to a link to the image on WhatsApp's servers. It **rejects** when the account has no picture, or when its privacy settings hide the picture from the bot — so always wrap it in `try`/`catch`. It resolves to `null` only when WhatsApp answers without a link.
+
+<ParamField body="jid" type="string" required>
+  The person's or group's JID.
+</ParamField>
+<ParamField body="hd" type="boolean" default="false">
+  `true` returns the full-size picture. `false` returns a small preview.
+</ParamField>
+
+## Read someone's about text
+
+```ts
+type StatusEntry = { id: string; status?: { status: string | null; setAt: Date } }
+
+const [entry] = ((await client.profile.getStatus('6281234567890@s.whatsapp.net')) ?? []) as StatusEntry[]
+
+console.log(entry?.status?.status)
+console.log(entry?.status?.setAt)
+```
+
+`getStatus()` is typed `unknown` because Zaileys passes WhatsApp's answer through unchanged. That answer is a list with one entry per JID:
+
+<ResponseField name="id" type="string">
+  The JID you asked about.
+</ResponseField>
+<ResponseField name="status.status" type="string | null">
+  The about text. An empty string when their privacy settings hide it from the bot, and `null` when they have none.
+</ResponseField>
+<ResponseField name="status.setAt" type="Date">
+  When they set it.
+</ResponseField>
+
+## On the Cloud API
+
+`client.profile` throws `UNSUPPORTED_ON_CLOUD` on the Official provider. A Cloud API number has a business profile instead, which you read and update with `client.cloud.profile`:
+
+```ts
+await client.cloud.profile.update({
+  about: 'Open 08:00–22:00',
+  email: 'hello@kopisenja.id',
+  websites: ['https://kopisenja.id'],
+})
+
+const profile = await client.cloud.profile.get()
+console.log(profile.about)
+```
+
+Every field is covered in [Business on the Cloud API](/cloud/business).
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="I changed the name, but my test phone still shows the old one">
+    If your test phone has the bot's number saved as a contact, WhatsApp shows the saved name, not the one you set. Check from a phone that hasn't saved the number, or look at the bot's messages in a group.
+  </Accordion>
+  <Accordion title="Can I change another person's name or picture?">
+    No. `setName()` and `setStatus()` only change the bot's own account, and `setPicture()` works for the bot's own account and for groups it's allowed to edit.
+  </Accordion>
+  <Accordion title="Why doesn't setPicture() take a file path string like send().image() does?">
+    Profile pictures go through WhatsApp Web's own upload helper, which takes a `Buffer`, a stream, or `{ url }`. Wrap the path: `client.profile.setPicture(me.id, { url: './avatar.jpg' })`.
+  </Accordion>
+  <Accordion title="Where do I get the bot's own JID?">
+    From the `connect` event: `client.on('connect', ({ me }) => console.log(me.id))`.
+  </Accordion>
+</AccordionGroup>
+
+## When a call fails
+
+| Error | What went wrong | How to fix it |
+| --- | --- | --- |
+| `UNSUPPORTED_ON_CLOUD` | You used `client.profile` with `provider: 'cloud'`. | Use [`client.cloud.profile`](#on-the-cloud-api) for the business profile. |
+| `NOT_CONNECTED` | The client had no connection yet. | Call profile methods inside a handler or the `connect` event. |
+| A WhatsApp error with no `code` | WhatsApp refused the request — for example, `getPicture()` for someone with no picture, or `setPicture()` on a group the bot can't edit. | Catch it, and check the bot's permissions in the group. |
+
+`UNSUPPORTED_ON_CLOUD` comes from `ZaileysProviderError`, and `NOT_CONNECTED` from `ZaileysDomainError`:
+
+```ts
+import { ZaileysDomainError, ZaileysProviderError } from 'zaileys'
+
+try {
+  await client.profile.setName('Kopi Senja Bot')
+} catch (error) {
+  if (error instanceof ZaileysProviderError) {
+    console.error('Profiles need the Unofficial provider:', error.message)
+  } else if (error instanceof ZaileysDomainError && error.code === 'NOT_CONNECTED') {
+    console.error('Not connected yet')
+  } else {
+    throw error
+  }
+}
+```
+
+More in [Error handling](/data/error-handling).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Privacy & blocking" icon="shield" href="/chats/privacy">
+    Choose who sees the bot's photo, about text, and last seen.
+  </Card>
+  <Card title="Presence" icon="eye" href="/chats/presence">
+    Show "typing…" and "online" from your bot.
+  </Card>
+  <Card title="Contacts" icon="contact" href="/chats/contacts">
+    Check which numbers are on WhatsApp.
+  </Card>
+  <Card title="Groups" icon="users" href="/groups/groups">
+    Create groups and change their name and settings.
+  </Card>
+</CardGroup>

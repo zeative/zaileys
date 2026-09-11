@@ -1,9 +1,255 @@
 ---
 title: "Privacy & blocking"
-description: "Manage privacy settings and block or unblock contacts."
+description: "Block and unblock contacts, and control who sees the bot's last seen, photo, and about text, and who can add it to groups or call it."
 icon: "shield"
+keywords: ["block", "unblock", "blocklist", "block contact", "block spam", "privacy settings", "last seen", "read receipts", "blue ticks", "who can add me to groups", "silence unknown callers", "disappearing messages"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/privacy](https://zeative.github.io/zaileys/privacy).
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+`client.privacy` manages the bot's block list and changes its privacy settings — the options under **Settings → Privacy** in WhatsApp.
+
+<ProviderSupport web={true} cloud="partial" note="On the Cloud API, blocking works through client.cloud.blocklist. Privacy settings don't exist there." />
+
+## Quick reference
+
+| To | Call | What happens |
+| --- | --- | --- |
+| Block someone | [`block(jid)`](#block-a-contact) | They can no longer message or call the bot |
+| Unblock someone | [`unblock(jid)`](#unblock-a-contact) | They can reach the bot again |
+| See who's blocked | [`blocklist()`](#see-who-is-blocked) | Resolves to their JIDs |
+| Change privacy settings | [`set({ … })`](#change-privacy-settings) | Only the settings you pass change |
+| Read the current settings | [`get()`](#read-the-current-settings) | Resolves to WhatsApp's current values |
+| Only let contacts call | [`call('known')`](#only-let-contacts-call-the-bot) | Calls from unknown numbers are silenced |
+| Make new chats disappear | [`disappearingMode(seconds)`](#turn-on-disappearing-messages-for-new-chats) | New chats start with a disappearing timer |
+
+These methods need a live connection, so call them from a handler or the `connect` event. Before the client has a connection, they throw `NOT_CONNECTED`.
+
+## Block a contact
+
+<Tabs>
+  <Tab title="Unofficial">
+
+    This bot blocks anyone who sends it a typical spam message in a direct chat:
+
+    ```ts
+    client.on('text', async (msg) => {
+      if (!msg.isGroup && /free crypto|claim your prize/i.test(msg.text)) {
+        await client.privacy.block(msg.senderId)
+      }
+    })
+    ```
+
+    WhatsApp doesn't tell the person. From then on, they can't message or call the bot.
+
+    Pass a full <Term id="jid" />, such as `6281234567890@s.whatsapp.net`, or a <Term id="lid" />. A bare number rejects with `Invalid jid: 6281234567890`.
+
+    Before blocking, WhatsApp Web looks up the person's LID. If it doesn't know it yet — typically for a number the bot has never chatted with — the call rejects with `Unable to resolve LID for PN JID: …`. Blocking from inside a message handler, as above, avoids that.
+
+    <ParamField body="jid" type="string" required>
+      The person to block, as a phone-number JID or a LID.
+    </ParamField>
+
+  </Tab>
+  <Tab title="Official">
+
+    ```ts
+    await client.cloud.blocklist.add(['6281234567890', '6289876543210'])
+    ```
+
+    Pass phone numbers with their country code. You can block several in one call. More in [Business on the Cloud API](/cloud/business).
+
+  </Tab>
+</Tabs>
+
+## Unblock a contact
+
+<Tabs>
+  <Tab title="Unofficial">
+
+    ```ts
+    await client.privacy.unblock('6281234567890@s.whatsapp.net')
+    ```
+
+    The person can message and call the bot again. The same JID rules as `block()` apply.
+
+  </Tab>
+  <Tab title="Official">
+
+    ```ts
+    await client.cloud.blocklist.remove(['6281234567890'])
+    ```
+
+  </Tab>
+</Tabs>
+
+## See who is blocked
+
+<Tabs>
+  <Tab title="Unofficial">
+
+    ```ts
+    const blocked = await client.privacy.blocklist()
+
+    console.log(`${blocked.length} blocked`)
+    ```
+
+    Resolves to an array of JIDs. Entries may be LIDs (`…@lid`) rather than phone-number JIDs, so don't rely on `blocked.includes('6281234567890@s.whatsapp.net')` to find someone.
+
+  </Tab>
+  <Tab title="Official">
+
+    ```ts
+    const blocked = await client.cloud.blocklist.list()
+
+    console.log(blocked) // [{ wa_id: '6281234567890' }, …]
+    ```
+
+  </Tab>
+</Tabs>
+
+## Change privacy settings
+
+```ts
+await client.privacy.set({
+  lastSeen: 'contacts',
+  online: 'match_last_seen',
+  profile: 'contacts',
+  status: 'contacts',
+  readReceipts: 'none',
+  groupAdd: 'contacts',
+  call: 'known',
+})
+```
+
+Only the settings you pass change. Each one is its own request to WhatsApp, sent in the order listed below — so if one fails, the ones before it are already applied.
+
+Most settings take one of these values, matching the choices in WhatsApp:
+
+| Value | In WhatsApp |
+| --- | --- |
+| `'all'` | Everyone |
+| `'contacts'` | My contacts |
+| `'contact_blacklist'` | My contacts except… (you manage the "except" list in the WhatsApp app) |
+| `'none'` | Nobody |
+
+<ParamField body="lastSeen" type="'all' | 'contacts' | 'contact_blacklist' | 'none'">
+  Who sees when the bot was last online.
+</ParamField>
+<ParamField body="online" type="'all' | 'match_last_seen'">
+  Who sees that the bot is online right now. `'match_last_seen'` means the same people as `lastSeen`.
+</ParamField>
+<ParamField body="profile" type="'all' | 'contacts' | 'contact_blacklist' | 'none'">
+  Who sees the profile photo.
+</ParamField>
+<ParamField body="status" type="'all' | 'contacts' | 'contact_blacklist' | 'none'">
+  Who sees the about text.
+</ParamField>
+<ParamField body="readReceipts" type="'all' | 'none'">
+  Whether the bot sends read receipts (blue ticks): `'all'` turns them on, `'none'` turns them off.
+</ParamField>
+<ParamField body="groupAdd" type="'all' | 'contacts' | 'contact_blacklist'">
+  Who can add the bot to groups.
+</ParamField>
+<ParamField body="call" type="'all' | 'known'">
+  Who can call the bot. `'known'` silences calls from numbers that aren't in its contacts.
+</ParamField>
+
+## Read the current settings
+
+```ts
+const settings = await client.privacy.get()
+
+console.log(settings)
+```
+
+Resolves to a plain object of strings, keyed by WhatsApp's own category names. They don't all match the `set()` field names, so log it once to see them.
+
+<Warning>
+  `get()` asks WhatsApp once per connection and then returns the saved answer. After `set()`, it keeps returning the old values until the bot reconnects — keep track of what you set instead of reading it back.
+</Warning>
+
+## Only let contacts call the bot
+
+```ts
+await client.privacy.call('known')
+```
+
+WhatsApp silences calls from numbers that aren't in the bot's contacts. This is the same as `set({ call: 'known' })`.
+
+To hang up on calls automatically instead, use the `autoRejectCall` option — see [Client options](/reference/client-options).
+
+<ParamField body="value" type="'all' | 'known'" required>
+  `'all'` lets anyone call. `'known'` silences unknown numbers.
+</ParamField>
+
+## Turn on disappearing messages for new chats
+
+```ts
+await client.privacy.disappearingMode(7 * 24 * 60 * 60) // 7 days
+```
+
+Every new chat starts with a 7-day timer, so its messages disappear 7 days after they're sent. Chats that already exist keep their setting — change one of those with `client.setDisappearing(jid, seconds)`.
+
+<ParamField body="seconds" type="number" required>
+  The timer, in seconds. WhatsApp's own choices are `86400` (24 hours), `604800` (7 days), and `7776000` (90 days). `0` turns it off.
+</ParamField>
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="get() still shows the old setting after I called set()">
+    `get()` returns the answer it saved when it first asked WhatsApp on this connection. Your change did go through — the new values show after the bot reconnects.
+  </Accordion>
+  <Accordion title="Does the person find out they're blocked?">
+    WhatsApp doesn't send them a notice. They just can't reach the bot anymore.
+  </Accordion>
+  <Accordion title="Can I block a group?">
+    No. `block()` only takes a person's JID, and a group JID rejects with `Invalid jid`. To get out of a group, leave it — see [Groups](/groups/groups).
+  </Accordion>
+  <Accordion title="How do I stop strangers adding the bot to groups?">
+    Set `client.privacy.set({ groupAdd: 'contacts' })`. People who aren't in the bot's contacts then have to invite it instead of adding it.
+  </Accordion>
+</AccordionGroup>
+
+## When a call fails
+
+| Error | What went wrong | How to fix it |
+| --- | --- | --- |
+| `UNSUPPORTED_ON_CLOUD` | You used `client.privacy` with `provider: 'cloud'`. | Block with [`client.cloud.blocklist`](#block-a-contact). Privacy settings don't exist on the Cloud API. |
+| `NOT_CONNECTED` | The client had no connection yet. | Call privacy methods inside a handler or the `connect` event. |
+| `Invalid jid: …` (no `code`) | `block()` or `unblock()` got a bare number or a group JID. | Pass a person's JID, such as `6281234567890@s.whatsapp.net`. |
+| `Unable to resolve LID for PN JID: …` (no `code`) | WhatsApp Web doesn't know this person's LID yet. | Block them from a message handler after they've written to the bot. |
+
+`NOT_CONNECTED` comes from `ZaileysDomainError`; the last two are WhatsApp Web's own errors:
+
+```ts
+import { ZaileysDomainError } from 'zaileys'
+
+try {
+  await client.privacy.block('6281234567890@s.whatsapp.net')
+} catch (error) {
+  if (error instanceof ZaileysDomainError) console.error(error.code, error.message)
+  else console.error('WhatsApp refused:', (error as Error).message)
+}
+```
+
+More in [Error handling](/data/error-handling).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Profile" icon="user" href="/chats/profile">
+    Change the name, photo, and about text people see.
+  </Card>
+  <Card title="Contacts" icon="contact" href="/chats/contacts">
+    Check numbers and save contacts — handy with `call: 'known'`.
+  </Card>
+  <Card title="Client options" icon="sliders-horizontal" href="/reference/client-options">
+    Turn on `autoRejectCall` to hang up on calls.
+  </Card>
+  <Card title="Error handling" icon="triangle-alert" href="/data/error-handling">
+    Catch and handle every Zaileys error.
+  </Card>
+</CardGroup>

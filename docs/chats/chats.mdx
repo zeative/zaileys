@@ -1,9 +1,313 @@
 ---
 title: "Chats"
-description: "Archive, pin, mute, mark as read, and manage chats."
+description: "Archive, pin, mute, mark as read, star, clear, and delete chats on the bot's account, and fetch older messages."
 icon: "messages-square"
+keywords: ["archive chat", "pin chat", "mute chat", "unmute", "mark as read", "mark as unread", "read receipts", "blue ticks", "star message", "clear chat", "delete chat", "fetch history", "older messages"]
 ---
 
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+`client.chat` changes chats in the bot's own chat list — the same things you do by long-pressing a chat in WhatsApp.
+
+<ProviderSupport web={true} cloud="partial" note="On the Cloud API, only marking a message as read exists, with client.markRead()." />
+
+These changes apply to the bot's account only, and sync to its phone and linked devices. The other person never sees that you archived, pinned, muted, or cleared the chat.
+
+## Quick reference
+
+| To | Call | What happens on the bot's account |
+| --- | --- | --- |
+| Archive a chat | [`archive(jid)`](#archive-a-chat) | The chat moves to **Archived** |
+| Bring it back | [`unarchive(jid)`](#archive-a-chat) | The chat returns to the main list |
+| Pin a chat | [`pin(jid)` / `unpin(jid)`](#pin-a-chat) | The chat stays at the top of the list |
+| Mute a chat | [`mute(jid, durationMs?)`](#mute-a-chat-for-8-hours) | No notifications for that chat |
+| Unmute a chat | [`unmute(jid)`](#mute-a-chat-for-8-hours) | Notifications come back |
+| Mark a chat as read | [`markRead(jid)`](#mark-a-chat-as-read) | The unread badge clears |
+| Mark a chat as unread | [`markUnread(jid)`](#mark-a-chat-as-unread) | The chat shows as unread |
+| Star a message | [`star(key)` / `unstar(key)`](#star-a-message) | The message appears in **Starred messages** |
+| Empty a chat | [`clear(jid)`](#clear-or-delete-a-chat) | The messages go, the chat stays |
+| Delete a chat | [`delete(jid)`](#clear-or-delete-a-chat) | The chat disappears from the list |
+| Fetch older messages | [`fetchHistory(count, oldest, timestamp)`](#fetch-older-messages) | WhatsApp sends messages from before the oldest one you have |
+
+These methods need a live connection, so call them from a handler or the `connect` event. Before the client has a connection, they throw `NOT_CONNECTED`.
+
 <Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/chat](https://zeative.github.io/zaileys/chat).
+  `archive()`, `unarchive()`, `markRead()`, `markUnread()`, `clear()`, and `delete()` tell WhatsApp which message the chat ends at. Zaileys reads the chat's newest message from `client.store`, where the messages the bot receives and sends are saved. When the store has nothing for that chat, `markRead()` and `markUnread()` do nothing at all, and the others are sent without it — WhatsApp may then not apply them. The default store lives in memory and is empty after every restart, so use a persistent one for older chats — see [Storage](/data/storage).
 </Note>
+
+## Archive a chat
+
+When a customer says `done`, this bot thanks them and archives the chat:
+
+```ts
+client.on('text', async (msg) => {
+  if (msg.text.toLowerCase() !== 'done') return
+
+  await msg.reply('Thanks for shopping with Kopi Senja! Message us anytime.')
+  await client.chat.archive(msg.roomId ?? msg.senderId)
+})
+```
+
+The customer sees only the reply. On the bot's phone, the chat moves to **Archived**. `msg.roomId ?? msg.senderId` is the chat the message came from — the group, or the person in a direct chat.
+
+Bring a chat back to the main list:
+
+```ts
+await client.chat.unarchive('6281234567890@s.whatsapp.net')
+```
+
+<ParamField body="jid" type="string" required>
+  The chat's <Term id="jid" /> — a person's or a group's.
+</ParamField>
+
+## Pin a chat
+
+```ts
+await client.chat.pin('6281234567890@s.whatsapp.net')
+await client.chat.unpin('6281234567890@s.whatsapp.net')
+```
+
+A pinned chat stays at the top of the bot's chat list. This pins the whole chat for the bot only — to pin a single message for everyone in a chat, use `client.pin(key)` from [Edit, delete & react](/messaging/edit-delete-react).
+
+<ParamField body="jid" type="string" required>
+  The chat to pin or unpin.
+</ParamField>
+
+## Mute a chat for 8 hours
+
+```ts
+const EIGHT_HOURS = 8 * 60 * 60 * 1000
+const group = '120363025246125888@g.us'
+
+await client.chat.mute(group, EIGHT_HOURS)
+```
+
+The bot's phone stops notifying about new messages in that group. Leave the duration out to keep it muted until you unmute it:
+
+```ts
+const group = '120363025246125888@g.us'
+
+await client.chat.mute(group)
+await client.chat.unmute(group)
+```
+
+<ParamField body="jid" type="string" required>
+  The chat to mute or unmute.
+</ParamField>
+<ParamField body="durationMs" type="number">
+  How long to mute, in milliseconds. Leave it out to keep the chat muted until you call `unmute()`.
+</ParamField>
+
+## Mark a chat as read
+
+<Tabs>
+  <Tab title="Unofficial">
+
+    ```ts
+    client.on('text', async (msg) => {
+      await client.chat.markRead(msg.roomId ?? msg.senderId)
+    })
+    ```
+
+    The chat's unread badge clears on the bot's phone and linked devices.
+
+    `markRead()` changes the chat's read state on the bot's account. To send read receipts — the blue ticks the sender sees — for particular messages, pass their keys to `readMessages()` on the underlying WhatsApp Web connection:
+
+    ```ts
+    client.on('text', async (msg) => {
+      await client.socket?.readMessages([msg.message().key])
+    })
+    ```
+
+    Blue ticks only appear when the bot's `readReceipts` privacy setting is on — see [Privacy & blocking](/chats/privacy#change-privacy-settings).
+
+    <ParamField body="jid" type="string" required>
+      The chat to mark.
+    </ParamField>
+
+  </Tab>
+  <Tab title="Official">
+
+    ```ts
+    client.on('text', async (msg) => {
+      await client.markRead(msg.chatId)
+    })
+    ```
+
+    The sender sees blue ticks on their message. `msg.chatId` is the incoming message's id — not the chat — which is what `markRead()` needs here.
+
+    <ParamField body="messageId" type="string" required>
+      The id of the incoming message. Inside a handler, that's `msg.chatId`.
+    </ParamField>
+    <ParamField body="typing" type="boolean" default="false">
+      Also show "typing…" in the chat. See [Presence](/chats/presence#show-typing-before-you-reply).
+    </ParamField>
+
+  </Tab>
+</Tabs>
+
+## Mark a chat as unread
+
+Marking a chat unread flags it for a person to follow up:
+
+```ts
+client.on('text', async (msg) => {
+  if (!/speak to a human|talk to an agent/i.test(msg.text)) return
+
+  await msg.reply('Got it — someone from our team will reply soon.')
+  await client.chat.markUnread(msg.roomId ?? msg.senderId)
+})
+```
+
+The customer sees the reply. On the bot's phone, the chat shows as unread, so whoever checks it next knows it needs attention.
+
+<ParamField body="jid" type="string" required>
+  The chat to mark.
+</ParamField>
+
+## Star a message
+
+```ts
+client.on('text', async (msg) => {
+  if (msg.text.toLowerCase().includes('complaint')) {
+    await client.chat.star(msg.message().key)
+  }
+})
+```
+
+The message shows up in **Starred messages** on the bot's phone. Messages the bot sends can be starred too — `send()` resolves to the message's key:
+
+```ts
+const key = await client.send(jid).text('Invoice #0042 is paid. Thank you!')
+
+await client.chat.star(key)
+await client.chat.unstar(key)
+```
+
+`unstar(key)` is the same as `star(key, false)`.
+
+<ParamField body="key" type="WAMessageKey" required>
+  The message's key: `msg.message().key` for a message you received, or what `send()` resolved to. It must include `remoteJid`, or the call rejects with `OPERATION_FAILED`.
+</ParamField>
+<ParamField body="starred" type="boolean" default="true">
+  `false` removes the star.
+</ParamField>
+
+## Clear or delete a chat
+
+```ts
+await client.chat.clear('6281234567890@s.whatsapp.net')
+await client.chat.delete('6281234567890@s.whatsapp.net')
+```
+
+- **`clear()`** removes the chat's messages on the bot's account, but keeps the chat in the list.
+- **`delete()`** removes the chat from the bot's list.
+
+Both only affect the bot's account — the other person keeps their copy. The copies in `client.store` aren't touched. To delete one message for everyone, use `client.delete(key)` from [Edit, delete & react](/messaging/edit-delete-react).
+
+<Warning>
+  WhatsApp can't undo a cleared or deleted chat.
+</Warning>
+
+<ParamField body="jid" type="string" required>
+  The chat to clear or delete.
+</ParamField>
+
+## Fetch older messages
+
+Zaileys links without downloading the account's full message history. To backfill a chat, ask WhatsApp for the messages before the oldest one you have:
+
+```ts
+const chat = '6281234567890@s.whatsapp.net'
+const stored = await client.store.listMessages(chat)
+const oldest = stored.at(-1)
+
+if (oldest) {
+  const requestId = await client.chat.fetchHistory(50, oldest.key, Number(String(oldest.messageTimestamp)))
+  console.log('Requested older messages:', requestId)
+}
+```
+
+`listMessages()` returns the newest message first, so the oldest one is last.
+
+`fetchHistory()` only sends the request and resolves to its id — the messages arrive later. Zaileys doesn't turn them into `message` events or save them to the store, so read them from the `messaging-history.set` event of the underlying WhatsApp Web connection:
+
+```ts
+client.on('connect', () => {
+  client.socket?.ev.on('messaging-history.set', ({ messages }) => {
+    console.log(`Received ${messages.length} older messages`)
+  })
+})
+```
+
+Zaileys' own `history-sync` event only reports that a sync phase finished (`status` is `'complete'` or `'paused'`). It doesn't carry messages.
+
+<ParamField body="count" type="number" required>
+  How many older messages to ask for.
+</ParamField>
+<ParamField body="oldest" type="WAMessageKey" required>
+  The key of the oldest message you have. It must include `remoteJid`, or the call rejects with `OPERATION_FAILED`.
+</ParamField>
+<ParamField body="oldestTimestamp" type="number" required>
+  That message's timestamp, in seconds.
+</ParamField>
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Does the other person see that I archived, pinned, or muted the chat?">
+    No. All of these only change the bot's own chat list.
+  </Accordion>
+  <Accordion title="markRead() didn't do anything">
+    The store had no messages for that chat, which happens after a restart with the default in-memory store. It works for messages that arrived while the bot was running, or with a persistent [store](/data/storage).
+  </Accordion>
+  <Accordion title="Does markRead() send blue ticks?">
+    It changes the chat's read state on the bot's account. To send read receipts for specific messages on WhatsApp Web, use `client.socket?.readMessages([key])`, as shown in [Mark a chat as read](#mark-a-chat-as-read). On the Cloud API, `client.markRead(msg.chatId)` sends them.
+  </Accordion>
+  <Accordion title="How do I pin or delete one message instead of the whole chat?">
+    Use `client.pin(key)` and `client.delete(key)` — see [Edit, delete & react](/messaging/edit-delete-react).
+  </Accordion>
+</AccordionGroup>
+
+## When a call fails
+
+| Error | What went wrong | How to fix it |
+| --- | --- | --- |
+| `NOT_CONNECTED` | The client had no connection yet. | Call chat methods inside a handler or the `connect` event. |
+| `OPERATION_FAILED` | `star()`, `unstar()`, or `fetchHistory()` got a key without `remoteJid` — `message key is missing remoteJid`. | Use `msg.message().key`, or the key `send()` resolved to. |
+| `UNSUPPORTED_ON_CLOUD` | You used `client.chat` with `provider: 'cloud'`. | Mark messages read with [`client.markRead(msg.chatId)`](#mark-a-chat-as-read). The rest has no Cloud API equivalent. |
+| `CONFIG` | You called `client.markRead()` on the Unofficial provider — `markRead(messageId) is only available on the cloud provider`. | Use `client.chat.markRead(jid)`. |
+
+`NOT_CONNECTED` and `OPERATION_FAILED` come from `ZaileysDomainError`:
+
+```ts
+import { ZaileysDomainError } from 'zaileys'
+
+try {
+  await client.chat.star({ id: '3EB0C431C26A1916E3F1' })
+} catch (error) {
+  if (error instanceof ZaileysDomainError && error.code === 'OPERATION_FAILED') {
+    console.error(error.message) // message key is missing remoteJid
+  }
+}
+```
+
+More in [Error handling](/data/error-handling).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Presence" icon="eye" href="/chats/presence">
+    Show "typing…" while the bot prepares a reply.
+  </Card>
+  <Card title="Storage" icon="database" href="/data/storage">
+    Keep messages across restarts so chat actions keep working.
+  </Card>
+  <Card title="Edit, delete & react" icon="pencil" href="/messaging/edit-delete-react">
+    Pin, edit, or delete single messages.
+  </Card>
+  <Card title="Privacy & blocking" icon="shield" href="/chats/privacy">
+    Turn read receipts on or off, and block contacts.
+  </Card>
+</CardGroup>

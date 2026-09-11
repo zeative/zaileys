@@ -1,9 +1,292 @@
 ---
 title: "Presence"
-description: "Show typing and online status, and track the presence of others."
+description: "Show typing, recording, and online status from your bot, and find out when other people are typing or online."
 icon: "eye"
+keywords: ["typing indicator", "show typing", "is typing", "composing", "recording audio", "online status", "appear online", "last seen", "presence subscribe", "presence throttle"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/presence](https://zeative.github.io/zaileys/presence).
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+Presence is the "online" or "typing…" line under a chat's name. `client.presence` sets the bot's, and the `presence` event tells you about everyone else's.
+
+<ProviderSupport web={true} cloud="partial" note="The Cloud API only has a typing indicator, sent with client.markRead()." />
+
+## Quick reference
+
+| To | Call | What people see |
+| --- | --- | --- |
+| Show typing in a chat | [`presence.typing(jid, ms?)`](#show-typing-before-you-reply) | "typing…" under the bot's name |
+| Keep typing while slow work runs | [`presence.typing(jid)` on a timer](#keep-typing-while-you-work-on-a-reply) | "typing…" until the reply arrives |
+| Show recording in a chat | [`presence.recording(jid, ms?)`](#show-recording-before-a-voice-note) | "recording audio…" |
+| Appear online, or go offline | [`presence.online()` / `presence.offline()`](#appear-online-or-offline) | "online", or the bot's last seen |
+| Find out who's typing or online | [`client.on('presence', …)`](#find-out-when-someone-is-typing-or-online) | Nothing — your code gets an event |
+| Change how repeats are handled | [`presence` client option](#tune-the-presence-throttle) | Nothing — it controls what Zaileys sends |
+
+Presence methods need a live connection, so call them from a handler or the `connect` event. Before the client has a connection, they throw `NOT_CONNECTED`.
+
+## Show typing before you reply
+
+<Tabs>
+  <Tab title="Unofficial">
+
+    ```ts
+    client.on('text', async (msg) => {
+      const chat = msg.roomId ?? msg.senderId
+
+      await client.presence.typing(chat, 2_000)
+      await new Promise((resolve) => setTimeout(resolve, 2_000))
+      await msg.reply('Thanks! Order #1042 is on its way.')
+    })
+    ```
+
+    The sender sees "typing…" under the bot's name for two seconds, then the reply.
+
+    - `msg.roomId ?? msg.senderId` is the chat the message came from: the group, or the person in a direct chat. (`msg.chatId` is the message's own id, not the chat.)
+    - `2_000` tells Zaileys to clear the indicator after 2 seconds by sending `paused`.
+
+    <ParamField body="jid" type="string" required>
+      The chat to show it in — a person's or a group's <Term id="jid" />.
+    </ParamField>
+    <ParamField body="ms" type="number">
+      Clear the indicator after this many milliseconds. Leave it out to keep it on until you clear it yourself — see the next section.
+    </ParamField>
+
+  </Tab>
+  <Tab title="Official">
+
+    ```ts
+    client.on('text', async (msg) => {
+      await client.markRead(msg.chatId, { typing: true })
+      await msg.reply('Thanks! Order #1042 is on its way.')
+    })
+    ```
+
+    The sender sees blue ticks on their message and "typing…" until your reply arrives. On the Cloud API the typing indicator always comes with a read receipt — `markRead()` sends both in one request. Meta clears the indicator on its own; there's no call to refresh or clear it.
+
+    <ParamField body="messageId" type="string" required>
+      The id of the incoming message. Inside a handler, that's `msg.chatId`.
+    </ParamField>
+    <ParamField body="typing" type="boolean" default="false">
+      Also show "typing…" in that chat. Without it, `markRead()` only sends the blue ticks.
+    </ParamField>
+
+  </Tab>
+</Tabs>
+
+## Keep typing while you work on a reply
+
+When the reply depends on something slow — an AI model, a database, another API — show "typing…" as soon as the message arrives, refresh it while the work runs, and clear it if the work fails:
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client()
+
+async function askAssistant(question: string): Promise<string> {
+  const res = await fetch('https://api.example.com/answer', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ question }),
+  })
+  if (!res.ok) throw new Error(`Assistant answered ${res.status}`)
+  const data = (await res.json()) as { answer: string }
+  return data.answer
+}
+
+client.on('text', async (msg) => {
+  const chat = msg.roomId ?? msg.senderId
+  const showTyping = () => client.presence.typing(chat).catch(() => undefined)
+
+  await showTyping()
+  const refresh = setInterval(showTyping, 5_000)
+
+  try {
+    const answer = await askAssistant(msg.text)
+    await msg.reply(answer)
+  } catch (error) {
+    console.error('Assistant failed:', error)
+    await client.socket?.sendPresenceUpdate('paused', chat)
+  } finally {
+    clearInterval(refresh)
+  }
+})
+```
+
+The sender sees "typing…" from the moment their message arrives until the answer lands.
+
+- **`showTyping` swallows errors.** It also runs on a timer, where a thrown error would become an unhandled rejection.
+- **Refreshing every 5 seconds** keeps the indicator up during long jobs. That's well above the [throttle](#tune-the-presence-throttle)'s 1-second window, so no refresh is dropped.
+- **Clearing on failure.** Zaileys has no `paused()` method, so when no reply is coming, `client.socket?.sendPresenceUpdate('paused', chat)` sends it through the underlying WhatsApp Web connection and the indicator disappears right away.
+
+On the Cloud API, call `client.markRead(msg.chatId, { typing: true })` once instead — there's nothing to refresh or clear.
+
+## Show recording before a voice note
+
+```ts
+client.on('text', async (msg) => {
+  if (msg.text !== 'voice') return
+
+  const chat = msg.roomId ?? msg.senderId
+  await client.presence.recording(chat, 3_000)
+  await client.send(chat).audio('./replies/welcome.ogg')
+})
+```
+
+The sender sees "recording audio…" under the bot's name, then the voice note. `recording()` takes the same `jid` and `ms` as [`typing()`](#show-typing-before-you-reply).
+
+## Appear online or offline
+
+```ts
+client.on('connect', async () => {
+  await client.presence.online()
+})
+
+process.once('SIGINT', async () => {
+  await client.presence.offline()
+  process.exit(0)
+})
+```
+
+- **Connecting doesn't make the bot look online.** Zaileys connects without marking the account online, so `online()` is how you choose to.
+- **`offline()`** switches the bot back to showing its last seen.
+- **Who sees it** follows the account's `online` and `lastSeen` privacy settings. See [Privacy & blocking](/chats/privacy#change-privacy-settings).
+
+<Warning>
+  `online()` and `offline()` do nothing when the account has no profile name. The WhatsApp Web library skips the update and logs `no name present, ignoring presence update request...`. Give the account a name on the phone or with [`client.profile.setName()`](/chats/profile#change-the-display-name).
+</Warning>
+
+## Find out when someone is typing or online
+
+Every presence update from another account arrives as a `presence` event:
+
+```ts
+client.on('presence', ({ jid, participant, status }) => {
+  if (status === 'composing') console.log(`${participant} is typing in ${jid}`)
+  if (status === 'unavailable') console.log(`${participant} went offline`)
+})
+```
+
+<ResponseField name="jid" type="string">
+  The chat the update belongs to — a person, or a group.
+</ResponseField>
+<ResponseField name="participant" type="string">
+  Who it's about. In a group, the member; in a direct chat, the same as `jid`.
+</ResponseField>
+<ResponseField name="status" type="'available' | 'unavailable' | 'composing' | 'recording' | 'paused'">
+  `composing` is typing, `recording` is recording audio, and `available` / `unavailable` are online / offline. When someone stops typing, WhatsApp reports `available`, so you won't normally see `paused`.
+</ResponseField>
+
+### Subscribe to the people you care about
+
+WhatsApp sends presence updates only for chats you've subscribed to. Zaileys doesn't wrap this yet, so call `presenceSubscribe()` on the underlying WhatsApp Web connection. Put it in the `connect` handler so it runs again after a reconnect:
+
+```ts
+const watched = ['6281234567890@s.whatsapp.net', '6289876543210@s.whatsapp.net']
+
+client.on('connect', async () => {
+  for (const person of watched) {
+    await client.socket?.presenceSubscribe(person)
+  }
+})
+```
+
+`client.socket` is `undefined` until the first connection, hence the `?.`.
+
+### Read the last known presence
+
+The store keeps the latest update for each person, so you can check it at any time:
+
+```ts
+const last = await client.store.getPresence('6281234567890@s.whatsapp.net')
+
+console.log(last?.lastKnownPresence) // for example 'available'
+console.log(last?.lastSeen)          // only when their privacy settings share it
+```
+
+The default store lives in memory and starts empty after every restart. See [Storage](/data/storage) to keep it.
+
+## Tune the presence throttle
+
+Zaileys drops a presence update that repeats the same status in the same chat within one second. Handlers often run in bursts — a busy group can deliver several messages a second, and calling `typing()` for each one would send a stream of identical updates. Dropping the repeats keeps that traffic down, so the bot doesn't flood WhatsApp with noise that looks automated.
+
+- **A dropped call resolves normally.** Nothing is sent, and nothing throws.
+- **Repeats are tracked per status and chat.** Typing in one chat never blocks typing in another, or recording in the same chat. `online()` and `offline()` are tracked on their own.
+- **Auto-clear still happens.** If you pass `ms` and the call itself was dropped, the `paused` still goes out when the time is up.
+
+Change the window, or turn the throttle off, with the `presence` option on the client:
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({
+  presence: { minIntervalMs: 3_000 },
+})
+```
+
+<ParamField body="presence.enabled" type="boolean" default="true">
+  Set `false` to send every presence update, even exact repeats.
+</ParamField>
+<ParamField body="presence.minIntervalMs" type="number" default="1000">
+  How long, in milliseconds, a repeat of the same status in the same chat is dropped. `0` or less also turns the throttle off.
+</ParamField>
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="I call typing() in a loop, but it doesn't send every time">
+    That's the [throttle](#tune-the-presence-throttle): repeats of the same status in the same chat within one second are dropped. Space your calls out, or lower `presence.minIntervalMs`.
+  </Accordion>
+  <Accordion title="The bot never shows as online">
+    Zaileys doesn't mark the account online when it connects — call `client.presence.online()`. If that still doesn't work, the account probably has no profile name, which makes WhatsApp Web skip the update. People also need the account's `online` privacy setting to allow them.
+  </Accordion>
+  <Accordion title="My presence handler never fires">
+    Subscribe first. WhatsApp only sends presence for chats you've subscribed to — see [Subscribe to the people you care about](#subscribe-to-the-people-you-care-about).
+  </Accordion>
+  <Accordion title="Can I show typing on the Cloud API without marking the message as read?">
+    No. Meta's API sends the typing indicator as part of the read receipt, so `client.markRead(id, { typing: true })` always sends both.
+  </Accordion>
+</AccordionGroup>
+
+## When a call fails
+
+| Error | What went wrong | How to fix it |
+| --- | --- | --- |
+| `NOT_CONNECTED` | A presence method ran before the client had a connection. | Call it inside a handler or the `connect` event. |
+| `PRESENCE_FAILED` | The WhatsApp Web connection rejected the update. The original error is on `error.cause`. | Check the JID, and that the client is still connected. |
+| `UNSUPPORTED_ON_CLOUD` | You used `client.presence` with `provider: 'cloud'`. | Use `client.markRead(msg.chatId, { typing: true })`. |
+| `CONFIG` | You called `client.markRead()` on the Unofficial provider — `markRead(messageId) is only available on the cloud provider`. | Use `client.presence.typing()`. |
+| `AUTH`, `REQUEST_FAILED`, `RATE_LIMITED` | Meta rejected the `markRead()` request. | Check your access token and phone number id. Zaileys already retries rate limits and server errors up to 3 times. |
+
+`NOT_CONNECTED` and `PRESENCE_FAILED` come from `ZaileysAutomationError`:
+
+```ts
+import { ZaileysAutomationError } from 'zaileys'
+
+try {
+  await client.presence.typing(jid)
+} catch (error) {
+  if (error instanceof ZaileysAutomationError && error.code === 'PRESENCE_FAILED') {
+    console.error('WhatsApp rejected the presence update:', error.cause)
+  }
+}
+```
+
+More in [Error handling](/data/error-handling).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Chats" icon="messages-square" href="/chats/chats">
+    Mark chats as read, mute, archive, and pin them.
+  </Card>
+  <Card title="Privacy & blocking" icon="shield" href="/chats/privacy">
+    Choose who sees the bot online and its last seen.
+  </Card>
+  <Card title="Events" icon="radio" href="/concepts/events">
+    Every event your bot can listen for.
+  </Card>
+  <Card title="Client options" icon="sliders-horizontal" href="/reference/client-options">
+    The `presence` option and everything else you can configure.
+  </Card>
+</CardGroup>

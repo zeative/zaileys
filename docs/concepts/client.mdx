@@ -26,25 +26,18 @@ One client is one WhatsApp account. To run several numbers from one process, cre
 A client moves through a fixed set of states. `client.state` always tells you which one it's in:
 
 ```mermaid
-stateDiagram-v2
-  state "qr-pending" as qr_pending
-  state "pairing-pending" as pairing_pending
-
-  [*] --> idle
-  idle --> connecting: connect()
-  connecting --> connected: saved session found
-  connecting --> qr_pending: no session, QR login
-  connecting --> pairing_pending: no session, pairing login
-  qr_pending --> connected: QR scanned
-  pairing_pending --> connected: code entered
-  connecting --> reconnecting: connection dropped
-  connected --> reconnecting: connection dropped
-  reconnecting --> connecting: after a short wait
-  connected --> disconnected: logged out from the phone
-  connected --> disconnecting: disconnect() or logout()
-  disconnecting --> disconnected
-  disconnected --> connecting: connect()
+flowchart TD
+  idle["idle"] -->|"connect()"| connecting["connecting"]
+  connecting -->|"saved session"| connected["connected"]
+  connecting -->|"first login"| pending["qr-pending or pairing-pending"]
+  pending -->|"QR scanned or code typed"| connected
+  connected -->|"connection dropped"| reconnecting["reconnecting"]
+  reconnecting -->|"retry"| connecting
+  connected -->|"disconnect(), logout(), or logged out on the phone"| disconnected["disconnected"]
+  disconnected -->|"connect()"| connecting
 ```
+
+The diagram shows the main path. The table below lists all eight states, including the brief `disconnecting` step.
 
 | State | What's happening | Events you get |
 | --- | --- | --- |

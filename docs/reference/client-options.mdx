@@ -1,9 +1,571 @@
 ---
 title: "ClientOptions"
-description: "Every option accepted by new Client(), with types and defaults."
+description: "Every field of ClientOptions and its nested option types, with the exact type, default, and provider each one applies to."
 icon: "sliders-horizontal"
+keywords: ["client options", "ClientOptions", "new Client options", "configuration reference", "defaults", "reconnect options", "authGuard", "operationGuard", "autoDelete", "cloud options", "sessionId", "commandPrefix"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/configuration](https://zeative.github.io/zaileys/configuration).
-</Note>
+import { Term } from "/snippets/glossary.jsx"
+
+Look up any setting you can pass to `new Client()`: its type, its default, which provider it applies to, and the guide that explains it.
+
+Every field is optional. `new Client()` on its own connects to WhatsApp Web with a QR code and saves the <Term id="session" /> in `./.zaileys/auth/default`. The Official provider needs `provider: 'cloud'` plus the `cloud` object.
+
+## Complete example
+
+<Tabs>
+  <Tab title="Unofficial">
+
+    ```ts bot.ts
+    import { Client, FileAuthStore, MemoryMessageStore } from 'zaileys'
+
+    const client: Client = new Client({
+      sessionId: 'support-bot',
+      authType: 'pairing',
+      phoneNumber: '6281234567890',
+      autoConnect: true,
+      qrTerminal: false,
+      reconnect: { maxAttempts: 20, initialDelayMs: 3_000, maxDelayMs: 60_000 },
+
+      auth: new FileAuthStore({ basePath: './sessions/support-bot' }),
+      store: new MemoryMessageStore(),
+      cacheSignal: true,
+
+      ignoreMe: true,
+      commandPrefix: ['/', '!'],
+      citation: { authors: ['6281234567890@s.whatsapp.net'] },
+      plugins: { dir: './plugins', watch: false },
+
+      authGuard: { maxPairingAttempts: 3 },
+      operationGuard: { intervalsMs: { 'group.participants': 15_000 } },
+      presence: { minIntervalMs: 2_000 },
+      scheduleRateLimitPerSec: 1,
+
+      sticker: { packageName: 'Toko Budi', authorName: 'tokobudi.id' },
+
+      autoRejectCall: {
+        enabled: true,
+        allow: ['6281234567890'],
+        onReject: async (call) => {
+          await client.send(call.from).text('Sorry, this number does not take calls. Please send a message.')
+        },
+      },
+      autoDelete: { maxAgeMs: 7 * 24 * 60 * 60 * 1000 },
+
+      statusLog: true,
+      logger: { debug() {}, info: console.info, warn: console.warn, error: console.error, fatal: console.error },
+
+      baileys: { markOnlineOnConnect: false },
+    })
+    ```
+
+    The `: Client` annotation is only there because `onReject` uses `client` inside its own definition — TypeScript needs the type spelled out in that case.
+
+  </Tab>
+  <Tab title="Official">
+
+    ```ts bot.ts
+    import { Client } from 'zaileys'
+
+    const client = new Client({
+      provider: 'cloud',
+      cloud: {
+        accessToken: process.env.WA_TOKEN!,
+        phoneNumberId: process.env.WA_PHONE_ID!,
+        wabaId: process.env.WA_WABA_ID,
+        verifyToken: process.env.WA_VERIFY_TOKEN,
+        appSecret: process.env.WA_APP_SECRET,
+        apiVersion: 'v23.0',
+      },
+      sessionId: 'shop-cloud',
+      ignoreMe: true,
+      statusLog: true,
+    })
+    ```
+
+    On the Official provider, options that only drive the WhatsApp Web connection — such as `authType`, `reconnect`, and `plugins` — are accepted but do nothing. The **Works on** column below shows which options apply.
+
+  </Tab>
+</Tabs>
+
+## All options
+
+| Option | Type | Default | Works on |
+| --- | --- | --- | --- |
+| [`provider`](#provider) | `'baileys' \| 'cloud'` | `'baileys'` | Both |
+| [`cloud`](#cloudoptions) | `CloudOptions` | — (required for `'cloud'`) | Cloud API |
+| [`sessionId`](#connection-and-login) | `string` | `'default'` | Both |
+| [`authType`](#connection-and-login) | `'qr' \| 'pairing'` | `'qr'` | WhatsApp Web |
+| [`phoneNumber`](#connection-and-login) | `string` | — | WhatsApp Web |
+| [`autoConnect`](#connection-and-login) | `boolean` | `true` | Both |
+| [`qrTerminal`](#connection-and-login) | `boolean` | `true` | WhatsApp Web |
+| [`reconnect`](#reconnectoptions) | `ReconnectOptions` | `{}` — retries forever | WhatsApp Web |
+| [`auth`](#storage) | `AuthStoreBundle` | files in `./.zaileys/auth/<sessionId>` | WhatsApp Web |
+| [`store`](#storage) | `MessageStore` | `MemoryMessageStore` | Both |
+| [`cacheSignal`](#storage) | `boolean` | `true` | WhatsApp Web |
+| [`ignoreMe`](#incoming-messages-and-commands) | `boolean` | `true` | Both |
+| [`commandPrefix`](#incoming-messages-and-commands) | `string \| string[]` | none — commands off | WhatsApp Web |
+| [`citation`](#citationconfig) | `CitationConfig` | — | Both |
+| [`plugins`](#pluginsoptions) | `PluginsOptions` | — (no plugins) | WhatsApp Web |
+| [`authGuard`](#authguardoptions) | `AuthGuardOptions` | on | WhatsApp Web |
+| [`operationGuard`](#operationguardoptions) | `OperationGuardOptions` | on | WhatsApp Web |
+| [`presence`](#presencethrottleoptions) | `PresenceThrottleOptions` | on, 1 s window | WhatsApp Web |
+| [`scheduleRateLimitPerSec`](#guards-and-rate-limits) | `number` | `1` | WhatsApp Web |
+| [`sticker`](#stickermetadatatype) | `StickerMetadataType` | — | Both |
+| [`autoRejectCall`](#autorejectcalloptions) | `boolean \| AutoRejectCallOptions` | `false` | WhatsApp Web |
+| [`autoDelete`](#autodeleteoptions) | `AutoDeleteOptions \| false` | on, 30 days | WhatsApp Web |
+| [`logger`](#logging) | `Logger` | silent Pino logger | Both |
+| [`statusLog`](#logging) | `boolean` | `true` | Both |
+| [`baileys`](#advanced) | `Partial<UserFacingSocketConfig>` | `{}` | WhatsApp Web |
+
+## Provider
+
+<ParamField body="provider" type="'baileys' | 'cloud'" default="'baileys'">
+  Which connection the client uses. `'baileys'` logs in to WhatsApp Web as a linked device (Unofficial). `'cloud'` talks to Meta's WhatsApp Cloud API (Official) and requires `cloud`. [Compare providers](/providers)
+</ParamField>
+
+<ParamField body="cloud" type="CloudOptions">
+  Your Meta app credentials. Required when `provider` is `'cloud'`; ignored otherwise. Fields are listed in [CloudOptions](#cloudoptions). [Cloud API setup](/cloud/setup)
+</ParamField>
+
+### CloudOptions
+
+<ParamField body="cloud.accessToken" type="string" required>
+  A permanent or system-user access token for your WhatsApp Business app. If it's missing or empty, `new Client()` throws `ZaileysCloudError` with code `CONFIG`: `provider 'cloud' requires cloud.accessToken`.
+</ParamField>
+<ParamField body="cloud.phoneNumberId" type="string" required>
+  The <Term id="phone-number-id" /> of the sending number — not the phone number itself. If it's missing or empty, `new Client()` throws `provider 'cloud' requires cloud.phoneNumberId`.
+</ParamField>
+<ParamField body="cloud.wabaId" type="string">
+  Your <Term id="waba" /> ID. Needed only for account-level operations on [`client.cloud`](/reference/client#cloud).
+</ParamField>
+<ParamField body="cloud.verifyToken" type="string">
+  Any secret string you choose. `client.webhook()` answers Meta's verification request only when the token Meta sends matches this value, and responds `403` otherwise — so without it, verification always fails. [Webhook](/cloud/webhook)
+</ParamField>
+<ParamField body="cloud.appSecret" type="string">
+  Your Meta app secret. When set, `client.webhook()` checks the `X-Hub-Signature-256` header of every delivery and answers `401` to any that don't match. Without it, signatures aren't checked.
+</ParamField>
+<ParamField body="cloud.apiVersion" type="string" default="'v23.0'">
+  Graph API version used in every request URL.
+</ParamField>
+<ParamField body="cloud.baseUrl" type="string" default="'https://graph.facebook.com'">
+  Graph API origin. Override it to route requests through a proxy or a test server.
+</ParamField>
+
+## Connection and login
+
+<ParamField body="sessionId" type="string" default="'default'">
+  A name for this login. It names the default auth folder (`./.zaileys/auth/<sessionId>`), appears in the status line `[zaileys] Connecting to WhatsApp (session: default)...`, and is included as `sessionId` in connection events such as `connect` and `disconnect`. Give every client in one process its own. Both providers. [Multiple accounts](/data/multi-account)
+</ParamField>
+
+<ParamField body="authType" type="'qr' | 'pairing'" default="'qr'">
+  How the bot's number logs in the first time. `'qr'` shows a QR code to scan. `'pairing'` requests an 8-character <Term id="pairing-code" /> for `phoneNumber` and emits it as the `pairing-code` event. WhatsApp Web only. [Log in with a pairing code](/concepts/configuration#log-in-with-a-pairing-code)
+</ParamField>
+
+<ParamField body="phoneNumber" type="string">
+  The bot's own number, country code first, digits only — for example `'6281234567890'`. Required when `authType` is `'pairing'`: without it, `connect()` rejects with `phoneNumber is required when authType is "pairing"`. Ignored for QR login. WhatsApp Web only.
+</ParamField>
+
+<ParamField body="autoConnect" type="boolean" default="true">
+  Start connecting as soon as the client is created, so you never call `connect()` yourself. Set `false` to register handlers or finish setup first, then call `await client.connect()`. A failed auto-connect is logged and emitted as an `error` event only if something listens for it — with the default silent logger and no `error` listener, it goes unnoticed. Both providers; on the Official provider, connecting checks your access token. [Connect on your own schedule](/concepts/configuration#connect-on-your-own-schedule)
+</ParamField>
+
+<ParamField body="qrTerminal" type="boolean" default="true">
+  Draw the QR code in the terminal. The `qr` event fires either way, so set `false` when you show the code in your own app. Each code is valid for 60 seconds. WhatsApp Web only. [Show the QR code in your own app](/concepts/configuration#show-the-qr-code-in-your-own-app)
+</ParamField>
+
+<ParamField body="reconnect" type="ReconnectOptions" default="{}">
+  How the client reconnects after the connection drops. The defaults retry forever with a growing delay. Fields are listed in [ReconnectOptions](#reconnectoptions). WhatsApp Web only — the Cloud API has no connection to lose. [Tune reconnects](/concepts/configuration#tune-reconnects)
+</ParamField>
+
+### ReconnectOptions
+
+The delay before attempt *n* is `initialDelayMs × 2^(n−1)`, randomized by ±`jitterFactor`, and never more than `maxDelayMs`. The attempt count resets after every successful connection.
+
+`logged-out`, `connection-replaced`, and `forbidden` disconnects never reconnect. The one exception: a `logged-out` that arrives right after a successful connection is retried twice, 3 seconds apart, before the saved login is cleared — WhatsApp sometimes sends a false one.
+
+<ParamField body="reconnect.enabled" type="boolean" default="true">
+  `false` never reconnects automatically.
+</ParamField>
+<ParamField body="reconnect.maxAttempts" type="number" default="Infinity">
+  Attempts before giving up. When they run out, `disconnect` fires with `willReconnect: false`.
+</ParamField>
+<ParamField body="reconnect.initialDelayMs" type="number" default="3000">
+  Delay before the first attempt, in milliseconds. It doubles on each attempt after that.
+</ParamField>
+<ParamField body="reconnect.maxDelayMs" type="number" default="60000">
+  Longest delay between attempts, in milliseconds.
+</ParamField>
+<ParamField body="reconnect.jitterFactor" type="number" default="0.2">
+  Random spread applied to each delay — `0.2` means ±20%.
+</ParamField>
+<ParamField body="reconnect.rateLimitedDelayMs" type="number" default="300000">
+  Fixed delay used instead of the doubling one when WhatsApp answers with a rate limit (HTTP 429, reason `rate-limited`). 5 minutes by default.
+</ParamField>
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({
+  reconnect: { maxAttempts: 10, initialDelayMs: 5_000, maxDelayMs: 120_000 },
+})
+
+client.on('reconnecting', ({ attempt, delayMs, reason }) => {
+  console.log(`Reconnect #${attempt} in ${delayMs} ms (${reason})`)
+})
+```
+
+## Storage
+
+<ParamField body="auth" type="AuthStoreBundle" default="new FileAuthStore({ basePath: './.zaileys/auth/<sessionId>' })">
+  Where the WhatsApp Web login — credentials and encryption keys — is saved. Pass a database adapter such as `SqliteAuthStore` or `PostgresAuthStore` to keep it off the local disk. WhatsApp Web only; the Cloud API has no login to save. [Storage](/data/storage)
+</ParamField>
+
+<ParamField body="store" type="MessageStore" default="new MemoryMessageStore()">
+  Where messages, chats, contacts, and — when the adapter supports it — scheduled messages are kept. Zaileys reads it to resolve quoted messages, resend a message WhatsApp asks for again, `forward()`, and `downloadMedia()`. The default lives in memory and is empty after a restart. Adapters: `memory`, `sqlite`, `redis`, `postgres`, `convex`. Both providers. [Storage](/data/storage)
+</ParamField>
+
+<ParamField body="cacheSignal" type="boolean" default="true">
+  Keep encryption keys in an in-memory cache in front of `auth`, so they aren't read from disk or the database on every message. It's applied on the first `connect()`; after that, `client.auth` is the cached wrapper. Set `false` if your adapter already caches. WhatsApp Web only.
+</ParamField>
+
+```ts
+import { Client, SqliteAuthStore, SqliteMessageStore } from 'zaileys'
+
+const client = new Client({
+  auth: new SqliteAuthStore({ database: './whatsapp.db' }),
+  store: new SqliteMessageStore({ database: './whatsapp.db' }),
+})
+```
+
+The SQLite adapters need `npm install better-sqlite3@11`. Every adapter and its options are in [Storage](/data/storage).
+
+## Incoming messages and commands
+
+<ParamField body="ignoreMe" type="boolean" default="true">
+  Drop messages sent from the bot's own account before they reach your handlers, so the bot never answers itself. Set `false` to react to messages you type on the bot's phone, such as owner-only commands. Both providers. [React to your own messages](/concepts/configuration#react-to-your-own-messages)
+</ParamField>
+
+<ParamField body="commandPrefix" type="string | string[]">
+  The prefix or prefixes that mark a command, such as `'/'` or `['/', '!']`. Empty strings are dropped. With no prefix, `client.command()` handlers never run. It also sets `msg.isPrefix` on incoming messages. Commands run on WhatsApp Web only — on the Cloud API, only `msg.isPrefix` is set. [Commands](/bots/commands)
+</ParamField>
+
+<ParamField body="citation" type="CitationConfig">
+  Who counts as an owner and who is banned. It powers `msg.citation.authors()` and `msg.citation.banned()`. Fields are listed in [CitationConfig](#citationconfig). Both providers. [Mark owners and banned users](/concepts/configuration#mark-owners-and-banned-users)
+</ParamField>
+
+<ParamField body="plugins" type="PluginsOptions">
+  Load plugins from a folder once the client connects. Leave it out to load none; `{}` loads `./plugins` with the defaults in [PluginsOptions](#pluginsoptions). WhatsApp Web only. [Plugins](/bots/plugins)
+</ParamField>
+
+### CitationConfig
+
+<ParamField body="citation.authors" type="string[] | ((jid: string) => boolean | Promise<boolean>)">
+  The bot's owners, as a list of JIDs or a function that receives the sender's JID. `msg.citation.authors()` resolves `true` for them.
+</ParamField>
+<ParamField body="citation.banned" type="string[] | ((jid: string) => boolean | Promise<boolean>)">
+  Senders to ignore, in the same form. `msg.citation.banned()` resolves `true` for them.
+</ParamField>
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({
+  citation: {
+    authors: ['6281234567890@s.whatsapp.net'],
+    banned: (jid) => jid.startsWith('62800'),
+  },
+})
+
+client.on('text', async (msg) => {
+  if (await msg.citation.banned()) return
+  if (await msg.citation.authors()) await msg.reply('Hello, boss.')
+})
+```
+
+### PluginsOptions
+
+<ParamField body="plugins.dir" type="string" default="'./plugins'">
+  Folder to load plugins from, relative to the folder you start the bot from. Subfolders are scanned too.
+</ParamField>
+<ParamField body="plugins.watch" type="boolean" default="true">
+  Reload a plugin when its file changes. Anything except `false` turns it on.
+</ParamField>
+<ParamField body="plugins.pattern" type="RegExp" default="/\.(ts|js|mjs|cjs)$/">
+  Which files to load, matched against each file name.
+</ParamField>
+<ParamField body="plugins.ignore" type="RegExp" default="/(\.d\.ts$|^_|[/\\]_)/">
+  Files and folders to skip. By default: `.d.ts` files and anything whose name starts with `_`.
+</ParamField>
+<ParamField body="plugins.onError" type="(err: unknown, file: string) => void">
+  Called with the error and the file path when a plugin file fails.
+</ParamField>
+
+## Guards and rate limits
+
+<ParamField body="authGuard" type="AuthGuardOptions" default="{ enabled: true }">
+  Caps how many QR codes and pairing codes the client generates, so a login nobody finishes doesn't spam WhatsApp into restricting the number. When the cap is reached, the client emits `auth-exhausted` and disconnects; call `connect()` to start over with a fresh budget. On by default. WhatsApp Web only. [Stop a stuck login loop](/concepts/configuration#stop-a-stuck-login-loop)
+</ParamField>
+
+<ParamField body="operationGuard" type="OperationGuardOptions" default="{ enabled: true }">
+  Spaces out group, community, and channel operations — creating, joining, changing members — so bursts don't look like abuse. A second call in the same category waits until that category's interval has passed. On by default. WhatsApp Web only. [Avoid spam flags](/concepts/configuration#avoid-spam-flags)
+</ParamField>
+
+<ParamField body="presence" type="PresenceThrottleOptions" default="{ enabled: true, minIntervalMs: 1000 }">
+  Drops a repeated presence update — the same typing, recording, online, or offline update for the same chat — sent within `minIntervalMs`. On by default. WhatsApp Web only. [Tune the presence throttle](/chats/presence#tune-the-presence-throttle)
+</ParamField>
+
+<ParamField body="scheduleRateLimitPerSec" type="number" default="1">
+  The most scheduled messages sent per second, so a backlog that comes due at once — after a restart, for example — goes out gradually. `0` turns the limit off. WhatsApp Web only. [Pace a backlog of scheduled messages](/bots/broadcast-and-schedule#pace-a-backlog-of-scheduled-messages)
+</ParamField>
+
+### AuthGuardOptions
+
+<ParamField body="authGuard.enabled" type="boolean" default="true">
+  `false` removes the cap.
+</ParamField>
+<ParamField body="authGuard.maxQrAttempts" type="number" default="5">
+  QR codes shown before the client gives up.
+</ParamField>
+<ParamField body="authGuard.maxPairingAttempts" type="number" default="3">
+  Pairing codes requested before the client gives up.
+</ParamField>
+<ParamField body="authGuard.pairingCooldownMs" type="number" default="60000">
+  Base wait between pairing-code requests. It grows with each request — 60 s before the second, 120 s before the third, and so on — up to 300000 ms (5 minutes).
+</ParamField>
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({
+  authType: 'pairing',
+  phoneNumber: '6281234567890',
+  authGuard: { maxPairingAttempts: 2 },
+})
+
+client.on('auth-exhausted', ({ kind, attempts, max }) => {
+  console.error(`Gave up after ${attempts}/${max} ${kind} attempts`)
+})
+```
+
+### OperationGuardOptions
+
+<ParamField body="operationGuard.enabled" type="boolean" default="true">
+  `false` runs every operation immediately.
+</ParamField>
+<ParamField body="operationGuard.intervalsMs" type="Partial<Record<OperationCategory, number>>">
+  Minimum gap per category, in milliseconds. Your values replace the defaults below; categories you leave out keep theirs.
+</ParamField>
+
+| Category | Default interval |
+| --- | --- |
+| `group.create` | 60000 ms |
+| `group.join` | 30000 ms |
+| `group.participants` | 10000 ms |
+| `group.update` | 3000 ms |
+| `community.create` | 120000 ms |
+| `community.join` | 30000 ms |
+| `community.update` | 3000 ms |
+| `newsletter.create` | 120000 ms |
+| `newsletter.follow` | 2000 ms |
+| `newsletter.update` | 3000 ms |
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({
+  operationGuard: { intervalsMs: { 'group.participants': 15_000 } },
+})
+```
+
+### PresenceThrottleOptions
+
+<ParamField body="presence.enabled" type="boolean" default="true">
+  `false` sends every presence update.
+</ParamField>
+<ParamField body="presence.minIntervalMs" type="number" default="1000">
+  Window in which a repeat of the same update for the same chat is dropped. `0` turns the throttle off.
+</ParamField>
+
+## Media
+
+<ParamField body="sticker" type="StickerMetadataType">
+  Default pack and author names for every sticker you send, so you don't repeat them in each `.sticker()` call. Both providers. [Set sticker defaults](/concepts/configuration#set-sticker-defaults)
+</ParamField>
+
+### StickerMetadataType
+
+<ParamField body="sticker.packageName" type="string" default="'Zaileys Library'">
+  Pack name people see when they save the sticker. `pack` and `packname` are accepted as aliases.
+</ParamField>
+<ParamField body="sticker.authorName" type="string" default="'https://github.com/zeative/zaileys'">
+  Author shown next to the pack name. `author` and `publisher` are accepted as aliases.
+</ParamField>
+<ParamField body="sticker.quality" type="number">
+  Accepted here, but not used as a default — pass it to `.sticker()` instead.
+</ParamField>
+<ParamField body="sticker.shape" type="'default' | 'circle' | 'rounded' | 'oval'">
+  Accepted here, but not used as a default — pass it to `.sticker()` instead.
+</ParamField>
+
+<Warning>
+  Only the names become defaults. `quality` and `shape` are read from each [`.sticker()`](/reference/send-builder#sticker) call. The defaults are also shared by every client in the process: a later `new Client({ sticker })` changes them for all clients.
+</Warning>
+
+## Automation
+
+<ParamField body="autoRejectCall" type="boolean | AutoRejectCallOptions" default="false">
+  Reject incoming voice and video calls automatically. `true` rejects every call; an object adds an allow list and a hook. Off by default. WhatsApp Web only — the Cloud API has no calls. [Reject incoming calls](/concepts/configuration#reject-incoming-calls)
+</ParamField>
+
+<ParamField body="autoDelete" type="AutoDeleteOptions | false" default="{ maxAgeMs: 2592000000 }">
+  Prune old messages from `store` on a timer. On by default, keeping 30 days. The fields you pass are merged over that default; `false` turns it off. Only the local store is cleaned — nothing is deleted on WhatsApp. WhatsApp Web only. [Auto-delete](/bots/auto-delete)
+</ParamField>
+
+### AutoRejectCallOptions
+
+<ParamField body="autoRejectCall.enabled" type="boolean" default="false">
+  Turn rejecting on. `autoRejectCall: true` is shorthand for `{ enabled: true }`. An object without `enabled: true` rejects nothing.
+</ParamField>
+<ParamField body="autoRejectCall.allow" type="string[] | ((jid: string) => boolean | Promise<boolean>)">
+  Callers who may still ring. List entries match the full JID or just its digits, so `'6281234567890'` works. A function that throws counts as "not allowed".
+</ParamField>
+<ParamField body="autoRejectCall.onReject" type="(call) => void | Promise<void>">
+  Runs after a call is rejected, with the `call-incoming` payload — for example, to message the caller. Errors thrown in it are logged, not rethrown.
+</ParamField>
+
+```ts
+import { Client } from 'zaileys'
+
+const client: Client = new Client({
+  autoRejectCall: {
+    enabled: true,
+    allow: ['6281234567890'],
+    onReject: async (call) => {
+      await client.send(call.from).text('Sorry, this number does not take calls. Please send a message.')
+    },
+  },
+})
+```
+
+### AutoDeleteOptions
+
+<ParamField body="autoDelete.maxAgeMs" type="number" default="2592000000">
+  Delete messages older than this, in milliseconds — 30 days by default.
+</ParamField>
+<ParamField body="autoDelete.maxPerChat" type="number">
+  Keep at most this many of the newest messages in each chat.
+</ParamField>
+<ParamField body="autoDelete.intervalMs" type="number" default="60000">
+  How often cleanup runs, in milliseconds.
+</ParamField>
+<ParamField body="autoDelete.chats" type="'all' | ((jid: string) => boolean)" default="'all'">
+  Which chats to clean. A function receives each chat's JID and returns `true` to clean it.
+</ParamField>
+
+Cleanup needs a store that can delete messages. If yours can't, Zaileys logs `autoDelete: store implements neither pruneMessages nor deleteMessage; sweeper disabled` once and stops cleaning.
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({
+  autoDelete: { maxAgeMs: 7 * 24 * 60 * 60 * 1000, maxPerChat: 500, intervalMs: 5 * 60 * 1000 },
+})
+```
+
+## Logging
+
+<ParamField body="logger" type="Logger" default="Pino logger, level from ZAILEYS_DEBUG">
+  Where Zaileys writes its internal logs. Any object with `debug`, `info`, `warn`, `error`, and `fatal` methods works, such as a Pino logger — the type asks for all five. The default is silent unless you set `ZAILEYS_DEBUG`. Both providers. [See debug logs](/concepts/configuration#see-debug-logs)
+</ParamField>
+
+| `ZAILEYS_DEBUG` | Default logger level |
+| --- | --- |
+| not set | `silent` |
+| `1` | `info` |
+| `silent`, `fatal`, `error`, `warn`, `info`, `debug`, or `trace` | that level |
+| anything else | `silent` |
+
+<ParamField body="statusLog" type="boolean" default="true">
+  Print short connection status lines to stderr — connecting, QR, pairing code, connected, reconnecting, disconnected — and hide noisy output from the encryption library. `false` prints nothing; listen to events instead. Both providers. [Silence the terminal logs](/concepts/configuration#silence-the-terminal-logs)
+</ParamField>
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({
+  statusLog: false,
+  logger: {
+    debug: () => {},
+    info: (...args) => console.info('[wa]', ...args),
+    warn: (...args) => console.warn('[wa]', ...args),
+    error: (...args) => console.error('[wa]', ...args),
+    fatal: (...args) => console.error('[wa]', ...args),
+  },
+})
+```
+
+## Advanced
+
+<ParamField body="baileys" type="Partial<UserFacingSocketConfig>" default="{}">
+  Extra settings passed to the underlying Baileys socket. WhatsApp Web only. [Pass settings to Baileys](/concepts/configuration#pass-settings-to-baileys)
+</ParamField>
+
+Settings are combined in this order, later steps winning:
+
+1. **Zaileys defaults:** `markOnlineOnConnect: false`, `syncFullHistory: false`, `qrTimeout: 60000`, and the latest WhatsApp Web `version` (fetched at startup; the bundled one if that fails).
+2. **Your `baileys` object** — it can override anything in step 1.
+3. **Always set by Zaileys:** `auth`, `logger`, and `getMessage`. Use the top-level `auth`, `logger`, and `store` options instead.
+
+A `patchMessageBeforeSending` you pass runs after Zaileys' own patch, not instead of it.
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({
+  baileys: { markOnlineOnConnect: true, syncFullHistory: true },
+})
+```
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Which options do anything on the Cloud API?">
+    `provider`, `cloud`, `sessionId`, `autoConnect`, `store`, `ignoreMe`, `citation`, `sticker`, `logger`, and `statusLog`. `commandPrefix` only sets `msg.isPrefix` there. Everything else drives the WhatsApp Web connection and is ignored.
+  </Accordion>
+  <Accordion title="My bot never connects and prints nothing. How do I see why?">
+    Auto-connect errors go to the `error` event, and the default logger is silent. Add `client.on('error', ({ error }) => console.error(error))`, or run with `ZAILEYS_DEBUG=1`.
+  </Accordion>
+  <Accordion title="Can I change an option after the client is created?">
+    No. Options are read once in the constructor. Create a new client with the new options — `disconnect()` the old one first, and give both the same `sessionId` to reuse the saved login.
+  </Accordion>
+</AccordionGroup>
+
+## Errors caused by options
+
+| Error | When | How to fix it |
+| --- | --- | --- |
+| `ZaileysCloudError` `CONFIG`: `provider 'cloud' requires cloud.accessToken` | `new Client()` with `provider: 'cloud'` and no token | Pass `cloud.accessToken`. Check that the environment variable is set. |
+| `ZaileysCloudError` `CONFIG`: `provider 'cloud' requires cloud.phoneNumberId` | `new Client()` with `provider: 'cloud'` and no phone number ID | Pass `cloud.phoneNumberId` from **WhatsApp → API Setup** in the Meta dashboard. |
+| `ZaileysCloudError` `AUTH`: `cloud auth rejected (401) — check accessToken/phoneNumberId` | Connecting on the Cloud API with a wrong or expired token (401 or 403) | Generate a new token and check the phone number ID. |
+| `Error`: `phoneNumber is required when authType is "pairing"` | `connect()` — or auto-connect — with `authType: 'pairing'` and no `phoneNumber` | Add `phoneNumber`, country code first, digits only. |
+| `auth-exhausted` event, then a disconnect | Too many QR or pairing codes without a completed login (`authGuard`) | Finish linking on the phone, then call `client.connect()` again. |
+
+Every error class and code is in [Errors](/reference/errors).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Configuration guide" icon="sliders-horizontal" href="/concepts/configuration">
+    The same options, explained task by task.
+  </Card>
+  <Card title="Client reference" icon="cpu" href="/reference/client">
+    Every method and property on the client.
+  </Card>
+  <Card title="Storage" icon="database" href="/data/storage">
+    Pick and set up an auth store and a message store.
+  </Card>
+  <Card title="Cloud API setup" icon="cloud" href="/cloud/setup">
+    Get the values for the `cloud` object.
+  </Card>
+</CardGroup>

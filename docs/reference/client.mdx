@@ -1,9 +1,1448 @@
 ---
 title: "Client"
-description: "Every Client method, property, and lifecycle hook."
+description: "Every method, getter, and property on Client — signatures, parameters, return values, provider support, and the errors each one throws."
 icon: "cpu"
+keywords: ["client api", "client methods", "connect", "disconnect", "logout", "client.send", "client.on", "webhook", "sendTemplate", "markRead", "downloadMedia", "rejectCall", "broadcast", "scheduleAt", "lidToPn"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/client](https://zeative.github.io/zaileys/client).
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+Look up any member of `Client`: its signature, what it returns, which provider it runs on, and exactly what it throws.
+
+Signature blocks show each member as it's declared on the class. What each constructor option does is in [ClientOptions](/reference/client-options), and the builder that `send()` returns is in [Send builder](/reference/send-builder).
+
+## Quick reference
+
+| Member | Returns | Works on |
+| --- | --- | --- |
+| **Create and connect** | | |
+| [`new Client()`](#new-client) | `Client` | Both |
+| [`connect()`](#connect) | `Promise<void>` | Both |
+| [`disconnect()`](#disconnect) | `Promise<void>` | Both |
+| [`logout()`](#logout) | `Promise<void>` | Both |
+| **Properties** | | |
+| [`provider`](#provider) | `'baileys' \| 'cloud'` | Both |
+| [`state`](#state) | `ConnectionState` | Both |
+| [`sessionId`](#sessionid) | `string` | Both |
+| [`auth`](#auth) | `AuthStoreBundle` | WhatsApp Web |
+| [`store`](#store) | `MessageStore` | Both |
+| [`socket`](#socket) | `BaileysSocket \| undefined` | WhatsApp Web |
+| **Events** | | |
+| [`on()`](#on) | `() => void` | Both |
+| [`off()`](#off) | `void` | Both |
+| [`removeAllListeners()`](#removealllisteners) | `void` | Both |
+| [`listenerCount()`](#listenercount) | `number` | Both |
+| [`emit()`](#emit) | `void` | Both |
+| **Send and change messages** | | |
+| [`send()`](#send) | `MessageBuilder<'init'>` | Both |
+| [`edit()`](#edit) | `EditBuilder` | WhatsApp Web |
+| [`delete()`](#delete) | `Promise<void>` | WhatsApp Web |
+| [`react()`](#react) | `Promise<WAMessageKey>` | Both |
+| [`forward()`](#forward) | `Promise<WAMessageKey>` | WhatsApp Web |
+| [`pin()`](#pin) | `Promise<WAMessageKey>` | WhatsApp Web |
+| [`unpin()`](#unpin) | `Promise<WAMessageKey>` | WhatsApp Web |
+| [`setDisappearing()`](#setdisappearing) | `Promise<void>` | WhatsApp Web |
+| [`downloadMedia()`](#downloadmedia) | `Promise<MediaDownloadResult \| null>` | Both |
+| [`rejectCall()`](#rejectcall) | `Promise<void>` | WhatsApp Web |
+| **Modules** | | |
+| [`group`](#group), [`chat`](#chat), [`contact`](#contact), [`profile`](#profile), [`privacy`](#privacy), [`presence`](#presence), [`business`](#business), [`newsletter`](#newsletter), [`community`](#community) | A module object | WhatsApp Web |
+| **Cloud API only** | | |
+| [`webhook()`](#webhook) | `(req: Request) => Promise<Response>` | Cloud API |
+| [`cloud`](#cloud) | `CloudModule` | Cloud API |
+| [`sendTemplate()`](#sendtemplate) | `Promise<WAMessageKey>` | Cloud API |
+| [`markRead()`](#markread) | `Promise<void>` | Cloud API |
+| **Commands** | | |
+| [`command()`](#command) | `this` | WhatsApp Web |
+| [`unregisterCommand()`](#unregistercommand) | `this` | WhatsApp Web |
+| [`commands()`](#commands) | `RegisteredCommand[]` | WhatsApp Web |
+| [`use()`](#use) | `this` | WhatsApp Web |
+| [`unuse()`](#unuse) | `this` | WhatsApp Web |
+| **Automation** | | |
+| [`broadcast()`](#broadcast) | `Promise<BroadcastResult>` | WhatsApp Web |
+| [`scheduleAt()`](#scheduleat) | `Promise<ScheduleHandle>` | WhatsApp Web |
+| **Addresses and usernames** | | |
+| [`lidToPn()`](#lidtopn), [`pnToLid()`](#pntolid) | `Promise<string \| null>` | WhatsApp Web |
+| [`lidToPns()`](#lidtopns), [`pnToLids()`](#pntolids) | `Promise<Map<string, string>>` | WhatsApp Web |
+| [`getUsername()`](#getusername) | `Promise<string \| null>` | WhatsApp Web |
+| [`usernames()`](#usernames) | `Promise<Map<string, string>>` | WhatsApp Web |
+
+## Create and connect
+
+How the client moves between states is explained in [The client](/concepts/client#the-connection-lifecycle).
+
+### `new Client()`
+
+```ts Signature
+import type { Client, ClientOptions } from 'zaileys'
+
+interface ClientConstructor {
+  new (options?: ClientOptions): Client
+}
+```
+
+Creates a client. Unless `autoConnect` is `false`, it starts connecting straight away.
+
+<ProviderSupport web={true} cloud={true} />
+
+<ParamField body="options" type="ClientOptions" default="{}">
+  Every field is optional — see [ClientOptions](/reference/client-options).
+</ParamField>
+
+**Throws:** with `provider: 'cloud'`, `ZaileysCloudError` with code `CONFIG` — `provider 'cloud' requires cloud.accessToken` or `provider 'cloud' requires cloud.phoneNumberId`. A failed auto-connect doesn't throw: it's emitted as an `error` event, and only if you listen for `error`.
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({ sessionId: 'support-bot' })
+client.on('error', ({ error }) => console.error('Could not connect:', error.message))
+```
+
+### `connect()`
+
+```ts Signature
+interface Client {
+  connect(): Promise<void>
+}
+```
+
+Opens the connection. You only need it with `autoConnect: false` or after `disconnect()`.
+
+<ProviderSupport web={true} cloud={true} note="On the Cloud API, it checks your access token." />
+
+<ResponseField name="returns" type="Promise<void>">
+  On WhatsApp Web, resolves once the connection is open — after the QR code or pairing code is used, or straight away with a saved login. On the Cloud API, resolves once the token check passes and `connect` fires. If a connection is already in progress or open, it resolves immediately without waiting; listen for `connect` in that case.
+</ResponseField>
+
+**Rejects with:**
+
+- `Error` — `phoneNumber is required when authType is "pairing"`.
+- `Error` — `disconnected before connect resolved`, when `disconnect()` runs first (including after the [auth guard](/reference/client-options#authguardoptions) gives up).
+- `Error` — `connection closed (logged-out)` (or another reason), when the connection closes and won't reconnect.
+- Cloud API: `ZaileysCloudError` `AUTH` — `cloud auth rejected (401) — check accessToken/phoneNumberId`; `REQUEST_FAILED` — `cloud health-check request failed` or `cloud health-check failed (500)`.
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({ autoConnect: false })
+client.on('qr', ({ qrString }) => console.log('Show this QR in your app:', qrString))
+
+await client.connect()
+```
+
+### `disconnect()`
+
+```ts Signature
+interface Client {
+  disconnect(): Promise<void>
+}
+```
+
+Closes the connection and keeps the login, so the next `connect()` doesn't need a new QR code. On WhatsApp Web, it also stops commands, plugins, auto-delete, and scheduled-message timers, and closes the auth and message stores. It emits `disconnect` with `willReconnect: false`, and does nothing if the client isn't connected.
+
+<ProviderSupport web={true} cloud={true} />
+
+<ResponseField name="returns" type="Promise<void>">
+  Resolves once everything is closed. Errors while closing are logged as warnings, not thrown.
+</ResponseField>
+
+```ts
+process.on('SIGINT', async () => {
+  await client.disconnect()
+  process.exit(0)
+})
+```
+
+### `logout()`
+
+```ts Signature
+interface Client {
+  logout(): Promise<void>
+}
+```
+
+Unlinks the bot from the phone, deletes the saved login, and disconnects. The next `connect()` shows a new QR code. It emits `disconnect` with reason `logged-out`. On the Cloud API there's no linked device — it just disconnects.
+
+<ProviderSupport web={true} cloud={true} />
+
+<ResponseField name="returns" type="Promise<void>">
+  Resolves when done. Failures along the way are logged as warnings, not thrown.
+</ResponseField>
+
+```ts
+await client.logout()
+```
+
+## Properties
+
+### `provider`
+
+```ts Signature
+import type { ProviderKind } from 'zaileys'
+
+interface Client {
+  readonly provider: ProviderKind
+}
+```
+
+The provider this client uses: `'baileys'` (WhatsApp Web) or `'cloud'` (Cloud API).
+
+<ProviderSupport web={true} cloud={true} />
+
+```ts
+if (client.provider === 'baileys') {
+  await client.presence.typing(jid, 2_000)
+}
+```
+
+### `state`
+
+```ts Signature
+import type { ConnectionState } from 'zaileys'
+
+interface Client {
+  readonly state: ConnectionState
+}
+```
+
+The connection state: `'idle'`, `'connecting'`, `'qr-pending'`, `'pairing-pending'`, `'connected'`, `'reconnecting'`, `'disconnecting'`, or `'disconnected'`. The Cloud API only uses `idle`, `connecting`, `connected`, `disconnecting`, and `disconnected`.
+
+<ProviderSupport web={true} cloud={true} />
+
+```ts
+if (client.state !== 'connected') {
+  console.log(`Not ready yet: ${client.state}`)
+}
+```
+
+### `sessionId`
+
+```ts Signature
+interface Client {
+  readonly sessionId: string
+}
+```
+
+The `sessionId` option, or `'default'`.
+
+<ProviderSupport web={true} cloud={true} />
+
+```ts
+console.log(`Session ${client.sessionId} is ${client.state}`)
+```
+
+### `auth`
+
+```ts Signature
+import type { AuthStoreBundle } from 'zaileys'
+
+interface Client {
+  auth: AuthStoreBundle
+}
+```
+
+The auth store holding the WhatsApp Web login: `auth.creds` for credentials and `auth.signal` for encryption keys. After the first `connect()`, it's wrapped in an in-memory cache unless `cacheSignal` is `false`. Don't replace it while the client runs.
+
+<ProviderSupport web={true} cloud={false} note="Unused on the Cloud API." />
+
+```ts
+const creds = await client.auth.creds.readCreds()
+console.log(creds ? 'A login is saved' : 'No login yet — a QR code will be shown')
+```
+
+### `store`
+
+```ts Signature
+import type { MessageStore } from 'zaileys'
+
+interface Client {
+  readonly store: MessageStore
+}
+```
+
+The message store: messages, chats, contacts, and scheduled messages. [Storage reference](/reference/storage)
+
+<ProviderSupport web={true} cloud={true} />
+
+```ts
+const recent = await client.store.listMessages(jid, { limit: 10 })
+console.log(`${recent.length} messages stored for this chat`)
+```
+
+### `socket`
+
+```ts Signature
+import type { BaileysSocket } from 'zaileys'
+
+interface Client {
+  readonly socket: BaileysSocket | undefined
+}
+```
+
+The underlying Baileys socket, for anything Zaileys doesn't wrap. `undefined` before connecting, after disconnecting, and always on the Cloud API.
+
+<ProviderSupport web={true} cloud={false} />
+
+```ts
+console.log('Logged in as', client.socket?.user?.id)
+```
+
+## Events
+
+Every event name and payload is in the [Events reference](/reference/events).
+
+### `on()`
+
+```ts Signature
+import type { ClientEventMap } from 'zaileys'
+
+interface Client {
+  on<E extends keyof ClientEventMap>(event: E, handler: (payload: ClientEventMap[E]) => void): () => void
+}
+```
+
+Runs `handler` every time `event` fires. There's no `once()` — call the returned function to stop listening.
+
+<ProviderSupport web={true} cloud={true} />
+
+<ParamField body="event" type="keyof ClientEventMap" required>
+  An event name, such as `'text'`, `'connect'`, or `'button-click'`.
+</ParamField>
+<ParamField body="handler" type="(payload) => void" required>
+  Receives the event's payload, typed for that event.
+</ParamField>
+<ResponseField name="returns" type="() => void">
+  Removes this handler. Calling it twice is safe.
+</ResponseField>
+
+<Warning>
+  An error in a handler never becomes an `error` event. A handler that throws synchronously is caught and logged as `listener threw` — invisible unless you set a logger or `ZAILEYS_DEBUG`. A rejected `async` handler isn't caught at all, so Node reports an unhandled rejection. Wrap the body of async handlers in `try`/`catch`.
+</Warning>
+
+```ts
+const stop = client.on('text', async (msg) => {
+  await msg.reply(`You said: ${msg.text}`)
+})
+
+setTimeout(stop, 60_000)
+```
+
+### `off()`
+
+```ts Signature
+import type { ClientEventMap } from 'zaileys'
+
+interface Client {
+  off<E extends keyof ClientEventMap>(event: E, handler: (payload: ClientEventMap[E]) => void): void
+}
+```
+
+Removes a handler. Pass the same function you gave to `on()`.
+
+<ProviderSupport web={true} cloud={true} />
+
+```ts
+import type { MessageContext } from 'zaileys'
+
+const logText = (msg: MessageContext) => console.log(msg.senderId, msg.text)
+
+client.on('text', logText)
+client.off('text', logText)
+```
+
+### `removeAllListeners()`
+
+```ts Signature
+import type { ClientEventMap } from 'zaileys'
+
+interface Client {
+  removeAllListeners(event?: keyof ClientEventMap): void
+}
+```
+
+Removes every handler for one event, or for all events when you pass nothing.
+
+<ProviderSupport web={true} cloud={true} />
+
+<Warning>
+  Zaileys listens to some events itself: `message` drives commands and disappearing-timer inheritance, and `call-incoming` drives `autoRejectCall`. Removing all listeners for those events — or for everything — switches those features off. Prefer the function `on()` returns.
+</Warning>
+
+```ts
+client.removeAllListeners('qr')
+```
+
+### `listenerCount()`
+
+```ts Signature
+import type { ClientEventMap } from 'zaileys'
+
+interface Client {
+  listenerCount(event: keyof ClientEventMap): number
+}
+```
+
+How many handlers are attached to an event, including Zaileys' own.
+
+<ProviderSupport web={true} cloud={true} />
+
+```ts
+if (client.listenerCount('error') === 0) console.warn('Connection errors will go unnoticed')
+```
+
+### `emit()`
+
+```ts Signature
+import type { ClientEventMap } from 'zaileys'
+
+interface Client {
+  emit<E extends keyof ClientEventMap>(event: E, payload: ClientEventMap[E]): void
+}
+```
+
+Calls every handler for an event, synchronously. Zaileys uses it internally; you'd use it in tests.
+
+<ProviderSupport web={true} cloud={true} />
+
+```ts
+client.emit('error', { sessionId: client.sessionId, error: new Error('simulated failure') })
+```
+
+## Send and change messages
+
+### `send()`
+
+```ts Signature
+import type { MessageBuilder } from 'zaileys'
+
+interface Client {
+  send(to: string): MessageBuilder<'init'>
+}
+```
+
+Starts a message. Add one content method, then `await` to send — every method is in the [Send builder reference](/reference/send-builder).
+
+<ProviderSupport web={true} cloud={true} />
+
+<ParamField body="to" type="string" required>
+  A <Term id="jid" /> or a bare phone number. On WhatsApp Web, a bare number is looked up when you await; on the Cloud API it's passed to Meta as it is.
+</ParamField>
+<ResponseField name="returns" type="MessageBuilder<'init'>">
+  A builder. Awaiting it after a content method resolves to the sent message's `WAMessageKey`.
+</ResponseField>
+
+**Throws:** `ZaileysBuilderError` `INVALID_OPTIONS` — `client not connected`, straight from `send()`, before you add content. On the Cloud API this lasts until the `connect()` token check has finished.
+
+```ts
+const key = await client.send('6281234567890@s.whatsapp.net').text('Your order #1042 has shipped.')
+```
+
+### `edit()`
+
+```ts Signature
+import type { EditBuilder, WAMessageKey } from 'zaileys'
+
+interface Client {
+  edit(key: WAMessageKey): EditBuilder
+}
+```
+
+Starts an edit of a message the bot sent. Call one of the builder's methods, then `await`:
+
+| Method | Replaces the message with |
+| --- | --- |
+| `.text(content: string)` | New text |
+| `.image(src: MediaSource, opts?: ImageOptions)` | A new photo |
+| `.video(src: MediaSource, opts?: VideoOptions)` | A new video |
+
+<ProviderSupport web={true} cloud={false} />
+
+<ParamField body="key" type="WAMessageKey" required>
+  The key of the message to edit, as returned by `send()`.
+</ParamField>
+<ResponseField name="returns" type="EditBuilder">
+  Awaiting it resolves to the edit's `WAMessageKey`.
+</ResponseField>
+
+**Throws:** `ZaileysProviderError` `UNSUPPORTED_ON_CLOUD` on the Cloud API; `ZaileysBuilderError` `INVALID_OPTIONS` — `client not connected`. When you await: `INVALID_OPTIONS` — `message key is missing remoteJid`; `EMPTY_CONTENT` — `edit() requires a content method before await`; `SEND_FAILED` — `socket sendMessage rejected` or `socket returned no message key`; plus the media errors from [`image()`](/reference/send-builder#image) and [`video()`](/reference/send-builder#video).
+
+```ts
+const key = await client.send(jid).text('Order status: packing')
+await client.edit(key).text('Order status: shipped')
+```
+
+Guide: [Edit a message](/messaging/edit-delete-react#edit-a-message).
+
+### `delete()`
+
+```ts Signature
+import type { DeleteOptions, WAMessageKey } from 'zaileys'
+
+interface Client {
+  delete(key: WAMessageKey, opts?: DeleteOptions): Promise<void>
+}
+```
+
+Deletes a message.
+
+<ProviderSupport web={true} cloud={false} />
+
+<ParamField body="key" type="WAMessageKey" required>
+  The message to delete.
+</ParamField>
+<ParamField body="opts.forEveryone" type="boolean" default="true">
+  `true` deletes it for everyone in the chat. `false` deletes it only from the bot's own devices.
+</ParamField>
+
+**Throws:** `ZaileysProviderError` `UNSUPPORTED_ON_CLOUD` on the Cloud API. `ZaileysBuilderError` `INVALID_OPTIONS` — `client not connected`, or `message key is missing remoteJid`.
+
+```ts
+const key = await client.send(jid).text('Sorry, wrong chat')
+await client.delete(key)
+```
+
+Guide: [Delete a message](/messaging/edit-delete-react#delete-a-message).
+
+### `react()`
+
+```ts Signature
+import type { WAMessageKey } from 'zaileys'
+
+interface Client {
+  react(key: WAMessageKey, emoji: string): Promise<WAMessageKey>
+}
+```
+
+Adds an emoji reaction to a message, or removes the bot's reaction when `emoji` is `''`.
+
+<ProviderSupport web={true} cloud={true} />
+
+<ParamField body="key" type="WAMessageKey" required>
+  The message to react to.
+</ParamField>
+<ParamField body="emoji" type="string" required>
+  One emoji, or `''` to remove the reaction.
+</ParamField>
+<ResponseField name="returns" type="Promise<WAMessageKey>">
+  The reaction message's key.
+</ResponseField>
+
+**Rejects with:** `ZaileysBuilderError` `INVALID_OPTIONS` — `client not connected` or `message key is missing remoteJid`; `SEND_FAILED` — `socket returned no message key`. On the Cloud API, a Graph API failure rejects with `ZaileysCloudError`.
+
+```ts
+client.on('text', async (msg) => {
+  if (msg.text === 'thanks') await client.react(msg.message().key, '❤️')
+})
+```
+
+Guide: [React to a message](/messaging/edit-delete-react#react-to-a-message).
+
+### `forward()`
+
+```ts Signature
+import type { WAMessageKey } from 'zaileys'
+
+interface Client {
+  forward(key: WAMessageKey, to: string): Promise<WAMessageKey>
+}
+```
+
+Forwards a message to another chat. The message must still be in [`store`](#store).
+
+<ProviderSupport web={true} cloud={false} note="Rejects with INVALID_OPTIONS (client not connected) on the Cloud API." />
+
+<ParamField body="key" type="WAMessageKey" required>
+  The message to forward.
+</ParamField>
+<ParamField body="to" type="string" required>
+  The chat to forward to — a JID, or a bare number that's looked up first.
+</ParamField>
+<ResponseField name="returns" type="Promise<WAMessageKey>">
+  The forwarded copy's key.
+</ResponseField>
+
+**Rejects with:** `ZaileysBuilderError` `INVALID_OPTIONS` — `client not connected`; `MESSAGE_NOT_FOUND` — `message not found in store for forward`; `USERNAME_NOT_FOUND` — for a bare number that isn't on WhatsApp; `SEND_FAILED` — `socket returned no message key`.
+
+```ts
+client.on('image', async (msg) => {
+  await client.forward(msg.message().key, '6289876543210@s.whatsapp.net')
+})
+```
+
+Guide: [Forward a message](/messaging/edit-delete-react#forward-a-message).
+
+### `pin()`
+
+```ts Signature
+import type { PinOptions, WAMessageKey } from 'zaileys'
+
+interface Client {
+  pin(key: WAMessageKey, opts?: PinOptions): Promise<WAMessageKey>
+}
+```
+
+Pins a message at the top of its chat. To pin a whole chat in the chat list, use [`client.chat.pin()`](#chat).
+
+<ProviderSupport web={true} cloud={false} />
+
+<ParamField body="key" type="WAMessageKey" required>
+  The message to pin.
+</ParamField>
+<ParamField body="opts.duration" type="number" default="86400">
+  How long it stays pinned, in seconds. WhatsApp offers `86400` (24 hours), `604800` (7 days), and `2592000` (30 days).
+</ParamField>
+
+**Throws:** `ZaileysProviderError` `UNSUPPORTED_ON_CLOUD` on the Cloud API. `ZaileysBuilderError` `INVALID_OPTIONS` — `client not connected` or `message key is missing remoteJid`; `SEND_FAILED` — `socket returned no message key`.
+
+```ts
+const key = await client.send(jid).text('Store hours: 9am–9pm, Monday to Saturday')
+await client.pin(key, { duration: 604800 })
+```
+
+Guide: [Pin a message](/messaging/edit-delete-react#pin-a-message).
+
+### `unpin()`
+
+```ts Signature
+import type { WAMessageKey } from 'zaileys'
+
+interface Client {
+  unpin(key: WAMessageKey): Promise<WAMessageKey>
+}
+```
+
+Unpins a message.
+
+<ProviderSupport web={true} cloud={false} />
+
+<ParamField body="key" type="WAMessageKey" required>
+  The pinned message.
+</ParamField>
+
+**Throws:** the same errors as [`pin()`](#pin).
+
+```ts
+const key = await client.send(jid).text('Flash sale today only')
+await client.pin(key)
+await client.unpin(key)
+```
+
+### `setDisappearing()`
+
+```ts Signature
+interface Client {
+  setDisappearing(to: string, seconds: number): Promise<void>
+}
+```
+
+Turns on disappearing messages for a chat — the same setting people change in the chat's info screen.
+
+<ProviderSupport web={true} cloud={false} />
+
+<ParamField body="to" type="string" required>
+  The chat — a JID, or a bare number that's looked up first.
+</ParamField>
+<ParamField body="seconds" type="number" required>
+  How long messages last, such as `86400` for 24 hours. `0` turns disappearing messages off.
+</ParamField>
+
+**Throws:** `ZaileysProviderError` `UNSUPPORTED_ON_CLOUD` on the Cloud API. `ZaileysBuilderError` `INVALID_OPTIONS` — `client not connected`; `USERNAME_NOT_FOUND` for a bare number that isn't on WhatsApp.
+
+```ts
+await client.setDisappearing(jid, 86400)
+await client.setDisappearing(jid, 0)
+```
+
+To make a single message disappear, use [`.disappearing()`](/reference/send-builder#disappearing) on the builder.
+
+### `downloadMedia()`
+
+```ts Signature
+import type { MediaDownloadResult, WAMessageKey } from 'zaileys'
+
+interface Client {
+  downloadMedia(key: WAMessageKey): Promise<MediaDownloadResult | null>
+}
+```
+
+Downloads the photo, video, audio, document, or sticker of a message held in [`store`](#store). Useful when you only kept the key.
+
+<ProviderSupport web={true} cloud={true} />
+
+<ParamField body="key" type="WAMessageKey" required>
+  The message's key.
+</ParamField>
+<ResponseField name="returns" type="Promise<MediaDownloadResult | null>">
+  `{ buffer, mime, size }`, or `null` when the message isn't in the store or has no media.
+</ResponseField>
+
+**Rejects with:** on WhatsApp Web, the download error from WhatsApp — for example when the media has expired from WhatsApp's servers. On the Cloud API, `ZaileysCloudError` `REQUEST_FAILED` — `media download failed`.
+
+```ts
+import { writeFile } from 'node:fs/promises'
+
+client.on('document', async (msg) => {
+  const file = await client.downloadMedia(msg.message().key)
+  if (file) await writeFile(`./inbox/${msg.chatId}`, file.buffer)
+})
+```
+
+Guide: [Download later by message key](/messaging/receiving-media#download-later-by-message-key).
+
+### `rejectCall()`
+
+```ts Signature
+import type { CallPayload } from 'zaileys'
+
+interface Client {
+  rejectCall(call: Extract<CallPayload, { kind: 'incoming' }>): Promise<void>
+  rejectCall(callId: string, from: string): Promise<void>
+}
+```
+
+Rejects an incoming voice or video call. Pass the `call-incoming` payload, or its `callId` and `from`. To reject calls automatically, use the [`autoRejectCall` option](/reference/client-options#autorejectcalloptions).
+
+<ProviderSupport web={true} cloud={false} note="The Cloud API has no calls." />
+
+<ParamField body="call" type="Extract<CallPayload, { kind: 'incoming' }>">
+  The payload of the `call-incoming` event.
+</ParamField>
+<ParamField body="callId, from" type="string, string">
+  The call's ID and the caller's JID, if you stored them separately.
+</ParamField>
+
+**Throws:** `ZaileysProviderError` `UNSUPPORTED_ON_CLOUD` on the Cloud API. `ZaileysAutomationError` `NOT_CONNECTED` — `cannot reject a call: client not connected`, or `rejectCall(callId, from) requires the caller jid` when `from` is missing.
+
+```ts
+client.on('call-incoming', async (call) => {
+  if (call.isVideo) await client.rejectCall(call)
+})
+```
+
+## Modules
+
+Groups, chats, contacts, and the rest live on module properties such as `client.group`. They share three rules:
+
+- **WhatsApp Web only.** Reading one of these properties on the Cloud API throws `ZaileysProviderError` with code `UNSUPPORTED_ON_CLOUD` — for example `group is not supported by the official WhatsApp Cloud API — it only exists on the web (baileys) provider`.
+- **Connected first.** Calling a module method before the client is connected throws `ZaileysDomainError` with code `NOT_CONNECTED` (`client not connected`). `presence` throws `ZaileysAutomationError` with the same code and message.
+- **Paced for you.** Group, community, and channel operations are spaced out by [`operationGuard`](/reference/client-options#operationguardoptions), and repeated presence updates are dropped by the [`presence` throttle](/reference/client-options#presencethrottleoptions).
+
+Every module method, its parameters, and its errors are documented on the linked guide page.
+
+### `group`
+
+```ts Signature
+import type { GroupModule } from 'zaileys'
+
+interface Client {
+  readonly group: GroupModule
+}
+```
+
+Create and manage groups, their members, settings, and invites.
+
+<ProviderSupport web={true} cloud={false} />
+
+**Methods:** `create`, `metadata`, `list`, `addMember`, `removeMember`, `promote`, `demote`, `updateSubject`, `updateDescription`, `setting`, `toggleEphemeral`, `memberAddMode`, `joinApproval`, `joinRequests`, `approveJoin`, `rejectJoin`, `tagMember`, `inviteCode`, `revokeInvite`, `acceptInvite`, `inviteInfo`, `leave`.
+
+```ts
+const info = await client.group.metadata('120363025246125486@g.us')
+console.log(`${info.subject}: ${info.participants.length} members`)
+```
+
+Guides: [Groups](/groups/groups), [Members](/groups/members), [Invites](/groups/invites).
+
+### `chat`
+
+```ts Signature
+import type { ChatModule } from 'zaileys'
+
+interface Client {
+  readonly chat: ChatModule
+}
+```
+
+Archive, pin, mute, mark read, star, clear, and delete chats in the bot's chat list.
+
+<ProviderSupport web={true} cloud={false} />
+
+**Methods:** `archive`, `unarchive`, `pin`, `unpin`, `mute`, `unmute`, `markRead`, `markUnread`, `star`, `unstar`, `fetchHistory`, `clear`, `delete`.
+
+```ts
+await client.chat.archive(jid)
+```
+
+Guide: [Chats](/chats/chats).
+
+### `contact`
+
+```ts Signature
+import type { ContactModule } from 'zaileys'
+
+interface Client {
+  readonly contact: ContactModule
+}
+```
+
+Check whether numbers are on WhatsApp, and save or remove contacts.
+
+<ProviderSupport web={true} cloud={false} />
+
+**Methods:** `check`, `exists`, `save`, `remove`.
+
+```ts
+const registered = await client.contact.exists('6281234567890')
+```
+
+Guide: [Contacts](/chats/contacts).
+
+### `profile`
+
+```ts Signature
+import type { ProfileModule } from 'zaileys'
+
+interface Client {
+  readonly profile: ProfileModule
+}
+```
+
+Change the bot's name, about text, and picture, and read other people's.
+
+<ProviderSupport web={true} cloud={false} />
+
+**Methods:** `setName`, `setStatus`, `setPicture`, `removePicture`, `getPicture`, `getStatus`.
+
+```ts
+await client.profile.setStatus('Open 9am–9pm · replies within an hour')
+```
+
+Guide: [Profile](/chats/profile).
+
+### `privacy`
+
+```ts Signature
+import type { PrivacyModule } from 'zaileys'
+
+interface Client {
+  readonly privacy: PrivacyModule
+}
+```
+
+Privacy settings, blocking, and the default disappearing timer.
+
+<ProviderSupport web={true} cloud={false} />
+
+**Methods:** `get`, `set`, `call`, `disappearingMode`, `block`, `unblock`, `blocklist`.
+
+```ts
+await client.privacy.set({ lastSeen: 'contacts', readReceipts: 'none' })
+```
+
+Guide: [Privacy](/chats/privacy).
+
+### `presence`
+
+```ts Signature
+import type { PresenceModule } from 'zaileys'
+
+interface Client {
+  readonly presence: PresenceModule
+}
+```
+
+Show typing or recording in a chat, and appear online or offline. A failed update rejects with `ZaileysAutomationError` code `PRESENCE_FAILED`.
+
+<ProviderSupport web={true} cloud={false} />
+
+**Methods:** `typing(jid, ms?)`, `recording(jid, ms?)`, `online()`, `offline()`. With `ms`, the indicator clears itself after that many milliseconds.
+
+```ts
+await client.presence.typing(jid, 3_000)
+await client.send(jid).text('Here is your receipt.')
+```
+
+Guide: [Presence](/chats/presence).
+
+### `business`
+
+```ts Signature
+import type { BusinessModule } from 'zaileys'
+
+interface Client {
+  readonly business: BusinessModule
+}
+```
+
+Business profiles, catalogs, collections, orders, and products on a WhatsApp Business account.
+
+<ProviderSupport web={true} cloud={false} note="On the Cloud API, use client.cloud instead." />
+
+**Methods:** `profile`, `catalog`, `collections`, `orderDetails`, `createProduct`, `updateProduct`, `deleteProduct`.
+
+```ts
+const profile = await client.business.profile('6281234567890@s.whatsapp.net')
+```
+
+Guide: [Business & catalog](/data/business).
+
+### `newsletter`
+
+```ts Signature
+import type { NewsletterModule } from 'zaileys'
+
+interface Client {
+  readonly newsletter: NewsletterModule
+}
+```
+
+Create, follow, and manage WhatsApp Channels.
+
+<ProviderSupport web={true} cloud={false} />
+
+**Methods:** `create`, `metadata`, `follow`, `unfollow`, `mute`, `unmute`, `updateName`, `updateDescription`, `updatePicture`, `removePicture`, `react`, `unreact`, `messages`, `subscribers`, `adminCount`, `changeOwner`, `demote`, `delete`.
+
+```ts
+await client.newsletter.follow('120363144038483540@newsletter')
+```
+
+Guide: [Channels](/groups/newsletters).
+
+### `community`
+
+```ts Signature
+import type { CommunityModule } from 'zaileys'
+
+interface Client {
+  readonly community: CommunityModule
+}
+```
+
+Create communities, link groups to them, and manage their settings and invites.
+
+<ProviderSupport web={true} cloud={false} />
+
+**Methods:** `create`, `createGroup`, `metadata`, `list`, `linkGroup`, `unlinkGroup`, `subGroups`, `updateSubject`, `updateDescription`, `setting`, `toggleEphemeral`, `memberAddMode`, `joinApproval`, `inviteCode`, `revokeInvite`, `acceptInvite`, `inviteInfo`, `leave`.
+
+```ts
+const groups = await client.community.subGroups('120363027772113445@g.us')
+console.log(`${groups.length} groups in this community`)
+```
+
+Guide: [Communities](/groups/communities).
+
+## Cloud API only
+
+These throw on WhatsApp Web.
+
+### `webhook()`
+
+```ts Signature
+interface Client {
+  webhook(): (req: Request) => Promise<Response>
+}
+```
+
+Returns the handler Meta calls with every message and status update. It takes a standard `Request` and returns a `Response`, so it plugs into Next.js, Hono, Bun, and anything else built on the Fetch API. Deliveries are processed even before `connect()` finishes.
+
+<ProviderSupport web={false} cloud={true} />
+
+<ResponseField name="returns" type="(req: Request) => Promise<Response>">
+  How it answers:
+
+  | Request | Response |
+  | --- | --- |
+  | `GET` with `hub.mode=subscribe` and the right `hub.verify_token` | `200` with `hub.challenge` |
+  | Any other `GET` | `403` |
+  | `POST` with a bad `X-Hub-Signature-256` (when `appSecret` is set) | `401` |
+  | `POST` whose body isn't JSON | `400` |
+  | Any other `POST` | `200` — always, even if your handlers fail, so Meta doesn't retry |
+  | Other methods | `405` |
+</ResponseField>
+
+**Throws:** `ZaileysCloudError` `CONFIG` — `webhook() is only available on the cloud provider`.
+
+```ts app/api/whatsapp/route.ts
+const webhook = client.webhook()
+
+export const GET = webhook
+export const POST = webhook
+```
+
+Guide: [Webhook](/cloud/webhook).
+
+### `cloud`
+
+```ts Signature
+import type { CloudModule } from 'zaileys'
+
+interface Client {
+  readonly cloud: CloudModule
+}
+```
+
+Account management on the Cloud API.
+
+<ProviderSupport web={false} cloud={true} />
+
+| Member | What it does |
+| --- | --- |
+| `info()`, `phoneNumbers()` | Read the sending number and the numbers on the account |
+| `templates.list()`, `.get()`, `.create()`, `.delete()` | Manage message templates |
+| `profile.get()`, `.update()` | Read and update the business profile |
+| `flows.list()`, `.send()` | List and send WhatsApp Flows |
+| `commerce.catalogs()`, `.products()`, `.sendProduct()`, `.sendProductList()` | Catalogs and product messages |
+| `sendAddressRequest()` | Ask a customer for a delivery address |
+| `blocklist.add()`, `.remove()`, `.list()` | Block and unblock numbers |
+| `qr.create()`, `.list()`, `.delete()` | Manage QR codes that open a chat |
+| `analytics.conversations()`, `.messages()` | Usage analytics |
+| `phone.register()`, `.deregister()`, `.requestCode()`, `.verifyCode()` | Register and verify the number |
+
+**Throws:** `ZaileysCloudError` `CONFIG` — `wa.cloud requires provider: 'cloud'`.
+
+```ts
+const approved = await client.cloud.templates.list({ status: 'APPROVED' })
+console.log(`${approved.length} approved templates`)
+```
+
+Guides: [Templates](/cloud/templates), [Business management](/cloud/business).
+
+### `sendTemplate()`
+
+```ts Signature
+import type { WAMessageKey } from 'zaileys'
+
+interface Client {
+  sendTemplate(
+    to: string,
+    name: string,
+    languageCode: string,
+    components?: Array<Record<string, unknown>>,
+  ): Promise<WAMessageKey>
+}
+```
+
+Sends a Meta-approved message template. Templates are the only way to message someone outside the <Term id="service-window" />.
+
+<ProviderSupport web={false} cloud={true} />
+
+<ParamField body="to" type="string" required>
+  The recipient's number or JID.
+</ParamField>
+<ParamField body="name" type="string" required>
+  The template's name, as approved by Meta.
+</ParamField>
+<ParamField body="languageCode" type="string" required>
+  The template language, such as `'en_US'` or `'id'`.
+</ParamField>
+<ParamField body="components" type="Array<Record<string, unknown>>">
+  Values for the template's placeholders, in Meta's `components` format.
+</ParamField>
+<ResponseField name="returns" type="Promise<WAMessageKey>">
+  The sent message's key.
+</ResponseField>
+
+**Throws:** `ZaileysCloudError` `CONFIG` — `sendTemplate() is only available on the cloud provider`, on WhatsApp Web or before the Cloud API connection has started. `REQUEST_FAILED` — `graph template send returned no message id`, or an error from the Graph API.
+
+```ts
+const key = await client.sendTemplate('6281234567890', 'order_shipped', 'en_US', [
+  { type: 'body', parameters: [{ type: 'text', text: '#1042' }] },
+])
+```
+
+Guide: [Templates](/cloud/templates).
+
+### `markRead()`
+
+```ts Signature
+interface Client {
+  markRead(messageId: string, opts?: { typing?: boolean }): Promise<void>
+}
+```
+
+Marks an incoming message as read — blue ticks for the sender — and can show a typing indicator at the same time.
+
+<ProviderSupport web={false} cloud={true} note="On WhatsApp Web, use client.chat.markRead(jid)." />
+
+<ParamField body="messageId" type="string" required>
+  The incoming message's ID — `msg.chatId` in a handler.
+</ParamField>
+<ParamField body="opts.typing" type="boolean" default="false">
+  Also show "typing…" to the sender.
+</ParamField>
+
+**Throws:** `ZaileysCloudError` `CONFIG` — `markRead(messageId) is only available on the cloud provider`, on WhatsApp Web or before the Cloud API connection has started.
+
+```ts
+client.on('text', async (msg) => {
+  await client.markRead(msg.chatId, { typing: true })
+  await msg.reply('Checking your order now…')
+})
+```
+
+## Commands
+
+Commands need a [`commandPrefix`](/reference/client-options#incoming-messages-and-commands) and run on WhatsApp Web only. You can register them before connecting; they start working once the client connects. Full details are in the [Commands reference](/reference/commands).
+
+### `command()`
+
+```ts Signature
+import type { CommandHandler, CommandSpec } from 'zaileys'
+
+interface Client {
+  command(spec: string | CommandSpec, handler: CommandHandler): this
+}
+```
+
+Registers a command. Returns the client, so calls chain.
+
+<ProviderSupport web={true} cloud={false} />
+
+<ParamField body="spec" type="string | CommandSpec" required>
+  The name, with aliases after `|` — for example `'help|h'` — and spaces for subcommands, such as `'order cancel'`. Or an object with `name`, `aliases`, `description`, `usage`, `category`, `hidden`, `metadata`, and the guards `group`, `private`, `admin`, and `cooldown` (seconds).
+</ParamField>
+<ParamField body="handler" type="(ctx: CommandContext) => Promise<void> | void" required>
+  Runs when the command matches. `ctx` is the message plus `command`, `args`, `flags`, `reply()`, and more.
+</ParamField>
+
+**Throws:** `ZaileysCommandError` `DUPLICATE_COMMAND` — `command "price" is already registered`; `INVALID_COMMAND_NAME` — `command spec must not be empty`.
+
+```ts
+client.command({ name: 'price', aliases: ['harga'], description: "Today's prices", cooldown: 10 }, async (ctx) => {
+  await ctx.reply('Rice 5 kg: Rp75.000\nCooking oil 2 L: Rp38.000')
+})
+```
+
+Guide: [Commands](/bots/commands).
+
+### `unregisterCommand()`
+
+```ts Signature
+import type { CommandSpec } from 'zaileys'
+
+interface Client {
+  unregisterCommand(spec: string | CommandSpec): this
+}
+```
+
+Removes a command and its aliases. An unknown name does nothing.
+
+<ProviderSupport web={true} cloud={false} />
+
+```ts
+client.unregisterCommand('price')
+```
+
+### `commands()`
+
+```ts Signature
+import type { RegisteredCommand } from 'zaileys'
+
+interface Client {
+  commands(): RegisteredCommand[]
+}
+```
+
+Lists every registered command with its aliases, description, and guards — handy for a help menu.
+
+<ProviderSupport web={true} cloud={false} />
+
+```ts
+client.command('help', async (ctx) => {
+  const lines = client.commands().filter((c) => !c.hidden).map((c) => `/${c.name} — ${c.description ?? ''}`)
+  await ctx.reply(lines.join('\n'))
+})
+```
+
+### `use()`
+
+```ts Signature
+import type { Middleware } from 'zaileys'
+
+interface Client {
+  use(middleware: Middleware): this
+}
+```
+
+Adds middleware that runs before every command, in the order you add it. Call `next()` to continue; return without calling it to stop the command.
+
+<ProviderSupport web={true} cloud={false} />
+
+```ts
+client.use(async (ctx, next) => {
+  console.log(`/${ctx.command} from ${ctx.senderId}`)
+  await next()
+})
+```
+
+Guide: [Middleware](/bots/middleware).
+
+### `unuse()`
+
+```ts Signature
+import type { Middleware } from 'zaileys'
+
+interface Client {
+  unuse(middleware: Middleware): this
+}
+```
+
+Removes middleware. Pass the same function you gave to `use()`.
+
+<ProviderSupport web={true} cloud={false} />
+
+```ts
+import type { Middleware } from 'zaileys'
+
+const logCommands: Middleware = async (ctx, next) => {
+  console.log(ctx.command)
+  await next()
+}
+
+client.use(logCommands)
+client.unuse(logCommands)
+```
+
+## Automation
+
+### `broadcast()`
+
+```ts Signature
+import type { BroadcastOptions, BroadcastResult, MessageBuilder } from 'zaileys'
+
+interface Client {
+  broadcast(
+    jids: string[],
+    build: (b: MessageBuilder<'init'>) => MessageBuilder<'content-set'>,
+    options?: BroadcastOptions,
+  ): Promise<BroadcastResult>
+}
+```
+
+Sends the same message to many chats, one at a time and rate-limited.
+
+<ProviderSupport web={true} cloud={false} />
+
+<ParamField body="jids" type="string[]" required>
+  The recipients.
+</ParamField>
+<ParamField body="build" type="(b: MessageBuilder<'init'>) => MessageBuilder<'content-set'>" required>
+  Adds content to a builder already addressed to one recipient. Called once per recipient.
+</ParamField>
+<ParamField body="options.rateLimitPerSec" type="number" default="5">
+  The most messages sent per second. Must be greater than `0`.
+</ParamField>
+<ParamField body="options.retry" type="{ maxRetries: number; backoffMs: (attempt: number) => number }">
+  Retry each failed recipient up to `maxRetries` times, waiting `backoffMs(attempt)` between tries.
+</ParamField>
+<ParamField body="options.onProgress" type="(done: number, total: number, jid: string, ok: boolean) => void">
+  Called after each recipient.
+</ParamField>
+<ResponseField name="returns" type="Promise<BroadcastResult>">
+  `{ sent: string[], failed: { jid, error }[] }`. A failed recipient never rejects the whole broadcast.
+</ResponseField>
+
+**Throws:** `ZaileysBuilderError` `INVALID_OPTIONS` — `client not connected`, which is always the case on the Cloud API. `ZaileysAutomationError` `RATE_LIMIT_INVALID` — `perSec must be greater than zero`.
+
+```ts
+const result = await client.broadcast(
+  ['6281234567890@s.whatsapp.net', '6289876543210@s.whatsapp.net'],
+  (b) => b.text('We open at 10am tomorrow for the holiday.'),
+  { rateLimitPerSec: 1, onProgress: (done, total) => console.log(`${done}/${total}`) },
+)
+console.log(`Sent ${result.sent.length}, failed ${result.failed.length}`)
+```
+
+Guide: [Send one message to many chats](/bots/broadcast-and-schedule#send-one-message-to-many-chats).
+
+### `scheduleAt()`
+
+```ts Signature
+import type { MessageBuilder, ScheduleHandle } from 'zaileys'
+
+interface Client {
+  scheduleAt(
+    date: Date,
+    build: (b: MessageBuilder<'init'>) => MessageBuilder<'content-set'>,
+  ): Promise<ScheduleHandle>
+}
+```
+
+Sends a message at a set time. The message is prepared right away — files included — and saved to the store when the adapter supports scheduled messages, so it survives a restart. Due messages go out at most [`scheduleRateLimitPerSec`](/reference/client-options#guards-and-rate-limits) per second.
+
+<ProviderSupport web={true} cloud={false} note="Scheduled sends fail on the Cloud API." />
+
+<ParamField body="date" type="Date" required>
+  When to send. A time in the past sends straight away.
+</ParamField>
+<ParamField body="build" type="(b: MessageBuilder<'init'>) => MessageBuilder<'content-set'>" required>
+  Builds the message. The builder has no recipient, so start with [`.to(jid)`](/reference/send-builder#to).
+</ParamField>
+<ResponseField name="returns" type="Promise<ScheduleHandle>">
+  `{ id, cancel() }`. `cancel()` stops the send and removes the saved job.
+</ResponseField>
+
+**Rejects with:** `ZaileysAutomationError` `SCHEDULE_INVALID` — `scheduleAt requires a valid Date`, `scheduled builder produced no content`, `scheduled builder evaluation failed` (the builder's error is on `cause`), `scheduling multi-part messages (e.g. album) is not supported; schedule a single message`, or `scheduling interactive/relayed content is not supported; schedule a text or media message`.
+
+If sending fails when the time comes — for example because the client is offline — the job is kept and tried again the next time the client connects.
+
+```ts
+const handle = await client.scheduleAt(new Date('2026-12-24T09:00:00+07:00'), (b) =>
+  b.to('6281234567890@s.whatsapp.net').text('Merry Christmas from Toko Budi!'),
+)
+console.log('Scheduled job', handle.id)
+```
+
+Guide: [Send a message later](/bots/broadcast-and-schedule#send-a-message-later).
+
+## Addresses and usernames
+
+WhatsApp sometimes hides a person's phone number behind a <Term id="lid" />. These methods translate between the two using WhatsApp's own mapping, which may need a network request. They never throw: when the answer is unknown, the client isn't connected, or you're on the Cloud API, you get `null` or an empty map. [LIDs explained](/concepts/jids#lids-when-whatsapp-hides-the-phone-number)
+
+### `lidToPn()`
+
+```ts Signature
+interface Client {
+  lidToPn(lid: string): Promise<string | null>
+}
+```
+
+Finds the phone-number JID behind a `@lid` JID.
+
+<ProviderSupport web={true} cloud={false} />
+
+```ts
+const pn = await client.lidToPn('115362955808779@lid')
+console.log(pn ?? 'Phone number not shared')
+```
+
+### `pnToLid()`
+
+```ts Signature
+interface Client {
+  pnToLid(pn: string): Promise<string | null>
+}
+```
+
+Finds the `@lid` JID for a phone-number JID.
+
+<ProviderSupport web={true} cloud={false} />
+
+```ts
+const lid = await client.pnToLid('6281234567890@s.whatsapp.net')
+```
+
+### `lidToPns()`
+
+```ts Signature
+interface Client {
+  lidToPns(lids: string[]): Promise<Map<string, string>>
+}
+```
+
+`lidToPn()` for many JIDs in one request. Returns a map from LID to phone-number JID; JIDs WhatsApp can't resolve are left out.
+
+<ProviderSupport web={true} cloud={false} />
+
+```ts
+const info = await client.group.metadata('120363025246125486@g.us')
+const phones = await client.lidToPns(info.participants.map((p) => p.id))
+console.log(`${phones.size} of ${info.participants.length} numbers known`)
+```
+
+### `pnToLids()`
+
+```ts Signature
+interface Client {
+  pnToLids(pns: string[]): Promise<Map<string, string>>
+}
+```
+
+`pnToLid()` for many JIDs in one request. Returns a map from phone-number JID to LID.
+
+<ProviderSupport web={true} cloud={false} />
+
+```ts
+const lids = await client.pnToLids(['6281234567890@s.whatsapp.net', '6289876543210@s.whatsapp.net'])
+```
+
+### `getUsername()`
+
+```ts Signature
+interface Client {
+  getUsername(jid: string): Promise<string | null>
+}
+```
+
+Looks up a person's WhatsApp username. `null` when they have none or the lookup fails. Works best with `@lid` JIDs.
+
+<ProviderSupport web={true} cloud={false} />
+
+```ts
+const handle = await client.getUsername('115362955808779@lid')
+if (handle) console.log(`Username: ${handle}`)
+```
+
+### `usernames()`
+
+```ts Signature
+interface Client {
+  usernames(jids: string[]): Promise<Map<string, string>>
+}
+```
+
+`getUsername()` for many JIDs in one request. Returns a map from JID to username; people without one are left out.
+
+<ProviderSupport web={true} cloud={false} />
+
+```ts
+const names = await client.usernames(['115362955808779@lid', '234256710246613@lid'])
+```
+
+## Errors
+
+| Error class | Code | Thrown by |
+| --- | --- | --- |
+| `ZaileysProviderError` | `UNSUPPORTED_ON_CLOUD` | Web-only members on the Cloud API: the modules, `edit`, `delete`, `pin`, `unpin`, `setDisappearing`, `rejectCall` |
+| `ZaileysBuilderError` | `INVALID_OPTIONS` | `send`, `edit`, `delete`, `react`, `forward`, `pin`, `unpin`, `setDisappearing`, `broadcast` before the client is connected (`client not connected`) |
+| `ZaileysBuilderError` | `MESSAGE_NOT_FOUND`, `USERNAME_NOT_FOUND` | `forward`, `setDisappearing`, and sends to a bare number |
+| `ZaileysCloudError` | `CONFIG` | `new Client()` with incomplete `cloud` options; `webhook`, `cloud`, `sendTemplate`, `markRead` on WhatsApp Web |
+| `ZaileysCloudError` | `AUTH`, `REQUEST_FAILED` | `connect` and Graph API calls on the Cloud API |
+| `ZaileysDomainError` | `NOT_CONNECTED` and others | Module methods |
+| `ZaileysAutomationError` | `NOT_CONNECTED`, `PRESENCE_FAILED`, `SCHEDULE_INVALID`, `RATE_LIMIT_INVALID` | `presence`, `rejectCall`, `scheduleAt`, `broadcast` |
+| `ZaileysCommandError` | `DUPLICATE_COMMAND`, `INVALID_COMMAND_NAME` | `command` |
+
+Every code and how to fix it: [Errors](/reference/errors) and [Error handling](/data/error-handling).
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Is there a once() method?">
+    No. `on()` returns a function that removes the handler — call it inside the handler to run it once.
+  </Accordion>
+  <Accordion title="Why does connect() resolve before the bot is connected?">
+    A connection was already in progress — usually from `autoConnect` — so `connect()` returned straight away. Listen for the `connect` event, or create the client with `autoConnect: false` and call `connect()` yourself.
+  </Accordion>
+  <Accordion title="Why don't I see errors from my handlers?">
+    A synchronous throw is caught and logged through the logger, which is silent by default. Set `ZAILEYS_DEBUG=1` to see it, and wrap async handlers in `try`/`catch` — their rejections aren't caught by Zaileys.
+  </Accordion>
+  <Accordion title="Which members can I use on the Cloud API?">
+    Everything marked **Both** or **Cloud API** in the [Quick reference](#quick-reference). The rest throw `UNSUPPORTED_ON_CLOUD` or `client not connected`, or return an empty result.
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="ClientOptions" icon="sliders-horizontal" href="/reference/client-options">
+    Every constructor option and its default.
+  </Card>
+  <Card title="Send builder" icon="send" href="/reference/send-builder">
+    Every content method and modifier.
+  </Card>
+  <Card title="Events" icon="radio" href="/reference/events">
+    Every event name and payload.
+  </Card>
+  <Card title="Error handling" icon="triangle-alert" href="/data/error-handling">
+    Catch, retry, and log failures.
+  </Card>
+</CardGroup>

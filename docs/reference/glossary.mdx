@@ -1,9 +1,229 @@
 ---
 title: "Glossary"
-description: "WhatsApp and Zaileys terms explained in plain language."
+description: "Plain-language definitions of the WhatsApp, Cloud API, and Zaileys terms used across these docs."
 icon: "book-a"
+keywords: ["glossary", "terms", "definitions", "what is a jid", "what is a lid", "jid suffix", "pairing code", "session", "auth store", "message store", "waba", "phone number id", "webhook", "24-hour window", "service window", "template", "graph api", "airich", "provider", "linked device", "command prefix"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. This is a new page in the rebuilt docs.
-</Note>
+Short definitions of the terms you'll meet in these docs, grouped by topic, each with a link to where it matters.
+
+## Providers & WhatsApp
+
+### Provider
+
+The part of Zaileys that talks to WhatsApp. You choose it with the `provider` option: `'baileys'` (the default, called Unofficial in these docs) or `'cloud'` (Official). Your handlers stay the same on both. [Compare providers](/providers)
+
+### Unofficial (WhatsApp Web)
+
+The default provider. Zaileys logs in as a linked device of a normal WhatsApp account, the same way WhatsApp Web does. It needs no approval, but WhatsApp can ban numbers that behave like bots. [WhatsApp Web provider](/whatsapp-web)
+
+### Official (Cloud API)
+
+The `provider: 'cloud'` option, which uses Meta's WhatsApp Cloud API with a business number. It needs a Meta app, receives messages through a webhook, and only lets you start conversations with approved templates. [Cloud API overview](/cloud/overview)
+
+### Baileys
+
+The open-source WhatsApp Web library the Unofficial provider is built on. The `baileys` client option passes settings straight to it. [Configuration](/concepts/configuration)
+
+### Linked device
+
+A computer or app attached to a phone's WhatsApp account, listed under **WhatsApp → Settings → Linked devices**. On the Unofficial provider, your bot is one of these, and removing it there logs the bot out. [Quickstart](/quickstart)
+
+## Addresses & messages
+
+### JID
+
+A WhatsApp address. Every person, group, and channel has one, and it's what you pass to `client.send()` — for example `6281234567890@s.whatsapp.net`. [Addresses & JIDs](/concepts/jids)
+
+### JID suffixes
+
+The part after `@` tells you what kind of address a JID is:
+
+| Suffix | Example | What it is |
+| --- | --- | --- |
+| `@s.whatsapp.net` | `6281234567890@s.whatsapp.net` | A person, by phone number |
+| `@g.us` | `120363025246125486@g.us` | A group |
+| `@lid` | `123456789012345@lid` | A person, by privacy ID ([LID](#lid)) |
+| `@newsletter` | `120363144038483540@newsletter` | A channel |
+| `status@broadcast` | `status@broadcast` | Your status updates |
+| `@broadcast` | `1234567890@broadcast` | A broadcast list |
+| `@c.us` | `6281234567890@c.us` | An older form of a person's address |
+
+A number after a colon, as in `6281234567890:12@s.whatsapp.net`, identifies one of that person's devices. [Addresses & JIDs](/concepts/jids)
+
+### LID
+
+A privacy ID that WhatsApp can show instead of a phone number, for example in large groups. LIDs end in `@lid`. `client.lidToPn()` turns one back into a phone-number JID when WhatsApp allows it. [LIDs](/concepts/jids)
+
+### PN
+
+Short for "phone number". A PN JID is built from a phone number (`…@s.whatsapp.net`), as opposed to a LID. `client.pnToLid()` and `client.lidToPn()` convert between the two. [Addresses & JIDs](/concepts/jids)
+
+### Push name
+
+The display name a person sets in their own WhatsApp profile, available as `msg.senderName`. Anyone can set any name, so don't use it to identify people. [Message context](/concepts/message-context)
+
+### Room
+
+Zaileys' word for the chat a message belongs to. `msg.roomId` is the group's JID for group messages and the other person's JID in a private chat. [Message context](/concepts/message-context)
+
+### Message key
+
+The `{ remoteJid, id, fromMe }` object that identifies one message (`WAMessageKey`). Every send resolves to one, and you need it to edit, delete, react to, or forward a message. [Edit, delete & react](/messaging/edit-delete-react)
+
+### Message ID
+
+The `id` part of a message key. On a received message it's `msg.chatId` — despite the name, that's the message's ID, not the chat's address. Use `msg.roomId` for the chat. [Message context](/concepts/message-context)
+
+### Channel (newsletter)
+
+WhatsApp's one-way broadcast feature. The API calls channels newsletters: their JIDs end in `@newsletter`, and you manage them with `client.newsletter`. WhatsApp Web only. [Channels](/groups/newsletters)
+
+### Community
+
+A set of related groups under one umbrella, with a shared announcement group. Managed with `client.community`. WhatsApp Web only. [Communities](/groups/communities)
+
+### Status
+
+WhatsApp's 24-hour updates, like stories. You post one by sending to `status@broadcast` with `.audience([...])` to choose who sees it. [Post a status update](/concepts/jids)
+
+### Disappearing messages
+
+A chat setting that deletes messages after a set time. Zaileys follows the chat's timer when it sends into that chat, and `.disappearing(seconds)` sets one yourself. [Text & replies](/messaging/text)
+
+### View once
+
+A photo or video the recipient can open only once. Send one with `{ viewOnce: true }`. WhatsApp Web only. [Send media](/messaging/media)
+
+### Voice note (PTT)
+
+A recorded voice message with a waveform. WhatsApp calls it PTT ("push to talk"), which is why `audio()` has a `ptt` option — it sends a voice note by default. [Send media](/messaging/media)
+
+## Logging in & storage
+
+### QR code
+
+The code you scan under **Linked devices → Link a device** to log a bot in on the Unofficial provider. Zaileys prints it in the terminal and emits a `qr` event. Each code expires quickly, and Zaileys stops after 5 unscanned codes. [Quickstart](/quickstart)
+
+### Pairing code
+
+An 8-character code you type into **WhatsApp → Linked devices → Link a device → Link with phone number instead**, as an alternative to scanning a QR code. Turn it on with `authType: 'pairing'` and the bot's `phoneNumber`. [Log in with a pairing code](/concepts/configuration)
+
+### Session
+
+The saved login that lets Zaileys reconnect without scanning again. It lives in the [auth store](#auth-store) and works like a password: anyone with a copy can use the account. [Storage](/data/storage)
+
+### Session ID
+
+The name that keeps one bot's session apart from another's, set with `sessionId` (default `'default'`). The default file store saves each session in `./.zaileys/auth/<sessionId>`. [Multiple accounts](/data/multi-account)
+
+### Auth store
+
+Where Zaileys keeps the session. It's a folder of files by default, or `memory`, `sqlite`, `redis`, `postgres`, or `convex`, set with the `auth` option. [Storage](/data/storage)
+
+### Message store
+
+Where Zaileys keeps message history, which replies, forwards, media downloads, and scheduled sends read from. It's in memory by default, so history is lost on restart, and it can be `sqlite`, `redis`, `postgres`, or `convex`, set with the `store` option. [Storage](/data/storage)
+
+### Auth guard
+
+A built-in limit on login attempts: 5 QR codes and 3 pairing codes per run, with a growing wait between pairing codes. When it runs out, Zaileys stops and emits `auth-exhausted` so the number isn't flagged for spam. [Troubleshooting](/reference/troubleshooting)
+
+## Building bots
+
+### Client
+
+The object you create with `new Client()`. One client is one connection to one WhatsApp number, and it connects on its own. [The client](/concepts/client)
+
+### Event
+
+Something that happened — a message arrived, a member joined, the connection dropped. You react to events with `client.on('text', handler)`. [Events](/concepts/events)
+
+### Message context
+
+The `msg` object your handlers receive. It has the message's text, sender, chat, and flags, plus helpers such as `msg.reply()` and `msg.react()`. [Message context](/concepts/message-context)
+
+### Send builder
+
+The chain that `client.send(jid)` returns. You call one content method, such as `.text()` or `.image()`, add extras such as `.reply()`, then `await` it to send. It resolves to the message key. [Send builder](/reference/send-builder)
+
+### Command prefix
+
+The character that marks a message as a command, set with `commandPrefix` — for example `'/'` or `['/', '!']`. Commands stay off until you set one. [Commands](/bots/commands)
+
+### Command
+
+A handler that runs when a message such as `/price` arrives, registered with `client.command()`. It gets a context with the parsed arguments and helpers like `ctx.reply()`. WhatsApp Web only. [Commands](/bots/commands)
+
+### Middleware
+
+A function that runs before every command handler and decides whether the command continues by calling `next()`. Added with `client.use()`. [Middleware](/bots/middleware)
+
+### Plugin
+
+A file in your plugins folder whose default export is made with `definePlugin()`. Zaileys loads plugins when it connects and reloads them when the file changes. [Plugins](/bots/plugins)
+
+### Interactive message
+
+A message with things to tap — buttons, lists, or carousels. Taps come back as `button-click` and `list-select` events. [Buttons & lists](/messaging/interactive)
+
+### AIRich (rich response)
+
+A message sent with `text(markdown, { rich: true })` that WhatsApp shows as a card with formatted code, tables, and images, like Meta AI's answers. It's experimental and WhatsApp Web only. [Rich responses](/messaging/rich-responses)
+
+## Cloud API
+
+### Graph API
+
+Meta's HTTP API, which the Official provider calls to send messages and manage your account. Zaileys uses version `v23.0` unless you set `cloud.apiVersion`. Graph API errors end with Meta's code, such as `(code 131047)`. [Setup](/cloud/setup)
+
+### WABA
+
+WhatsApp Business Account: the Meta account that owns your Cloud API phone numbers and templates. Set its ID as `cloud.wabaId` to manage templates and other account-level settings. [Setup](/cloud/setup)
+
+### Phone number ID
+
+The Cloud API's numeric ID for your business number, shown on Meta's **WhatsApp → API Setup** page. It's not the phone number itself. Set it as `cloud.phoneNumberId`. [Setup](/cloud/setup)
+
+### Access token
+
+The key Zaileys sends with every Graph API request, set as `cloud.accessToken`. The temporary token on the API Setup page expires after 24 hours, so production bots use a system-user token. [Setup](/cloud/setup)
+
+### Webhook
+
+A URL on your server that Meta calls with every incoming message and status update. `client.webhook()` returns the handler you serve at that URL. [Webhook](/cloud/webhook)
+
+### Verify token
+
+A secret string you choose and enter in the Meta dashboard. Meta sends it back once when you register the webhook, and Zaileys accepts the registration only if it matches `cloud.verifyToken`. [Webhook](/cloud/webhook)
+
+### App secret
+
+Your Meta app's secret, set as `cloud.appSecret`. Zaileys uses it to check that every webhook call really comes from Meta, and rejects any that don't match with `401 invalid signature`. [Webhook](/cloud/webhook)
+
+### Service window
+
+Also called the 24-hour window. On the Cloud API, you can send free-form messages only within 24 hours of the user's last message. After that, you need an approved template, and free-form sends fail with Graph error 131047. [Limits & pricing](/cloud/limits)
+
+### Template
+
+A message layout Meta reviews and approves in advance, sent with `client.sendTemplate()`. Templates are the only way to message someone outside the service window, such as for one-time passwords or delivery alerts. [Templates](/cloud/templates)
+
+### wamid
+
+The Cloud API's ID for a message. It starts with `wamid.` and appears in message keys and `message-status` events. [Cloud events](/cloud/events)
+
+### Message status
+
+Delivery updates for messages you sent on the Cloud API — sent, delivered, read, or failed — delivered as `message-status` events. [Cloud events](/cloud/events)
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Addresses & JIDs" icon="at-sign" href="/concepts/jids">
+    Build, check, and convert WhatsApp addresses.
+  </Card>
+  <Card title="Troubleshooting" icon="life-buoy" href="/reference/troubleshooting">
+    Fixes listed by the exact error message you see.
+  </Card>
+</CardGroup>

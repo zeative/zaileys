@@ -1,9 +1,264 @@
 ---
 title: "Changelog"
-description: "What changed in each Zaileys release."
+description: "What changed in each Zaileys v4 release, newest first, with links to the guides for each change."
 icon: "history"
+keywords: ["changelog", "release notes", "what's new", "versions", "breaking changes", "upgrade", "v4"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, see [`CHANGELOG.md`](https://github.com/zeative/zaileys/blob/main/CHANGELOG.md) on GitHub.
-</Note>
+Every v4 release listed in the project's changelog, newest first. Releases without an entry aren't shown. Upgrading from v3? Start with [Migrating from v3](/reference/migration).
+
+<Update label="v4.14.1">
+  **Fixed**
+
+  - Commands sent as a photo or video caption now run — for example, a `/sticker` caption on a photo. [Commands](/bots/commands)
+</Update>
+
+<Update label="v4.14.0">
+  **Added**
+
+  - `ctx.send()` in command handlers starts a message to the same chat, or to another chat when you pass a JID. [Commands](/bots/commands)
+</Update>
+
+<Update label="v4.13.0">
+  **Changed**
+
+  - Every message you send into a chat with disappearing messages turned on now uses that chat's timer. [Text & replies](/messaging/text)
+</Update>
+
+<Update label="v4.12.0">
+  **Breaking**
+
+  - A plugin's command handler is now called `message` instead of `command`. In each plugin, rename `command: async (ctx) => …` to `message: async (ctx) => …`. [Plugins](/bots/plugins)
+</Update>
+
+<Update label="v4.11.2">
+  **Fixed**
+
+  - Replies use the quoted message's disappearing-message timer, so an answer never outlives its thread. [Text & replies](/messaging/text)
+</Update>
+
+<Update label="v4.11.1">
+  **Fixed**
+
+  - Plugins that declare handlers without a `setup()` function now load. [Plugins](/bots/plugins)
+</Update>
+
+<Update label="v4.11.0">
+  **Added**
+
+  - `ctx.client` on the command context, so a handler doesn't need the client in scope. [Commands](/bots/commands)
+  - Plugin handlers receive the plugin's context as a second argument. [Plugins](/bots/plugins)
+</Update>
+
+<Update label="v4.10.0">
+  **Added**
+
+  - Plugins can declare their command and event handlers directly on the plugin object, instead of wiring them up in `setup()`. [Plugins](/bots/plugins)
+</Update>
+
+<Update label="v4.9.0">
+  **Added**
+
+  - Commands defined as objects, with metadata (such as a description), guards (group-only, private-only, admin-only, cooldown), and the `command-blocked`, `command-error`, and `command-not-found` events. [Commands](/bots/commands)
+</Update>
+
+<Update label="v4.8.9">
+  No changes were listed for this release.
+</Update>
+
+<Update label="v4.8.8">
+  **Added**
+
+  - `msg.senderUsername`, and `client.usernames()` and `client.getUsername()` to look up WhatsApp usernames. [Client reference](/reference/client)
+  - Personal status updates sent with `.audience([...])`. [Addresses & JIDs](/concepts/jids)
+  - Bulk LID and phone-number lookups: `client.lidToPns()` and `client.pnToLids()`. [Addresses & JIDs](/concepts/jids)
+  - `client.chat.fetchHistory()` to request older messages. [Chats](/chats/chats)
+  - A call privacy setting, `client.privacy.call()`. [Privacy & blocking](/chats/privacy)
+  - Caller details on `call-incoming` events.
+  - More fields on the message context. [Message context](/concepts/message-context)
+
+  **Fixed**
+
+  - Message context fields that were silently dropped.
+</Update>
+
+<Update label="v4.8.7">
+  **Added**
+
+  - Group status posts can carry a photo, video, or voice note, and `groupStatus()` can repost an existing media message. Media is always uploaded again. [Polls, locations & more](/messaging/polls-and-more)
+</Update>
+
+<Update label="v4.8.6">
+  **Added**
+
+  - Group status: `client.send(groupJid).groupStatus(text, { backgroundColor, font })` posts a text status to a group, and `groupStatus(message)` reposts a text message. Other recipients reject with `INVALID_RECIPIENT`. Text only in this release; media arrived in v4.8.7. [Polls, locations & more](/messaging/polls-and-more)
+  - Sticker pack and author defaults with the `sticker` client option, and per-sticker metadata. [Send media](/messaging/media)
+  - `msg.isGroupStatus`, true for group status posts.
+
+  **Changed**
+
+  - Baileys `7.0.0-rc14`, which brings a patched `ws` 8.21.0 and a newer WhatsApp Web version.
+  - **Behavior change:** incoming group statuses now fire `message`, `text`, `image`, and the other message events — before, they were dropped. Skip them with `if (msg.isGroupStatus) return`.
+
+  **Fixed**
+
+  - `.mentions()`, `.mentionAll()`, and `.disappearing()` now apply to buttons, lists, carousels, templates, group invites, and AIRich messages. [Buttons & lists](/messaging/interactive)
+  - Quoted-message details in private chats.
+</Update>
+
+<Update label="v4.8.5">
+  **Fixed**
+
+  - Search on the previous docs site. The library itself didn't change.
+</Update>
+
+<Update label="v4.8.4">
+  **Added**
+
+  - The `autoRejectCall` option hangs up incoming calls, with an allow-list and an `onReject` hook. `client.rejectCall()` rejects one call yourself. WhatsApp Web only. [Configuration](/concepts/configuration)
+</Update>
+
+<Update label="v4.8.3">
+  **Fixed**
+
+  - Cloud API: `msg.replied()` returns the quoted message for text, media, and interactive replies. [Cloud events](/cloud/events)
+</Update>
+
+<Update label="v4.8.2">
+  **Changed**
+
+  - The bundled AI agent skills now cover the Cloud API provider as well as WhatsApp Web. [Build with AI](/ai)
+</Update>
+
+<Update label="v4.8.1">
+  **Changed**
+
+  - The README documents the Cloud API provider. The library itself didn't change.
+</Update>
+
+<Update label="v4.8.0">
+  **Added**
+
+  - The Official provider: `new Client({ provider: 'cloud', cloud: { accessToken, phoneNumberId, verifyToken, appSecret } })` runs your bot on Meta's WhatsApp Cloud API. [Cloud API overview](/cloud/overview)
+  - `client.webhook()`, a handler for any framework that verifies Meta's webhook and checks signatures. [Webhook](/cloud/webhook)
+  - Cloud-only `client.sendTemplate()`, `client.markRead()`, and the `message-status` event. [Templates](/cloud/templates)
+  - `client.cloud` for templates (with a `template-status` event), business profile, WhatsApp Flows (with `flow-response`), catalog orders (with `order`), blocklist, QR code links, analytics, and phone-number registration. [Business management](/cloud/business)
+  - WhatsApp Web-only features throw `ZaileysProviderError` with code `UNSUPPORTED_ON_CLOUD`. The WhatsApp Web provider stays the default and is unchanged. [Feature matrix](/feature-matrix)
+</Update>
+
+<Update label="v4.7.2">
+  **Fixed**
+
+  - Published types no longer import `pg` or `redis`, so projects without those packages no longer fail type-checking with TS2307.
+  - A false `logged-out` right after connecting no longer deletes a valid session — Zaileys reconnects to confirm first. [Troubleshooting](/reference/troubleshooting)
+</Update>
+
+<Update label="v4.7.1">
+  **Fixed**
+
+  - `client.chat.markRead()` handles `Long` timestamps and chats with no stored messages. [Chats](/chats/chats)
+</Update>
+
+<Update label="v4.7.0">
+  **Added**
+
+  - `client.downloadMedia(key)` downloads the file of a message in the message store. [Receiving media](/messaging/receiving-media)
+  - Baileys' message types are re-exported from `zaileys`.
+</Update>
+
+<Update label="v4.6.2">
+  **Removed**
+
+  - Conversion of Lottie and WAS premium stickers, added in v4.6.0.
+</Update>
+
+<Update label="v4.6.1">
+  **Changed**
+
+  - Lottie stickers convert to lossless WebP in a single pass, crisper and faster.
+</Update>
+
+<Update label="v4.6.0">
+  **Added**
+
+  - Lottie and WAS premium stickers convert to animated WebP.
+</Update>
+
+<Update label="v4.5.1">
+  **Fixed**
+
+  - Premium Lottie stickers are detected when wrapped in `lottieStickerMessage`.
+</Update>
+
+<Update label="v4.5.0">
+  **Added**
+
+  - A plugin loader that reads a folder recursively and hot-reloads changed files, with `definePlugin()`. [Plugins](/bots/plugins)
+  - `client.unuse()` to remove middleware, and `client.unregisterCommand()`. [Middleware](/bots/middleware)
+  - `deleteMessage()` and `pruneMessages()` on every message store. [Storage](/data/storage)
+
+  **Changed**
+
+  - `autoDelete` is on by default and keeps messages for 1 month. [Auto-delete](/bots/auto-delete)
+
+  **Fixed**
+
+  - The auto-delete cutoff now uses epoch seconds, matching stored timestamps.
+  - The plugin loader keeps running across reconnects, and hot reloads run one at a time.
+  - Pruning skips message-data keys, and its failures are wrapped in `ZaileysStoreError`.
+</Update>
+
+<Update label="v4.4.0">
+  **Added**
+
+  - Helpers: `normalizeJid`, `isLidJid`, `isPnJid`, `jidToPhone`, `phoneToJid`, the ID hashers, `extractLinks`, `loadMedia`, `senderDeviceOf`, and `epochSecondsToMs`, plus Baileys' JID helpers and `client.lidToPn()` / `client.pnToLid()`. [Utilities](/reference/utilities)
+  - Modules for business (profile, catalog, collections, orders, products), chats (archive, pin, mute, mark read, star, delete, clear), profile, and contacts. [Chats](/chats/chats)
+  - Group join requests, invite info, and approval settings; more newsletter and community operations. [Groups](/groups/groups)
+  - New sends: `videoNote()`, `event()`, `groupInvite()`, `product()`, `requestPhoneNumber()`, `sharePhoneNumber()`, and `limitSharing()`, plus `client.setDisappearing()`, `client.pin()`, and `client.unpin()`. [Polls, locations & more](/messaging/polls-and-more)
+  - Incoming group invites, products, orders, payments, and link previews are decoded into `msg.media`. [Message context](/concepts/message-context)
+
+  **Fixed**
+
+  - Group invites are sent without fetching the group picture, which avoided `item-not-found` errors.
+  - Event start and end times are whole seconds.
+  - A sender, chat, or receiver known only by LID resolves to a phone number.
+  - Album counts are `null` when unknown instead of `0`, and albums decode as the `album` chat type.
+</Update>
+
+<Update label="v4.3.0">
+  **Added**
+
+  - The `message` event, which fires for every incoming message. [Events](/concepts/events)
+  - `msg.staticId`, a stable ID for a chat and sender pair; `msg.uniqueId` is now a 16-character uppercase hex string. [Message context](/concepts/message-context)
+  - `@lid` mentions resolve to phone numbers, device suffixes are normalized, and `@numbers` in the text are rewritten to match.
+  - Flags derived from the content: `isEdited`, `isDeleted`, `isPinned`, `isUnPinned`, `isBot`, `isStatusMention`, `isGroupStatusMention`, `isStory`, and `isHideTags`.
+
+  **Fixed**
+
+  - `msg.replied()` carries media, resolves the sender's LID, uses the parent chat, and reads every timestamp format.
+  - `msg.senderDevice` no longer always reports `android`.
+  - Resolving LID mentions times out after 3 seconds, so a stuck lookup never drops the message.
+</Update>
+
+<Update label="v4.0.0">
+  **Breaking**
+
+  - A complete rewrite with no compatibility layer for v3 code. `session` became `sessionId`, `prefix` became `commandPrefix`, `phoneNumber` became a string, and `showLogs`, `fancyLogs`, `showSpinner`, `disableFFmpeg`, `definePlugins`, `pluginsDir`, `pluginsHmr`, and `wa.inject` were removed. [Migrating from v3](/reference/migration)
+
+  **Added**
+
+  - Baileys `7.0.0-rc13`, which fixes the message-spoofing vulnerability CVE-2026-48063.
+  - Typed events for every kind of message and connection change, each with a typed payload. [Events](/concepts/events)
+  - The chainable send builder, `client.send(jid).text(…)`, which resolves to the message key, plus `client.edit()`, `client.delete()`, `client.react()`, and `client.forward()`. [Send builder](/reference/send-builder)
+  - Automatic connect and reconnect, with QR code or pairing-code login. [The client](/concepts/client)
+  - Buttons, lists, and carousels, with taps delivered as `button-click` and `list-select`. [Buttons & lists](/messaging/interactive)
+  - Experimental AIRich messages with `text(markdown, { rich: true })`. [Rich responses](/messaging/rich-responses)
+  - Separate auth and message stores, with `file`, `memory`, `sqlite`, `redis`, `postgres`, and `convex` adapters. [Storage](/data/storage)
+  - `msg.reply()` and `msg.react()` on every incoming message.
+  - The command framework: `client.command()`, `client.use()`, and `commandPrefix`. [Commands](/bots/commands)
+  - `client.broadcast()` with rate limiting, and `client.scheduleAt()` with jobs saved in the store. [Broadcast & schedule](/bots/broadcast-and-schedule)
+  - The `group`, `privacy`, `newsletter`, `community`, and `presence` modules. [Groups](/groups/groups)
+  - ES module and CommonJS builds, tested on Node.js 20+, Bun, Deno, and Termux. [Runtimes](/data/runtimes)
+</Update>
+
+For v3 releases, see [`CHANGELOG.md`](https://github.com/zeative/zaileys/blob/main/CHANGELOG.md) on GitHub.

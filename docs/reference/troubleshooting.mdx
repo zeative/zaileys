@@ -1,9 +1,767 @@
 ---
 title: "Troubleshooting"
-description: "Fixes for common errors, searchable by the exact error message."
+description: "Fixes for common Zaileys problems, listed by the exact error message or symptom you see in your terminal."
 icon: "life-buoy"
+keywords: ["error", "troubleshooting", "not working", "phoneNumber is required when authType is pairing", "phoneNumber must be E.164", "pairing code not showing", "qr code keeps changing", "connection lost reconnecting", "restart-required", "logged-out", "connection-replaced", "session looks invalid or corrupted", "Bad MAC", "failed to decrypt message", "client not connected", "listener threw", "unhandled promise rejection", "username not found", "MEDIA_LOAD_FAILED", "STORE_NOT_AVAILABLE", "UNSUPPORTED_ON_CLOUD", "NOT_IMPLEMENTED", "131047", "132000", "invalid signature", "account restricted", "bot not replying", "command not working", "ZAILEYS_DEBUG"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/troubleshooting](https://zeative.github.io/zaileys/troubleshooting).
-</Note>
+import { Term } from "/snippets/glossary.jsx"
+
+Find the message or symptom you're seeing below. Each entry explains what it means, why it happens, and how to fix it.
+
+## Turn on debug logs first
+
+Zaileys prints a few `[zaileys] …` status lines on its own. Everything else it logs goes through a logger that stays silent until you turn it on, and many of the problems on this page show up only there:
+
+```bash
+ZAILEYS_DEBUG=1 npx tsx bot.ts        # info level and above
+ZAILEYS_DEBUG=debug npx tsx bot.ts    # much more detail, including Baileys
+```
+
+`ZAILEYS_DEBUG` accepts `1` (same as `info`) or a level name: `fatal`, `error`, `warn`, `info`, `debug`, or `trace`. On Windows PowerShell, run `$env:ZAILEYS_DEBUG="1"; npx tsx bot.ts`.
+
+Without it, these failures are invisible:
+
+- **A failed automatic connect.** It reaches your code only through the `error` event, and only if you listen for it.
+- **An error thrown inside a `client.on()` handler.** See [My handler fails without any error](#my-handler-fails-without-any-error).
+- **A failing command.** See [A command fails with no error in the terminal](#a-command-fails-with-no-error-in-the-terminal).
+
+Listen for `error` so a bad login or a wrong Cloud API token doesn't fail silently:
+
+```ts
+client.on('error', ({ error }) => {
+  console.error('Zaileys could not connect:', error.message)
+})
+```
+
+The `[zaileys] …` status lines are separate from `ZAILEYS_DEBUG`. Turn them off with `statusLog: false`. See [Configuration](/concepts/configuration).
+
+## Login & connection
+
+### `phoneNumber is required when authType is "pairing"`
+
+You set `authType: 'pairing'` without `phoneNumber`, so Zaileys can't request a <Term id="pairing-code" />. `connect()` rejects with this plain `Error` before it opens a connection.
+
+With the default automatic connect, nothing is printed — not even `Connecting to WhatsApp`. The error only reaches the `error` event, or the logs when `ZAILEYS_DEBUG` is set.
+
+Add the bot's own number, country code first:
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({ authType: 'pairing', phoneNumber: '6281234567890' })
+```
+
+### `phoneNumber must be E.164 with country code`
+
+The `phoneNumber` you gave isn't a valid international number. Zaileys removes spaces, dashes, parentheses, and `+`. What's left must be 8 to 15 digits and nothing else.
+
+You don't see this in the terminal — no pairing code appears. With `ZAILEYS_DEBUG=1`, the log shows `pairing-code request failed` with this message.
+
+Write the country code followed by the number, without the leading `0`. For the Indonesian number `0812-3456-7890`, use `'6281234567890'`.
+
+### `failed to request pairing code: …`
+
+WhatsApp refused to issue a pairing code. The text after the colon comes from WhatsApp, through Baileys. It appears in the debug log next to `pairing-code request failed`.
+
+The usual reasons:
+
+- The number isn't registered on WhatsApp.
+- You requested too many codes in a short time.
+
+Zaileys also limits codes on its own to protect the number. It requests at most 3 codes per run. After each one, it waits 1 minute longer before the next: 1 minute after the first, 2 minutes after the second. While it waits, no new code appears.
+
+To fix it, check the number on the bot's phone. Then stop the bot, wait a few minutes, and start it once — don't restart it in a loop.
+
+### The QR code keeps changing
+
+This is normal. Each QR code expires after a short time, so WhatsApp issues a new one and Zaileys prints it along with this line:
+
+```text
+[zaileys] Scan the QR code above with WhatsApp > Linked devices to authenticate.
+```
+
+Scan the newest code. If 5 codes go unscanned, Zaileys stops asking for more so the number doesn't look like a spam bot. It emits `auth-exhausted` and disconnects, and the debug log shows:
+
+```text
+auth attempts exhausted (5/5 qr); stopping to avoid WhatsApp spam restriction — call connect() to retry
+```
+
+Restart the bot, or call `client.connect()`, to get a fresh set of codes. Raise the limit or react to it with `authGuard`:
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({ authGuard: { maxQrAttempts: 10 } })
+
+client.on('auth-exhausted', ({ kind, attempts, max }) => {
+  console.log(`Stopped after ${attempts} of ${max} ${kind} attempts. Call client.connect() to try again.`)
+})
+```
+
+The same guard allows 3 pairing codes (`maxPairingAttempts`). Keep it on — turning it off with `{ enabled: false }` is how login loops get numbers restricted.
+
+### The QR code is garbled or missing in my logs
+
+The terminal QR is drawn with text characters. Log viewers such as Docker, PM2, or a hosting dashboard often wrap or strip it, so it can't be scanned.
+
+Either log in with a [pairing code](/concepts/configuration) instead, or turn off the terminal QR and draw it yourself from the `qr` event:
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({ qrTerminal: false })
+
+client.on('qr', ({ qrString, expiresAt }) => {
+  // Render qrString with any QR library, for example on a web page.
+  console.log('New QR code, valid until', new Date(expiresAt).toLocaleTimeString())
+})
+```
+
+### Connection lost (…). Reconnecting…
+
+The connection to WhatsApp closed, and Zaileys is reconnecting on its own:
+
+```text
+[zaileys] Connection lost (connection-lost). Reconnecting in 3.2s (attempt 1)...
+```
+
+It waits about 3 seconds, doubles the wait on every attempt up to 60 seconds, and adds up to 20% randomness. There's no attempt limit, and the counter resets once it reconnects.
+
+Right after you scan a QR code, one `restart-required` line is expected — WhatsApp asks for a fresh connection once linking finishes.
+
+The word in parentheses tells you why it closed:
+
+| Reason | Reconnects? | Saved session | What it means |
+| --- | --- | --- | --- |
+| `restart-required` | Yes | Kept | WhatsApp asked for a fresh connection. Normal right after linking. |
+| `connection-closed`, `connection-lost` | Yes | Kept | The network dropped or the socket closed. |
+| `unavailable-service` | Yes | Kept | WhatsApp's servers were briefly unavailable. |
+| `multi-device-mismatch` | Yes | Kept | The linked-device list was out of sync. |
+| `rate-limited` | Yes, after 5 minutes | Kept | WhatsApp answered HTTP 429. See [Your account is restricted right now](#your-account-is-restricted-right-now). |
+| `bad-session` | Yes | Deleted | WhatsApp rejected the saved session. You link again. |
+| `unknown` | Yes | Kept | A close code Zaileys doesn't recognize. |
+| `logged-out` | No | Deleted | The bot was unlinked. See [Disconnected (logged-out).](#disconnected-logged-out) |
+| `connection-replaced` | No | Deleted | Another connection took over. See [Disconnected (connection-replaced).](#disconnected-connection-replaced) |
+| `forbidden` | No | Deleted | WhatsApp blocked the number from connecting. |
+
+When Zaileys stops retrying, it prints `[zaileys] Disconnected (<reason>).` and emits `disconnect` with `willReconnect: false`. Tune the retries with `reconnect`:
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({
+  reconnect: { maxAttempts: 10, initialDelayMs: 5000, maxDelayMs: 120_000 },
+})
+
+client.on('disconnect', ({ reason, willReconnect }) => {
+  if (!willReconnect) console.error(`Stopped reconnecting: ${reason}`)
+})
+```
+
+Don't wrap `connect()` in your own retry loop on top of this. Every extra login attempt counts against the number.
+
+### Your account is restricted right now
+
+That's WhatsApp's own message in the app. WhatsApp throttles or temporarily bans numbers that behave like automated accounts. The most common triggers:
+
+- **Login loops.** A bot that keeps reconnecting without finishing login asks for a new QR or pairing code every time.
+- **Bulk actions.** Mass-creating or joining groups, adding many members, or messaging many people at once — especially on a new number.
+
+Zaileys guards against both by default. It stops after 5 QR codes or 3 pairing codes (`authGuard`), and it spaces out group, community, and channel operations (`operationGuard`). When WhatsApp answers with HTTP 429, it waits 5 minutes before reconnecting instead of retrying quickly:
+
+```text
+[zaileys] Connection lost (rate-limited). Reconnecting in 300.0s (attempt 1)...
+```
+
+If the number is already restricted:
+
+1. Stop the bot and wait for the restriction to end. Every new connection attempt while restricted can make it longer.
+2. Fix whatever made login fail before starting again, so the bot doesn't loop.
+3. Keep `authGuard` and `operationGuard` on, and send to many people with [`client.broadcast()`](/bots/broadcast-and-schedule), which rate-limits for you.
+
+## Sessions
+
+### The saved session looks invalid or corrupted
+
+Zaileys loaded a saved <Term id="session" />, but the connection closed twice before logging in. It prints this hint once per run:
+
+```text
+[zaileys] The saved session looks invalid or corrupted (connection keeps closing before it authenticates). Delete the auth folder (default: ./.zaileys) and run again to scan a fresh QR / request a new pairing code.
+```
+
+Stop the bot, delete the saved session, and start again to link with a new QR or pairing code. With the default file store and session ID:
+
+<CodeGroup>
+
+```bash macOS / Linux
+rm -rf ./.zaileys/auth/default
+```
+
+```powershell Windows
+Remove-Item -Recurse -Force .\.zaileys\auth\default
+```
+
+</CodeGroup>
+
+If you set `sessionId`, the folder is `./.zaileys/auth/<sessionId>`. If you keep sessions in a database, call `client.logout()` or delete the session there — see [Storage](/data/storage).
+
+### Disconnected (logged-out).
+
+```text
+[zaileys] Disconnected (logged-out).
+```
+
+The bot is no longer a linked device — someone removed it under **Linked devices** on the phone, or your code called `client.logout()`. Zaileys deletes the saved session, so the next start shows a new QR code. Start the bot and link it again.
+
+WhatsApp sometimes reports `logged-out` right after a successful connect when nothing is wrong. Zaileys reconnects up to twice to check before it deletes anything. The debug log shows `logged-out right after connect; treating as spurious and reconnecting instead of clearing session`.
+
+### Disconnected (connection-replaced).
+
+```text
+[zaileys] Disconnected (connection-replaced).
+```
+
+A second connection opened with the same session, and WhatsApp closed this one. This almost always means the bot is running twice:
+
+- A second terminal, or a process manager such as PM2 in cluster mode.
+- A deploy that starts the new version before stopping the old one.
+- Two servers sharing the same auth folder or database.
+
+Zaileys deletes the saved session on this disconnect, so the bot has to link again. Run exactly one process per session. To run several bots, give each its own `sessionId` — see [Multiple accounts](/data/multi-account).
+
+### Disconnected (forbidden).
+
+WhatsApp refused to let this number connect, usually because it's banned. Zaileys deletes the saved session. Open WhatsApp on the bot's phone to see the account's status — this can't be fixed from code.
+
+### The bot asks for a new QR code after every restart
+
+The session isn't being saved where the next run looks for it. Check each of these:
+
+- **You start the bot from different folders.** The file store writes to `./.zaileys/auth/<sessionId>`, relative to the folder you run the command from.
+- **The container or server resets its disk.** Docker containers and many hosting platforms start with a clean filesystem. Mount a volume, or keep sessions in a database store.
+- **The `sessionId` changes between runs.** Each ID is a separate session.
+- **You use `MemoryAuthStore`.** It keeps the session in memory only.
+- **The last run ended with `logged-out`, `connection-replaced`, `forbidden`, or `bad-session`.** Zaileys deletes the session on purpose after those.
+
+To pin the folder no matter where you start the bot, pass your own file store with an absolute path:
+
+```ts
+import { Client, FileAuthStore } from 'zaileys'
+
+const client = new Client({
+  auth: new FileAuthStore({ basePath: '/var/lib/order-bot/auth/default' }),
+})
+```
+
+When you pass your own store, `basePath` decides the folder — `sessionId` no longer does.
+
+### Reset or log out a session
+
+| To | Do this |
+| --- | --- |
+| Close the connection but stay linked | `await client.disconnect()` — the next start reconnects without a QR. |
+| Unlink the bot and delete its session | `await client.logout()` — the next start shows a new QR. |
+| Reset when the bot can't start | Delete `./.zaileys/auth/<sessionId>` (file store), and remove the device under **Linked devices** on the phone. |
+
+### Bad MAC or `failed to decrypt message`
+
+A message couldn't be decrypted because the encryption session with that sender is out of sync. `Bad MAC` comes from libsignal and `failed to decrypt message` from Baileys. Both appear only in debug logs. The message arrives with no content, so none of your handlers run for it.
+
+If you set `statusLog: false`, libsignal's own lines such as `Session error:` and `Failed to decrypt message with any known session` also reach the console. Zaileys hides them while `statusLog` is on.
+
+An occasional one is harmless, and later messages from that person usually decrypt fine. If every message fails:
+
+1. Make sure only one process uses the session. See [Disconnected (connection-replaced).](#disconnected-connection-replaced)
+2. Don't restore an old copy of the session folder or database — the encryption keys move on while the bot runs.
+3. Look for `STORE_WRITE_FAILED` or `auth.creds.writeCreds failed` in the debug log, which means session updates aren't being saved.
+4. If it still fails, [reset the session](#reset-or-log-out-a-session) and link again.
+
+## Handlers
+
+### The bot doesn't reply
+
+Go through these in order:
+
+1. **Is it connected?** The terminal should show `[zaileys] Connected as …`.
+2. **Are you messaging from a different account?** The bot ignores its own messages (`ignoreMe` defaults to `true`).
+3. **Are you listening for the right event?** `text` doesn't fire for photo captions or button taps. Listen for `message` to receive everything, or for `image`, `button-click`, and so on. See [Events](/concepts/events).
+4. **Are you sending to the chat?** Use `msg.reply()`, or `client.send(msg.roomId ?? msg.senderId)`. Don't use `msg.chatId` — it's the message's ID, not the chat, and sending to it fails with `username "…" not found` (see [Sending](#sending)).
+5. **Is the handler failing?** See the next two entries.
+6. **Official provider only:** is the webhook subscribed to the **messages** field in the Meta dashboard? See [Webhook](/cloud/webhook).
+
+### My handler fails without any error
+
+A synchronous error thrown inside a `client.on()` handler is caught so it can't stop other handlers. Zaileys logs it as `listener threw`, but that log is silent unless `ZAILEYS_DEBUG` is set or you pass your own `logger`. It never becomes an `error` event.
+
+Run with `ZAILEYS_DEBUG=1` to see the error, and catch errors you expect inside the handler.
+
+### The bot stops with an unhandled promise rejection
+
+An `async` handler threw, or rejected, and nothing caught it. Zaileys doesn't wait for your handler's promise, so the rejection goes to Node.js as an unhandled rejection. By default, Node.js 20 prints the error and exits.
+
+Wrap the work in every `async` handler in `try`/`catch`:
+
+```ts
+client.on('text', async (msg) => {
+  if (msg.text !== 'menu') return
+  try {
+    await client.send(msg.roomId ?? msg.senderId).image('./menu.jpg', { caption: "Today's menu" })
+  } catch (error) {
+    console.error('Could not send the menu:', error)
+  }
+})
+```
+
+Command handlers are different: Zaileys catches their errors for you. See [A command fails with no error in the terminal](#a-command-fails-with-no-error-in-the-terminal).
+
+## Sending
+
+### `client not connected`
+
+You sent, edited, deleted, or forwarded before the client finished connecting, or while it was reconnecting. It's a `ZaileysBuilderError` with code `INVALID_OPTIONS`. Modules such as `client.group` and `client.chat` throw the same message as a `ZaileysDomainError` with code `NOT_CONNECTED`.
+
+The usual cause is sending at the top of the file, right after `new Client()`. Send from a handler, or once the `connect` event fires:
+
+```ts
+client.on('connect', async () => {
+  await client.send('6281234567890@s.whatsapp.net').text('Order bot is back online')
+})
+```
+
+`connect` fires after every reconnect too. To connect exactly once and then continue, turn off the automatic connect and await it yourself:
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({ autoConnect: false })
+await client.connect()
+
+await client.send('6281234567890@s.whatsapp.net').text('Order bot is online')
+```
+
+On the Official provider, `broadcast()`, `scheduleAt()`, and `forward()` always fail this way. See [Commands, broadcasts, and plugins don't work on the Cloud API](#commands-broadcasts-and-plugins-dont-work-on-the-cloud-api).
+
+### `username "…" not found`
+
+`client.send()` treats anything that doesn't end in a <Term id="jid" /> suffix — `@s.whatsapp.net`, `@g.us`, `@lid`, `@newsletter`, `@broadcast`, or `@c.us` — as a phone number or username, and asks WhatsApp to look it up. It's a `ZaileysBuilderError` with code `USERNAME_NOT_FOUND`, thrown when that lookup finds nothing:
+
+- The number isn't on WhatsApp, or has a typo.
+- You passed something that isn't an address. Most often that's `msg.chatId`, which is the message's ID.
+
+Pass a full JID such as `6281234567890@s.whatsapp.net`. Inside a handler, use `msg.roomId ?? msg.senderId`. See [Addresses & JIDs](/concepts/jids).
+
+### `text() requires a non-empty string`
+
+You passed an empty string to `.text()` or `msg.reply()` — often an AI answer or a database result that came back empty. It's a `ZaileysBuilderError` with code `EMPTY_CONTENT`. The same code with `no content set` means the builder was awaited before any content method was called.
+
+Check the value before sending:
+
+```ts
+const lines: string[] = []
+const report = lines.join('\n')
+
+if (report.length > 0) {
+  await client.send(jid).text(report)
+}
+```
+
+### `message not found in store for forward`
+
+`client.forward()` re-sends a message from the message store, and that message isn't there. It's a `ZaileysBuilderError` with code `MESSAGE_NOT_FOUND`. The default store keeps messages in memory, so it only has messages from the current run.
+
+Forward messages the bot has seen since it started, or keep history in a database store — see [Storage](/data/storage).
+
+### `socket sendMessage rejected`
+
+WhatsApp, or the Cloud API, refused the message. It's a `ZaileysBuilderError` with code `SEND_FAILED`, and the original reason is on `error.cause`:
+
+```ts
+import { ZaileysBuilderError } from 'zaileys'
+
+try {
+  await client.send(jid).text('Your order #1042 has shipped')
+} catch (error) {
+  if (error instanceof ZaileysBuilderError && error.code === 'SEND_FAILED') {
+    console.error('WhatsApp refused the message:', error.cause)
+  }
+}
+```
+
+Interactive messages fail with `socket relayMessage rejected` instead. On the Official provider, the cause is a `ZaileysCloudError` — see [Cloud API](#cloud-api) below.
+
+## Media
+
+Every error in this section is a `ZaileysBuilderError`, and each entry names its code. The full list is in [Send media](/messaging/media#when-a-send-fails).
+
+### `fetch … failed with status …`
+
+The URL answered with an error, for example `fetch https://example.com/menu.jpg failed with status 404` (`MEDIA_LOAD_FAILED`). Open the URL in a private browser window: it must be public and must not need a login or cookies.
+
+### `fetch … failed: This operation was aborted`
+
+The URL didn't finish downloading within 30 seconds (`MEDIA_LOAD_FAILED`). The text after the colon comes from Node.js, and other network errors, such as a failed DNS lookup, appear there too. Use a faster host, or download the file yourself and pass a `Buffer`.
+
+### `read … failed: ENOENT: no such file or directory`
+
+The file path doesn't exist (`MEDIA_LOAD_FAILED`). The full message looks like `read ./menu.jpg failed: ENOENT: no such file or directory, open './menu.jpg'` — everything after `failed:` comes from Node.js.
+
+Relative paths start from the folder you ran the bot from, not from your source file. Build an absolute path from the file's own location:
+
+```ts
+import { fileURLToPath } from 'node:url'
+
+const menu = fileURLToPath(new URL('./menu.jpg', import.meta.url))
+await client.send(jid).image(menu)
+```
+
+### `audio() transcode failed: …` or `sticker() conversion failed: …`
+
+Zaileys couldn't convert the file with ffmpeg (`MEDIA_LOAD_FAILED`). There are two common causes:
+
+- **ffmpeg is missing.** Zaileys bundles ffmpeg for Windows, macOS, and Linux. On Termux and other platforms, it uses the `ffmpeg` on your `PATH`. Without it, the message includes `spawn ffmpeg ENOENT` from Node.js. On Termux, run `pkg install ffmpeg`. See [Runtimes](/data/runtimes).
+- **The file is corrupted or not really audio or an image.** Check that it opens in a media player.
+
+### `video() expects a video source, got mime image/gif`
+
+`video()` only accepts video files (`INVALID_OPTIONS`). Send a GIF as an animated sticker, or convert it to MP4 first. See [Send a GIF](/messaging/media#send-a-gif).
+
+### `document() requires a non-empty fileName`
+
+Documents need the name the recipient sees (`INVALID_OPTIONS`). Add `{ fileName: 'Invoice-0042.pdf' }`.
+
+### `album() requires a minimum of 2 items`
+
+Albums take 2 to 30 photos and videos (`INVALID_OPTIONS`). More than 30 fails with `album() accepts a maximum of 30 items`. For a single photo, use `.image()`. On the Official provider, albums aren't supported at all.
+
+### Downloading a received file fails on the Cloud API
+
+On the Official provider, received files stay on Meta's servers, so `msg.media.buffer()` and `msg.media.stream()` can't fetch them. Download with the message's key instead:
+
+```ts
+client.on('image', async (msg) => {
+  const file = await client.downloadMedia(msg.message().key)
+  if (file) console.log(`Downloaded ${file.size} bytes (${file.mime})`)
+})
+```
+
+See [Receiving media](/messaging/receiving-media).
+
+## Commands
+
+### A command never runs
+
+Check each of these:
+
+1. **`commandPrefix` is set.** Commands stay off without it.
+2. **The message starts with that prefix**, such as `/price`.
+3. **You're messaging from a different account** than the bot's own.
+4. **You're on the Unofficial provider.** Commands don't run on the Cloud API.
+5. **You're on v4.14.1 or later if the command is a photo caption.** Earlier versions only matched text messages.
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({ commandPrefix: ['/', '!'] })
+
+client.command('price', async (ctx) => {
+  await ctx.reply('Iced tea: Rp 8.000')
+})
+
+client.on('command-not-found', ({ command }) => {
+  console.log(`Someone tried an unknown command: ${command}`)
+})
+```
+
+A command stopped by a guard, such as `admin` or `cooldown`, sends nothing. Listen for `command-blocked` to tell the user why. See [Commands](/bots/commands).
+
+### A command fails with no error in the terminal
+
+Your command handler threw. Zaileys catches it, wraps it as a `ZaileysCommandError` with code `HANDLER_ERROR`, and logs `command dispatch failed` — silently, unless `ZAILEYS_DEBUG` is set. Listen for `command-error` to see it and answer the user:
+
+```ts
+client.on('command-error', async ({ command, error, ctx }) => {
+  console.error(`/${command} failed:`, error)
+  await ctx.reply('Something went wrong. Please try again.')
+})
+```
+
+Once something listens for `command-error`, Zaileys stops logging those errors itself.
+
+### `command "…" is already registered`
+
+The same command name or alias was registered twice (`DUPLICATE_COMMAND`). This often happens when you register commands inside a `connect` handler, which runs again after every reconnect. Register commands once at startup, or call `client.unregisterCommand()` first.
+
+### `ctx.edit requires a prior ctx.reply`
+
+`ctx.edit()` changes the last reply the command sent, and there wasn't one yet (`NO_SENT_MESSAGE`). Call `ctx.reply()` first.
+
+### `next() called multiple times`
+
+A middleware called `next()` more than once (`MIDDLEWARE_ERROR`). Call it exactly once, or not at all to stop the command. An error thrown inside a middleware arrives as `middleware threw during execution`, with the original error on `error.cause`. See [Middleware](/bots/middleware).
+
+### `failed to import plugin: …`
+
+A file in your plugins folder couldn't be loaded as a plugin: importing it threw — a syntax error or a missing package, for example — or its export has no `name`. Zaileys skips the file, passes this error to `plugins.onError`, and logs `plugin: import failed; skipped`. Run the file on its own to see the import error, and make sure its default export is `definePlugin({ name: '…', … })`. See [Plugins](/bots/plugins).
+
+## Cloud API
+
+### `provider 'cloud' requires cloud.accessToken`
+
+`new Client()` throws this `ZaileysCloudError` (code `CONFIG`) when `accessToken` is missing or empty. The same happens with `provider 'cloud' requires cloud.phoneNumberId`. It usually means an environment variable isn't set in the shell or on the host that runs the bot. `process.env.WA_TOKEN!` compiles fine, but it's `undefined` at runtime. Set the variables before starting — see [Setup](/cloud/setup).
+
+### The bot stays on "Connecting to WhatsApp" (Official)
+
+On the Official provider, connecting only checks your token with one Graph API request. When that fails, the error goes to the `error` event, so without a listener the terminal just stops after `Connecting to WhatsApp`. The two messages you'll see:
+
+- `cloud auth rejected (401) — check accessToken/phoneNumberId` (code `AUTH`): the token is wrong or expired, or the <Term id="phone-number-id" /> is wrong. The temporary token from **API Setup** expires after 24 hours, so use a system-user token for anything long-running.
+- `cloud health-check failed (…)` (code `REQUEST_FAILED`): Meta answered with another error status.
+
+Add an `error` listener as shown in [Turn on debug logs first](#turn-on-debug-logs-first), then fix the value it names.
+
+### `client not connected` right after a cold start (Official)
+
+`client.send()` fails with `client not connected` until the token check above finishes. On serverless platforms, the first request after a cold start can arrive before it does, and calling `connect()` again while the check runs doesn't wait for it.
+
+Turn off the automatic connect, start one connection, and await that same promise before every send:
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({
+  provider: 'cloud',
+  autoConnect: false,
+  cloud: {
+    accessToken: process.env.WA_TOKEN!,
+    phoneNumberId: process.env.WA_PHONE_ID!,
+  },
+})
+
+const ready = client.connect()
+
+export async function notifyShipped(to: string) {
+  await ready
+  await client.send(to).text('Your order #1042 has shipped')
+}
+```
+
+See [Avoid a cold-start race on serverless](/cloud/webhook#avoid-a-cold-start-race-on-serverless).
+
+### Meta can't verify the webhook
+
+When you click **Verify and save**, Meta calls your webhook and expects the challenge back. Zaileys answers `403 forbidden` unless the verify token Meta sends equals `cloud.verifyToken`. Check that:
+
+- `verifyToken` is set in the `cloud` options — without it, verification always fails.
+- It matches the **Verify token** field in the dashboard exactly.
+- The bot is running, and the callback URL opens from outside your network.
+
+See [Register the URL with Meta](/cloud/webhook#register-the-url-with-meta).
+
+### The webhook answers `invalid signature`
+
+Your webhook answered `401 invalid signature`, so the message never reached your handlers. When `appSecret` is set, Zaileys checks every delivery's signature against the raw request body, and this one didn't match:
+
+- **Wrong app secret.** Copy it again from the Meta app's settings.
+- **The body was changed before Zaileys saw it.** A JSON body parser, as in Express, re-serializes the body and breaks the signature. See [Why Express needs the raw body](/cloud/webhook#why-express-needs-the-raw-body).
+
+Once the signature passes, the webhook always answers `200 OK`, even if your handlers throw. A delivery that Meta marks as successful can still have failed in your code, so check your own logs.
+
+### `UNSUPPORTED_ON_CLOUD`
+
+You used a WhatsApp Web-only feature on the Official provider, and it threw a `ZaileysProviderError` straight away:
+
+```text
+group is not supported by the official WhatsApp Cloud API — it only exists on the web (baileys) provider
+```
+
+This applies to `client.group`, `privacy`, `newsletter`, `community`, `profile`, `chat`, `contact`, `business`, and `presence`, and to `edit()`, `delete()`, `pin()`, `unpin()`, `setDisappearing()`, and `rejectCall()`. When one codebase runs on both providers, check first:
+
+```ts
+if (client.provider === 'baileys') {
+  await client.presence.typing(jid)
+}
+```
+
+The [feature matrix](/feature-matrix) lists what works where.
+
+### `SEND_FAILED` caused by `NOT_IMPLEMENTED`
+
+The Cloud API can't send that kind of message through Zaileys, such as a poll, an AIRich message, or an unsupported interactive layout. It arrives as a `ZaileysBuilderError` with code `SEND_FAILED`, and `error.cause` is a `ZaileysCloudError` with code `NOT_IMPLEMENTED` and a message such as:
+
+- `this content type is not supported on the cloud provider yet`
+- `this interactive layout is not supported on the cloud provider yet`
+- `interactive media headers are not supported on the cloud provider yet`
+- `AIRich rich responses (rich: true) are a WhatsApp-Web-only feature and are not supported on the cloud provider. …`
+
+Fall back to something the Cloud API supports:
+
+```ts
+import { ZaileysBuilderError, ZaileysCloudError } from 'zaileys'
+
+try {
+  await client.send(jid).poll('Lunch today?', ['Nasi goreng', 'Soto ayam'])
+} catch (error) {
+  const notOnCloud =
+    error instanceof ZaileysBuilderError &&
+    error.cause instanceof ZaileysCloudError &&
+    error.cause.code === 'NOT_IMPLEMENTED'
+  if (notOnCloud) {
+    await client.send(jid).text('Lunch today? Reply 1 for nasi goreng or 2 for soto ayam.')
+  }
+}
+```
+
+See [Send on the Cloud API](/cloud/messaging) for what's supported.
+
+### Graph error 131047
+
+The numbered codes in this section are Meta's own Graph API error codes. Zaileys puts the code at the end of the error message:
+
+```text
+graph request failed: … (code 131047)
+```
+
+131047 means more than 24 hours have passed since the user last messaged you, so the <Term id="service-window" /> is closed and free-form messages aren't allowed. From `client.send()`, it arrives as `SEND_FAILED` with this `ZaileysCloudError` on `error.cause`. Send an approved [template](/cloud/templates) instead, and free-form replies work again once the user answers:
+
+```ts
+import { ZaileysBuilderError, ZaileysCloudError } from 'zaileys'
+
+try {
+  await client.send(jid).text('Your order #1042 has shipped')
+} catch (error) {
+  const windowClosed =
+    error instanceof ZaileysBuilderError &&
+    error.cause instanceof ZaileysCloudError &&
+    error.cause.message.includes('(code 131047)')
+  if (windowClosed) {
+    await client.sendTemplate(jid, 'order_shipped', 'en_US')
+  }
+}
+```
+
+### Graph error 132000
+
+The number of parameters you passed to `sendTemplate()` doesn't match the template's `{{1}}`, `{{2}}` placeholders. `sendTemplate()` throws the `ZaileysCloudError` directly, with code `REQUEST_FAILED`. Pass exactly one parameter per placeholder — see [Templates](/cloud/templates).
+
+### Graph error 131030
+
+You're sending from Meta's test number to a phone that isn't on its recipient list. Add the phone under **WhatsApp → API Setup** in the Meta dashboard, then send again.
+
+### Graph errors 131026 and 131056
+
+- **131026:** Meta couldn't deliver the message to that recipient, for example because the number isn't on WhatsApp.
+- **131056:** you sent too many messages to the same number in a short time. Slow down before sending to that person again.
+
+See [Limits & pricing](/cloud/limits).
+
+### `graph auth rejected: …`
+
+Meta answered a Graph API call with HTTP 401 or 403 (code `AUTH`). The token expired or was revoked — Meta's code for that is usually 190 — or it doesn't have permission for the WhatsApp Business Account. Generate a new token with the right permissions. See [Setup](/cloud/setup).
+
+### `RATE_LIMITED`
+
+Meta kept answering `429 Too Many Requests`. Zaileys tries each Graph request up to 3 times, waiting 0.5 and then 1 second, before it throws a `ZaileysCloudError` with code `RATE_LIMITED`. Send more slowly — see [Limits & pricing](/cloud/limits).
+
+### `this operation needs cloud.wabaId (WhatsApp Business Account id)`
+
+Account-level calls on `client.cloud`, such as managing templates, need your <Term id="waba" /> ID. Add `wabaId` to the `cloud` options — see [Setup](/cloud/setup).
+
+### Commands, broadcasts, and plugins don't work on the Cloud API
+
+These features need a WhatsApp Web connection, so they don't run on the Official provider:
+
+- `client.command()` handlers and `client.use()` middleware never run.
+- Plugins and auto-delete never start.
+- `broadcast()`, `scheduleAt()` sends, and `forward()` fail with `client not connected`.
+
+Handle commands in an event handler, and send to each recipient with `client.send()`:
+
+```ts
+client.on('text', async (msg) => {
+  if (msg.text === '/price') await msg.reply('Iced tea: Rp 8.000')
+})
+```
+
+## Installation & storage
+
+### A database driver isn't installed (`STORE_NOT_AVAILABLE`)
+
+Database stores load their driver only when you use them, and throw a `ZaileysStoreError` with code `STORE_NOT_AVAILABLE` when it's missing:
+
+| Store | Message | Install |
+| --- | --- | --- |
+| SQLite | `better-sqlite3 belum terpasang. Run: pnpm add better-sqlite3` | `better-sqlite3` |
+| PostgreSQL | `pg is not installed. Run: pnpm add pg` | `pg` |
+| Redis | `redis peer dependency missing. Run: pnpm add redis` | `redis` |
+| Convex | `convex peer dependency missing. Run: pnpm add convex` | `convex` |
+
+The SQLite message is partly in Indonesian — "belum terpasang" means "isn't installed". Install the driver with your package manager:
+
+```bash
+npm install better-sqlite3
+```
+
+The default file store needs no driver. See [Storage](/data/storage).
+
+### `provided redis client is not open (call await client.connect() first)`
+
+You passed your own Redis client to a Redis store before connecting it. Connect it first:
+
+```ts
+import { createClient } from 'redis'
+import { Client, RedisAuthStore } from 'zaileys'
+
+const redis = createClient({ url: 'redis://localhost:6379' })
+await redis.connect()
+
+const client = new Client({ auth: new RedisAuthStore({ client: redis }) })
+```
+
+Or pass `url` instead of `client`, and the store connects for you. If you see `failed to connect to redis at redis://…`, the Redis server isn't reachable from the bot.
+
+### `npm install` fails while building sharp
+
+`sharp` isn't a Zaileys dependency, but Baileys lists it as a peer dependency, so npm tries to install it. On platforms without a prebuilt `sharp` binary, such as Termux or some Alpine Linux images, it tries to compile and fails. Skip it:
+
+```bash
+npm install zaileys --legacy-peer-deps
+```
+
+Zaileys then processes images with its bundled JavaScript library. See [Installation](/installation).
+
+### `Cannot use import statement outside a module`
+
+This comes from Node.js: your file uses `import`, but Node.js is treating it as CommonJS. `require is not defined in ES module scope` is the same mismatch the other way around. Zaileys ships both an ES module and a CommonJS build, so either style works as long as your project agrees with itself:
+
+- **ES modules:** add `"type": "module"` to `package.json` and use `import`.
+- **CommonJS:** use `const { Client } = require('zaileys')` in `.js` or `.cjs` files.
+- **TypeScript:** run it with `npx tsx bot.ts`, which handles both.
+
+Zaileys needs Node.js 20 or newer — check with `node --version`. See [Runtimes](/data/runtimes).
+
+## Still stuck?
+
+Capture a full log and share it along with your Node.js version and provider:
+
+```bash
+ZAILEYS_DEBUG=trace npx tsx bot.ts 2>&1 | tee zaileys-debug.log
+```
+
+<Warning>
+  Trace logs can include phone numbers and message content. Remove anything private before you share them.
+</Warning>
+
+<CardGroup cols={2}>
+  <Card title="Error handling" icon="shield-alert" href="/data/error-handling">
+    Catch errors by class and code, and retry failed sends.
+  </Card>
+  <Card title="Errors reference" icon="square-code" href="/reference/errors">
+    Every error class, code, and message.
+  </Card>
+  <Card title="Ask on Discord" href="https://discord.gg/HUcQe4xGr3">
+    Describe what you tried and paste the relevant log lines.
+  </Card>
+  <Card title="Report an issue" href="https://github.com/zeative/zaileys/issues">
+    Found a bug? Open an issue on GitHub with your log attached.
+  </Card>
+</CardGroup>

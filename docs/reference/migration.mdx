@@ -1,9 +1,443 @@
 ---
 title: "Migrating from v3"
-description: "Move a Zaileys v3 bot to v4, concept by concept."
+description: "Move a Zaileys v3 bot to v4: renamed options, typed events, the send builder, storage, and plugins, with before-and-after code."
 icon: "move-up-right"
+keywords: ["migrate", "migration", "upgrade", "v3 to v4", "breaking changes", "zaileys 3", "session option", "prefix", "wa.on messages", "wa.send", "wa.button", "definePlugins", "upgrade guide"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, see [`MIGRATION.md`](https://github.com/zeative/zaileys/blob/main/MIGRATION.md) on GitHub.
-</Note>
+This page moves a v3 bot to v4 one piece at a time, showing the v3 code next to its v4 replacement.
+
+<Warning>
+  v4 is a complete rewrite with no compatibility layer, so v3 code won't run unchanged. v3 session data doesn't work with v4 either — expect to link the bot again, with a QR code or pairing code, on the first v4 run.
+</Warning>
+
+v4.0.0 also moved to Baileys `7.0.0-rc13`, which fixes the message-spoofing vulnerability CVE-2026-48063. Current releases use Baileys `7.0.0-rc14`.
+
+## Breaking changes at a glance
+
+| Area | v3 | v4 |
+| --- | --- | --- |
+| [Session name](#rename-client-options) | `session: 'zaileys'` | `sessionId`, default `'default'` |
+| [Pairing number](#rename-client-options) | `phoneNumber: 6281234567890` (number) | `phoneNumber: '6281234567890'` (string) |
+| [Command prefix](#rename-client-options) | `prefix: '/'` | `commandPrefix: '/'` |
+| [Logs](#rename-client-options) | `showLogs`, `fancyLogs`, `showSpinner` | `statusLog`, `logger`, `ZAILEYS_DEBUG` |
+| [Receiving](#move-message-handlers-to-typed-events) | `wa.on('messages', ctx => …)` | `client.on('message' \| 'text' \| 'image' \| …)` |
+| [Connection & calls](#move-message-handlers-to-typed-events) | `wa.on('connection')`, `wa.on('calls')` | `connect`, `disconnect`, `qr`, `reconnecting`, `call-incoming`, … |
+| [Context fields](#move-message-handlers-to-typed-events) | `ctx.replied`, `ctx.roomName` (values) | `await msg.replied()`, `await msg.roomName()` |
+| [Sending](#send-with-the-builder) | `wa.send(roomId, { text, image, … })` | `client.send(jid).text(…)`, `.image(…)` |
+| [Replies](#send-with-the-builder) | `{ replied: ctx.message() }` | `msg.reply(text)` or `.reply(msg.message())` |
+| [Mentions](#send-with-the-builder) | detected from `@number` in text | `.mentions([...])`, `.mentionAll()` |
+| [Buttons](#replace-buttons-and-lists) | `wa.button(roomId, {…})` | `.buttons([...])`, `.list({…})` |
+| [Reactions, edits, deletes](#update-reactions-edits-deletes-and-forwards) | `wa.reaction()`, `wa.edit()`, `wa.delete()` | `msg.react()`, `client.edit(key)`, `client.delete(key)` |
+| [Forward & presence](#update-reactions-edits-deletes-and-forwards) | `wa.forward(roomId, {…})`, `wa.presence()` | `client.forward(key, to)`, `client.presence.typing(jid)` |
+| [Storage](#choose-where-data-is-stored) | built in | `auth` and `store` options, six adapters |
+| [Plugins](#move-plugins) | `definePlugins(fn, { matcher })` + `pluginsDir` | `definePlugin({ name, message })` + `plugins: { dir }` |
+| [Injection & citation](#replace-injection-and-citation) | `wa.inject()`, any `citation` key | your own variables, `citation: { authors, banned }` |
+| [Automatic behavior](#rename-client-options) | auto-read, auto-online, auto-reject calls, and more, on by default | none by default; `autoRejectCall` is opt-in |
+
+## Update the package
+
+```bash
+npm install zaileys@4
+```
+
+v4 needs Node.js 20 or newer. Database drivers are optional extras now — you add one only if you pick that store ([below](#choose-where-data-is-stored)).
+
+## Rename client options
+
+{/* snippet-check: skip — v3 API */}
+```ts v3
+const wa = new Client({
+  session: 'zaileys',
+  authType: 'pairing',
+  phoneNumber: 6281234567890,
+  prefix: '/',
+  showLogs: true,
+})
+```
+
+```ts v4
+import { Client } from 'zaileys'
+
+const client = new Client({
+  sessionId: 'zaileys',
+  authType: 'pairing',
+  phoneNumber: '6281234567890',
+  commandPrefix: '/',
+})
+```
+
+- **The default session name changed** from `'zaileys'` to `'default'`. The file store keeps each session in `./.zaileys/auth/<sessionId>`.
+- **The client still connects on its own.** To choose when, pass `autoConnect: false` and call `await client.connect()`.
+- **`phoneNumber` is a string**, country code first, digits only.
+
+Every v3 option and what replaces it:
+
+| v3 option | In v4 |
+| --- | --- |
+| `session` | `sessionId` (default `'default'`) |
+| `prefix` | `commandPrefix` — commands stay off until you set it |
+| `phoneNumber` (number) | `phoneNumber` (string) |
+| `ignoreMe` | Unchanged, still `true` by default |
+| `showLogs`, `fancyLogs`, `showSpinner` | `statusLog` (default `true`) for the `[zaileys] …` lines; `ZAILEYS_DEBUG` or `logger` for detailed logs |
+| `syncFullHistory` (default `true`) | Off by default; turn on with `baileys: { syncFullHistory: true }` |
+| `disableFFmpeg` | Removed — ffmpeg is bundled and always used |
+| `autoRead` | Removed — call `client.chat.markRead(jid)` |
+| `autoOnline`, `autoPresence` | Removed — call `client.presence.online()` or `client.presence.typing(jid)` |
+| `autoMentions` | Removed — add `.mentions([...])` to a send |
+| `autoMarkAI`, `maxReplies`, `fakeReply` | Removed |
+| `autoRejectCall` (default `true`) | Same name, now **off** by default |
+| `deleteSessionOnLogout` | Removed — `client.logout()` always deletes the session |
+| `pluginsDir`, `pluginsHmr` | `plugins: { dir, watch }` ([Move plugins](#move-plugins)) |
+| `autoCleanUp` (off, 24 hours) | `autoDelete` — **on** by default, keeps 30 days |
+| `limiter` | Removed — `client.broadcast()` takes `rateLimitPerSec` |
+| `citation` | `citation: { authors, banned }` ([Replace injection and citation](#replace-injection-and-citation)) |
+| `sticker` | Unchanged: `packageName`, `authorName`, `quality`, `shape` |
+
+See [Configuration](/concepts/configuration) for every v4 option.
+
+## Move message handlers to typed events
+
+v3 had one `messages` event for everything. v4 has one event per kind of message, plus `message` for all of them.
+
+{/* snippet-check: skip — v3 API */}
+```ts v3
+wa.on('messages', async (ctx) => {
+  if (ctx.isFromMe) return
+  if (ctx.text === 'ping') {
+    await wa.send(ctx.roomId, 'Pong!')
+  }
+})
+```
+
+```ts v4
+client.on('text', async (msg) => {
+  if (msg.text === 'ping') {
+    await msg.reply('Pong!')
+  }
+})
+```
+
+- **`message` is the closest match to v3's `messages`** — it fires for every incoming message. `text`, `image`, `video`, `audio`, `document`, and `sticker` fire only for their kind.
+- **`text` doesn't include photo captions or button taps.** Use `message` or `image` for captions, and `button-click` or `list-select` for taps.
+- **Your own messages are already skipped** (`ignoreMe`), so the `isFromMe` check isn't needed.
+- **`msg.reply()` quotes the message.** To answer without quoting, use `client.send(msg.roomId ?? msg.senderId).text('Pong!')`.
+
+Most context fields kept their names. These changed:
+
+| v3 | v4 |
+| --- | --- |
+| `ctx.text` (`string \| null`) | `msg.text` — always a string, `''` when there's no text |
+| `ctx.roomId` | `msg.roomId` — `string \| null`, so write `msg.roomId ?? msg.senderId` |
+| `ctx.replied` (a value) | `await msg.replied()` |
+| `ctx.roomName`, `ctx.receiverName` (values) | `await msg.roomName()`, `await msg.receiverName()` |
+| `ctx.citation.<name>()` | `msg.citation.authors()`, `msg.citation.banned()` |
+| `ctx.injection` | Removed |
+
+`senderId`, `senderName`, `isFromMe`, `isGroup`, `chatType`, `message()`, and `media.buffer()` work as before. Watch out for `msg.chatId`: it's the message's ID, not the chat. See [Message context](/concepts/message-context) for every field.
+
+Downloading media looks like this:
+
+```ts
+client.on('image', async (msg) => {
+  if (!msg.media || !('buffer' in msg.media)) return
+  const photo = await msg.media.buffer()
+  console.log(`Got a ${photo.byteLength}-byte photo from ${msg.senderName}`)
+})
+```
+
+v3's `connection` and `calls` events are split up too:
+
+```ts
+client.on('connect', ({ me }) => console.log('Online as', me.id))
+client.on('disconnect', ({ reason, willReconnect }) => console.log('Offline:', reason, willReconnect))
+client.on('call-incoming', (call) => console.log('Call from', call.from))
+```
+
+`qr`, `pairing-code`, and `reconnecting` cover the rest of the login lifecycle. See [Events](/concepts/events).
+
+## Send with the builder
+
+v3 took an options object. v4 starts with `client.send(jid)`, then one content method, then any extras. Awaiting it sends the message and returns its key.
+
+{/* snippet-check: skip — v3 API */}
+```ts v3
+await wa.send(ctx.roomId, 'Hello World!')
+
+await wa.send(ctx.roomId, {
+  text: 'This is a reply!',
+  replied: ctx.message(),
+})
+
+await wa.send(ctx.roomId, {
+  image: 'https://example.com/image.jpg',
+  caption: 'Check this out!',
+})
+```
+
+```ts v4
+client.on('text', async (msg) => {
+  const chat = msg.roomId ?? msg.senderId
+
+  await client.send(chat).text('Hello World!')
+
+  await client.send(chat).text('This is a reply!').reply(msg.message())
+
+  await client.send(chat).image('https://example.com/image.jpg', { caption: 'Check this out!' })
+})
+```
+
+v3 turned `@6281234567890` in text into a mention automatically. In v4 you list the mentioned people:
+
+```ts
+await client.send(jid).text('Hi @6281234567890').mentions(['6281234567890@s.whatsapp.net'])
+```
+
+See [Text & replies](/messaging/text) and [Send media](/messaging/media).
+
+## Replace buttons and lists
+
+{/* snippet-check: skip — v3 API */}
+```ts v3
+await wa.button(ctx.roomId, {
+  text: 'Choose an option:',
+  buttons: {
+    type: 'simple',
+    footer: 'Footer text',
+    data: [
+      { id: 'btn1', text: 'Option 1' },
+      { id: 'btn2', text: 'Option 2' },
+    ],
+  },
+})
+```
+
+```ts v4
+await client.send(jid).buttons(
+  [
+    { id: 'btn1', text: 'Option 1' },
+    { id: 'btn2', text: 'Option 2' },
+  ],
+  { text: 'Choose an option:', footer: 'Footer text' },
+)
+
+await client.send(jid).list({
+  buttonText: 'Open menu',
+  sections: [{ title: 'Drinks', rows: [{ id: 'tea', title: 'Iced tea' }] }],
+})
+```
+
+Taps arrive as `button-click` and `list-select` events. See [Buttons & lists](/messaging/interactive).
+
+## Update reactions, edits, deletes, and forwards
+
+{/* snippet-check: skip — v3 API */}
+```ts v3
+const sent = await wa.send(ctx.roomId, 'Original')
+await wa.edit(sent, 'Edited')
+await wa.delete(sent)
+await wa.reaction(ctx.message(), '👍')
+await wa.presence(ctx.roomId, 'typing')
+```
+
+```ts v4
+client.on('text', async (msg) => {
+  const chat = msg.roomId ?? msg.senderId
+
+  const key = await client.send(chat).text('Original')
+  await client.edit(key).text('Edited')
+  await client.delete(key)
+
+  await msg.react('👍')
+  await client.presence.typing(chat)
+  await client.forward(msg.message().key, '6281234567890@s.whatsapp.net')
+})
+```
+
+- **Everything works on message keys.** A send resolves to one, and `msg.message().key` is the key of a received message.
+- **`delete()` deletes for everyone** unless you pass `{ forEveryone: false }`. It takes one key — v3's array form is gone, so loop over several.
+- **`forward()` re-sends from the message store**, so it only finds messages the store kept. See [Storage](/data/storage).
+
+See [Edit, delete & react](/messaging/edit-delete-react) and [Presence](/chats/presence).
+
+## Choose where data is stored
+
+v3 stored everything itself. v4 splits storage in two, and you choose each:
+
+- The **auth store** keeps the login. By default, it's files in `./.zaileys/auth/<sessionId>`.
+- The **message store** keeps message history. By default, it's in memory, so it's lost on restart.
+
+```ts
+import { Client, RedisMessageStore, SqliteAuthStore } from 'zaileys'
+
+const client = new Client({
+  sessionId: 'zaileys',
+  auth: new SqliteAuthStore({ database: './data/auth.db' }),
+  store: new RedisMessageStore({ url: 'redis://localhost:6379' }),
+})
+```
+
+Each database store needs its driver:
+
+```bash
+npm install better-sqlite3 redis
+```
+
+The adapters are `memory`, `file` (auth only), `sqlite`, `redis`, `postgres`, and `convex`. See [Storage](/data/storage).
+
+## Move plugins
+
+v3 loaded plugin functions from `plugins/` and matched them with `matcher`. v4 still loads a plugins folder, but each file exports a plugin object, and its `name` is the command.
+
+{/* snippet-check: skip — v3 API */}
+```ts plugins/hello.ts (v3)
+import { definePlugins } from 'zaileys'
+
+export default definePlugins(
+  async (wa, ctx) => {
+    await wa.send(ctx.messages.roomId, 'Hello from plugin!')
+  },
+  { matcher: ['/hello'], metadata: { description: 'hello plugin' } },
+)
+```
+
+```ts plugins/hello.ts (v4)
+import { definePlugin } from 'zaileys'
+
+export default definePlugin({
+  name: 'hello',
+  description: 'Say hello',
+  message: async (ctx) => {
+    await ctx.reply('Hello from a plugin!')
+  },
+})
+```
+
+Point the client at the folder and set a prefix:
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client({ commandPrefix: '/', plugins: { dir: './plugins' } })
+```
+
+- **`matcher: ['/hello']` becomes `name: 'hello'`**, with the `/` coming from `commandPrefix`. Extra triggers go in `aliases`.
+- **Hot reload is on by default.** Turn it off with `plugins: { watch: false }`.
+- **Small bots can skip the folder** and register commands inline with `client.command('hello', handler)`.
+- **v3 plugin files aren't recognized** — rewrite each one with `definePlugin()`.
+
+Plugins and commands run on the Unofficial provider only. See [Plugins](/bots/plugins) and [Commands](/bots/commands).
+
+## Replace injection and citation
+
+`wa.inject()` and `ctx.injection` are gone. Handlers are ordinary functions, so keep shared values in your own variables or modules:
+
+{/* snippet-check: skip — v3 API */}
+```ts v3
+wa.inject('config', { storeName: 'Toko Budi' })
+
+wa.on('messages', async (ctx) => {
+  await wa.send(ctx.roomId, `Welcome to ${ctx.injection.config.storeName}`)
+})
+```
+
+```ts v4
+const config = { storeName: 'Toko Budi' }
+
+client.on('text', async (msg) => {
+  await msg.reply(`Welcome to ${config.storeName}`)
+})
+```
+
+v3's `citation` accepted any key, each returning a list of numbers. v4 has exactly two, `authors` and `banned`, each a list of JIDs or a function:
+
+{/* snippet-check: skip — v3 API */}
+```ts v3
+const wa = new Client({
+  citation: {
+    premium: async () => [6281234567890],
+    banned: async () => [6289876543210],
+  },
+})
+```
+
+```ts v4
+import { Client } from 'zaileys'
+
+const client = new Client({
+  citation: {
+    authors: ['6281234567890@s.whatsapp.net'],
+    banned: async (jid) => jid.startsWith('62898'),
+  },
+})
+
+client.on('text', async (msg) => {
+  if (await msg.citation.banned()) return
+  if (msg.text === 'status' && (await msg.citation.authors())) {
+    await msg.reply('All systems running.')
+  }
+})
+```
+
+For other roles, such as premium users, keep your own list and check it in the handler, or in [middleware](/bots/middleware) for commands.
+
+## Link the bot again
+
+v3 session data doesn't carry over. On the first v4 run, the terminal shows a new QR code — or a pairing code, with `authType: 'pairing'`:
+
+```text
+[zaileys] Connecting to WhatsApp (session: zaileys)...
+[zaileys] Scan the QR code above with WhatsApp > Linked devices to authenticate.
+```
+
+Link it from **WhatsApp → Settings → Linked devices**, and remove the old v3 entry from that list. Add `.zaileys` to your `.gitignore` — it holds the new login.
+
+## Checklist
+
+- [ ] Installed `zaileys@4` on Node.js 20 or newer.
+- [ ] Renamed `session` → `sessionId` and `prefix` → `commandPrefix`, and made `phoneNumber` a string.
+- [ ] Removed v3-only options such as `showLogs`, `disableFFmpeg`, and `autoRead`, and replaced the auto-behaviors you relied on.
+- [ ] Replaced `wa.on('messages')` with `client.on('message')` or per-kind events.
+- [ ] Awaited `msg.replied()`, `msg.roomName()`, and `msg.receiverName()`.
+- [ ] Rewrote sends, buttons, reactions, edits, deletes, and forwards with `client.send(jid)` and message keys.
+- [ ] Chose an auth store and a message store, and installed their drivers.
+- [ ] Rewrote plugins with `definePlugin()` and the `plugins` option.
+- [ ] Replaced `wa.inject()` and custom `citation` keys.
+- [ ] Let TypeScript check the project — every renamed option and field shows up as an error.
+- [ ] Linked the bot again and sent it a test message from another account.
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Is there one event for every message, like v3's messages?">
+    Yes: `client.on('message', handler)` fires for every incoming message, whatever its type. Check `msg.chatType` to tell them apart.
+  </Accordion>
+  <Accordion title="My bot no longer marks messages as read. Why?">
+    v4 doesn't do it automatically. Call `await client.chat.markRead(msg.roomId ?? msg.senderId)` in your handler when you want it.
+  </Accordion>
+  <Accordion title="Incoming calls aren't rejected anymore.">
+    v3 rejected calls by default; v4 doesn't. Turn it on with `new Client({ autoRejectCall: true })`. See [Configuration](/concepts/configuration).
+  </Accordion>
+  <Accordion title="Old messages are deleted from my store. Is that new?">
+    Yes. v4's `autoDelete` is on by default and removes stored messages older than 30 days. Pass `autoDelete: false` to keep everything. See [Auto-delete](/bots/auto-delete).
+  </Accordion>
+</AccordionGroup>
+
+Need help with a case this page doesn't cover? Ask on [Discord](https://discord.gg/HUcQe4xGr3) or open an [issue](https://github.com/zeative/zaileys/issues).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    A fresh v4 bot, step by step.
+  </Card>
+  <Card title="Commands" icon="square-terminal" href="/bots/commands">
+    Prefixes, arguments, guards, and help menus.
+  </Card>
+  <Card title="Storage" icon="database" href="/data/storage">
+    Pick the auth and message stores for production.
+  </Card>
+  <Card title="Changelog" icon="history" href="/reference/changelog">
+    Everything that changed since v4.0.0.
+  </Card>
+</CardGroup>

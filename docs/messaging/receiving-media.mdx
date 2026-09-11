@@ -1,9 +1,453 @@
 ---
-title: "Receiving media"
-description: "Download and process the images, video, audio, and stickers you receive."
+title: "Receive media"
+sidebarTitle: "Receiving media"
+description: "Listen for photos, videos, voice notes, documents, and stickers, then download, save, and convert them."
 icon: "file-down"
+keywords: ["download media", "download image", "save photo", "receive voice note", "download document", "msg.media", "downloadMedia", "view once", "convert voice note to mp3", "sticker from image", "media buffer", "stream media"]
 ---
 
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+When someone sends your bot a photo, voice note, or file, Zaileys fires an event with the file's details on `msg.media`. The file itself is only downloaded when you ask for it.
+
+<ProviderSupport web={true} cloud="partial" note="On the Cloud API, download with client.downloadMedia(). Size, duration, and dimensions are empty." />
+
+## Quick reference
+
+| To | Call | Result |
+| --- | --- | --- |
+| Run code when a photo arrives | [`client.on('image', …)`](#listen-for-media-messages) | Your handler gets the message, with the caption on `msg.text` |
+| Read the file type, size, or caption | [`msg.media`](#read-the-file-details) | The file's details, without downloading it |
+| Download the file | [`await msg.media.buffer()`](#download-the-file) | A `Buffer` with the file's bytes |
+| Save a large file to disk | [`await msg.media.stream()`](#stream-a-large-file-to-disk) | A readable stream you pipe to a file |
+| Download a file later | [`client.downloadMedia(key)`](#download-later-by-message-key) | `{ buffer, mime, size }`, or `null` |
+| Resize, convert, or make a sticker | [`new Media(bytes)`](#convert-and-resize-received-media) | A processed `Buffer` |
+| Spot view-once media | [`msg.isViewOnce`](#handle-view-once-media) | `true` for view-once messages |
+
+## Listen for media messages
+
+Each kind of file has its own event:
+
+| Event | Fires for | `msg.media.type` |
+| --- | --- | --- |
+| `'image'` | Photos | `'image'` |
+| `'video'` | Videos, including GIFs | `'video'` |
+| `'audio'` | Voice notes and audio files | `'audio'` |
+| `'document'` | PDFs, spreadsheets, ZIPs — anything sent as a document | `'document'` |
+| `'sticker'` | Stickers | `'sticker'` |
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client()
+
+client.on('image', async (msg) => {
+  await msg.reply(`Thanks for the photo, ${msg.senderName ?? 'friend'}!`)
+})
+
+client.on('document', async (msg) => {
+  if (msg.media?.type !== 'document') return
+  await msg.reply(`Got ${msg.media.fileName ?? 'your file'}. I'll take a look.`)
+})
+```
+
+Send the bot a PDF named `Invoice-0042.pdf` and it answers `Got Invoice-0042.pdf. I'll take a look.`
+
+- **The caption is on `msg.text`**, the same place a text message's body goes. It's an empty string when there's no caption.
+- **`msg.media` is always set in these five handlers**, but TypeScript types it as optional because text messages share the same `MessageContext` type. One `msg.media?.type` check at the top narrows it, so the fields below autocomplete.
+
+<Tip>
+  The `'message'` event also fires for every media message. Listen on `'message'` or on the specific events — not both — or your code handles each file twice.
+</Tip>
+
+## Read the file details
+
+`msg.media` describes the file without downloading it:
+
+```ts
+client.on('video', async (msg) => {
+  if (msg.media?.type !== 'video') return
+  const { duration, width, height, fileSize } = msg.media
+  console.log(`Video: ${duration}s, ${width}×${height}, ${fileSize} bytes`)
+})
+```
+
+A short phone video prints something like `Video: 12s, 720×1280, 2483920 bytes`. Any field WhatsApp leaves out is `null`, so handle that case before doing math with it.
+
+<ResponseField name="type" type="'image' | 'video' | 'audio' | 'document' | 'sticker'">
+  The kind of file. Matches the event that fired.
+</ResponseField>
+<ResponseField name="mimetype" type="string | null">
+  The file type, such as `image/jpeg` or `application/pdf`.
+</ResponseField>
+<ResponseField name="caption" type="string | null">
+  The caption the sender typed. The same text is on `msg.text`.
+</ResponseField>
+<ResponseField name="fileName" type="string | null">
+  The original file name. Usually only set for documents.
+</ResponseField>
+<ResponseField name="fileSize" type="number | null">
+  Size in bytes.
+</ResponseField>
+<ResponseField name="ptt" type="boolean">
+  `true` for a voice note, `false` for an audio file.
+</ResponseField>
+<ResponseField name="isAnimated" type="boolean">
+  `true` for a GIF-style looping video or an animated sticker.
+</ResponseField>
+<ResponseField name="duration" type="number | null">
+  Length in seconds, for audio and video.
+</ResponseField>
+<ResponseField name="width" type="number | null">
+  Width in pixels, for photos, videos, and stickers.
+</ResponseField>
+<ResponseField name="height" type="number | null">
+  Height in pixels, for photos, videos, and stickers.
+</ResponseField>
+<ResponseField name="pages" type="number | null">
+  Page count, for documents such as PDFs.
+</ResponseField>
+<ResponseField name="thumbnail" type="Buffer | null">
+  The small JPEG preview WhatsApp embeds in the message. Available without downloading the file.
+</ResponseField>
+<ResponseField name="buffer" type="() => Promise<Buffer>">
+  Downloads the whole file into memory. [Example](#download-the-file)
+</ResponseField>
+<ResponseField name="stream" type="() => Promise<Readable>">
+  Downloads the file as a Node.js stream. [Example](#stream-a-large-file-to-disk)
+</ResponseField>
+
+`msg.media` also describes polls, locations, contacts, and other message kinds — see [Message context](/concepts/message-context).
+
+## Download the file
+
+<Tabs>
+  <Tab title="Unofficial">
+
+    Call `msg.media.buffer()`:
+
+    ```ts
+    import { mkdir, writeFile } from 'node:fs/promises'
+
+    await mkdir('./downloads', { recursive: true })
+
+    client.on('image', async (msg) => {
+      if (msg.media?.type !== 'image') return
+      const bytes = await msg.media.buffer()
+      await writeFile(`./downloads/${msg.uniqueId}.jpg`, bytes)
+      await msg.reply(`Saved your photo (${bytes.length} bytes).`)
+    })
+    ```
+
+  </Tab>
+  <Tab title="Official">
+
+    On the Cloud API the file stays on Meta's servers, so `buffer()` and `stream()` don't work. Pass the message's key to `client.downloadMedia()` instead:
+
+    ```ts
+    import { mkdir, writeFile } from 'node:fs/promises'
+
+    await mkdir('./downloads', { recursive: true })
+
+    client.on('image', async (msg) => {
+      const file = await client.downloadMedia(msg.message().key)
+      if (!file) return
+      await writeFile(`./downloads/${msg.uniqueId}.jpg`, file.buffer)
+      await msg.reply(`Saved your photo (${file.size} bytes).`)
+    })
+    ```
+
+    Zaileys asks Meta for the file's download URL, then fetches it with your access token.
+
+  </Tab>
+</Tabs>
+
+Each photo lands in `./downloads`, named after `msg.uniqueId` — a 16-character ID, unique per message and safe in file names, such as `3F2A9C0D11E4B7A2.jpg`.
+
+Download files as soon as they arrive. WhatsApp doesn't keep media on its servers forever, so a message from last month may no longer download.
+
+### Save any file with the right extension
+
+This saves every photo, video, voice note, document, and sticker, using the sender's file name when there is one:
+
+```ts
+import { mkdir, writeFile } from 'node:fs/promises'
+import { basename, join } from 'node:path'
+
+await mkdir('./downloads', { recursive: true })
+
+client.on('message', async (msg) => {
+  if (!msg.media || !('buffer' in msg.media)) return
+  const { fileName, mimetype, type } = msg.media
+  const extension = mimetype?.split('/')[1]?.split(';')[0] ?? 'bin'
+  const name = fileName ? basename(fileName) : `${type}-${msg.uniqueId}.${extension}`
+  await writeFile(join('./downloads', name), await msg.media.buffer())
+})
+```
+
+- **`'buffer' in msg.media`** keeps only the five file kinds and skips polls, locations, and other messages.
+- **`basename()`** strips folders from the sender's file name, so a document named `../../bot.ts` can't overwrite your code.
+- **The extension comes from the MIME type**: `image/jpeg` becomes `.jpeg`, `audio/ogg; codecs=opus` becomes `.ogg`.
+
+## Stream a large file to disk
+
+`buffer()` holds the whole file in memory. For long videos and large documents, stream it straight to disk instead:
+
+```ts
+import { createWriteStream } from 'node:fs'
+import { pipeline } from 'node:stream/promises'
+
+client.on('video', async (msg) => {
+  if (msg.media?.type !== 'video') return
+  await pipeline(await msg.media.stream(), createWriteStream(`./downloads/${msg.uniqueId}.mp4`))
+})
+```
+
+`stream()` is WhatsApp Web only, like `buffer()`.
+
+## Download later by message key
+
+`client.downloadMedia(key)` looks the message up in the message store by its key and downloads its file. Use it when the download happens after the handler finishes — from a queue, a command, or a button tap:
+
+```ts
+import type { Client } from 'zaileys'
+
+type MessageKey = Parameters<Client['downloadMedia']>[0]
+const lastDocument = new Map<string, MessageKey>()
+
+client.on('document', async (msg) => {
+  lastDocument.set(msg.senderId, msg.message().key)
+  await msg.reply('Got it. Send "scan" when you want me to check it.')
+})
+
+client.on('text', async (msg) => {
+  if (msg.text !== 'scan') return
+  const key = lastDocument.get(msg.senderId)
+  const file = key ? await client.downloadMedia(key) : null
+  if (!file) {
+    await msg.reply('Send me a document first.')
+    return
+  }
+  await msg.reply(`Scanning ${file.size} bytes of ${file.mime}...`)
+})
+```
+
+It resolves to:
+
+<ResponseField name="buffer" type="Buffer">
+  The file's bytes.
+</ResponseField>
+<ResponseField name="mime" type="string">
+  The file type, such as `application/pdf`. `application/octet-stream` when WhatsApp didn't say.
+</ResponseField>
+<ResponseField name="size" type="number">
+  Size in bytes.
+</ResponseField>
+
+It resolves to `null` instead when:
+
+- **The message isn't in the store.** The default store keeps messages in memory, so they're gone after a restart. On WhatsApp Web, [auto-delete](/bots/auto-delete) also removes messages older than a month. Use a database-backed [store](/data/storage) to download days later.
+- **The message has no file.**
+- **It's a view-once message** (WhatsApp Web). Call `msg.media.buffer()` inside the handler instead.
+
+This is the download method on the Cloud API, and it works on WhatsApp Web too.
+
+## Convert and resize received media
+
+The `Media` class converts and resizes files. Give it the downloaded bytes, a file path, or a URL:
+
+```ts
+import { Media } from 'zaileys'
+
+client.on('image', async (msg) => {
+  if (msg.media?.type !== 'image' || msg.text !== '/square') return
+  const square = await new Media(await msg.media.buffer()).image.resize(1080, 1080)
+  await client.send(msg.roomId ?? msg.senderId).image(square, { caption: 'Cropped to 1080 × 1080' })
+})
+```
+
+Send the bot a photo with the caption `/square`, and it sends back a 1080 × 1080 copy. `resize()` fills the whole square and crops the edges that don't fit. `msg.roomId` is the <Term id="jid" /> of the chat the message came from, so the answer lands in the same chat.
+
 <Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/media](https://zeative.github.io/zaileys/media).
+  The examples here use `msg.media.buffer()`. On the Official provider, get the bytes with `client.downloadMedia()` instead — see [Differences on the Cloud API](#differences-on-the-cloud-api).
 </Note>
+
+### Make a sticker from a photo
+
+You don't need `Media` for this — `sticker()` converts any image for you:
+
+```ts
+client.on('image', async (msg) => {
+  if (msg.media?.type !== 'image' || msg.text !== '/sticker') return
+  const photo = await msg.media.buffer()
+  await client.send(msg.roomId ?? msg.senderId).sticker(photo, { packageName: 'Sticker Bot', shape: 'rounded' })
+})
+```
+
+Send a photo with the caption `/sticker`, and the bot answers with it as a rounded sticker. For a GIF or short video, listen on `'video'` and add `animated: true` — animated stickers are cut to 6 seconds. All sticker options are in [Send media](/messaging/media).
+
+To keep the sticker file instead of sending it, call `new Media(photo).sticker.create({ pack: 'Sticker Bot' })`, which returns the WebP bytes.
+
+### Convert a voice note to MP3
+
+Voice notes arrive as Opus audio in an OGG file. Convert them for tools that expect MP3, such as some speech-to-text services:
+
+```ts
+import { mkdir, writeFile } from 'node:fs/promises'
+import { Media } from 'zaileys'
+
+await mkdir('./voice-notes', { recursive: true })
+
+client.on('audio', async (msg) => {
+  if (msg.media?.type !== 'audio' || !msg.media.ptt) return
+  const mp3 = await new Media(await msg.media.buffer()).audio.toMp3()
+  await writeFile(`./voice-notes/${msg.uniqueId}.mp3`, mp3)
+})
+```
+
+### Everything Media can do
+
+`new Media(input)` accepts a `Buffer`, an `ArrayBuffer`, a URL, a file path, or a base64 string. Nothing is read until you call a method, and you can call several methods on one instance.
+
+| Method | Returns | What it does |
+| --- | --- | --- |
+| `image.resize(width, height)` | `Promise<Buffer>` | Resizes to exactly that size, cropping to fill. Outputs PNG. |
+| `image.toJpeg()` | `Promise<Buffer>` | Converts PNG and WebP to JPEG. JPEG comes back unchanged. |
+| `image.thumbnail()` | `Promise<string>` | A 100 × 100 JPEG preview, as base64. |
+| `video.toMp4()` | `Promise<Buffer>` | Re-encodes to an H.264/AAC MP4 that plays everywhere. |
+| `video.thumbnail()` | `Promise<string>` | A 100 × 100 JPEG frame from 10% into the video, as base64. |
+| `audio.toMp3()` | `Promise<Buffer>` | Converts to a 128 kbps stereo MP3. |
+| `audio.toOpus()` | `Promise<Buffer>` | Converts to mono Opus in OGG — the voice-note format. |
+| `audio.convert(type)` | `Promise<Buffer>` | `'opus'` (the default) or `'mp3'`. |
+| `audio.waveform()` | `Promise<{ waveform, seconds }>` | 64 loudness values from 0 to 100, plus the length in seconds. |
+| `sticker.create(options)` | `Promise<Buffer>` | A 512 × 512 WebP sticker. GIFs and videos become animated stickers. |
+| `document.create()` | `Promise<{ document, mimetype, ext, fileName, jpegThumbnail }>` | Detects the file type and makes a preview for images and videos. `fileName` is a random ID. |
+| `thumbnail.get()` | `Promise<string>` | A base64 JPEG preview of an image or video. |
+| `toBuffer()` | `Promise<Buffer>` | The input as raw bytes, with no processing. |
+
+`sticker.create()` accepts:
+
+<ParamField body="pack" type="string">
+  Pack name people see when they save the sticker. `packageName` and `packname` work too.
+</ParamField>
+<ParamField body="author" type="string">
+  Author shown next to the pack name. `authorName` and `publisher` work too.
+</ParamField>
+<ParamField body="quality" type="number" default="60">
+  WebP quality, from 1 to 100.
+</ParamField>
+<ParamField body="shape" type="'default' | 'circle' | 'rounded' | 'oval'" default="'default'">
+  Crop a still sticker to a shape. Animated stickers are always square.
+</ParamField>
+
+Without a pack or author, stickers use the `sticker` option on `new Client()`, or `Zaileys Library` and `https://github.com/zeative/zaileys` if you haven't set one.
+
+<Accordion title="Do I need to install ffmpeg or sharp?">
+
+  No. Zaileys ships its own ffmpeg for audio, video, and animated stickers ([Termux is the exception](/data/runtimes)). Image work runs on `sharp` when it's installed, and falls back to a slower built-in library when it isn't. The first image operation without `sharp` prints:
+
+  ```text
+  [media-process] Jimp is slow. For faster performance, run: npm install sharp
+  ```
+
+  Install it to make image resizing and stickers faster:
+
+  ```bash
+  npm install sharp
+  ```
+
+</Accordion>
+
+## Handle view-once media
+
+View-once photos, videos, and voice notes fire the same events as normal ones, with `msg.isViewOnce` set to `true`:
+
+```ts
+client.on('image', async (msg) => {
+  if (!msg.isViewOnce) return
+  console.log(`${msg.senderName} sent a view-once photo`)
+})
+```
+
+- **`msg.media.buffer()` downloads it**, like any other file.
+- **`client.downloadMedia()` returns `null`** for view-once messages, so download inside the handler.
+- **On the Cloud API**, `msg.isViewOnce` is always `false`.
+
+## Differences on the Cloud API
+
+Your handlers run unchanged on both providers. What's different is how you download and which details you get:
+
+| Feature | What happens on the Cloud API |
+| --- | --- |
+| `msg.media.buffer()`, `msg.media.stream()` | Don't work — the file is on Meta's servers. Use `client.downloadMedia(msg.message().key)`. |
+| `fileSize`, `duration`, `width`, `height`, `pages`, `thumbnail` | Always `null`. |
+| `isAnimated` | Always `false`. |
+| `mimetype`, `caption`, `fileName`, `ptt` | Set as usual. `ptt` is `true` for voice messages. |
+| `msg.isViewOnce` | Always `false`. |
+
+To download the same way on both providers, use a small helper:
+
+```ts
+import type { MessageContext } from 'zaileys'
+
+const downloadBytes = async (msg: MessageContext): Promise<Buffer | null> => {
+  if (client.provider === 'cloud') return (await client.downloadMedia(msg.message().key))?.buffer ?? null
+  return msg.media && 'buffer' in msg.media ? msg.media.buffer() : null
+}
+
+client.on('image', async (msg) => {
+  const bytes = await downloadBytes(msg)
+  if (bytes) await msg.reply(`Received ${bytes.length} bytes.`)
+})
+```
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="My handler runs twice for every photo">
+    You're listening on both `'message'` and `'image'`. Both fire for the same photo — keep one of them.
+  </Accordion>
+  <Accordion title="Can I show a preview without downloading the file?">
+    Yes. `msg.media.thumbnail` is the small JPEG preview WhatsApp puts inside the message, as a `Buffer`. It's blurry and only on WhatsApp Web — for a sharp preview, download the file and call `new Media(bytes).thumbnail.get()`.
+  </Accordion>
+  <Accordion title="Why does downloadMedia() return null after I restart the bot?">
+    The default message store lives in memory, so a restart forgets every message. Switch to a database-backed store such as SQLite or Redis — see [Storage](/data/storage).
+  </Accordion>
+  <Accordion title="How do I tell a voice note from an audio file?">
+    Check `msg.media.ptt`: `true` means a voice note recorded in WhatsApp, `false` means an audio file such as an MP3.
+  </Accordion>
+  <Accordion title="Can I receive a sticker and send it back?">
+    Yes. Download it with `msg.media.buffer()` and pass the bytes to `client.send(msg.roomId ?? msg.senderId).sticker(bytes)`. WebP stickers aren't re-encoded, but their pack name and author are replaced with yours — or with the defaults, if you don't pass any.
+  </Accordion>
+</AccordionGroup>
+
+## When a download fails
+
+| Error | What went wrong | How to fix it |
+| --- | --- | --- |
+| `buffer()` or `stream()` rejects, and Zaileys logs `media download failed` | WhatsApp couldn't serve the file — it may no longer be on its servers, or the connection dropped. | Download as soon as the message arrives. Retry once on network errors. |
+| `client.downloadMedia()` returns `null` | The message isn't in the store, has no file, or is view-once. | Use a database-backed [store](/data/storage), or call `msg.media.buffer()` inside the handler. |
+| `ZaileysCloudError` with code `REQUEST_FAILED`, such as `media download failed (404)` | Meta couldn't serve the file (Official provider). | Download when the webhook arrives. The message includes the HTTP status. |
+| `ZaileysCloudError` with code `AUTH` | Meta rejected your access token (Official provider). | Check that the token is valid and belongs to this app — see [Cloud API setup](/cloud/setup). |
+| `Invalid file type: expected audio/*, got image/jpeg` | A `Media` method got the wrong kind of file. | Check `msg.media.type` before calling `audio.*` or `video.*`. |
+| `Sticker creation failed: …` | The image couldn't be read or converted. | Make sure the file is a real image, GIF, or video. |
+
+`Media` methods throw a plain `Error`, not a Zaileys error class — read `error.message`. More in [Error handling](/data/error-handling).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Send media" icon="image" href="/messaging/media">
+    Send photos, voice notes, documents, and stickers back.
+  </Card>
+  <Card title="Message context" icon="message-square" href="/concepts/message-context">
+    Everything else on `msg`: sender, chat, replies, and flags.
+  </Card>
+  <Card title="Storage" icon="database" href="/data/storage">
+    Keep messages across restarts so you can download files later.
+  </Card>
+  <Card title="Buttons & lists" icon="mouse-pointer-click" href="/messaging/interactive">
+    Let people tap instead of type.
+  </Card>
+</CardGroup>

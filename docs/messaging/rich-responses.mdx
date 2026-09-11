@@ -1,9 +1,437 @@
 ---
 title: "Rich responses"
-description: "Turn markdown into Meta-AI-style rich messages."
+description: "Turn markdown into Meta-AI-style rich messages with highlighted code, tables, image galleries, product cards, and suggestion pills."
 icon: "wand-sparkles"
+keywords: ["airich", "rich message", "rich response", "markdown", "meta ai", "code block", "table", "suggestion pills", "product card", "reels", "latex", "citation", "ai bot"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/rich-responses](https://zeative.github.io/zaileys/rich-responses).
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+
+Write markdown, add `rich: true`, and Zaileys sends it as a rich message — the kind of bubble Meta AI answers with, with highlighted code, real tables, image galleries, and product cards.
+
+<ProviderSupport web={true} cloud={false} note="The Cloud API has no rich messages — send plain text there." />
+
+## Quick reference
+
+| To show | Write | Recipient sees |
+| --- | --- | --- |
+| Text and links | [Plain lines, `[label](url)`](#write-text-and-links) | A text block with tappable links |
+| A numbered source | [`[](url)`](#write-text-and-links) | A citation number linked to the page |
+| A math formula | [A formula image link](#add-a-formula) | The formula as an image, inline |
+| Code | [A fenced code block](#add-a-code-block) | A highlighted code block |
+| A table | [Markdown table rows](#add-a-table) | A table with a header row |
+| Photos | [`![alt](url)` lines](#add-images) | An image, or a gallery for several |
+| Follow-up suggestions | [`:::suggest`](#add-suggestion-pills) | Tappable suggestion pills |
+| A side note | [`:::tip`](#add-a-tip) | Small secondary text |
+| A video | [`:::video`](#add-a-video) | A video clip |
+| Products | [`:::product`](#show-product-cards) | Product cards with prices |
+| Reels | [`:::reels`](#show-reels) | A row of reel cards |
+| Social posts | [`:::post`](#show-social-posts) | A row of post cards |
+
+## Send a rich message
+
+Pass `rich: true` to the same `text()` you already use:
+
+```ts
+const md = [
+  '*Deploy finished* in 42 s',
+  '',
+  '| Service | Status |',
+  '| --- | --- |',
+  '| api | healthy |',
+  '| worker | healthy |',
+].join('\n')
+
+await client.send(jid).text(md)                 // plain text
+await client.send(jid).text(md, { rich: true }) // rich message
+```
+
+The same markdown arrives two different ways:
+
+- **Plain text:** "Deploy finished" in bold, then the pipes and dashes exactly as typed — WhatsApp has no tables in plain text.
+- **Rich:** a text block, then a real table with **Service** and **Status** as its header row.
+
+To answer a message, pass the same options to `msg.reply()`. The answer quotes the original message:
+
+```ts
+client.on('text', async (msg) => {
+  if (msg.text !== '/status') return
+  await msg.reply(
+    ['*All systems normal*', '', ':::suggest', 'Show incidents | Show uptime', ':::'].join('\n'),
+    { rich: true, title: 'Status Bot' },
+  )
+})
+```
+
+Command handlers work the same way: `ctx.reply(md, { rich: true })`.
+
+<Warning>
+  Rich messages use an undocumented WhatsApp format that WhatsApp can change without notice. Plain `text()` without `rich: true` is unaffected.
+</Warning>
+
+### Options
+
+<ParamField body="rich" type="boolean" default="false">
+  `true` renders the content as a rich message. Without it, the content is sent as plain text and the options below are ignored.
+</ParamField>
+<ParamField body="title" type="string">
+  A short label sent with the message as its disclaimer line, such as your bot's name.
+</ParamField>
+<ParamField body="footer" type="string">
+  Small text added after every other block.
+</ParamField>
+<ParamField body="sources" type="Array<[faviconUrl, url, name]>">
+  Source chips, each with an icon, a link, and a display name.
+</ParamField>
+
+```ts
+await client.send(jid).text('Zaileys runs on WhatsApp Web and the Cloud API. [](https://github.com/zeative/zaileys)', {
+  rich: true,
+  title: 'Docs Bot',
+  footer: 'Answers may be incomplete.',
+  sources: [['https://github.com/favicon.ico', 'https://github.com/zeative/zaileys', 'zaileys on GitHub']],
+})
+```
+
+## Write text and links
+
+Every line that isn't a code block, table, image, or directive becomes text. Consecutive lines are joined into one text block:
+
+```ts
+await client.send(jid).text(
+  [
+    'Your invoice is ready: [Invoice 0042](https://example.com/invoices/0042).',
+    'Prices follow the official rate card. [](https://example.com/rates)',
+  ].join('\n'),
+  { rich: true },
+)
+```
+
+- **`[label](url)`** becomes a link that shows `label`.
+- **`[](url)`** — an empty label — becomes a numbered citation. Citations are numbered 1, 2, 3 in the order they appear.
+- **`\[`** is a literal bracket, when you don't want a link.
+
+Anything else — WhatsApp formatting like `*bold*`, headings, bullet lists — stays inside the text block as you wrote it.
+
+## Add a formula
+
+WhatsApp can't draw math, so a formula is an image you provide, with the expression as its text. Write it like a link, with angle brackets around the image URL:
+
+```text
+[expression|width|height|fontHeight|padding]<imageUrl>
+```
+
+```ts
+await client.send(jid).text(
+  'Energy and mass: [E = mc^2|160|44]<https://latex.codecogs.com/png.image?E%20%3D%20mc%5E2>',
+  { rich: true },
+)
+```
+
+The recipient sees the rendered formula inline in the sentence. Zaileys doesn't render the math — the URL must already point to an image of it, such as one from CodeCogs.
+
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `expression` | `image` | The formula as text. |
+| `width` | `100` | Image width. |
+| `height` | `100` | Image height. |
+| `fontHeight` | `83.33` | Text height hint. |
+| `padding` | `15` | Space around the image. |
+
+## Add a code block
+
+Open a fence with three backticks and a language, close it with three backticks, each on its own line:
+
+```ts
+await client.send(jid).text(
+  [
+    'Install it with:',
+    '```bash',
+    'npm install zaileys',
+    '```',
+    '',
+    'Then reply to every message:',
+    '```ts',
+    "client.on('text', (msg) => msg.reply('hi'))",
+    '```',
+  ].join('\n'),
+  { rich: true },
+)
+```
+
+The recipient sees two code blocks. Strings, numbers, `//` comments, and function calls are highlighted in every language, and `js`, `javascript`, `ts`, and `typescript` also get keyword highlighting. Without a language, the block is labeled `plaintext`.
+
+## Add a table
+
+A table is a row with `|` between cells, followed by a separator row of dashes:
+
+```ts
+await client.send(jid).text(
+  [
+    '| Plan | Messages / month | Price |',
+    '| --- | --- | --- |',
+    '| Starter | 1,000 | Free |',
+    '| Pro | 50,000 | Rp150.000 |',
+  ].join('\n'),
+  { rich: true, title: 'Pricing' },
+)
+```
+
+The first row becomes the header. The table ends at the first blank line or line without a `|`. Short rows are padded with empty cells.
+
+## Add images
+
+Put `![alt](url)` on a line of its own. Images on consecutive lines become one gallery:
+
+```ts
+await client.send(jid).text(
+  [
+    'New arrivals this week:',
+    '![Blue sneakers](https://example.com/shop/sneakers-blue.jpg)',
+    '![White sneakers](https://example.com/shop/sneakers-white.jpg)',
+  ].join('\n'),
+  { rich: true },
+)
+```
+
+The recipient's WhatsApp loads each image from its URL — Zaileys uploads nothing — so the URLs must be publicly reachable. To send a photo from disk, use [`image()`](/messaging/media) instead.
+
+The `:::image` directive does the same, with one URL per line:
+
+```ts
+await client.send(jid).text(
+  [':::image', 'https://example.com/shop/sneakers-blue.jpg', 'https://example.com/shop/sneakers-white.jpg', ':::'].join('\n'),
+  { rich: true },
+)
+```
+
+## Use directives
+
+Directives add blocks that markdown has no syntax for. Each one starts with `:::name` on its own line and ends with `:::` on its own line:
+
+```text
+:::product
+- title: Sneakers Blue | price: Rp450.000 | image: https://example.com/shop/sneakers-blue.jpg
+- title: Sneakers White | price: Rp450.000 | image: https://example.com/shop/sneakers-white.jpg
+:::
+```
+
+- **Each line is one item.** A leading `-` or `*` is optional, and blank lines are skipped.
+- **Fields are `key: value` pairs separated by `|`.** Keys are case-insensitive, and unknown keys are ignored.
+- **Numbers must be numbers** (`likes: 980`, not `likes: 1k`) or they're dropped. Yes/no fields accept `true`, `1`, or `yes`.
+- **Close every directive.** An unclosed `:::name` swallows the rest of the message, and an unknown name is dropped.
+
+### Add suggestion pills
+
+`:::suggest` shows follow-up suggestions as pills. Separate them with `|`, on one line or several:
+
+```ts
+await client.send(jid).text(
+  ['Anything else I can help with?', '', ':::suggest', 'Track my order | Talk to a human', 'See opening hours', ':::'].join('\n'),
+  { rich: true },
+)
+```
+
+The recipient sees three pills under the question. Zaileys has no event for pill taps.
+
+### Add a tip
+
+`:::tip` shows its lines as small secondary text:
+
+```ts
+await client.send(jid).text(
+  ['Your order is confirmed.', '', ':::tip', 'Tap a product photo to see it full size.', ':::'].join('\n'),
+  { rich: true },
+)
+```
+
+### Add a video
+
+`:::video` takes one clip per line, as `url | seconds`:
+
+```ts
+await client.send(jid).text(
+  ['Watch the unboxing:', '', ':::video', 'https://example.com/clips/unboxing.mp4 | 15', ':::'].join('\n'),
+  { rich: true },
+)
+```
+
+The length is read from the first line and used for every clip in the block. It defaults to `0`.
+
+### Show product cards
+
+`:::product` shows each line as a product card. One product shows a single card; several show a row the recipient swipes through:
+
+```ts
+await client.send(jid).text(
+  [
+    'Picked for you:',
+    '',
+    ':::product',
+    '- title: Sneakers Blue | price: Rp450.000 | sale: Rp399.000 | brand: Kicks | image: https://example.com/shop/sneakers-blue.jpg | url: https://example.com/shop/sneakers-blue',
+    '- title: Sneakers White | price: Rp450.000 | brand: Kicks | image: https://example.com/shop/sneakers-white.jpg | url: https://example.com/shop/sneakers-white',
+    ':::',
+  ].join('\n'),
+  { rich: true, title: 'Kicks Store' },
+)
+```
+
+| Field | Meaning |
+| --- | --- |
+| `title` | Product name. **Required** — a line without it is dropped. |
+| `price` | Regular price, as you want it shown. |
+| `sale` or `saleprice` | Sale price. |
+| `brand` | Brand name. |
+| `image` | Product photo URL. |
+| `icon` | A second image URL. |
+| `url` | Product page. |
+
+### Show reels
+
+`:::reels` shows each line as a reel card, always in a swipeable row:
+
+```ts
+await client.send(jid).text(
+  [
+    'Trending this week:',
+    '',
+    ':::reels',
+    '- user: kicksstore | title: Blue sneakers on court | url: https://example.com/clips/court.mp4 | thumb: https://example.com/clips/court.jpg | views: 12400 | likes: 980 | verified: true',
+    '- user: kicksstore | title: Care guide | url: https://example.com/clips/care.mp4 | thumb: https://example.com/clips/care.jpg | views: 8800 | likes: 740',
+    ':::',
+  ].join('\n'),
+  { rich: true },
+)
+```
+
+| Field | Meaning |
+| --- | --- |
+| `user` or `username` | Creator handle. |
+| `title` | Reel title. |
+| `url` | Video URL. |
+| `thumb` | Thumbnail URL. |
+| `profile` | Creator avatar URL. |
+| `views`, `likes`, `shares` | Counts shown on the card. |
+| `source` | Source app label. Defaults to `IG`. |
+| `verified` | Shows a verified badge. |
+
+### Show social posts
+
+`:::post` shows each line as a social post card, always in a swipeable row:
+
+```ts
+await client.send(jid).text(
+  [
+    ':::post',
+    '- user: kicksstore | title: Summer drop is live | caption: Five new colors, free shipping this week. | thumb: https://example.com/posts/summer.jpg | likes: 1500 | comments: 132 | verified: true | source: INSTAGRAM',
+    ':::',
+  ].join('\n'),
+  { rich: true, title: 'Kicks Store' },
+)
+```
+
+| Field | Meaning |
+| --- | --- |
+| `user` or `username` | Author handle. |
+| `title` | Post title. |
+| `subtitle` | A second line under the title. |
+| `caption` | Post text. |
+| `thumb` | Image URL. |
+| `profile` | Author avatar URL. |
+| `url` | Link to the post. |
+| `likes`, `comments`, `shares` | Counts shown on the card. |
+| `source` | Source app label. Defaults to `INSTAGRAM`. |
+| `footer`, `icon` | Footer label and footer icon URL. |
+| `verified` | Shows a verified badge. |
+
+## Combine blocks
+
+Blocks appear in the order you write them, and you can mix any of them in one message:
+
+```ts
+const answer = [
+  '*Order #1042* is on its way.',
+  '',
+  '| Item | Qty | Price |',
+  '| --- | --- | --- |',
+  '| Sneakers Blue | 1 | Rp399.000 |',
+  '| Care kit | 1 | Rp45.000 |',
+  '',
+  ':::tip',
+  'Deliveries arrive between 09:00 and 17:00.',
+  ':::',
+  '',
+  ':::suggest',
+  'Track package | Change address | Talk to a human',
+  ':::',
+].join('\n')
+
+await client.send(jid).text(answer, { rich: true, title: 'Kicks Store', footer: 'Order placed 11 Sep 2026' })
+```
+
+The recipient sees the text, the order table, the delivery tip, three suggestion pills, and the footer, in that order.
+
+## On the Cloud API
+
+The Cloud API has no rich messages. Sending with `rich: true` fails with `ZaileysBuilderError` code `SEND_FAILED`, and `error.cause` is a `ZaileysCloudError` with code `NOT_IMPLEMENTED` and this message:
+
+```text
+AIRich rich responses (rich: true) are a WhatsApp-Web-only feature and are not supported on the cloud provider. Send the markdown as plain text with send().text(md) — WhatsApp renders *bold*, _italic_, ~strike~ and ```mono``` natively.
+```
+
+To run the same bot on both providers, turn `rich` on only for WhatsApp Web:
+
+```ts
+const md = ['*Order #1042* is on its way.', '', 'Track it: https://example.com/track/JX-20931'].join('\n')
+
+await client.send(jid).text(md, { rich: client.provider !== 'cloud' })
+```
+
+On the Cloud API this arrives as plain text: the formatting shows, while tables, images, and `:::` directives appear as the characters you typed.
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Part of my message is missing">
+    Check that each code fence, table separator, image, and `:::` line starts on its own line, and that every directive and code block is closed. An unclosed block swallows everything after it. Product lines without a `title` and directives with unknown names are dropped without an error.
+  </Accordion>
+  <Accordion title="Can I add buttons to a rich message?">
+    No. A message is either rich text or buttons. Send the rich answer first, then a [buttons](/messaging/interactive) message, or use `:::suggest` pills for follow-up ideas.
+  </Accordion>
+  <Accordion title="Can I use images from my disk?">
+    Not inside a rich message. It only carries URLs, which the recipient's phone loads. Host the image somewhere public, or send it on its own with `client.send(jid).image('./photo.jpg')`.
+  </Accordion>
+  <Accordion title="How does Zaileys send it?">
+    Zaileys converts your markdown into WhatsApp's rich-response format — the one Meta AI uses — and sends it as a forwarded bot message. Everything in it is built from the text and URLs you pass.
+  </Accordion>
+  <Accordion title="Is this a good fit for AI chatbot answers?">
+    Yes. Language models already answer in markdown with code blocks and tables, so you can often pass the answer straight to `msg.reply(answer, { rich: true })`. See the [AI bot recipe](/recipes/ai-bot).
+  </Accordion>
+</AccordionGroup>
+
+## When a send fails
+
+| Error | What went wrong | How to fix it |
+| --- | --- | --- |
+| `INVALID_OPTIONS` — `text({ rich: true }) requires non-empty markdown content` | The content is empty, or nothing in it could be rendered, such as only an unknown directive. | Pass at least one line of text or one valid block. |
+| `SEND_FAILED` with a `NOT_IMPLEMENTED` cause | You sent `rich: true` on the Cloud API. | Send plain text there — see [On the Cloud API](#on-the-cloud-api). |
+| `SEND_FAILED` — `socket relayMessage rejected` | WhatsApp refused the message. | The original reason is on `error.cause`. |
+
+`INVALID_OPTIONS` is thrown by `text()` itself, before anything is sent. More in [Error handling](/data/error-handling).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="AI bot recipe" icon="bot" href="/recipes/ai-bot">
+    Answer questions with a language model and rich replies.
+  </Card>
+  <Card title="Buttons & lists" icon="mouse-pointer-click" href="/messaging/interactive">
+    Let people tap instead of type.
+  </Card>
+  <Card title="Text & replies" icon="message-square-text" href="/messaging/text">
+    Plain text, formatting, replies, and mentions.
+  </Card>
+  <Card title="Commands" icon="square-terminal" href="/bots/commands">
+    Answer `/status` and other commands with `ctx.reply()`.
+  </Card>
+</CardGroup>

@@ -1,9 +1,566 @@
 ---
 title: "Buttons & lists"
-description: "Send reply, URL, copy, and call buttons, lists, and carousels."
+description: "Send reply, link, copy, and call buttons, lists, carousels, and quick templates — and handle every tap in your bot."
 icon: "mouse-pointer-click"
+keywords: ["buttons", "reply buttons", "quick reply", "list message", "menu", "carousel", "cta button", "url button", "copy code button", "call button", "button-click", "list-select", "interactive message", "native flow"]
 ---
 
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+Buttons and lists let people tap instead of type, and Zaileys sends each tap back to your bot as an event.
+
+<ProviderSupport web={true} cloud="partial" note="The Cloud API supports up to 3 reply buttons, lists, and a single link button." />
+
+## Quick reference
+
+| To send | Call | Recipient sees |
+| --- | --- | --- |
+| Reply buttons | [`.buttons([{ id, text }], { text })`](#send-reply-buttons) | Buttons under your message. A tap fires `button-click`. |
+| Link, copy, or call buttons | [`.buttons([{ type: 'url', … }])`](#add-link-copy-and-call-buttons) | Buttons that open a link, copy a code, or start a call |
+| Reminder, location, or address buttons | [`.buttons([{ type: 'location', … }])`](#ask-for-a-reminder-location-or-address) | Buttons that set a reminder or ask for their location or address |
+| A header, image, or footer | [`.buttons(buttons, { title, image, footer })`](#add-a-header-image-or-footer) | Your buttons under a title, photo, or video |
+| A menu of choices | [`.list({ buttonText, sections })`](#send-a-list) | A button that opens a menu. A pick fires `list-select`. |
+| Swipeable product cards | [`.carousel(cards)`](#send-a-carousel) | Cards they swipe sideways, each with its own buttons |
+| A titled message with up to 3 replies | [`.template({ header, body, buttons })`](#send-a-quick-template) | A bold title, your text, and reply buttons |
+
+Handle the taps with [`client.on('button-click')`](#handle-button-taps) and [`client.on('list-select')`](#handle-list-picks).
+
+## Send reply buttons
+
+A reply button needs an `id` for your code and a `text` label for the recipient:
+
+```ts
+await client.send(jid).buttons(
+  [
+    { id: 'confirm', text: 'Confirm order' },
+    { id: 'cancel', text: 'Cancel' },
+  ],
+  { text: 'Order #1042: 2 × Nasi Goreng, total Rp58.000', footer: 'Warung Sari' },
+)
+```
+
+The recipient sees your text, the footer in small type, and the two buttons. When they tap **Confirm order**, your bot gets a `button-click` event with `buttonId: 'confirm'`:
+
+```ts
+client.on('button-click', async (tap) => {
+  const chat = tap.key.remoteJid ?? tap.sender.jid
+  if (tap.buttonId === 'confirm') await client.send(chat).text('Order #1042 confirmed. We are cooking!')
+  if (tap.buttonId === 'cancel') await client.send(chat).text('Order #1042 cancelled.')
+})
+```
+
+A message holds 1 to 10 buttons, and you can mix reply buttons with every other type on this page.
+
+<ParamField body="id" type="string" required>
+  What your bot receives as `buttonId`. Must be unique within the message.
+</ParamField>
+<ParamField body="text" type="string" required>
+  The button label.
+</ParamField>
+<ParamField body="type" type="'reply'" default="'reply'">
+  Optional — a button without a `type` is a reply button.
+</ParamField>
+
+<Tip>
+  Put data in the `id`, such as `confirm:1042`. Your handler then knows which order the tap belongs to without keeping any state — see [Handle button taps](#handle-button-taps).
+</Tip>
+
+## Add link, copy, and call buttons
+
+These buttons act on the recipient's phone, so they have no `id`:
+
+```ts
+await client.send(jid).buttons(
+  [
+    { type: 'url', text: 'Track package', url: 'https://example.com/track/JX-20931' },
+    { type: 'copy', text: 'Copy tracking number', code: 'JX-20931' },
+    { type: 'call', text: 'Call the courier', phone: '6281234567890' },
+  ],
+  { text: 'Your package JX-20931 is out for delivery.' },
+)
+```
+
+| Type | Fields | When tapped |
+| --- | --- | --- |
+| `'url'` | `text`, `url`, `webview` | Opens `url`. With `webview: true`, it opens inside WhatsApp instead of the browser. |
+| `'copy'` | `text`, `code` | Copies `code` to their clipboard. |
+| `'call'` | `text`, `phone` | Starts a phone call to `phone`. |
+
+<ParamField body="url" type="string" required>
+  For `'url'` buttons: the page to open.
+</ParamField>
+<ParamField body="webview" type="boolean" default="false">
+  For `'url'` buttons: open the page inside WhatsApp.
+</ParamField>
+<ParamField body="code" type="string" required>
+  For `'copy'` buttons: the text copied to the clipboard, such as a promo code or tracking number.
+</ParamField>
+<ParamField body="phone" type="string" required>
+  For `'call'` buttons: the number to call, country code first, digits only.
+</ParamField>
+
+Only reply buttons fire `button-click`. Don't build a flow that waits for an event from a link, copy, or call button.
+
+## Ask for a reminder, location, or address
+
+```ts
+await client.send(jid).buttons(
+  [
+    { type: 'location', text: 'Share my location' },
+    { type: 'address', text: 'Enter delivery address' },
+  ],
+  { text: 'Where should we deliver order #1042?' },
+)
+```
+
+| Type | Fields | What it does |
+| --- | --- | --- |
+| `'reminder'` | `text`, `id` | Lets them set a WhatsApp reminder for this message. |
+| `'cancel-reminder'` | `text`, `id` | Cancels that reminder. |
+| `'location'` | `text` | Asks them to share their location. `text` is optional here. |
+| `'address'` | `text`, `id` | Opens a form for a delivery address. |
+
+For `reminder`, `cancel-reminder`, and `address`, `id` is optional and defaults to the button's `text`.
+
+```ts
+await client.send(jid).buttons(
+  [
+    { type: 'reminder', text: 'Remind me', id: 'remind:webinar-12' },
+    { type: 'cancel-reminder', text: 'Cancel reminder' },
+  ],
+  { text: 'The webinar starts Friday at 19:00.' },
+)
+```
+
+## Add a header, image, or footer
+
+The second argument to `buttons()` shapes the message around the buttons:
+
+```ts
+await client.send(jid).buttons(
+  [
+    { id: 'rsvp:yes', text: 'Going' },
+    { id: 'rsvp:no', text: 'Not going' },
+  ],
+  {
+    image: './events/launch-party.jpg',
+    title: 'Launch party',
+    subtitle: 'Friday, 19:00',
+    text: 'Join us at the Kuta office for the v2 launch.',
+    footer: 'Reply by Thursday',
+  },
+)
+```
+
+The recipient sees the photo at the top, then the title and subtitle, your text, the footer, and the two buttons.
+
+<ParamField body="text" type="string">
+  The message body above the buttons. Left blank if you leave it out.
+</ParamField>
+<ParamField body="footer" type="string">
+  Small text under the body.
+</ParamField>
+<ParamField body="title" type="string">
+  A header line above the body.
+</ParamField>
+<ParamField body="subtitle" type="string">
+  A second header line under the title.
+</ParamField>
+<ParamField body="image" type="string | Buffer | URL">
+  A photo at the top of the message — a URL, a file path, or bytes, like [Send media](/messaging/media). WhatsApp Web only.
+</ParamField>
+<ParamField body="video" type="string | Buffer | URL">
+  A video at the top of the message. If you pass both `image` and `video`, the image wins. WhatsApp Web only.
+</ParamField>
+<ParamField body="bottomSheet" type="BottomSheetOptions">
+  Tuck extra buttons into a sheet. [See below](#collapse-extra-buttons-into-a-sheet)
+</ParamField>
+<ParamField body="limitedTimeOffer" type="LimitedTimeOfferOptions">
+  Add a countdown banner. [See below](#show-a-countdown-offer)
+</ParamField>
+
+If the photo or video can't be loaded or uploaded, the send rejects with `SEND_FAILED` and the message `interactive media upload failed`.
+
+## Collapse extra buttons into a sheet
+
+With many buttons, show a few in the chat and put the rest behind one button that opens a sheet:
+
+```ts
+await client.send(jid).buttons(
+  [
+    { id: 'size:s', text: 'Small' },
+    { id: 'size:m', text: 'Medium' },
+    { id: 'size:l', text: 'Large' },
+    { id: 'size:xl', text: 'Extra large' },
+    { id: 'size:xxl', text: '2XL' },
+  ],
+  {
+    text: 'Pick a T-shirt size',
+    bottomSheet: { buttonsLimit: 2, buttonTitle: 'All sizes', listTitle: 'Choose your size' },
+  },
+)
+```
+
+The chat shows **Small** and **Medium**. The other sizes sit behind an **All sizes** button that opens a sheet titled "Choose your size".
+
+<ParamField body="buttonsLimit" type="number">
+  How many buttons stay in the chat. The rest move into the sheet.
+</ParamField>
+<ParamField body="buttonTitle" type="string">
+  The label of the button that opens the sheet.
+</ParamField>
+<ParamField body="listTitle" type="string">
+  The title at the top of the open sheet.
+</ParamField>
+<ParamField body="dividers" type="number[]">
+  Button positions to draw a divider line at, to group buttons.
+</ParamField>
+
+## Show a countdown offer
+
+`limitedTimeOffer` adds a banner that counts down to a deadline — useful for flash sales:
+
+```ts
+await client.send(jid).buttons(
+  [
+    { type: 'url', text: 'Shop the sale', url: 'https://example.com/sale' },
+    { type: 'copy', text: 'Copy code', code: 'FLASH50' },
+  ],
+  {
+    title: 'Flash sale',
+    text: '50% off everything for the next hour.',
+    limitedTimeOffer: {
+      text: 'Ends in',
+      copyCode: 'FLASH50',
+      expiresAt: Math.floor(Date.now() / 1000) + 60 * 60,
+    },
+  },
+)
+```
+
+<ParamField body="expiresAt" type="number">
+  When the offer ends, as a Unix timestamp in **seconds**. `Date.now()` is in milliseconds — divide it by 1000 as shown.
+</ParamField>
+<ParamField body="text" type="string">
+  The banner label, such as `Ends in`.
+</ParamField>
+<ParamField body="copyCode" type="string">
+  A promo code shown with the offer.
+</ParamField>
+<ParamField body="url" type="string">
+  A link for the offer.
+</ParamField>
+
+## Send a list
+
+A list is a single button that opens a menu of rows grouped into sections. The recipient picks one row:
+
+```ts
+await client.send(jid).list({
+  title: 'Warung Sari',
+  description: 'What would you like to order?',
+  buttonText: 'See menu',
+  footerText: 'Open 10:00–22:00',
+  sections: [
+    {
+      title: 'Food',
+      rows: [
+        { id: 'nasi-goreng', title: 'Nasi Goreng', description: 'Rp25.000' },
+        { id: 'mie-ayam', title: 'Mie Ayam', description: 'Rp20.000' },
+      ],
+    },
+    {
+      title: 'Drinks',
+      rows: [
+        { id: 'es-teh', title: 'Es Teh', description: 'Rp5.000' },
+        { id: 'kopi-susu', title: 'Kopi Susu', description: 'Rp15.000' },
+      ],
+    },
+  ],
+})
+```
+
+The recipient sees "Warung Sari", your question, and a **See menu** button. Tapping it opens the menu with **Food** and **Drinks** sections. Picking **Kopi Susu** fires `list-select` with `rowId: 'kopi-susu'` — see [Handle list picks](#handle-list-picks).
+
+<ParamField body="buttonText" type="string" required>
+  The label of the button that opens the menu.
+</ParamField>
+<ParamField body="sections" type="ListSection[]" required>
+  One or more sections, each with a `title` and at least one row. Up to 10 rows in total across all sections.
+</ParamField>
+<ParamField body="title" type="string">
+  A header line above the body.
+</ParamField>
+<ParamField body="description" type="string">
+  The message body. Left blank if you leave it out.
+</ParamField>
+<ParamField body="footerText" type="string">
+  Small text under the body.
+</ParamField>
+
+Each row has:
+
+<ParamField body="id" type="string" required>
+  What your bot receives as `rowId`. Must be unique across the whole list.
+</ParamField>
+<ParamField body="title" type="string" required>
+  The row's label.
+</ParamField>
+<ParamField body="description" type="string">
+  A second, smaller line under the label, such as a price.
+</ParamField>
+
+## Send a carousel
+
+A carousel is a row of cards the recipient swipes through. Each card has its own photo or video, text, and buttons:
+
+```ts
+await client.send(jid).carousel(
+  [
+    {
+      title: 'Nasi Goreng',
+      body: 'Fried rice with egg and chicken — Rp25.000',
+      footer: 'Best seller',
+      image: './menu/nasi-goreng.jpg',
+      buttons: [
+        { id: 'add:nasi-goreng', text: 'Add to order' },
+        { type: 'url', text: 'See photos', url: 'https://example.com/menu/nasi-goreng' },
+      ],
+    },
+    {
+      title: 'Mie Ayam',
+      body: 'Chicken noodles with bok choy — Rp20.000',
+      image: './menu/mie-ayam.jpg',
+      buttons: [{ id: 'add:mie-ayam', text: 'Add to order' }],
+    },
+  ],
+  { text: "Today's specials" },
+)
+```
+
+The recipient sees "Today's specials" and two cards side by side. Tapping **Add to order** on a card fires `button-click` with that card's button `id`.
+
+A carousel holds 1 to 10 cards. The second argument takes only `text`, shown above the cards. Each card accepts:
+
+<ParamField body="title" type="string">
+  The card's header line.
+</ParamField>
+<ParamField body="subtitle" type="string">
+  A second header line.
+</ParamField>
+<ParamField body="body" type="string">
+  The card's text. Left blank if you leave it out.
+</ParamField>
+<ParamField body="footer" type="string">
+  Small text under the body.
+</ParamField>
+<ParamField body="image" type="string | Buffer | URL">
+  A photo at the top of the card.
+</ParamField>
+<ParamField body="video" type="string | Buffer | URL">
+  A video at the top of the card. If you pass both, the image wins.
+</ParamField>
+<ParamField body="buttons" type="InteractiveButton[]">
+  Up to 10 buttons of any type on this page. Reply-button ids must be unique within the card.
+</ParamField>
+
+## Send a quick template
+
+`template()` is a shortcut for a titled message with up to three reply buttons:
+
+```ts
+await client.send(jid).template({
+  header: 'Appointment reminder',
+  body: 'Your dental check-up is tomorrow at 09:30.',
+  footer: 'Klinik Senyum',
+  buttons: [
+    { id: 'appt:keep', text: 'I will be there' },
+    { id: 'appt:reschedule', text: 'Reschedule' },
+  ],
+})
+```
+
+The recipient sees **Appointment reminder** in bold, a blank line, your text, the footer, and the two buttons. Taps fire `button-click` like any reply button.
+
+<ParamField body="body" type="string" required>
+  The message text.
+</ParamField>
+<ParamField body="buttons" type="{ id: string; text: string }[]" required>
+  1 to 3 reply buttons. For link, copy, or call buttons, use `buttons()`.
+</ParamField>
+<ParamField body="header" type="string">
+  A title shown in bold above the body.
+</ParamField>
+<ParamField body="footer" type="string">
+  Small text under the body.
+</ParamField>
+
 <Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/interactive](https://zeative.github.io/zaileys/interactive).
+  This isn't a Meta message template. To message people outside the 24-hour window on the Cloud API, you need a Meta-approved template — see [Templates](/cloud/templates).
 </Note>
+
+## Handle button taps
+
+`button-click` fires when someone taps a reply button in `buttons()`, `template()`, or a carousel card:
+
+```ts
+client.on('button-click', async (tap) => {
+  const chat = tap.key.remoteJid ?? tap.sender.jid
+  const [action, orderId] = tap.buttonId.split(':')
+
+  if (action === 'confirm') await client.send(chat).text(`Order #${orderId} confirmed.`)
+  if (action === 'cancel') await client.send(chat).text(`Order #${orderId} cancelled.`)
+})
+```
+
+With buttons sent as `{ id: 'confirm:1042', text: 'Confirm' }`, a tap answers `Order #1042 confirmed.` in the same chat — even when the tap happens in a group.
+
+<ResponseField name="buttonId" type="string">
+  The `id` of the tapped button.
+</ResponseField>
+<ResponseField name="buttonText" type="string | undefined">
+  The tapped button's label, when WhatsApp includes it.
+</ResponseField>
+<ResponseField name="sender" type="SenderInfo">
+  Who tapped: `jid`, plus `pushName`, `lid`, `pn`, `username`, and `isMe` when known.
+</ResponseField>
+<ResponseField name="key" type="WAMessageKey">
+  The key of the tap itself. `key.remoteJid` is the chat's <Term id="jid" />, so you can answer there.
+</ResponseField>
+<ResponseField name="timestamp" type="number">
+  When they tapped, as a Unix timestamp in seconds.
+</ResponseField>
+
+## Handle list picks
+
+`list-select` fires when someone picks a row from a `list()`:
+
+```ts
+const prices: Record<string, number> = { 'nasi-goreng': 25000, 'mie-ayam': 20000, 'es-teh': 5000, 'kopi-susu': 15000 }
+
+client.on('list-select', async (pick) => {
+  const chat = pick.key.remoteJid ?? pick.sender.jid
+  const price = prices[pick.rowId]
+  await client.send(chat).text(price ? `Added ${pick.rowId} (Rp${price}) to your order.` : 'Sorry, that item is sold out.')
+})
+```
+
+Picking **Kopi Susu** answers `Added kopi-susu (Rp15000) to your order.`
+
+<ResponseField name="rowId" type="string">
+  The `id` of the picked row.
+</ResponseField>
+<ResponseField name="title" type="string | undefined">
+  A title WhatsApp sends with the pick, when present. On the Cloud API it's the picked row's title.
+</ResponseField>
+<ResponseField name="sender" type="SenderInfo">
+  Who picked the row.
+</ResponseField>
+<ResponseField name="key" type="WAMessageKey">
+  The key of the pick itself. `key.remoteJid` is the chat.
+</ResponseField>
+<ResponseField name="timestamp" type="number">
+  When they picked, as a Unix timestamp in seconds.
+</ResponseField>
+
+Both events are listed with the rest in [Events](/reference/events).
+
+## Differences on the Cloud API
+
+Taps and picks arrive as the same `button-click` and `list-select` events on both providers. Sending is more limited, because the Cloud API only has a few interactive layouts:
+
+| What you send | On the Cloud API |
+| --- | --- |
+| 1 to 3 reply buttons, or `template()` | Sent as reply buttons. `title` becomes a text header; `subtitle` is dropped. |
+| 4 or more reply buttons | Rejects: `cloud interactive buttons allow at most 3 reply buttons (got 4)` |
+| `list()` | Sent as a list. |
+| One `url` button on its own | Sent as a link button. `webview` is ignored. |
+| An `image` or `video` header | Rejects: `interactive media headers are not supported on the cloud provider yet` |
+| `copy`, `call`, `reminder`, `cancel-reminder`, `location`, or `address` buttons, reply and link buttons mixed, several link buttons, or `carousel()` | Rejects: `this interactive layout is not supported on the cloud provider yet` |
+| `bottomSheet`, `limitedTimeOffer` | Ignored — the buttons are sent without them. |
+
+A rejected send fails with `ZaileysBuilderError` code `SEND_FAILED`, and the Cloud error — code `NOT_IMPLEMENTED`, with a message from the table — is on `error.cause`. Fall back to plain text like this:
+
+```ts
+import { ZaileysBuilderError, ZaileysCloudError } from 'zaileys'
+
+try {
+  await client.send(jid).buttons([{ type: 'copy', text: 'Copy code', code: 'FLASH50' }], { text: 'Your promo code' })
+} catch (error) {
+  const notOnCloud =
+    error instanceof ZaileysBuilderError &&
+    error.cause instanceof ZaileysCloudError &&
+    error.cause.code === 'NOT_IMPLEMENTED'
+  if (!notOnCloud) throw error
+  await client.send(jid).text('Your promo code: FLASH50')
+}
+```
+
+Meta also validates every message itself. When it refuses one, `error.cause` is a `ZaileysCloudError` with code `REQUEST_FAILED` and Meta's reason in the message. The Cloud API has its own interactive features too, like flows and address requests — see [Cloud messaging](/cloud/messaging).
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Why doesn't tapping a link or copy button fire button-click?">
+    Link, copy, and call buttons act on the recipient's phone — they open a page, copy text, or start a call. Only reply buttons send the tap to your bot. If you need to know someone tapped, add a reply button next to the link.
+  </Accordion>
+  <Accordion title="I need more than 10 options">
+    Buttons and lists both stop at 10 — more throws `INVALID_OPTIONS` before anything is sent. Split the choices into steps: send the first 9 as list rows plus a **More** row, and send the next page when someone picks it.
+  </Accordion>
+  <Accordion title="How do I know which message a tap belongs to?">
+    Put what you need into the button `id`, such as `confirm:1042` or `rate:5:order-1042`, and split it in the handler. The tap payload doesn't carry the original message's text.
+  </Accordion>
+  <Accordion title="Can my bot read buttons that other people send?">
+    Yes. An incoming message with buttons or a list has `msg.media.type` set to `'buttons'`, `'list'`, `'interactive'`, or `'template'`, with its labels and ids. See [Message context](/concepts/message-context).
+  </Accordion>
+  <Accordion title="Can I send buttons as a reply to a message?">
+    Yes. Chain `.reply()` after `buttons()`, the same as with text:
+
+    ```ts
+    client.on('text', async (msg) => {
+      if (msg.text !== 'menu') return
+      await client
+        .send(msg.roomId ?? msg.senderId)
+        .buttons([{ id: 'menu:food', text: 'Food' }, { id: 'menu:drinks', text: 'Drinks' }], { text: 'What are you craving?' })
+        .reply(msg.message())
+    })
+    ```
+
+    `.mentions()` works after `buttons()` and `list()` too — see [Text & replies](/messaging/text).
+  </Accordion>
+</AccordionGroup>
+
+## When a send fails
+
+| Error | What went wrong | How to fix it |
+| --- | --- | --- |
+| `INVALID_OPTIONS` — `buttons() accepts at most 10 buttons` | More than 10 buttons. With none, the message is `buttons() requires at least one button`. | Keep 1 to 10 buttons, or switch to a [list](#send-a-list). |
+| `INVALID_OPTIONS` — `duplicate button id: confirm` | Two reply buttons share an `id`. | Give each reply button its own `id`. |
+| `INVALID_OPTIONS` — `url button requires a non-empty url` | A link, copy, or call button is missing its `url`, `code`, or `phone`. | Add the missing field. |
+| `INVALID_OPTIONS` — `button text must be a non-empty string` | A button has an empty label. | Give every button a `text`. Only `location` buttons can leave it out. |
+| `INVALID_OPTIONS` — `list() accepts at most 10 rows total` | More than 10 rows across all sections. An empty section fails with `each list section requires at least one row`. | Trim the list, or split it into pages. |
+| `INVALID_OPTIONS` — `duplicate list row id: kopi-susu` | Two rows share an `id`, anywhere in the list. | Give each row its own `id`. |
+| `INVALID_OPTIONS` — `template() accepts at most 3 buttons` | More than 3 buttons. With none, the message is `template() requires at least one button`. | Use `buttons()` for more. |
+| `INVALID_OPTIONS` — `carousel() accepts at most 10 cards` | More than 10 cards. With none, the message is `carousel() requires at least one card`. | Send 1 to 10 cards. |
+| `SEND_FAILED` — `interactive media upload failed` | The header or card photo couldn't be loaded or uploaded. | Check the URL or path, as in [Send media](/messaging/media). The reason is on `error.cause`. |
+| `SEND_FAILED` with a `NOT_IMPLEMENTED` cause | The layout isn't available on the Cloud API. | See [Differences on the Cloud API](#differences-on-the-cloud-api). |
+
+`INVALID_OPTIONS` errors are thrown by `buttons()`, `list()`, `carousel()`, and `template()` themselves, before anything is sent. More in [Error handling](/data/error-handling).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Order bot recipe" icon="shopping-cart" href="/recipes/order-bot">
+    A complete bot that takes orders with lists and buttons.
+  </Card>
+  <Card title="Rich responses" icon="wand-sparkles" href="/messaging/rich-responses">
+    Send tables, code, and product cards from markdown.
+  </Card>
+  <Card title="Events" icon="radio" href="/concepts/events">
+    How events work, and every event you can listen for.
+  </Card>
+  <Card title="Cloud messaging" icon="cloud" href="/cloud/messaging">
+    What the official Cloud API can send.
+  </Card>
+</CardGroup>

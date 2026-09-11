@@ -1,9 +1,161 @@
 ---
 title: "Build with AI"
-description: "Use the Zaileys agent skill, llms.txt, and copy-for-AI to write bots faster."
+description: "Install the Zaileys agent skill for Claude Code, Cursor, Codex, or OpenCode, and feed these docs to any AI with llms.txt or the Copy page menu."
 icon: "sparkles"
+keywords: ["ai", "agent skill", "claude code", "claude code plugin", "cursor", "codex", "opencode", "npx skills", "llms.txt", "llms-full.txt", "copy page", "chatgpt", "mcp", "prompt"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/skill](https://zeative.github.io/zaileys/skill).
-</Note>
+Give your AI coding assistant accurate Zaileys knowledge, so it writes code that uses the real API instead of guessing.
+
+## Pick the right tool
+
+| You want to… | Use |
+| --- | --- |
+| Have Claude Code, Cursor, Codex, or OpenCode build, debug, or review Zaileys code | [The agent skill](#install-the-agent-skill) |
+| Ask a chat assistant about one feature | [The page menu](#send-a-page-to-an-ai) on that page |
+| Give a model all of the docs at once | [`/llms-full.txt`](#give-a-model-the-whole-docs) |
+| Let your editor search these docs while it codes | [Cursor or VS Code](#send-a-page-to-an-ai) in the page menu |
+
+## Install the agent skill
+
+The Zaileys agent skill is a set of instructions and reference files your assistant loads when you work on Zaileys code. It lives in the Zaileys repository, so you install it straight from `zeative/zaileys`.
+
+<Tabs>
+  <Tab title="Claude Code plugin">
+
+    In Claude Code, add the Zaileys marketplace, then install the plugin:
+
+    ```text
+    /plugin marketplace add zeative/zaileys
+    /plugin install zaileys-official@zeative
+    ```
+
+    The skills are namespaced by the plugin, so you call them as `/zaileys-official:zaileys-assist`. To get new versions later, refresh the marketplace from your terminal:
+
+    ```bash
+    claude plugin marketplace update zeative
+    ```
+
+  </Tab>
+  <Tab title="npx skills">
+
+    The [`skills` CLI](https://github.com/vercel-labs/skills) installs the same skills into Claude Code, Codex, Cursor, OpenCode, and many other agents:
+
+    ```bash
+    npx skills add zeative/zaileys
+    ```
+
+    That installs into the current project, so everyone on the project gets it. To install for every project on your machine instead, add `-g`:
+
+    ```bash
+    npx skills add zeative/zaileys -g
+    ```
+
+    To update, run the same command again.
+
+  </Tab>
+</Tabs>
+
+Both methods install the same four skills. Use the plugin if you only use Claude Code. Use `npx skills` for any other agent, or when a whole team should share the skill through the project.
+
+## What the skills do
+
+| Skill | What it does |
+| --- | --- |
+| `zaileys-assist` | The entry point. It works out whether you're building, debugging, reviewing, or asking a question, and knows both providers. It activates on any Zaileys task, so you rarely call the others by name. |
+| `zaileys-scaffold` | Generates a complete, runnable bot project from a short description — a layered `src/` folder, `package.json`, `tsconfig.json`, `.env.example`, and `.gitignore`. It asks which provider you want, and follows your existing layout if you already have a project. |
+| `zaileys-debug` | Takes an error or a symptom — a stack trace, an error code such as `SEND_FAILED` or `UNSUPPORTED_ON_CLOUD`, a Meta code such as `131047`, or a reconnect loop — and returns the cause and a concrete fix. |
+| `zaileys-review` | Audits your bot for mistakes, anti-patterns, and ban-safety before you ship. It reports each finding with a severity, the file and line, and a corrected snippet. |
+
+`zaileys-assist` also carries reference files the other skills draw on:
+
+| File | Covers |
+| --- | --- |
+| `references/api.md` | Client options, the send builder, events, storage, and media |
+| `references/recipes.md` | Copy-paste patterns for common bots |
+| `references/errors.md` | Every error class and code, with its meaning and fix |
+| `references/troubleshooting.md` | Runtime symptoms, such as QR loops and broken sessions, and their fixes |
+| `references/pitfalls.md` | Common mistakes and the correct way |
+| `references/cloud.md` | The Cloud API provider: webhook, templates, and its limits |
+| `references/mcp.md` | Connecting an MCP server to an AI-powered Zaileys bot |
+
+## Give a model the whole docs
+
+Two plain-text files are generated from these docs automatically, so they always match the published pages:
+
+- **`/llms.txt`** — a list of every page, with its title, link, and description. Good for a model that should find the right page on its own.
+- **`/llms-full.txt`** — the full text of every page in one file. Attach it, or paste its link, when you want the model to know all of Zaileys.
+
+Both sit at the root of this site, next to the pages. To get a single page as Markdown, add `.md` to its URL — for example, `/quickstart.md`.
+
+## Send a page to an AI
+
+Every page has a menu at the top, next to the title. From it you can:
+
+| Option | What it does |
+| --- | --- |
+| Copy page | Copies the page as Markdown, ready to paste into any chat. |
+| View as Markdown | Opens the page's Markdown source. |
+| ChatGPT, Claude, Perplexity | Starts a new chat in that app, with the page as context. |
+| Cursor, VS Code | Connects your editor to the docs' search server (an MCP server), so its assistant can look things up in these docs while it writes code. |
+
+## Write prompts that work
+
+A few habits make AI answers about Zaileys far more accurate:
+
+- **Name the provider.** Say "Unofficial (WhatsApp Web)" or "Official (Cloud API)". Many features exist on only one ([feature matrix](/feature-matrix)).
+- **Paste the whole error**, including its `code`, and the code that caused it.
+- **Ask for a complete file** and how to run it, not a fragment.
+- **Give it the source of truth.** With the skill installed, it already has one. Otherwise, attach `/llms-full.txt` or the page you're working from.
+
+Prompts you can adapt:
+
+```text Build a feature
+Using Zaileys on the Unofficial provider (WhatsApp Web), write bot.ts that answers
+/price <item> with the price from prices.json, and replies with a list of all items
+when no item is given. Use client.command() and ctx.reply(). Show how to run it with npx tsx.
+```
+
+```text Fix an error
+My Zaileys bot fails with ZaileysBuilderError, code MEDIA_LOAD_FAILED, when it sends
+./menu.jpg. Here is the handler and the full error: <paste both>. What's wrong?
+```
+
+```text Review before shipping
+/zaileys-official:zaileys-review Review src/bot.ts for ban-safety and missing error
+handling before I deploy it.
+```
+
+```text Migrate providers
+I'm moving this Zaileys bot from WhatsApp Web to the Cloud API. List every call that
+would throw UNSUPPORTED_ON_CLOUD or NOT_IMPLEMENTED, and suggest a replacement for each.
+```
+
+<Tip>
+  AI assistants still make mistakes. If a method or option looks unfamiliar, look it up in the [API reference](/reference/client) — every one is listed there.
+</Tip>
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Does the skill send my code anywhere?">
+    No. It's a folder of Markdown files installed on your machine. Your assistant reads them the same way it reads your code.
+  </Accordion>
+  <Accordion title="Which agents can use the skill?">
+    Claude Code, through the plugin or `npx skills`. Codex, Cursor, OpenCode, and the other agents the `skills` CLI supports, through `npx skills`.
+  </Accordion>
+  <Accordion title="My assistant uses methods that don't exist">
+    It's guessing from older or unrelated examples. Install the skill, or attach `/llms-full.txt`, and ask again. Naming the provider in your prompt also helps.
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="AI bot recipe" icon="bot" href="/recipes/ai-bot">
+    A WhatsApp bot that answers with an AI model.
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    A working bot in about five minutes.
+  </Card>
+</CardGroup>

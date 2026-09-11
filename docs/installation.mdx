@@ -1,9 +1,222 @@
 ---
 title: "Installation"
-description: "Install Zaileys, check runtime requirements, and add optional dependencies."
+description: "Install Zaileys with npm, pnpm, yarn, or bun, check the Node.js version, and add optional storage drivers or the sharp image accelerator."
 icon: "download"
+keywords: ["install", "npm install zaileys", "pnpm", "yarn", "bun", "requirements", "node version", "esm", "commonjs", "require", "typescript", "peer dependencies", "better-sqlite3", "pg", "redis", "convex", "sharp", "ffmpeg", "legacy-peer-deps"]
 ---
 
+Add Zaileys to your project, then install only the extras your storage or media setup needs.
+
+## Install the package
+
+<CodeGroup>
+
+```bash npm
+npm install zaileys
+```
+
+```bash pnpm
+pnpm add zaileys
+```
+
+```bash yarn
+yarn add zaileys
+```
+
+```bash bun
+bun add zaileys
+```
+
+</CodeGroup>
+
+That's everything a working bot needs. Sessions are saved to files by default, and media conversion tools come bundled, so nothing else is required to get started.
+
+## Check your Node.js version
+
+Zaileys needs **Node.js 20 or newer**. Check yours with `node --version`.
+
+Bun, Deno, and Termux (Android) work too, each with a few caveats — see [Runtimes](/data/runtimes).
+
+## Import Zaileys
+
+The package ships an ES module build and a CommonJS build, each with type declarations, so use whichever your project already uses:
+
+<CodeGroup>
+
+```ts ESM or TypeScript
+import { Client } from 'zaileys'
+
+const client = new Client()
+```
+
+```js CommonJS
+const { Client } = require('zaileys')
+
+const client = new Client()
+```
+
+</CodeGroup>
+
+Your project is ESM when its `package.json` has `"type": "module"` or the file ends in `.mjs`. Otherwise it's CommonJS, and you use `require`.
+
+<Accordion title="Setting up TypeScript">
+
+  The types are included, so there's no `@types/zaileys` to install. A `tsconfig.json` like this works well:
+
+  ```json tsconfig.json
+  {
+    "compilerOptions": {
+      "target": "ES2022",
+      "module": "NodeNext",
+      "moduleResolution": "NodeNext",
+      "strict": true,
+      "skipLibCheck": true
+    }
+  }
+  ```
+
+  `skipLibCheck` matters: without it, `tsc` reports errors inside `node_modules` (in packages such as `ws` and `thread-stream`) that aren't in your code. To run a `.ts` file during development without a build step, use `npx tsx bot.ts`.
+
+</Accordion>
+
+## Add a storage driver (optional)
+
+Zaileys saves the WhatsApp login and message history through storage adapters. The file and in-memory adapters need no extra packages. The others need a database driver, which you install yourself:
+
+| Install | To use | Adapter classes |
+| --- | --- | --- |
+| Nothing | Files (the default for logins) or memory | `FileAuthStore`, `MemoryAuthStore`, `MemoryMessageStore` |
+| `better-sqlite3` | SQLite | `SqliteAuthStore`, `SqliteMessageStore` |
+| `pg` | PostgreSQL | `PostgresAuthStore`, `PostgresMessageStore` |
+| `redis` | Redis (the official `redis` v4 client, not `ioredis`) | `RedisAuthStore`, `RedisMessageStore` |
+| `convex` | Convex | `ConvexAuthStore`, `ConvexMessageStore` |
+
+For example, to keep the login in a SQLite file:
+
+<CodeGroup>
+
+```bash npm
+npm install better-sqlite3
+```
+
+```bash pnpm
+pnpm add better-sqlite3
+```
+
+```bash yarn
+yarn add better-sqlite3
+```
+
+```bash bun
+bun add better-sqlite3
+```
+
+</CodeGroup>
+
+```ts bot.ts
+import { Client, SqliteAuthStore } from 'zaileys'
+
+const client = new Client({
+  auth: new SqliteAuthStore({ database: './auth.db' }),
+})
+```
+
+Zaileys loads a driver only when you use its adapter. If the driver isn't installed, the adapter fails with a `ZaileysStoreError` whose code is `STORE_NOT_AVAILABLE` — install the package from the table and restart.
+
+In TypeScript, also add the type packages for SQLite and PostgreSQL: `npm install -D @types/better-sqlite3 @types/pg`. The `redis` and `convex` packages include their own types.
+
 <Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/installation](https://zeative.github.io/zaileys/installation).
+  `better-sqlite3` compiles a native module when it installs. pnpm 10 and newer skip install scripts until you approve them, so run `pnpm approve-builds` if SQLite fails to load after a pnpm install.
 </Note>
+
+[Storage](/data/storage) shows how to set up each adapter.
+
+## Speed up image processing with sharp (optional)
+
+Zaileys resizes images and builds stickers with `jimp`, a JavaScript image library it already includes. If the faster native `sharp` package is installed, Zaileys uses that instead — no code changes needed.
+
+<CodeGroup>
+
+```bash npm
+npm install sharp
+```
+
+```bash pnpm
+pnpm add sharp
+```
+
+```bash yarn
+yarn add sharp
+```
+
+```bash bun
+bun add sharp
+```
+
+</CodeGroup>
+
+`sharp` isn't a Zaileys dependency, but Baileys — the WhatsApp Web library Zaileys runs on — lists it as a required peer dependency, so npm tries to install it anyway. On platforms with no prebuilt `sharp` binary, such as Termux or some Alpine Linux images, that makes `npm install zaileys` fail while compiling `sharp`. Skip it with:
+
+```bash
+npm install zaileys --legacy-peer-deps
+```
+
+Images and stickers then use the bundled `jimp` path.
+
+## ffmpeg comes bundled
+
+Zaileys converts audio, video, and stickers with ffmpeg, and installs a matching ffmpeg and ffprobe binary for your platform. You don't need to install ffmpeg yourself. If no bundled binary is available for your platform, Zaileys falls back to the `ffmpeg` and `ffprobe` commands on your `PATH`.
+
+## Check that it works
+
+This script loads Zaileys without connecting to WhatsApp:
+
+```ts check.ts
+import { Client } from 'zaileys'
+
+const client = new Client({ autoConnect: false })
+
+console.log(`Zaileys loaded. Provider: ${client.provider}, state: ${client.state}`)
+```
+
+Run `npx tsx check.ts`. It prints:
+
+```text
+Zaileys loaded. Provider: baileys, state: idle
+```
+
+`autoConnect: false` stops the client from connecting on its own, so nothing asks you to scan a QR code. Remove it when you're ready to go online.
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Do I need to install ffmpeg?">
+    No. Zaileys installs its own ffmpeg binary. It only uses a system ffmpeg when no bundled binary exists for your platform.
+  </Accordion>
+  <Accordion title="npm install fails while building sharp">
+    Your platform has no prebuilt `sharp` binary. Install with `npm install zaileys --legacy-peer-deps` — Zaileys then processes images with the bundled `jimp` library.
+  </Accordion>
+  <Accordion title="I get STORE_NOT_AVAILABLE when the bot starts">
+    You're using a storage adapter whose driver isn't installed — for example `SqliteAuthStore` without `better-sqlite3`. Install the package listed in [Add a storage driver](#add-a-storage-driver-optional).
+  </Accordion>
+  <Accordion title="tsc shows errors inside node_modules">
+    Those come from type declarations in Zaileys' dependencies, not from your code. Set `"skipLibCheck": true` in your `tsconfig.json`.
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Build a bot that replies to messages, step by step.
+  </Card>
+  <Card title="Choose a provider" icon="git-compare-arrows" href="/providers">
+    WhatsApp Web or the Cloud API — which one fits.
+  </Card>
+  <Card title="Storage" icon="database" href="/data/storage">
+    Keep logins and message history in a database.
+  </Card>
+  <Card title="Runtimes" icon="server" href="/data/runtimes">
+    Run on Bun, Deno, or Termux.
+  </Card>
+</CardGroup>

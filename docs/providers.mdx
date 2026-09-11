@@ -1,9 +1,162 @@
 ---
 title: "Choose a provider"
-description: "Compare WhatsApp Web (unofficial) and the Meta Cloud API (official) and pick the right one."
+sidebarTitle: "Choose a provider"
+description: "Compare WhatsApp Web (unofficial) and the Meta Cloud API (official), understand the ban risk, and switch or migrate between them."
 icon: "git-compare-arrows"
+keywords: ["unofficial vs official", "baileys vs cloud api", "whatsapp business api", "which provider", "ban risk", "terms of service", "switch provider", "migrate to cloud api", "provider option"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/providers](https://zeative.github.io/zaileys/providers).
-</Note>
+import { Term } from "/snippets/glossary.jsx"
+
+Zaileys connects to WhatsApp through one of two providers. This page helps you pick one, and explains how to switch later without rewriting your handlers.
+
+- **Unofficial** (`provider: 'baileys'`, the default) runs your bot as a linked device of a normal WhatsApp account, over the same connection WhatsApp Web uses.
+- **Official** (`provider: 'cloud'`) uses Meta's WhatsApp Cloud API with a business number.
+
+## Pick in one minute
+
+| You want to… | Pick | Why |
+| --- | --- | --- |
+| Automate your own number, today, without signing up for anything | **Unofficial** | Scan a QR code and you're connected. No Meta account needed. |
+| Run a bot inside groups, channels, or communities | **Unofficial** | The Cloud API has no groups or channels. |
+| Send polls, albums, carousels, or post a status | **Unofficial** | These message types only exist on WhatsApp Web. |
+| Offer customer support on a business number without risking a ban | **Official** | It's Meta's sanctioned API. |
+| Send one-time passwords, order updates, or reminders to people who haven't messaged you recently | **Official** | Approved [templates](/cloud/templates) can reach anyone who opted in, at any time. |
+| Run on a server that answers HTTP requests instead of staying connected | **Official** | Messages arrive at a <Term id="webhook" />. WhatsApp Web needs a process that stays running. |
+
+For a feature-by-feature answer, see the [feature matrix](/feature-matrix).
+
+## Compare them side by side
+
+| | Unofficial (WhatsApp Web) | Official (Cloud API) |
+| --- | --- | --- |
+| **What you need** | A phone with WhatsApp | A Meta app with the WhatsApp product, an access token, and a <Term id="phone-number-id" /> ([setup](/cloud/setup)) |
+| **How you log in** | QR code or <Term id="pairing-code" />, saved as a <Term id="session" /> | Access token — `connect()` only checks that it's valid |
+| **How messages arrive** | Over a connection Zaileys keeps open | Meta sends them to your webhook |
+| **Public URL needed** | No | Yes, HTTPS, for the webhook |
+| **Ban risk** | Real — [read why](#understand-the-ban-risk) | None from the automation itself. Meta tracks your number's quality rating. |
+| **Messaging someone first** | Anyone with WhatsApp | Free-form only within the <Term id="service-window" />. Otherwise, templates only. |
+| **Groups, channels, communities, status, polls** | ✓ Yes | ✗ No |
+| **Templates, Flows, catalog, analytics** | ✗ No | ✓ Yes |
+| **Delivery and read status events** | ✗ No | ✓ Yes, with the `message-status` event |
+| **Cost** | Free | Meta's WhatsApp Business pricing applies |
+
+## Understand the ban risk
+
+<Warning>
+  The Unofficial provider automates WhatsApp Web through [Baileys](https://github.com/WhiskeySockets/Baileys), a library Meta doesn't endorse. WhatsApp's terms don't permit unauthorized automated or bulk messaging, and WhatsApp can restrict or ban numbers that behave like bots — temporarily or for good.
+</Warning>
+
+You can't remove the risk, but you can keep it low:
+
+- **Use a number you can afford to lose**, not your personal or main business number.
+- **Don't cold-message strangers in bulk.** Unsolicited mass messages are the fastest way to get reported.
+- **Pace your sends.** `client.broadcast()` sends at most 5 messages per second by default. Lower it with `rateLimitPerSec`.
+- **Keep the built-in guards on.** Zaileys limits login attempts and spaces out group actions for you — see [Avoid bans](/whatsapp-web#avoid-bans).
+- **Move critical messages to the Official provider.** One-time passwords and payment alerts shouldn't depend on a number that can be banned.
+
+## Switch providers
+
+The provider is one option on `new Client()`. Your `client.on()` handlers and `client.send()` calls stay the same:
+
+<Tabs>
+  <Tab title="Unofficial">
+
+    ```ts bot.ts
+    import { Client } from 'zaileys'
+
+    const client = new Client() // same as { provider: 'baileys' }
+
+    client.on('text', async (msg) => {
+      await msg.reply(`You said: ${msg.text}`)
+    })
+    ```
+
+  </Tab>
+  <Tab title="Official">
+
+    ```ts bot.ts
+    import { Client } from 'zaileys'
+
+    const client = new Client({
+      provider: 'cloud',
+      cloud: {
+        accessToken: process.env.WA_TOKEN!,
+        phoneNumberId: process.env.WA_PHONE_ID!,
+        verifyToken: process.env.WA_VERIFY_TOKEN!,
+        appSecret: process.env.WA_APP_SECRET!,
+      },
+    })
+
+    client.on('text', async (msg) => {
+      await msg.reply(`You said: ${msg.text}`)
+    })
+
+    export const webhook = client.webhook()
+    ```
+
+    Serve `webhook` on a public HTTPS URL — [Webhook](/cloud/webhook) shows Hono, Express, and Next.js.
+
+  </Tab>
+</Tabs>
+
+A client can't change provider after it's created. To use both in one app, create one client for each. When code must behave differently per provider, branch on `client.provider`:
+
+```ts
+if (client.provider === 'baileys') {
+  await client.group.create('Order updates', ['6281234567890@s.whatsapp.net'])
+} else {
+  await client.sendTemplate('6281234567890', 'order_update', 'en_US')
+}
+```
+
+## Migrate from Unofficial to Official
+
+Work through this list before you move a WhatsApp Web bot to the Cloud API:
+
+1. **Get Cloud API credentials.** Create the Meta app and collect the access token and phone number ID, plus a verify token and app secret for the webhook ([Cloud setup](/cloud/setup)).
+2. **Change the constructor.** Add `provider: 'cloud'` and the `cloud` options. `authType`, `phoneNumber`, and `qrTerminal` no longer do anything, and there's no `.zaileys` session folder.
+3. **Serve the webhook.** Mount `client.webhook()` on a public HTTPS URL and register it in the Meta dashboard ([Webhook](/cloud/webhook)).
+4. **Remove WhatsApp Web–only calls.** `client.group`, `privacy`, `newsletter`, `community`, `profile`, `chat`, `contact`, `business`, and `presence`, plus `edit()`, `delete()`, `pin()`, `unpin()`, `setDisappearing()`, and `rejectCall()`, throw a `ZaileysProviderError` with code `UNSUPPORTED_ON_CLOUD` as soon as you touch them.
+5. **Replace message types the Cloud API can't send.** Polls, carousels, events, group invites, products sent with `.product()`, rich responses (`rich: true`), copy and call buttons, and more than 3 reply buttons reject with a `ZaileysCloudError` whose code is `NOT_IMPLEMENTED`. `album()` rejects with `SEND_FAILED`.
+6. **Check your automation.** In the current release, commands, middleware, plugins, `broadcast()`, `scheduleAt()`, `forward()`, and auto-delete rely on the WhatsApp Web connection and don't work on the Cloud API. The [feature matrix](/feature-matrix) has the details.
+7. **Send templates to start conversations.** Outside the 24-hour window, a free-form send fails with Meta error `131047`. Use `client.sendTemplate()` with an approved [template](/cloud/templates).
+8. **Listen for Cloud-only events.** `message-status`, `template-status`, `flow-response`, and `order` only fire on the Cloud API ([Cloud events](/cloud/events)).
+
+## Migrate from Official to Unofficial
+
+1. **Drop the `cloud` options** and `provider: 'cloud'`. Log in with a QR code or pairing code instead ([WhatsApp Web setup](/whatsapp-web)).
+2. **Remove Cloud-only calls.** `client.webhook()`, `client.cloud`, `client.sendTemplate()`, and `client.markRead()` throw a `ZaileysCloudError` with code `CONFIG`. For read receipts, use `client.chat.markRead()`.
+3. **Stop waiting for Cloud-only events.** `message-status`, `template-status`, `flow-response`, and `order` never fire on WhatsApp Web.
+4. **Add ban protection.** Follow [Understand the ban risk](#understand-the-ban-risk), especially for anything that sends to many people.
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Do I have to rewrite my bot to switch?">
+    No. `client.on()`, `client.send()`, and `msg.reply()` work the same on both providers. You change the constructor, add or remove the webhook, and replace any feature the other provider doesn't have — the [feature matrix](/feature-matrix) lists them.
+  </Accordion>
+  <Accordion title="Can one app use both providers?">
+    Yes. Create two clients — one with the default provider and one with `provider: 'cloud'`. Each has its own handlers and sends through its own number.
+  </Accordion>
+  <Accordion title="What happens if I call a WhatsApp Web feature on the Cloud API?">
+    It fails immediately with a clear error instead of doing nothing. Web-only modules throw `ZaileysProviderError` (`UNSUPPORTED_ON_CLOUD`), for example: `group is not supported by the official WhatsApp Cloud API — it only exists on the web (baileys) provider`.
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="WhatsApp Web setup" icon="qr-code" href="/whatsapp-web">
+    QR and pairing login, sessions, reconnects, and ban safety.
+  </Card>
+  <Card title="Cloud API overview" icon="cloud" href="/cloud/overview">
+    How the Official provider works, from setup to templates.
+  </Card>
+  <Card title="Feature matrix" icon="table" href="/feature-matrix">
+    Every feature, and which provider supports it.
+  </Card>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    A working bot on either provider in about five minutes.
+  </Card>
+</CardGroup>

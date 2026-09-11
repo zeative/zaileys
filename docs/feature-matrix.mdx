@@ -1,9 +1,170 @@
 ---
 title: "Feature matrix"
-description: "See which features work on WhatsApp Web, the Cloud API, or both."
+description: "See at a glance which Zaileys features work on WhatsApp Web (unofficial), the Meta Cloud API (official), or both."
 icon: "table"
+keywords: ["feature matrix", "supported features", "cloud api limitations", "whatsapp web only", "unsupported on cloud", "UNSUPPORTED_ON_CLOUD", "NOT_IMPLEMENTED", "compare providers", "does it work"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. This is a new page in the rebuilt docs.
-</Note>
+Find a feature to see whether it works on each provider.
+
+**✓ Yes** — works. **◐ Partial** — works with limits (see the notes). **✗ No** — not available.
+
+Not sure which provider you're on? It's WhatsApp Web unless you created the client with `provider: 'cloud'` — see [Choose a provider](/providers).
+
+## Connection & login
+
+| Feature | WhatsApp Web | Cloud API | Notes | Guide |
+| --- | --- | --- | --- | --- |
+| QR code login | ✓ Yes | ✗ No | | [Guide](/whatsapp-web#log-in-with-a-qr-code) |
+| Pairing code login | ✓ Yes | ✗ No | | [Guide](/whatsapp-web#log-in-with-a-pairing-code) |
+| Access token login | ✗ No | ✓ Yes | `connect()` checks the token and phone number ID. | [Guide](/cloud/setup) |
+| Saved session and automatic reconnect | ✓ Yes | ✗ No | The Cloud API has no session. Each send is its own HTTPS request. | [Guide](/whatsapp-web#stay-connected) |
+| Login attempt limit (`authGuard`) | ✓ Yes | ✗ No | | [Guide](/whatsapp-web#limit-login-attempts) |
+| Incoming messages through a webhook | ✗ No | ✓ Yes | `client.webhook()` | [Guide](/cloud/webhook) |
+| Several accounts in one process | ✓ Yes | ✓ Yes | One client per `sessionId` or phone number ID. | [Guide](/data/multi-account) |
+
+## Messaging
+
+| Feature | WhatsApp Web | Cloud API | Notes | Guide |
+| --- | --- | --- | --- | --- |
+| Send text | ✓ Yes | ✓ Yes | `*bold*`, `_italic_`, and other WhatsApp formatting work on both. | [Guide](/messaging/text) |
+| Reply to a message (quote) | ✓ Yes | ✓ Yes | | [Guide](/messaging/text) |
+| Mention people | ✓ Yes | ✗ No | Ignored on the Cloud API — the text arrives without mentions. | [Guide](/messaging/text) |
+| Disappearing messages | ✓ Yes | ✗ No | `setDisappearing()` throws. `.disappearing()` on a send is ignored. | [Guide](/messaging/text) |
+| Rich responses (`rich: true`) | ✓ Yes | ✗ No | Rejects with `NOT_IMPLEMENTED`. | [Guide](/messaging/rich-responses) |
+| React with an emoji | ✓ Yes | ✓ Yes | | [Guide](/messaging/edit-delete-react) |
+| Edit a sent message | ✓ Yes | ✗ No | | [Guide](/messaging/edit-delete-react) |
+| Delete a message | ✓ Yes | ✗ No | | [Guide](/messaging/edit-delete-react) |
+| Pin a message | ✓ Yes | ✗ No | | [Guide](/messaging/edit-delete-react) |
+| Forward a message | ✓ Yes | ✗ No | Needs the WhatsApp Web connection. | [Guide](/messaging/edit-delete-react) |
+| Location | ✓ Yes | ✓ Yes | | [Guide](/messaging/polls-and-more) |
+| Contact card | ✓ Yes | ✓ Yes | | [Guide](/messaging/polls-and-more) |
+| Poll | ✓ Yes | ✗ No | Rejects with `NOT_IMPLEMENTED`. | [Guide](/messaging/polls-and-more) |
+| Event invitation | ✓ Yes | ✗ No | Shows up in groups only. | [Guide](/messaging/polls-and-more) |
+| Group invite message | ✓ Yes | ✗ No | | [Guide](/messaging/polls-and-more) |
+| Request or share a phone number | ✓ Yes | ✗ No | | [Guide](/messaging/polls-and-more) |
+| Post a status | ✓ Yes | ✗ No | The Cloud API has no status. | [Guide](/messaging/polls-and-more) |
+| Mark as read | ✓ Yes | ✓ Yes | `client.chat.markRead()` on Web, `client.markRead()` on the Cloud API. | [Guide](/chats/chats) |
+| Typing indicator | ✓ Yes | ◐ Partial | Cloud: `client.markRead(id, { typing: true })`, and only alongside a read receipt. | [Guide](/chats/presence) |
+
+## Media
+
+| Feature | WhatsApp Web | Cloud API | Notes | Guide |
+| --- | --- | --- | --- | --- |
+| Photo, video, document | ✓ Yes | ✓ Yes | | [Guide](/messaging/media) |
+| Sticker | ✓ Yes | ✓ Yes | | [Guide](/messaging/media#send-a-sticker) |
+| Audio file | ✓ Yes | ✓ Yes | | [Guide](/messaging/media#send-a-voice-note-or-an-audio-file) |
+| Voice note | ✓ Yes | ◐ Partial | Arrives as an audio message. | [Guide](/messaging/media#send-a-voice-note-or-an-audio-file) |
+| Round video note | ✓ Yes | ◐ Partial | Arrives as a regular video. | [Guide](/messaging/media#send-a-round-video-note) |
+| GIF-style looping video | ✓ Yes | ✗ No | `gifPlayback` is ignored, so it arrives as a normal video. | [Guide](/messaging/media#send-a-gif) |
+| View once | ✓ Yes | ✗ No | Ignored, so it arrives as a normal photo or video. | [Guide](/messaging/media) |
+| Album | ✓ Yes | ✗ No | Rejects with `SEND_FAILED`. Send each file on its own. | [Guide](/messaging/media#send-an-album) |
+| Download media people send you | ✓ Yes | ✓ Yes | On the Cloud API, use `client.downloadMedia(key)`. | [Guide](/messaging/receiving-media) |
+
+## Interactive
+
+| Feature | WhatsApp Web | Cloud API | Notes | Guide |
+| --- | --- | --- | --- | --- |
+| Reply buttons | ✓ Yes | ◐ Partial | Up to 10 on Web, 3 on the Cloud API. More rejects with `NOT_IMPLEMENTED`. | [Guide](/messaging/interactive) |
+| URL button | ✓ Yes | ◐ Partial | Cloud: only as the only button in the message. | [Guide](/messaging/interactive) |
+| Copy-code, call, and other button types | ✓ Yes | ✗ No | | [Guide](/messaging/interactive) |
+| Photo or video header on buttons | ✓ Yes | ✗ No | | [Guide](/messaging/interactive) |
+| List | ✓ Yes | ✓ Yes | | [Guide](/messaging/interactive) |
+| Carousel | ✓ Yes | ✗ No | | [Guide](/messaging/interactive) |
+| Button and list taps (`button-click`, `list-select`) | ✓ Yes | ✓ Yes | | [Guide](/messaging/interactive) |
+| WhatsApp Flows | ✗ No | ✓ Yes | `client.cloud.flows`, with the `flow-response` event. | [Guide](/cloud/business) |
+
+## Chats & contacts
+
+| Feature | WhatsApp Web | Cloud API | Notes | Guide |
+| --- | --- | --- | --- | --- |
+| Profile name, about, and picture | ✓ Yes | ✗ No | The Cloud API has a business profile instead — see below. | [Guide](/chats/profile) |
+| Archive, pin, mute, and star chats | ✓ Yes | ✗ No | | [Guide](/chats/chats) |
+| Check a number is on WhatsApp, save contacts | ✓ Yes | ✗ No | | [Guide](/chats/contacts) |
+| Privacy settings | ✓ Yes | ✗ No | | [Guide](/chats/privacy) |
+| Block and unblock | ✓ Yes | ✓ Yes | `client.privacy.block()` on Web, `client.cloud.blocklist` on the Cloud API. | [Guide](/chats/privacy) |
+| Presence: go online, typing, see others | ✓ Yes | ✗ No | | [Guide](/chats/presence) |
+| Phone number ↔ LID and username lookup | ✓ Yes | ✗ No | `lidToPn()` returns `null` and `usernames()` an empty map on the Cloud API. | [Guide](/concepts/jids) |
+| Incoming calls: events and rejecting | ✓ Yes | ✗ No | `call-incoming`, `rejectCall()`, `autoRejectCall`. | [Guide](/concepts/events) |
+
+## Groups & channels
+
+| Feature | WhatsApp Web | Cloud API | Notes | Guide |
+| --- | --- | --- | --- | --- |
+| Create and configure groups | ✓ Yes | ✗ No | | [Guide](/groups/groups) |
+| Add, remove, promote members | ✓ Yes | ✗ No | | [Guide](/groups/members) |
+| Invite links and join requests | ✓ Yes | ✗ No | | [Guide](/groups/invites) |
+| Communities | ✓ Yes | ✗ No | | [Guide](/groups/communities) |
+| Channels (newsletters) | ✓ Yes | ✗ No | | [Guide](/groups/newsletters) |
+| Group events (`group-join`, `group-leave`, `group-update`) | ✓ Yes | ✗ No | | [Guide](/concepts/events) |
+
+## Bots & automation
+
+| Feature | WhatsApp Web | Cloud API | Notes | Guide |
+| --- | --- | --- | --- | --- |
+| Message events (`client.on`) | ✓ Yes | ◐ Partial | Cloud delivers text, media, locations, contacts, reactions, and button or list taps. No edit, delete, poll, group, call, or presence events. | [Guide](/concepts/events) |
+| Commands (`client.command`) | ✓ Yes | ✗ No | In the current release, commands are only dispatched over the WhatsApp Web connection. Handle `text` events instead. | [Guide](/bots/commands) |
+| Middleware | ✓ Yes | ✗ No | Runs with commands. | [Guide](/bots/middleware) |
+| Plugins | ✓ Yes | ✗ No | Plugins load when the WhatsApp Web connection opens. | [Guide](/bots/plugins) |
+| Broadcast | ✓ Yes | ✗ No | Throws `INVALID_OPTIONS` (`client not connected`) on the Cloud API. | [Guide](/bots/broadcast-and-schedule) |
+| Scheduled messages | ✓ Yes | ✗ No | The message is saved, but the send fails when it's due. | [Guide](/bots/broadcast-and-schedule) |
+| Auto-delete old stored messages | ✓ Yes | ✗ No | Starts when the WhatsApp Web connection opens. | [Guide](/bots/auto-delete) |
+
+## Business & commerce
+
+| Feature | WhatsApp Web | Cloud API | Notes | Guide |
+| --- | --- | --- | --- | --- |
+| Send approved templates | ✗ No | ✓ Yes | `client.sendTemplate()` | [Guide](/cloud/templates) |
+| Create, list, and delete templates | ✗ No | ✓ Yes | `client.cloud.templates`. Needs `wabaId`. | [Guide](/cloud/templates) |
+| Delivery status (`message-status`) | ✗ No | ✓ Yes | Sent, delivered, read, failed. | [Guide](/cloud/events) |
+| Business profile | ✓ Yes | ✓ Yes | `client.business.profile()` on Web, `client.cloud.profile` on the Cloud API. | [Guide](/data/business) |
+| Catalog and products | ✓ Yes | ✓ Yes | `client.business` on Web, `client.cloud.commerce` on the Cloud API. | [Guide](/data/business) |
+| Send a product message | ✓ Yes | ✓ Yes | `.product()` on Web, `client.cloud.commerce.sendProduct()` on the Cloud API. | [Guide](/cloud/business) |
+| Order events (`order`) | ✗ No | ✓ Yes | | [Guide](/cloud/events) |
+| Address request | ✗ No | ✓ Yes | `client.cloud.sendAddressRequest()` | [Guide](/cloud/business) |
+| Click-to-chat QR codes | ✗ No | ✓ Yes | `client.cloud.qr` | [Guide](/cloud/business) |
+| Conversation and message analytics | ✗ No | ✓ Yes | `client.cloud.analytics`. Needs `wabaId`. | [Guide](/cloud/business) |
+| Phone number registration | ✗ No | ✓ Yes | `client.cloud.phone` | [Guide](/cloud/business) |
+
+## Data & storage
+
+| Feature | WhatsApp Web | Cloud API | Notes | Guide |
+| --- | --- | --- | --- | --- |
+| Session (auth) stores | ✓ Yes | ✗ No | The Cloud API logs in with a token, so there's no session to store. | [Guide](/data/storage) |
+| Message stores | ✓ Yes | ✓ Yes | Memory, SQLite, PostgreSQL, Redis, Convex. | [Guide](/data/storage) |
+| Typed errors with codes | ✓ Yes | ✓ Yes | | [Guide](/data/error-handling) |
+
+## What happens when a feature isn't supported
+
+Zaileys fails straight away with a typed error, so you never wait on a send that silently does nothing:
+
+| Error | Code | Thrown when |
+| --- | --- | --- |
+| `ZaileysProviderError` | `UNSUPPORTED_ON_CLOUD` | You use a WhatsApp Web–only module or method on the Cloud API, such as `client.group` or `edit()`. |
+| `ZaileysCloudError` | `NOT_IMPLEMENTED` | You send content the Cloud API can't carry, such as a poll or a carousel. |
+| `ZaileysCloudError` | `CONFIG` | You use a Cloud-only call — `webhook()`, `sendTemplate()`, `markRead()`, `client.cloud` — on WhatsApp Web. |
+
+When one codebase serves both providers, check `client.provider` before a provider-specific call:
+
+```ts
+import { ZaileysProviderError } from 'zaileys'
+
+try {
+  await client.group.create('Weekend trip', ['6281234567890@s.whatsapp.net'])
+} catch (error) {
+  if (error instanceof ZaileysProviderError) {
+    console.warn(`Skipped: ${error.feature} only works on WhatsApp Web`)
+  }
+}
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Choose a provider" icon="git-compare-arrows" href="/providers">
+    Pick a provider and migrate between them.
+  </Card>
+  <Card title="Cloud API overview" icon="cloud" href="/cloud/overview">
+    Everything the Official provider adds.
+  </Card>
+</CardGroup>

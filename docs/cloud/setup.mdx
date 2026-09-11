@@ -1,9 +1,284 @@
 ---
 title: "Meta app setup"
-description: "Get your access token, phone number ID, and webhook secrets from Meta."
+description: "Get the access token, phone number ID, WABA ID, verify token, and app secret the Cloud API provider needs, then check them."
 icon: "key-round"
+keywords: ["access token", "permanent token", "system user token", "phone number id", "waba id", "whatsapp business account id", "app secret", "verify token", "meta for developers", "cloud api credentials", "apiVersion", "test number"]
 ---
 
+import { Term } from "/snippets/glossary.jsx"
+
+This page takes you through the Meta dashboard, collects every value the `cloud` option needs, and checks them with one call.
+
+## What you'll collect
+
+| Value | `cloud` option | Where it comes from | Required |
+| --- | --- | --- | --- |
+| Access token | `accessToken` | The API Setup page (temporary) or a system user (permanent) | Yes |
+| <Term id="phone-number-id" /> | `phoneNumberId` | WhatsApp → API Setup | Yes |
+| <Term id="waba" /> ID | `wabaId` | WhatsApp → API Setup | Only for [account-level calls](#which-calls-need-wabaid) |
+| Verify token | `verifyToken` | You make it up | To register the webhook |
+| App secret | `appSecret` | App settings → Basic | Strongly recommended |
+
 <Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/official](https://zeative.github.io/zaileys/official).
+  Meta renames and moves dashboard pages from time to time. If a menu below doesn't match what you see, search the dashboard for the same term.
 </Note>
+
+## Get your credentials
+
+<Steps>
+  <Step title="Create a Meta app with WhatsApp">
+
+    Sign in to [Meta for Developers](https://developers.facebook.com/apps), create an app for a business use case, and add the **WhatsApp** product to it. Meta sets up a test business number you can send from straight away.
+
+  </Step>
+  <Step title="Copy the phone number ID and WABA ID">
+
+    Open **WhatsApp → API Setup**. Next to the sender number, copy:
+
+    - The **phone number ID**, a long number such as `106540352242922`. It's Meta's ID for the number, not the phone number itself.
+    - The **WhatsApp Business Account ID**. You only need it for account-level calls such as managing templates, so you can skip it for now.
+
+  </Step>
+  <Step title="Get an access token">
+
+    <Tabs>
+      <Tab title="Temporary token">
+
+        The **API Setup** page shows a temporary access token. It expires after 24 hours, so use it only for a first test.
+
+      </Tab>
+      <Tab title="Permanent token">
+
+        For anything that runs longer than a day, create a system user token:
+
+        1. Open [Meta Business settings](https://business.facebook.com/settings) and go to **Users → System users**.
+        2. Add a system user, then assign it your app and your WhatsApp account.
+        3. Generate a token for your app with these permissions:
+           - `whatsapp_business_messaging`, to send and receive messages.
+           - `whatsapp_business_management`, to manage templates and phone numbers and to read analytics.
+        4. Choose a token that doesn't expire, and copy it somewhere safe.
+
+      </Tab>
+    </Tabs>
+
+  </Step>
+  <Step title="Choose a verify token">
+
+    The verify token is any string you choose. You'll type the same value into Meta when you [register the webhook](/cloud/webhook#register-the-url-with-meta), and Zaileys checks that the two match. A long random string works well:
+
+    ```bash
+    node -e "console.log(require('node:crypto').randomBytes(24).toString('hex'))"
+    ```
+
+  </Step>
+  <Step title="Copy the app secret">
+
+    Open **App settings → Basic** and reveal the **App secret**. Zaileys uses it to confirm that every webhook `POST` really comes from Meta.
+
+  </Step>
+  <Step title="Pass the values to the client">
+
+    Keep the values out of your code. Set them as environment variables:
+
+    ```bash
+    export WA_TOKEN="your-access-token"
+    export WA_PHONE_ID="106540352242922"
+    export WA_WABA_ID="your-waba-id"
+    export WA_VERIFY_TOKEN="any-secret-string-you-choose"
+    export WA_APP_SECRET="your-app-secret"
+    ```
+
+    Then read them when you create the client:
+
+    ```ts bot.ts
+    import { Client } from 'zaileys'
+
+    const client = new Client({
+      provider: 'cloud',
+      cloud: {
+        accessToken: process.env.WA_TOKEN!,
+        phoneNumberId: process.env.WA_PHONE_ID!,
+        wabaId: process.env.WA_WABA_ID,
+        verifyToken: process.env.WA_VERIFY_TOKEN!,
+        appSecret: process.env.WA_APP_SECRET!,
+      },
+    })
+    ```
+
+  </Step>
+  <Step title="Check the token and phone number ID">
+
+    Turn off `autoConnect` so a failed check throws where you can see it:
+
+    ```ts check.ts
+    import { Client } from 'zaileys'
+
+    const client = new Client({
+      provider: 'cloud',
+      autoConnect: false,
+      cloud: {
+        accessToken: process.env.WA_TOKEN!,
+        phoneNumberId: process.env.WA_PHONE_ID!,
+      },
+    })
+
+    await client.connect()
+    console.log('Token and phone number ID are valid')
+    ```
+
+    Run it with `npx tsx check.ts`. When both values are right, the terminal shows your phone number ID:
+
+    ```text
+    [zaileys] Connecting to WhatsApp (session: default)...
+    [zaileys] Connected as 106540352242922.
+    Token and phone number ID are valid
+    ```
+
+    If something is wrong, `connect()` throws one of the errors in [When setup fails](#when-setup-fails).
+
+  </Step>
+</Steps>
+
+## Cloud options
+
+Every field of the `cloud` option on `new Client()`:
+
+<ParamField body="accessToken" type="string" required>
+  Token sent as `Authorization: Bearer …` on every Graph API request. Missing or empty, `new Client()` throws `CONFIG`.
+</ParamField>
+<ParamField body="phoneNumberId" type="string" required>
+  ID of the business number you send from. It also becomes the client's own ID, `me.id` on the `connect` event. Missing or empty, `new Client()` throws `CONFIG`.
+</ParamField>
+<ParamField body="wabaId" type="string">
+  WhatsApp Business Account ID. Needed only for [account-level calls](#which-calls-need-wabaid). Without it, those calls throw `CONFIG`.
+</ParamField>
+<ParamField body="verifyToken" type="string">
+  The string Meta must send back when it verifies your webhook. Without it, every verification request gets `403`.
+</ParamField>
+<ParamField body="appSecret" type="string">
+  Your Meta app secret, used to check the `X-Hub-Signature-256` header on every webhook `POST`. Without it, the webhook accepts `POST` requests without checking who sent them.
+</ParamField>
+<ParamField body="apiVersion" type="string" default="'v23.0'">
+  Graph API version used in every request URL. Set it to move to a newer version, such as `'v24.0'`.
+</ParamField>
+<ParamField body="baseUrl" type="string" default="'https://graph.facebook.com'">
+  Origin for Graph API requests. Point it at a proxy, or at a mock server in tests.
+</ParamField>
+
+Requests go to `<baseUrl>/<apiVersion>/<path>`. A send, for example, is a `POST` to `https://graph.facebook.com/v23.0/106540352242922/messages`.
+
+## Which calls need wabaId
+
+Anything that works on the whole WhatsApp Business Account, rather than on one phone number, needs `wabaId`:
+
+| Needs `wabaId` | Works without it |
+| --- | --- |
+| `client.cloud.templates.list()`, `.create()`, `.delete()` | Every send, including `client.sendTemplate()` |
+| `client.cloud.templates.get(name)` by name | `client.cloud.templates.get(id)` with a numeric template ID |
+| `client.cloud.flows.list()` | `client.cloud.flows.send()` |
+| `client.cloud.commerce.catalogs()` | `client.cloud.commerce.products()`, `.sendProduct()`, `.sendProductList()` |
+| `client.cloud.analytics.conversations()`, `.messages()` | `client.cloud.profile`, `blocklist`, `qr`, `info()`, `phone` |
+| `client.cloud.phoneNumbers()` | `client.webhook()`, `client.markRead()`, `client.cloud.sendAddressRequest()` |
+
+Without `wabaId`, the calls in the first column throw `ZaileysCloudError` with code `CONFIG`: `this operation needs cloud.wabaId (WhatsApp Business Account id)`.
+
+## What Zaileys checks, and when
+
+Zaileys checks your values at two moments:
+
+1. **`new Client()`** checks that `accessToken` and `phoneNumberId` are non-empty strings, and throws `CONFIG` straight away if not. An environment variable that isn't set is the usual cause — `process.env.WA_TOKEN!` is `undefined` at runtime.
+2. **`connect()`** sends one `GET` request for your phone number to the Graph API with your token. It doesn't retry, because a bad token won't fix itself.
+
+| Meta answers | `connect()` | Error message |
+| --- | --- | --- |
+| Success | Resolves, emits `connect`, and prints `Connected as <phone number ID>.` | |
+| `401` or `403` | Rejects with `AUTH` | `cloud auth rejected (401) — check accessToken/phoneNumberId` |
+| Any other error status | Rejects with `REQUEST_FAILED` | `cloud health-check failed (400)`, with Meta's status code |
+| Nothing (network failure) | Rejects with `REQUEST_FAILED` | `cloud health-check request failed` |
+
+Neither step checks `wabaId`, `verifyToken`, or `appSecret`. A wrong value there shows up later: account-level calls fail, Meta can't verify the webhook, or every webhook `POST` gets `401`.
+
+With `autoConnect` on (the default), the client runs `connect()` by itself and a failure doesn't throw anywhere you can catch it. It's emitted as the `error` event, and only when something is listening:
+
+```ts
+client.on('error', ({ error }) => {
+  console.error('Cloud API check failed:', error.message)
+})
+```
+
+## Test with Meta's test number
+
+Meta's test number only delivers to phone numbers you've added as recipients. On the **API Setup** page, add your own number and confirm it with the code WhatsApp sends you. Messages to any other number fail.
+
+A new conversation has to start with a template. Meta gives new apps a `hello_world` template you can send right away:
+
+```ts
+await client.sendTemplate('6281234567890', 'hello_world', 'en_US')
+```
+
+When you reply from your phone, the <Term id="service-window" /> opens and the bot can answer with free-form messages for the next 24 hours.
+
+## Before you go live
+
+- **Swap the temporary token** for a system user token, so the bot doesn't stop after 24 hours.
+- **Add your own business number** in the Meta dashboard and register it for the Cloud API. `client.cloud.phone` can request the verification code and register the number — see [Business tools](/cloud/business).
+- **Set `appSecret`**, so nobody can post fake messages to your webhook.
+
+## When setup fails
+
+| Error | Message | How to fix it |
+| --- | --- | --- |
+| `CONFIG` | `provider 'cloud' requires cloud.accessToken` | Set the token's environment variable before starting, and check it isn't empty. |
+| `CONFIG` | `provider 'cloud' requires cloud.phoneNumberId` | Set the phone number ID's environment variable. |
+| `AUTH` | `cloud auth rejected (401) — check accessToken/phoneNumberId` | The token expired (temporary tokens last 24 hours), was copied only in part, or belongs to a system user without access to this number. Generate a new one. |
+| `REQUEST_FAILED` | `cloud health-check failed (400)` | Meta rejected the request — usually the phone number ID is wrong. Copy the ID from API Setup, not the phone number. |
+| `REQUEST_FAILED` | `cloud health-check request failed` | The Graph API couldn't be reached. Check your network, proxy, and `baseUrl`. |
+| `CONFIG` | `this operation needs cloud.wabaId (WhatsApp Business Account id)` | Add `wabaId` to the `cloud` options. |
+| `AUTH` | `graph auth rejected: …` | A later call was refused, usually because the token expired or lacks `whatsapp_business_management`. On `client.send()` it arrives as `SEND_FAILED` with this error on `error.cause`. |
+
+All of these are `ZaileysCloudError`. Catch one by its `code`:
+
+```ts
+import { ZaileysCloudError } from 'zaileys'
+
+try {
+  await client.connect()
+} catch (error) {
+  if (error instanceof ZaileysCloudError && error.code === 'AUTH') {
+    console.error('The access token was rejected. Generate a new one in the Meta dashboard.')
+  }
+}
+```
+
+More in [Error handling](/data/error-handling).
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="My bot stopped working after a day. Why?">
+    You're probably using the temporary token from the API Setup page, which expires after 24 hours. Replace it with a [permanent system user token](#get-your-credentials).
+  </Accordion>
+  <Accordion title="Is the phone number ID my phone number?">
+    No. It's Meta's numeric ID for your business number, shown next to the number on the API Setup page. Using the phone number itself makes `connect()` fail.
+  </Accordion>
+  <Accordion title="Do I need wabaId to send templates?">
+    No. `client.sendTemplate()` only needs the phone number ID. You need `wabaId` to list, create, or delete templates — see [Which calls need wabaId](#which-calls-need-wabaid).
+  </Accordion>
+  <Accordion title="Can I leave out appSecret?">
+    The bot still works, but the webhook then accepts any `POST`, so anyone who finds the URL can feed your bot fake messages. Leave it out only while testing locally.
+  </Accordion>
+  <Accordion title="Which Graph API version does Zaileys use?">
+    `v23.0` unless you set `apiVersion`. Meta retires old Graph API versions over time, so read Meta's changelog before you change it.
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Webhook" icon="webhook" href="/cloud/webhook">
+    Mount the webhook and register it with Meta.
+  </Card>
+  <Card title="Templates" icon="file-text" href="/cloud/templates">
+    Start conversations with approved templates.
+  </Card>
+</CardGroup>

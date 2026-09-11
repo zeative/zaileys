@@ -1,9 +1,396 @@
 ---
 title: "Webhook"
-description: "Receive messages by mounting the webhook on Express, Hono, or Next.js."
+description: "Receive Cloud API messages by mounting client.webhook() on Next.js, Hono, Express, or Node's http server, then register the URL with Meta."
 icon: "webhook"
+keywords: ["webhook", "callback url", "verify token", "hub.challenge", "x-hub-signature-256", "signature verification", "express raw body", "next.js route handler", "hono", "ngrok", "receive messages cloud api"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/official/webhook](https://zeative.github.io/zaileys/official/webhook).
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+Meta delivers every incoming message and status update to a URL you host, and `client.webhook()` gives you the handler for that URL.
+
+<ProviderSupport web={false} cloud={true} note="WhatsApp Web receives messages over its own connection, so it has no webhook." />
+
+## Create the handler
+
+```ts
+const webhook = client.webhook()
+```
+
+`webhook` is a function with the type `(req: Request) => Promise<Response>`. It takes a standard Web `Request` and returns a standard `Response`, so any server that uses them can mount it directly. The same handler serves both kinds of request Meta sends to your <Term id="webhook" />:
+
+- **`GET`** — Meta's one-time check when you register the URL.
+- **`POST`** — every delivery: messages, reactions, button taps, and status updates. Zaileys checks the signature, emits the events, and answers `200`.
+
+Create the handler once at startup, next to the client. It doesn't wait for `connect()`.
+
+## Mount it on your server
+
+<Tabs>
+  <Tab title="Next.js">
+
+    ```bash
+    npm install zaileys
+    ```
+
+    ```ts app/api/whatsapp/route.ts
+    import { Client } from 'zaileys'
+
+    const client = new Client({
+      provider: 'cloud',
+      cloud: {
+        accessToken: process.env.WA_TOKEN!,
+        phoneNumberId: process.env.WA_PHONE_ID!,
+        verifyToken: process.env.WA_VERIFY_TOKEN!,
+        appSecret: process.env.WA_APP_SECRET!,
+      },
+    })
+
+    client.on('text', async (msg) => {
+      await msg.reply(`You said: ${msg.text}`)
+    })
+
+    const webhook = client.webhook()
+
+    export const GET = webhook
+    export const POST = webhook
+    ```
+
+    Your webhook URL is `https://<your-domain>/api/whatsapp`. Keep the default Node.js runtime — Zaileys needs Node.js APIs, so don't set `runtime = 'edge'`. On a serverless host, also read [Avoid a cold-start race on serverless](#avoid-a-cold-start-race-on-serverless).
+
+  </Tab>
+  <Tab title="Hono">
+
+    ```bash
+    npm install zaileys hono @hono/node-server
+    ```
+
+    ```ts server.ts
+    import { serve } from '@hono/node-server'
+    import { Hono } from 'hono'
+    import { Client } from 'zaileys'
+
+    const client = new Client({
+      provider: 'cloud',
+      cloud: {
+        accessToken: process.env.WA_TOKEN!,
+        phoneNumberId: process.env.WA_PHONE_ID!,
+        verifyToken: process.env.WA_VERIFY_TOKEN!,
+        appSecret: process.env.WA_APP_SECRET!,
+      },
+    })
+
+    client.on('text', async (msg) => {
+      await msg.reply(`You said: ${msg.text}`)
+    })
+
+    const webhook = client.webhook()
+    const app = new Hono()
+    app.all('/webhook', (c) => webhook(c.req.raw))
+
+    serve({ fetch: app.fetch, port: 3000 })
+    ```
+
+    `c.req.raw` is the original Web `Request`, so it passes straight through. Your webhook URL is `https://<your-domain>/webhook`.
+
+  </Tab>
+  <Tab title="Express">
+
+    ```bash
+    npm install zaileys express
+    ```
+
+    ```ts server.ts
+    import express from 'express'
+    import { Client } from 'zaileys'
+
+    const client = new Client({
+      provider: 'cloud',
+      cloud: {
+        accessToken: process.env.WA_TOKEN!,
+        phoneNumberId: process.env.WA_PHONE_ID!,
+        verifyToken: process.env.WA_VERIFY_TOKEN!,
+        appSecret: process.env.WA_APP_SECRET!,
+      },
+    })
+
+    client.on('text', async (msg) => {
+      await msg.reply(`You said: ${msg.text}`)
+    })
+
+    const webhook = client.webhook()
+    const app = express()
+
+    // Register before any app.use(express.json()) so the signature is checked against the raw bytes.
+    app.all('/webhook', express.raw({ type: '*/*' }), async (req, res) => {
+      const request = new Request(`${req.protocol}://${req.get('host')}${req.originalUrl}`, {
+        method: req.method,
+        headers: req.headers as Record<string, string>,
+        ...(req.method === 'POST' ? { body: req.body as Buffer } : {}),
+      })
+      const response = await webhook(request)
+      res.status(response.status).send(await response.text())
+    })
+
+    app.listen(3000)
+    ```
+
+    Express uses its own request objects, so the route builds a Web `Request` from the raw body and copies the `Response` back. Your webhook URL is `https://<your-domain>/webhook`. [Why the raw body?](#why-express-needs-the-raw-body)
+
+  </Tab>
+  <Tab title="Node.js http">
+
+    ```bash
+    npm install zaileys
+    ```
+
+    ```ts server.ts
+    import { createServer } from 'node:http'
+    import { Client } from 'zaileys'
+
+    const client = new Client({
+      provider: 'cloud',
+      cloud: {
+        accessToken: process.env.WA_TOKEN!,
+        phoneNumberId: process.env.WA_PHONE_ID!,
+        verifyToken: process.env.WA_VERIFY_TOKEN!,
+        appSecret: process.env.WA_APP_SECRET!,
+      },
+    })
+
+    client.on('text', async (msg) => {
+      await msg.reply(`You said: ${msg.text}`)
+    })
+
+    const webhook = client.webhook()
+
+    createServer(async (req, res) => {
+      const url = new URL(req.url ?? '/', 'http://localhost')
+      if (url.pathname !== '/webhook') {
+        res.writeHead(404).end()
+        return
+      }
+
+      const chunks: Buffer[] = []
+      for await (const chunk of req) chunks.push(chunk as Buffer)
+
+      const request = new Request(url, {
+        method: req.method,
+        headers: req.headers as Record<string, string>,
+        ...(req.method === 'POST' ? { body: Buffer.concat(chunks) } : {}),
+      })
+      const response = await webhook(request)
+      res.writeHead(response.status, { 'Content-Type': 'text/plain' })
+      res.end(await response.text())
+    }).listen(3000)
+    ```
+
+    The server reads the whole body before building the `Request`, so the signature check sees exactly what Meta sent. Your webhook URL is `https://<your-domain>/webhook`.
+
+  </Tab>
+</Tabs>
+
+Runnable versions live in the repository: [`cloud-next-route.ts`](https://github.com/zeative/zaileys/blob/main/examples/cloud-next-route.ts), [`cloud-hono.ts`](https://github.com/zeative/zaileys/blob/main/examples/cloud-hono.ts), and [`cloud-express.ts`](https://github.com/zeative/zaileys/blob/main/examples/cloud-express.ts).
+
+## Why Express needs the raw body
+
+Meta signs the exact bytes it sends. The `X-Hub-Signature-256` header holds an HMAC-SHA256 of the raw request body, made with your app secret, and Zaileys recomputes it over the body it receives.
+
+`express.json()` turns the body into an object. Turning that object back into text rarely gives the same bytes — whitespace and escaped characters change — so the check fails and every `POST` gets `401 invalid signature`. `express.raw({ type: '*/*' })` keeps the body as the original `Buffer`.
+
+If your app already calls `app.use(express.json())`, register the webhook route **before** it. Once another parser has read the body, the original bytes are gone. The same rule applies to any framework that parses bodies for you, such as Fastify or NestJS: give the webhook the raw body.
+
+Next.js and Hono hand over the original `Request`, so there's nothing to do there.
+
+## Register the URL with Meta
+
+<Steps>
+  <Step title="Make the server reachable over HTTPS">
+
+    Start your server and make sure its URL opens from the public internet. On your own machine, use a [tunnel](#develop-locally-with-a-tunnel).
+
+  </Step>
+  <Step title="Enter the callback URL and verify token">
+
+    In the Meta dashboard, open **WhatsApp → Configuration**, and edit the webhook:
+
+    - **Callback URL**: the full URL, including the path, such as `https://ab12-34.ngrok-free.app/webhook`.
+    - **Verify token**: exactly the same string as `verifyToken`.
+
+  </Step>
+  <Step title="Verify and save">
+
+    Meta sends a `GET` request with `hub.mode=subscribe`, your verify token, and a random `hub.challenge` number. Zaileys answers `200` with the challenge when the mode is `subscribe` and the token matches, and Meta saves the URL.
+
+  </Step>
+  <Step title="Subscribe to webhook fields">
+
+    Subscribe to the fields for the events you want:
+
+    | Field | Events it triggers |
+    | --- | --- |
+    | `messages` | `message`, `text`, `image`, `video`, `audio`, `document`, `sticker`, `reaction`, `button-click`, `list-select`, `flow-response`, `order`, and `message-status` |
+    | `message_template_status_update` | `template-status` |
+
+    Most bots only need `messages`.
+
+  </Step>
+  <Step title="Send a test message">
+
+    From your phone, message the business number. Your `text` handler runs and the reply arrives.
+
+  </Step>
+</Steps>
+
+You can test the verification step yourself before involving Meta:
+
+```bash
+curl "https://ab12-34.ngrok-free.app/webhook?hub.mode=subscribe&hub.verify_token=my-verify-token&hub.challenge=1158201444"
+```
+
+If `my-verify-token` matches `verifyToken`, the response is the challenge:
+
+```text
+1158201444
+```
+
+A wrong token returns `forbidden` with status `403`.
+
+## Develop locally with a tunnel
+
+Meta can't reach `localhost`. A tunnel gives your machine a public HTTPS URL that forwards to a local port — for example, `ngrok http 3000` or `cloudflared tunnel --url http://localhost:3000` each print one.
+
+Use that URL plus your route's path as the callback URL. If the URL changes when you restart the tunnel, update the callback URL in Meta too.
+
+## What the handler answers
+
+| Request | When | Status | Body |
+| --- | --- | --- | --- |
+| `GET` | `hub.mode` is `subscribe` and `hub.verify_token` equals `verifyToken` | `200` | The `hub.challenge` value |
+| `GET` | Anything else, including when `verifyToken` isn't set | `403` | `forbidden` |
+| `POST` | `appSecret` is set and `X-Hub-Signature-256` is missing or wrong | `401` | `invalid signature` |
+| `POST` | The body isn't valid JSON | `400` | `malformed body` |
+| `POST` | Otherwise | `200` | `OK`, and the events are emitted |
+| Any other method, such as `PUT` or `HEAD` | Always | `405` | `method not allowed` |
+
+The signature is checked before the body is parsed, so an unsigned request gets `401` even if its body is broken. Signatures are compared in constant time. A valid JSON body that isn't a WhatsApp payload still gets `200`, but emits nothing.
+
+## When your handler throws
+
+Zaileys answers Meta with `200 OK` even when your handler fails. Meta redelivers webhooks that don't get a `200`, so a failing handler would otherwise receive the same message again and again.
+
+A few details matter here:
+
+- **The response doesn't wait for your handler.** Zaileys emits the events and answers straight away. Async work, such as `await msg.reply()`, finishes after Meta already has its `200`.
+- **Synchronous errors are logged, not surfaced.** Zaileys catches them and logs `listener threw` through the client's logger, which is silent unless you pass a `logger` or set `ZAILEYS_DEBUG`. No `error` event fires.
+- **Rejected async handlers aren't caught.** Node.js reports them as unhandled rejections, which stop the process by default.
+
+Catch errors inside each handler:
+
+```ts
+client.on('text', async (msg) => {
+  try {
+    await msg.reply(`You said: ${msg.text}`)
+  } catch (error) {
+    console.error('Reply failed:', error)
+  }
+})
+```
+
+## Avoid a cold-start race on serverless
+
+On a serverless host, the client is often created by the same request that delivers the first message. `autoConnect` starts the token check in the background, and until it finishes, sends throw `INVALID_OPTIONS` with `client not connected`. So the first reply after a cold start can fail.
+
+Start the check yourself and wait for it before handling a `POST`:
+
+```ts app/api/whatsapp/route.ts
+import { Client } from 'zaileys'
+
+const client = new Client({
+  provider: 'cloud',
+  autoConnect: false,
+  cloud: {
+    accessToken: process.env.WA_TOKEN!,
+    phoneNumberId: process.env.WA_PHONE_ID!,
+    verifyToken: process.env.WA_VERIFY_TOKEN!,
+    appSecret: process.env.WA_APP_SECRET!,
+  },
+})
+
+client.on('text', async (msg) => {
+  await msg.reply(`You said: ${msg.text}`)
+})
+
+const ready = client.connect()
+ready.catch((error) => console.error('Cloud API check failed:', error))
+
+const webhook = client.webhook()
+
+export const GET = webhook
+
+export async function POST(req: Request): Promise<Response> {
+  await ready
+  return webhook(req)
+}
+```
+
+- `ready` is the one `connect()` promise, so every request waits for the same check. Calling `connect()` again while a check is running returns at once without waiting for it, which is why the code keeps the promise.
+- `ready.catch(…)` logs a failed check at startup. `await ready` still throws in `POST`, so the request fails until you fix the credentials — see [Meta app setup](/cloud/setup#when-setup-fails).
+
+<Warning>
+  Some serverless platforms pause the function as soon as it returns a response. Because Zaileys answers Meta before your async handler finishes, a reply sent from the handler can be cut off. If replies go missing on your host, check its docs for running work after the response, or run the bot on a long-lived server.
+</Warning>
+
+## Keep the webhook secure
+
+- **Always set `appSecret` in production.** Without it, the handler accepts any `POST`, and anyone who finds the URL can send fake messages that your handlers treat as real.
+- **Use a long random verify token**, and keep it out of your code like the other secrets.
+- **Serve over HTTPS.** Meta only calls HTTPS callback URLs with a valid certificate.
+- **Don't let anything rewrite the body.** Body parsers, and proxies that re-encode JSON, break the signature. Don't put the route behind authentication that would reject Meta's requests either.
+
+## When the webhook fails
+
+| Symptom | Cause | How to fix it |
+| --- | --- | --- |
+| `webhook()` throws `CONFIG`: `webhook() is only available on the cloud provider` | The client uses WhatsApp Web | Add `provider: 'cloud'` and the `cloud` options. |
+| Meta can't verify the callback URL | The `GET` got `403` because `verifyToken` isn't set or doesn't match, or Meta couldn't reach the URL | Check that the server is running, the URL opens in a browser, the path is right, and both verify tokens match. Test with the `curl` command above. |
+| Every `POST` gets `401 invalid signature` | Wrong `appSecret`, for example from another app, or the body was parsed or re-encoded before reaching Zaileys | Copy the app secret from the same app that owns the webhook. On Express, use `express.raw()` [before other parsers](#why-express-needs-the-raw-body). |
+| `POST` requests get `400 malformed body` | The body that reached Zaileys isn't the JSON Meta sent | Pass the raw body through unchanged. |
+| Requests get `405 method not allowed` | Something sends methods other than `GET` and `POST`, such as a `HEAD` health check | Route only `GET` and `POST` to the handler. |
+| Handlers never run | The app isn't subscribed to the `messages` field, or you messaged a number other than this app's | Subscribe to `messages`. With Meta's test number, add your phone as a recipient first ([how](/cloud/setup#test-with-metas-test-number)). |
+| Replies throw `INVALID_OPTIONS`: `client not connected` | The token check is still running after a cold start, or it failed | Wait for `connect()` as in [Avoid a cold-start race](#avoid-a-cold-start-race-on-serverless), and listen for the `error` event to see why a check failed. |
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Do I need separate routes for GET and POST?">
+    No. The same handler answers both, so mount it for both methods — `export const GET` and `POST` in Next.js, or `app.all()` in Hono and Express.
+  </Accordion>
+  <Accordion title="Why does Meta get 200 when my handler fails?">
+    So Meta doesn't keep redelivering the same message. Handle errors inside your handler — see [When your handler throws](#when-your-handler-throws).
+  </Accordion>
+  <Accordion title="Can I use Fastify, NestJS, or another framework?">
+    Yes. Build a Web `Request` from the method, the full URL, the headers, and the raw body, pass it to the handler, and copy the returned status and body back. The Express tab shows the pattern.
+  </Accordion>
+  <Accordion title="One Meta app serves several numbers. How do I route them?">
+    Meta calls one callback URL for the whole app, and a client's webhook processes every payload it's given — it doesn't check which phone number a payload is for. With one client per number, read `entry[].changes[].value.metadata.phone_number_id` from the body first, then pass the request to the matching client's handler. Call `req.clone()` before reading, so the handler still gets an unread body. See [Multiple accounts](/data/multi-account).
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Cloud events" icon="radio" href="/cloud/events">
+    Delivery statuses, template reviews, Flow answers, and orders.
+  </Card>
+  <Card title="Messaging on the Cloud API" icon="message-square" href="/cloud/messaging">
+    What you can send, and the Cloud API's caveats.
+  </Card>
+  <Card title="Cloud servers recipe" icon="server" href="/recipes/cloud-servers">
+    A complete bot deployed behind a webhook.
+  </Card>
+  <Card title="Limits" icon="gauge" href="/cloud/limits">
+    Meta's restrictions, and how to work within them.
+  </Card>
+</CardGroup>

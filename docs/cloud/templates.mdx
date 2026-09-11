@@ -1,9 +1,411 @@
 ---
 title: "Templates"
-description: "Create, manage, and send approved message templates."
+description: "Send Meta-approved message templates for OTPs, order updates, and marketing, and create, list, and delete them from code."
 icon: "file-text"
+keywords: ["whatsapp template", "message template", "sendTemplate", "otp", "one time password", "authentication template", "marketing template", "utility template", "template status", "132000", "wabaId", "bulk send", "campaign"]
 ---
 
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+Templates are messages Meta approves in advance, and the only way to reach a customer outside the <Term id="service-window" />. This page shows how to send them, fill in their variables, and manage them from code.
+
+<ProviderSupport web={false} cloud={true} note="Templates are a Cloud API feature. WhatsApp Web has no message templates." />
+
+## Quick reference
+
+| Task | Call | What happens |
+| --- | --- | --- |
+| Send a template | [`client.sendTemplate(to, name, language, components)`](#send-a-template) | The customer gets the approved message, filled in |
+| Send a one-time password | [`sendTemplate()` with a body and button code](#send-a-one-time-password) | A code message with a **Copy code** button |
+| Create a template | [`client.cloud.templates.create({...})`](#create-a-template) | Submitted to Meta for review |
+| List your templates | [`client.cloud.templates.list()`](#list-and-inspect-templates) | Every template on your account |
+| Inspect one template | [`client.cloud.templates.get(nameOrId)`](#list-and-inspect-templates) | Its status, category, and components |
+| Delete a template | [`client.cloud.templates.delete(name)`](#delete-a-template) | Removed from your account |
+| Hear about approvals | [`client.on('template-status', ...)`](#know-when-a-template-is-approved) | Fires when Meta approves, rejects, or pauses one |
+| Send to many customers | [A paced `sendTemplate()` loop](#send-a-campaign) | One template per customer, rate-limited |
+
+## When you need a template
+
+Free-form messages — anything built with `client.send()` — only reach customers who messaged you in the last 24 hours. For everyone else, you need a template:
+
+- **A customer who never messaged you**, such as a new sign-up getting a verification code.
+- **A customer whose window closed**, such as a buyer getting a shipping update two days after ordering.
+- **Many customers at once**, such as a promotion.
+
+Meta sorts templates into three categories:
+
+| Category | Use it for | Example |
+| --- | --- | --- |
+| `AUTHENTICATION` | One-time passwords | `839201 is your verification code.` |
+| `UTILITY` | Updates about something the customer did | `Order #1042 has shipped.` |
+| `MARKETING` | Promotions and announcements | `Flash sale: 50% off until midnight.` |
+
+You write a template once — in Meta's WhatsApp Manager or with [`templates.create()`](#create-a-template) — and Meta reviews it. After approval, you send it by name as often as you like.
+
+## Send a template
+
+```ts
+const key = await client.sendTemplate('6281234567890', 'hello_world', 'en_US')
+console.log(key.id) // wamid.HBgNNjI4MTIzNDU2Nzg5MBUCABEYEjdF...
+```
+
+`hello_world` is the sample template Meta adds to every new account, so this works before you create your own. The customer receives Meta's "Hello World" welcome message.
+
+<ParamField body="to" type="string" required>
+  The customer's number — digits with the country code, such as `6281234567890`, or a full <Term id="jid" /> (`6281234567890@s.whatsapp.net`).
+</ParamField>
+<ParamField body="name" type="string" required>
+  The template's name exactly as approved, such as `order_shipped`. Not its numeric ID.
+</ParamField>
+<ParamField body="languageCode" type="string" required>
+  The language version to send, such as `en_US` or `id`. It must match a language the template was approved in.
+</ParamField>
+<ParamField body="components" type="Array<Record<string, unknown>>">
+  Values for the template's variables, in Meta's format — see the next section. Leave it out for a template with no variables.
+</ParamField>
+
+`sendTemplate()` resolves to the message key. `key.id` is Meta's message ID, the same ID that later arrives in [`message-status`](/cloud/events) events, so you can track delivery.
+
+## Fill in variables
+
+A template's text holds numbered placeholders, like `Hi {{1}}, order {{2}} has shipped.` You fill them with `components`: one entry per part of the template that has variables, each with a `parameters` list in placeholder order.
+
+This fills a **body** with two variables:
+
+```ts
+// Template "order_shipped" (UTILITY), body: Hi {{1}}, order {{2}} has shipped. Track it here: {{3}}
+await client.sendTemplate('6281234567890', 'order_shipped', 'en_US', [
+  {
+    type: 'body',
+    parameters: [
+      { type: 'text', text: 'Budi' },
+      { type: 'text', text: '#1042' },
+      { type: 'text', text: 'https://shop.example.com/track/1042' },
+    ],
+  },
+])
+```
+
+The customer reads: `Hi Budi, order #1042 has shipped. Track it here: https://shop.example.com/track/1042`.
+
+<Warning>
+  Send exactly as many parameters as the template has placeholders, in order. A mismatch fails with Meta error `132000`. Check a template's placeholders with [`templates.get()`](#list-and-inspect-templates).
+</Warning>
+
+### Add a photo header
+
+A template approved with an image header needs the image in a `header` component. Pass a public URL:
+
+```ts
+// Template "flash_sale" (MARKETING): image header, body: {{1}} off everything until midnight!
+await client.sendTemplate('6281234567890', 'flash_sale', 'id', [
+  {
+    type: 'header',
+    parameters: [{ type: 'image', image: { link: 'https://shop.example.com/banners/flash-sale.jpg' } }],
+  },
+  { type: 'body', parameters: [{ type: 'text', text: '50%' }] },
+])
+```
+
+Headers for `video` and `document` work the same way, with `video: { link }` or `document: { link, filename }`. Unlike `client.send().image()`, Zaileys doesn't upload these for you — Meta downloads the file from the link, so it must be publicly reachable.
+
+### Fill a button
+
+A button with a variable — a URL button ending in `{{1}}`, or a copy-code button — needs a `button` component. `index` is the button's position, starting at `'0'`:
+
+```ts
+// Template "order_ready" (UTILITY) with a URL button: https://shop.example.com/orders/{{1}}
+await client.sendTemplate('6281234567890', 'order_ready', 'en_US', [
+  { type: 'body', parameters: [{ type: 'text', text: '#1042' }] },
+  { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: '1042' }] },
+])
+```
+
+Tapping the button opens `https://shop.example.com/orders/1042`.
+
+The component shapes come from Meta, and Zaileys passes them through unchanged. For currency, date, and other parameter types, see Meta's [template message reference](https://developers.facebook.com/docs/whatsapp/cloud-api/guides/send-message-templates).
+
+## Send a one-time password
+
+Authentication templates carry a code in the body and a **Copy code** button. Send the same code to both:
+
+```ts
+const code = String(Math.floor(100000 + Math.random() * 900000))
+
+await client.sendTemplate('6281234567890', 'login_code', 'en_US', [
+  { type: 'body', parameters: [{ type: 'text', text: code }] },
+  { type: 'button', sub_type: 'url', index: '0', parameters: [{ type: 'text', text: code }] },
+])
+```
+
+The customer sees `839201 is your verification code.` with a **Copy code** button. Create the `login_code` template first — the [next section](#create-a-template) shows how.
+
+<Tip>
+  Store the code with an expiry time on your server and compare it when the user types it in. The template only delivers the code — it doesn't check it.
+</Tip>
+
+## Create a template
+
+Template management needs your <Term id="waba" /> ID. Add `wabaId` to the client:
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client({
+  provider: 'cloud',
+  cloud: {
+    accessToken: process.env.WA_TOKEN!,
+    phoneNumberId: process.env.WA_PHONE_ID!,
+    wabaId: process.env.WA_WABA_ID!,
+  },
+})
+```
+
+You find the WABA ID in Meta's dashboard under **WhatsApp → API Setup**. Without it, `list()`, `create()`, `delete()`, and `get()` by name throw `ZaileysCloudError` with code `CONFIG`: `this operation needs cloud.wabaId (WhatsApp Business Account id)`.
+
+Then submit a template for review. This creates the `login_code` template used above:
+
+```ts
+const created = await client.cloud.templates.create({
+  name: 'login_code',
+  category: 'AUTHENTICATION',
+  language: 'en_US',
+  components: [
+    { type: 'BODY', add_security_recommendation: true },
+    { type: 'FOOTER', code_expiration_minutes: 5 },
+    { type: 'BUTTONS', buttons: [{ type: 'OTP', otp_type: 'COPY_CODE', text: 'Copy code' }] },
+  ],
+})
+
+console.log(created) // { id: '1783414372642659', status: 'PENDING' }
+```
+
+And a marketing template with a variable. Meta asks for an example value for each placeholder:
+
+```ts
+await client.cloud.templates.create({
+  name: 'weekend_promo',
+  category: 'MARKETING',
+  language: 'en_US',
+  components: [
+    { type: 'BODY', text: 'Hi {{1}}, everything is 20% off this weekend.', example: { body_text: [['Budi']] } },
+    { type: 'FOOTER', text: 'Reply STOP to opt out' },
+  ],
+})
+```
+
+<ParamField body="name" type="string" required>
+  Lowercase letters, digits, and underscores, such as `weekend_promo`. You send the template by this name.
+</ParamField>
+<ParamField body="category" type="'MARKETING' | 'UTILITY' | 'AUTHENTICATION'" required>
+  What the template is for — see [When you need a template](#when-you-need-a-template).
+</ParamField>
+<ParamField body="language" type="string" required>
+  The language code, such as `en_US` or `id`.
+</ParamField>
+<ParamField body="components" type="Array<Record<string, unknown>>" required>
+  The template's header, body, footer, and buttons, in Meta's format. Passed to Meta unchanged.
+</ParamField>
+
+`create()` resolves to `{ id, status }`. A new template starts as `PENDING` until Meta reviews it. Meta documents every component field in its [template management guide](https://developers.facebook.com/docs/whatsapp/business-management-api/message-templates).
+
+## List and inspect templates
+
+```ts
+const approved = await client.cloud.templates.list({ status: 'APPROVED', limit: 50 })
+
+for (const template of approved) {
+  console.log(`${template.name} (${template.language}) — ${template.category}`)
+}
+// order_shipped (en_US) — UTILITY
+// login_code (en_US) — AUTHENTICATION
+```
+
+<ParamField body="status" type="string">
+  Only return templates with this status, such as `APPROVED`, `PENDING`, or `REJECTED`.
+</ParamField>
+<ParamField body="limit" type="number">
+  The most templates to return in one call.
+</ParamField>
+
+`get()` fetches one template by name or by numeric ID, with its components — useful to count a template's placeholders before you send it:
+
+```ts
+const template = await client.cloud.templates.get('order_shipped')
+
+if (template) {
+  console.log(template.status)     // APPROVED
+  console.log(template.components) // [{ type: 'BODY', text: 'Hi {{1}}, order {{2}} has shipped. ...' }]
+}
+```
+
+It resolves to `null` when no template matches. By numeric ID, such as `get('1783414372642659')`, it doesn't need `wabaId`.
+
+Each template has these fields:
+
+<ResponseField name="id" type="string">
+  Meta's numeric template ID.
+</ResponseField>
+<ResponseField name="name" type="string">
+  The name you send it by.
+</ResponseField>
+<ResponseField name="status" type="string">
+  The review status, such as `APPROVED`, `PENDING`, or `REJECTED`.
+</ResponseField>
+<ResponseField name="category" type="string">
+  `MARKETING`, `UTILITY`, or `AUTHENTICATION`.
+</ResponseField>
+<ResponseField name="language" type="string">
+  The language code, such as `en_US`.
+</ResponseField>
+<ResponseField name="components" type="Array<Record<string, unknown>>">
+  The header, body, footer, and buttons, as Meta returns them.
+</ResponseField>
+
+## Delete a template
+
+```ts
+await client.cloud.templates.delete('weekend_promo')
+```
+
+This deletes every language version of `weekend_promo`. To delete only one version, pass its numeric ID as well:
+
+```ts
+await client.cloud.templates.delete('weekend_promo', '1783414372642659')
+```
+
+<ParamField body="name" type="string" required>
+  The template's name.
+</ParamField>
+<ParamField body="id" type="string">
+  The numeric ID of one version to delete. Leave it out to delete all versions with that name.
+</ParamField>
+
+## Know when a template is approved
+
+Meta reviews each template and reports the result through your <Term id="webhook" />. Listen for `template-status`:
+
+```ts
+client.on('template-status', (update) => {
+  if (update.event === 'APPROVED') {
+    console.log(`${update.name} (${update.language}) is ready to send`)
+  } else {
+    console.warn(`${update.name} is now ${update.event}${update.reason ? `: ${update.reason}` : ''}`)
+  }
+})
+```
+
+When Meta approves `weekend_promo`, this prints `weekend_promo (en_US) is ready to send`.
+
 <Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/official/templates](https://zeative.github.io/zaileys/official/templates).
+  In the Meta dashboard, subscribe your webhook to the **message_template_status_update** field. Without it, Meta never sends template updates and this event doesn't fire. The payload fields are listed in [Cloud events](/cloud/events#listen-for-template-reviews).
 </Note>
+
+No webhook yet? Poll instead: `(await client.cloud.templates.get('weekend_promo'))?.status`.
+
+## Send a campaign
+
+`broadcast()` needs a WhatsApp Web connection, so on the Cloud API it rejects with `client not connected`. Loop over your customers and pace the sends with `RateLimiter`:
+
+```ts
+import { RateLimiter, ZaileysBuilderError, ZaileysCloudError } from 'zaileys'
+
+const customers = [
+  { phone: '6281111111111', name: 'Budi' },
+  { phone: '6282222222222', name: 'Sari' },
+  { phone: '6283333333333', name: 'Andi' },
+]
+
+const limiter = new RateLimiter({ perSec: 10 })
+const failed: string[] = []
+
+for (const customer of customers) {
+  await limiter.acquire()
+  try {
+    await client.sendTemplate(customer.phone, 'weekend_promo', 'en_US', [
+      { type: 'body', parameters: [{ type: 'text', text: customer.name }] },
+    ])
+  } catch (error) {
+    const reason = error instanceof ZaileysCloudError || error instanceof ZaileysBuilderError ? error.message : String(error)
+    failed.push(`${customer.phone}: ${reason}`)
+  }
+}
+
+console.log(`Sent ${customers.length - failed.length} of ${customers.length}`)
+```
+
+Each customer gets `Hi Budi, everything is 20% off this weekend.` with their own name.
+
+- **`perSec`** caps how fast you send. Meta limits throughput per phone number — see [Limits](/cloud/limits).
+- **Meta retries for you.** When Meta answers `429 Too Many Requests` or a server error, Zaileys retries up to 3 times (after 0.5 s, then 1 s) before throwing `RATE_LIMITED` or `REQUEST_FAILED`.
+- **A resolved send isn't a delivery.** Watch `message-status` to count what was delivered, read, or failed — see [Cloud events](/cloud/events).
+
+<Warning>
+  Meta limits how many marketing templates each person receives, and it lowers your number's quality rating when people block or report you. Send marketing only to customers who opted in, and honor opt-outs. Check your rating with `client.cloud.info()`.
+</Warning>
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Is client.send(jid).template() the same thing?">
+    No. The builder's `template()` sends a titled message with reply buttons — a normal free-form message, so it still needs an open 24-hour window. Only `client.sendTemplate()` sends a Meta-approved template.
+  </Accordion>
+  <Accordion title="How long does template review take?">
+    Meta decides, and it varies by category. Listen for [`template-status`](#know-when-a-template-is-approved) instead of guessing, or poll `templates.get()`.
+  </Accordion>
+  <Accordion title="Why don't taps on a template's quick-reply buttons fire button-click?">
+    Meta delivers taps on template buttons as a different message type from interactive button taps, and Zaileys doesn't translate it in the current release — so no event fires. If you need the tap, use reply [buttons](/messaging/interactive) in a free-form message once the customer replies.
+  </Accordion>
+  <Accordion title="Which language code do I use?">
+    The one the template was approved in, exactly — `en_US` and `en` are different. `templates.get()` shows the template's `language`.
+  </Accordion>
+  <Accordion title="Does a template open the 24-hour window?">
+    No. The window opens when the customer replies. After that, you can send free-form messages for 24 hours.
+  </Accordion>
+</AccordionGroup>
+
+## When something fails
+
+| Error | What went wrong | How to fix it |
+| --- | --- | --- |
+| `CONFIG` — `this operation needs cloud.wabaId (WhatsApp Business Account id)` | `list()`, `create()`, `delete()`, or `get()` by name without `wabaId`. | Add `wabaId` to the `cloud` options. |
+| `CONFIG` — `sendTemplate() is only available on the cloud provider` | `sendTemplate()` on WhatsApp Web, or on a client with `autoConnect: false` that never called `connect()`. | Use `provider: 'cloud'`, and call `connect()` if you turned `autoConnect` off. |
+| `REQUEST_FAILED` ending in `(code 132000)` | The number of parameters doesn't match the template's placeholders. This is Meta's code. | Count the `{{n}}` placeholders with `templates.get()` and send one parameter each. |
+| `REQUEST_FAILED` with another Meta code | Meta refused the template — for example, a wrong name, a language it isn't approved in, or a template that isn't approved yet. | Read `error.message`, and check the name, language, and `status` with `templates.get()`. |
+| `REQUEST_FAILED` — `graph template send returned no message id` | Meta answered without a message ID. | Retry the send. |
+| `RATE_LIMITED` | Meta kept answering `429 Too Many Requests`, even after 3 attempts. | Lower `perSec` in your loop. See [Limits](/cloud/limits). |
+| `AUTH` | Meta rejected your access token. | Generate a new token — see [Cloud API setup](/cloud/setup). |
+
+The Graph API code is in `error.message`, such as `graph request failed: … (code 132000)`. More codes are in [Cloud events](/cloud/events#fix-common-meta-errors).
+
+```ts
+import { ZaileysCloudError } from 'zaileys'
+
+try {
+  await client.sendTemplate('6281234567890', 'order_shipped', 'en_US', [
+    { type: 'body', parameters: [{ type: 'text', text: 'Budi' }] },
+  ])
+} catch (error) {
+  if (error instanceof ZaileysCloudError && error.message.includes('(code 132000')) {
+    console.error('Parameter count does not match the template')
+  }
+}
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Cloud events" icon="zap" href="/cloud/events">
+    Track delivery with `message-status`.
+  </Card>
+  <Card title="Limits" icon="gauge" href="/cloud/limits">
+    Throughput, marketing limits, and quality rating.
+  </Card>
+  <Card title="Send on the Cloud API" icon="send" href="/cloud/messaging">
+    The 24-hour window and free-form messages.
+  </Card>
+  <Card title="Business & commerce" icon="store" href="/cloud/business">
+    Flows, catalogs, and analytics.
+  </Card>
+</CardGroup>

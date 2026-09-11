@@ -1,9 +1,330 @@
 ---
-title: "Events"
-description: "Cloud-only events: message status, template status, flows, and orders."
+title: "Cloud events"
+sidebarTitle: "Events"
+description: "Listen for delivery status, template reviews, WhatsApp Flow answers, and catalog orders on the Cloud API, and fix common Meta error codes."
 icon: "zap"
+keywords: ["message-status", "delivery status", "read receipt", "template-status", "flow-response", "order event", "webhook events", "131047", "131026", "132000", "graph api error codes"]
 ---
 
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+Listen for what only the Cloud API reports — delivery and read status, template reviews, WhatsApp Flow answers, and orders — with the same `client.on()` you use for messages.
+
+<ProviderSupport web={false} cloud={true} note="These four events only fire on the Cloud API. Message events work on both providers." />
+
+## Quick reference
+
+| Event | Fires when | Section |
+| --- | --- | --- |
+| `message-status` | A message you sent is sent, delivered, read, or failed | [Track delivery and reads](#track-delivery-and-reads) |
+| `template-status` | Meta approves, rejects, or pauses one of your templates | [Listen for template reviews](#listen-for-template-reviews) |
+| `flow-response` | A customer submits a WhatsApp Flow | [Receive WhatsApp Flow answers](#receive-whatsapp-flow-answers) |
+| `order` | A customer sends an order from your catalog | [Receive catalog orders](#receive-catalog-orders) |
+
+All four arrive through your <Term id="webhook" />, so `client.webhook()` must be mounted — see [Webhook](/cloud/webhook).
+
+## Track delivery and reads
+
+Every message you send moves through `sent`, `delivered`, and `read` — or ends in `failed`. Each step fires `message-status`:
+
+```ts
+client.on('message-status', (update) => {
+  console.log(`${update.id} → ${update.status} (${update.recipientId})`)
+})
+```
+
+Send a text and watch the terminal:
+
+```text
+wamid.HBgNNjI4MTIzNDU2Nzg5MBUCABEYEjdF... → sent (6281234567890@s.whatsapp.net)
+wamid.HBgNNjI4MTIzNDU2Nzg5MBUCABEYEjdF... → delivered (6281234567890@s.whatsapp.net)
+wamid.HBgNNjI4MTIzNDU2Nzg5MBUCABEYEjdF... → read (6281234567890@s.whatsapp.net)
+```
+
+`read` only arrives if the customer has read receipts turned on.
+
+<ResponseField name="id" type="string">
+  Meta's ID of the message you sent (a `wamid`).
+</ResponseField>
+<ResponseField name="status" type="'sent' | 'delivered' | 'read' | 'failed'">
+  How far the message got.
+</ResponseField>
+<ResponseField name="recipientId" type="string">
+  The customer's <Term id="jid" />, such as `6281234567890@s.whatsapp.net`.
+</ResponseField>
+<ResponseField name="timestamp" type="number">
+  When it happened, in Unix seconds.
+</ResponseField>
+<ResponseField name="conversationId" type="string">
+  Meta's conversation ID, when Meta includes one.
+</ResponseField>
+<ResponseField name="error" type="{ code?: number; title?: string; message?: string }">
+  Why the message failed. Only on `failed`. `code` is Meta's error code, such as `131026`.
+</ResponseField>
+
+### Match a status to the message you sent
+
+`key.id` from a send is the same `wamid` that `message-status` reports, so you can track each message:
+
+```ts
+const pending = new Map<string, string>()
+
+const key = await client.send('6281234567890').text('Your order #1042 has shipped.')
+if (key.id) pending.set(key.id, 'order-1042')
+
+client.on('message-status', (update) => {
+  const orderId = pending.get(update.id)
+  if (!orderId) return
+  if (update.status === 'failed') {
+    console.error(`Shipping notice for ${orderId} failed: ${update.error?.code} ${update.error?.title}`)
+  }
+  if (update.status === 'read' || update.status === 'failed') pending.delete(update.id)
+})
+```
+
+This works for text, media, locations, contacts, reactions, and `sendTemplate()`.
+
+<Warning>
+  Buttons and lists are the exception. For those, the key `client.send()` returns carries an ID Zaileys generated, not Meta's `wamid`, so it never matches a `message-status` update.
+</Warning>
+
+### Handle failed messages
+
+A send that resolves only means Meta accepted the request. Delivery can still fail afterward — for example, error `131026` when the number can't receive the message. Log the failures:
+
+```ts
+client.on('message-status', (update) => {
+  if (update.status !== 'failed') return
+  const { code, title } = update.error ?? {}
+  console.error(`Could not deliver ${update.id} to ${update.recipientId}: ${code} ${title}`)
+})
+```
+
+The terminal shows, for example:
+
+```text
+Could not deliver wamid.HBgNNjI4MTExMDAwMzMzFQIAERgS... to 628111000333@s.whatsapp.net: 131026 Message undeliverable
+```
+
+What each code means is in [Fix common Meta errors](#fix-common-meta-errors).
+
+## Listen for template reviews
+
+When Meta approves, rejects, or pauses one of your [templates](/cloud/templates), `template-status` fires:
+
+```ts
+client.on('template-status', (update) => {
+  if (update.event === 'REJECTED') {
+    console.warn(`${update.name} was rejected: ${update.reason ?? 'no reason given'}`)
+    return
+  }
+  console.log(`${update.name} (${update.language}) is now ${update.event}`)
+})
+```
+
+When Meta approves the `order_shipped` template, this prints `order_shipped (en_US) is now APPROVED`.
+
+<ResponseField name="event" type="string">
+  The new review state, as Meta sends it — for example `APPROVED`, `REJECTED`, or `PAUSED`.
+</ResponseField>
+<ResponseField name="id" type="string">
+  The template's numeric ID.
+</ResponseField>
+<ResponseField name="name" type="string">
+  The template's name, such as `order_shipped`.
+</ResponseField>
+<ResponseField name="language" type="string">
+  The language version this update is about, such as `en_US`.
+</ResponseField>
+<ResponseField name="reason" type="string">
+  Meta's reason, when it gives one — usually on rejections.
+</ResponseField>
+
 <Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/official/events](https://zeative.github.io/zaileys/official/events).
+  Template updates come on a separate webhook field. In the Meta dashboard, open **WhatsApp → Configuration → Webhook** and subscribe to **message_template_status_update** as well as **messages**.
 </Note>
+
+## Receive WhatsApp Flow answers
+
+A WhatsApp Flow is a form that opens inside WhatsApp. When a customer submits one you sent with `client.cloud.flows.send()`, `flow-response` fires with their answers:
+
+```ts
+client.on('flow-response', async (flow) => {
+  const slot = flow.response['slot']
+  console.log(`${flow.senderName ?? flow.senderId} booked the ${String(slot)} slot`)
+  await client.send(flow.senderId).text(`Thanks! Your ${String(slot)} appointment is confirmed.`)
+})
+```
+
+If your Flow has a `slot` field and the customer picks `morning`, they get `Thanks! Your morning appointment is confirmed.`
+
+<ResponseField name="id" type="string">
+  The ID of the customer's reply message.
+</ResponseField>
+<ResponseField name="name" type="string">
+  The name Meta gives the reply. `'flow'` when Meta doesn't send one.
+</ResponseField>
+<ResponseField name="body" type="string">
+  The text shown in the chat for the reply, such as `Sent`.
+</ResponseField>
+<ResponseField name="response" type="Record<string, unknown>">
+  The customer's answers, keyed by the field names in your Flow. It includes `flow_token` when you sent one. An empty object if Meta's answer couldn't be parsed.
+</ResponseField>
+<ResponseField name="senderId" type="string">
+  The customer's JID.
+</ResponseField>
+<ResponseField name="senderName" type="string">
+  The customer's WhatsApp profile name, when Meta includes it.
+</ResponseField>
+<ResponseField name="timestamp" type="number">
+  When they submitted, in Unix seconds.
+</ResponseField>
+
+A Flow reply fires only `flow-response` — not `message` or `text`. Sending Flows is covered in [Business & commerce](/cloud/business).
+
+## Receive catalog orders
+
+When a customer adds products from your catalog to their cart and sends it, `order` fires:
+
+```ts
+client.on('order', async (order) => {
+  const total = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  const currency = order.items[0]?.currency ?? ''
+  const lines = order.items.map((item) => `${item.quantity} × ${item.productRetailerId}`).join('\n')
+
+  await client.send(order.senderId).text(`Got your order:\n${lines}\nTotal: ${currency} ${total}`)
+})
+```
+
+For two of `SKU-1` at 15000 IDR, the customer gets:
+
+```text
+Got your order:
+2 × SKU-1
+Total: IDR 30000
+```
+
+<ResponseField name="id" type="string">
+  The ID of the order message.
+</ResponseField>
+<ResponseField name="catalogId" type="string">
+  The catalog the products come from.
+</ResponseField>
+<ResponseField name="text" type="string">
+  The note the customer added to the order, if any.
+</ResponseField>
+<ResponseField name="items" type="Array<{ productRetailerId: string; quantity: number; price: number; currency: string }>">
+  Each product in the cart. `productRetailerId` is the product's ID in your catalog (its SKU), and `price` is the price per item.
+</ResponseField>
+<ResponseField name="senderId" type="string">
+  The customer's JID.
+</ResponseField>
+<ResponseField name="senderName" type="string">
+  The customer's WhatsApp profile name, when Meta includes it.
+</ResponseField>
+<ResponseField name="timestamp" type="number">
+  When they sent it, in Unix seconds.
+</ResponseField>
+
+An order fires only `order` — not `message`. Product messages and catalogs are in [Business & commerce](/cloud/business).
+
+## Which other events fire
+
+Message events work the same on both providers. On the Cloud API you get:
+
+| Event | Fires on the Cloud API |
+| --- | --- |
+| `message`, `text` | Yes. Locations and contact cards arrive as `text`, because they carry text. |
+| `image`, `video`, `audio`, `document`, `sticker` | Yes. Download the file with `client.downloadMedia()` — see [Send on the Cloud API](/cloud/messaging#download-media-people-send-you). |
+| `reaction` | Yes |
+| `button-click`, `list-select` | Yes, for reply buttons and lists you sent with `client.send()` |
+| `connect` | Yes, once `connect()` confirms your token |
+| `disconnect` | Yes, when you call `disconnect()` |
+| `error` | Yes, when the automatic connect at startup fails |
+| `edit`, `delete`, `poll-vote`, `mention`, `mention-all` | No |
+| `group-join`, `group-leave`, `group-update`, `member-tag` | No |
+| `call-incoming`, `call-ended`, `presence`, `history-sync`, `newsletter`, `limited` | No |
+| `qr`, `pairing-code`, `reconnecting`, `auth-exhausted` | No. The Cloud API logs in with a token and has no connection to drop. |
+| `command-blocked`, `command-error`, `command-not-found` | No. Commands need the WhatsApp Web connection. |
+
+Webhook messages Zaileys doesn't recognize are skipped without an event — for example, taps on a template's quick-reply buttons. The full list of events is in [Events](/concepts/events).
+
+## Fix common Meta errors
+
+Meta reports problems with a numeric error code. You see it in one of two places:
+
+- **On a rejected call**, in the error message: `graph request failed: <Meta's reason> (code 132000)`. From `client.send()` or `msg.reply()`, that `ZaileysCloudError` is on `error.cause` of a `ZaileysBuilderError` with code `SEND_FAILED`.
+- **On a `message-status` update** with status `failed`, as `update.error.code`.
+
+These are Meta's codes, not Zaileys codes:
+
+| Meta code | What it means | How to fix it |
+| --- | --- | --- |
+| `131047` | More than 24 hours have passed since the customer last messaged you. | Send an approved [template](/cloud/templates). Free-form messages work again once they reply. |
+| `132000` | The number of template parameters doesn't match the template's placeholders. | Count the `{{n}}` placeholders with `client.cloud.templates.get()` and send one parameter each. |
+| `131026` | The message couldn't be delivered — for example, the number isn't on WhatsApp or can't receive it. | Check the number. Don't retry the same message in a loop. |
+| `131056` | Too many messages to the same customer in a short time. | Slow down per recipient — `RateLimiter` with `perJidPerSec` helps. |
+| `131009` | A parameter value is invalid, such as a contact card with no first name. | Check the content you sent. Zaileys already fills in first names for [contact cards](/cloud/messaging#send-contact-cards). |
+| `100` | An invalid parameter in the request. | Check the value the error message names. |
+| `190` | The access token is invalid or expired. | Generate a new token — a System User token doesn't expire. See [Cloud API setup](/cloud/setup). |
+| `133xxx` | A phone number registration problem. | See phone registration in [Business & commerce](/cloud/business). |
+
+Pull the code out of a rejected call like this:
+
+```ts
+import { ZaileysBuilderError, ZaileysCloudError } from 'zaileys'
+
+const metaCode = (error: unknown): number | null => {
+  const cloud = error instanceof ZaileysBuilderError ? error.cause : error
+  if (!(cloud instanceof ZaileysCloudError)) return null
+  const match = /\(code (\d+)/.exec(cloud.message)
+  return match ? Number(match[1]) : null
+}
+
+try {
+  await client.send('6281234567890').text('Your table for 4 is ready.')
+} catch (error) {
+  if (metaCode(error) === 131047) {
+    await client.sendTemplate('6281234567890', 'table_ready', 'en_US')
+  } else {
+    throw error
+  }
+}
+```
+
+A `401` or `403` from Meta arrives as code `AUTH` (`graph auth rejected: …`), and a repeated `429` as `RATE_LIMITED`. Every Zaileys error code is in [Error handling](/data/error-handling).
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Why doesn't message-status fire?">
+    Check that your webhook is subscribed to the **messages** field — statuses come on it — and that `client.webhook()` is mounted at the URL Meta calls. Statuses for buttons and lists fire too, but their IDs don't match the key `client.send()` returned.
+  </Accordion>
+  <Accordion title="Why doesn't template-status fire?">
+    Subscribe your webhook to **message_template_status_update** in the Meta dashboard. It's a separate field from **messages**.
+  </Accordion>
+  <Accordion title="Can I get delivery status on WhatsApp Web?">
+    No. `message-status` only fires on the Cloud API, because it comes from Meta's webhook.
+  </Accordion>
+  <Accordion title="The same status arrived twice">
+    Meta can deliver a webhook more than once. Make handlers safe to repeat — for example, key your records by `update.id` and `update.status`.
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Templates" icon="file-text" href="/cloud/templates">
+    Send and manage approved templates.
+  </Card>
+  <Card title="Business & commerce" icon="store" href="/cloud/business">
+    Send Flows and product messages.
+  </Card>
+  <Card title="Events" icon="radio" href="/concepts/events">
+    Every event, on both providers.
+  </Card>
+  <Card title="Limits" icon="gauge" href="/cloud/limits">
+    Meta's limits and how to stay within them.
+  </Card>
+</CardGroup>

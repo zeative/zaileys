@@ -1,9 +1,457 @@
 ---
 title: "Polls, locations & more"
-description: "Send polls, locations, contacts, and other message types."
+sidebarTitle: "Polls, locations & more"
+description: "Send polls, map locations, contact cards, group events, invite cards, product cards, phone-number requests, and statuses."
 icon: "list-checks"
+keywords: ["poll", "vote", "send location", "map pin", "send contact", "vcard", "event", "group invite", "invite link", "product", "catalog", "status", "story", "group status", "share phone number"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/sending-messages](https://zeative.github.io/zaileys/sending-messages).
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+Each of these message types is one builder call — `client.send(jid)`, then the type, then `await`.
+
+<ProviderSupport web={true} cloud="partial" note="On the Cloud API, only locations and contact cards are available." />
+
+## Quick reference
+
+| To send | Call | Recipient sees | Cloud API |
+| --- | --- | --- | --- |
+| A poll | [`.poll(question, options)`](#send-a-poll) | A poll they vote on by tapping | No |
+| A place on a map | [`.location(lat, lon)`](#send-a-location) | A map preview with your pin | Yes |
+| A contact card | [`.contact(vcard)`](#send-a-contact-card) | A card with the contact's name and number | Yes |
+| A group event | [`.event({ name, startAt })`](#send-a-group-event) | An event card with the date and place | No |
+| A group invite | [`.groupInvite({ jid, code })`](#send-a-group-invite-card) | A card they tap to join the group | No |
+| A catalog product | [`.product({ … })`](#send-a-product-card) | A product card with image and price | No |
+| A phone-number request | [`.requestPhoneNumber()`](#ask-for-or-share-a-phone-number) | A request to share their number | No |
+| Your own number | [`.sharePhoneNumber()`](#ask-for-or-share-a-phone-number) | Your phone number | No |
+| A sharing-limit change | [`.limitSharing()`](#limit-sharing-in-a-chat) | The chat's sharing limit turns on or off | No |
+| A personal status | [`send('status@broadcast')…audience([…])`](#post-a-personal-status) | A status only the people you list can see | No |
+| A group status | [`.groupStatus(text or media)`](#post-a-group-status) | A status posted to the group | No |
+
+## Send a poll
+
+```ts
+await client
+  .send('120363012345678901@g.us')
+  .poll('Where should we go for the team lunch?', ['Sushi', 'Nasi Padang', 'Pizza'])
+```
+
+Everyone in the chat sees the question with three options and can vote by tapping one. By default each person picks one option. To let them pick as many as they like:
+
+```ts
+await client.send(jid).poll('Which toppings do you want?', ['Cheese', 'Mushroom', 'Pepperoni', 'Olives'], {
+  multipleChoice: true,
+})
+```
+
+<ParamField body="question" type="string" required>
+  The poll question. An empty question throws `EMPTY_CONTENT`.
+</ParamField>
+<ParamField body="options" type="string[]" required>
+  Between 2 and 12 answers. Each must be non-empty and unique — options are compared exactly, so `Pizza` and `pizza` count as different.
+</ParamField>
+<ParamField body="multipleChoice" type="boolean" default="false">
+  `true` lets each voter pick any number of options. `false` allows exactly one.
+</ParamField>
+
+The poll is checked as you build it, so a mistake throws before anything is sent:
+
+| Mistake | Error code | Message |
+| --- | --- | --- |
+| Empty question | `EMPTY_CONTENT` | `poll() requires a non-empty question` |
+| Fewer than 2 options | `INVALID_OPTIONS` | `poll() requires a minimum of 2 options` |
+| More than 12 options | `INVALID_OPTIONS` | `poll() accepts a maximum of 12 options` |
+| An empty option | `INVALID_OPTIONS` | `poll options must be non-empty strings` |
+| The same option twice | `INVALID_OPTIONS` | `duplicate poll options: Pizza` |
+
+To read the votes as they come in, listen for `poll-vote`:
+
+```ts
+client.on('poll-vote', async (vote) => {
+  const picked = await vote.options()
+  console.log('New vote:', picked.join(', '))
+})
+```
+
+`vote.options()` returns the text of the options the person picked. It needs the original poll in the [message store](/data/storage), and returns an empty list when the poll isn't there — for example, a poll sent before the bot restarted with the default in-memory store.
+
+## Send a location
+
+Pass the latitude, then the longitude:
+
+```ts
+await client.send(jid).location(-6.1754, 106.8272, {
+  name: 'National Monument (Monas)',
+  address: 'Gambir, Central Jakarta',
+})
+```
+
+The recipient sees a map preview with a pin, the place name, and the address underneath.
+
+<ParamField body="lat" type="number" required>
+  Latitude, from `-90` to `90`.
+</ParamField>
+<ParamField body="lon" type="number" required>
+  Longitude, from `-180` to `180`.
+</ParamField>
+<ParamField body="name" type="string">
+  The place name shown on the card.
+</ParamField>
+<ParamField body="address" type="string">
+  The address shown under the name.
+</ParamField>
+
+A coordinate out of range throws `INVALID_OPTIONS` — for example, `location() latitude must be within -90..90, got 91`.
+
+## Send a contact card
+
+A contact card is a vCard — the standard text format phones use for contacts. Build it as a string:
+
+```ts
+const vcard = [
+  'BEGIN:VCARD',
+  'VERSION:3.0',
+  'FN:Sari Wulandari',
+  'ORG:Toko Sari',
+  'TEL;type=CELL;waid=6281234567890:+62 812-3456-7890',
+  'END:VCARD',
+].join('\n')
+
+await client.send(jid).contact(vcard)
+```
+
+The recipient sees a card named **Sari Wulandari** that they can message or save. `waid=` tells WhatsApp which account the number belongs to — include it, with the number as digits only.
+
+<ParamField body="vcard" type="string" required>
+  One vCard. It must start with `BEGIN:VCARD`, or `contact()` throws `INVALID_OPTIONS`. To share several people, send one card per message.
+</ParamField>
+
+<Accordion title="How contact cards work on the Cloud API">
+
+  The Cloud API doesn't take vCards, so Zaileys converts yours. Only three kinds of line are read:
+
+  - `FN` — the name people see.
+  - `N` — the first and last name (`N:Wulandari;Sari`). Without it, Zaileys splits `FN` at the first space, because the Cloud API needs a first name as well as the display name.
+  - `TEL` — each phone number, with its `waid` if you set one.
+
+  Everything else, such as `ORG` or `EMAIL`, is dropped. Without an `FN` line, the first phone number is used as the name. A vCard with neither `FN` nor `TEL` can't be converted, and the send rejects with `SEND_FAILED` (`error.cause.code` is `NOT_IMPLEMENTED`).
+
+</Accordion>
+
+## Send a group event
+
+An event is a card with a title, a date, and optionally a place — group members can see when it starts at a glance.
+
+```ts
+await client.send('120363012345678901@g.us').event({
+  name: 'Monthly team dinner',
+  description: 'We booked the long table by the window.',
+  startAt: new Date('2026-10-02T19:00:00+07:00'),
+  endAt: new Date('2026-10-02T21:00:00+07:00'),
+  location: { latitude: -6.2088, longitude: 106.8456, name: 'Office rooftop', address: 'Jl. Sudirman 21, Jakarta' },
+})
+```
+
+<Warning>
+  WhatsApp shows event cards only in groups. Sent to a private chat, the event doesn't appear as a card.
+</Warning>
+
+<ParamField body="name" type="string" required>
+  The event title. An empty name throws `INVALID_OPTIONS`.
+</ParamField>
+<ParamField body="startAt" type="Date | number" required>
+  When it starts — a `Date` or a timestamp in milliseconds. Rounded down to the whole second.
+</ParamField>
+<ParamField body="endAt" type="Date | number">
+  When it ends, in the same format.
+</ParamField>
+<ParamField body="description" type="string">
+  More details, shown on the card.
+</ParamField>
+<ParamField body="location" type="{ latitude: number; longitude: number; name?: string; address?: string }">
+  Where it takes place.
+</ParamField>
+<ParamField body="call" type="'audio' | 'video'">
+  Add a WhatsApp call link of this type to the event.
+</ParamField>
+<ParamField body="canceled" type="boolean">
+  Mark the event as canceled.
+</ParamField>
+
+A `startAt` or `endAt` that isn't a valid date throws `INVALID_OPTIONS` — for example, `event() startAt must be a valid Date or epoch ms`.
+
+## Send a group invite card
+
+An invite card lets someone join a group with one tap. You need the group's invite code, which `client.group.inviteCode()` returns:
+
+```ts
+const groupJid = '120363012345678901@g.us'
+const code = await client.group.inviteCode(groupJid)
+
+await client.send('6281234567890@s.whatsapp.net').groupInvite({
+  jid: groupJid,
+  code,
+  subject: 'Jakarta Bot Builders',
+  caption: 'Come swap bot ideas with us!',
+})
+```
+
+<ParamField body="jid" type="string" required>
+  The group's JID. Must end in `@g.us`.
+</ParamField>
+<ParamField body="code" type="string" required>
+  The invite code from `client.group.inviteCode()`. See [Invites](/groups/invites).
+</ParamField>
+<ParamField body="subject" type="string" default="''">
+  The group name shown on the card.
+</ParamField>
+<ParamField body="caption" type="string" default="''">
+  Text shown with the invite.
+</ParamField>
+<ParamField body="expiresAt" type="number" default="3 days from now">
+  When the invite expires, as a Unix timestamp in **seconds** — for example, `Math.floor(Date.now() / 1000) + 86400` for one day.
+</ParamField>
+<ParamField body="thumbnail" type="Buffer">
+  A JPEG image, such as the group photo, to show on the card.
+</ParamField>
+
+A `jid` that doesn't end in `@g.us`, or an empty `code`, throws `INVALID_OPTIONS`.
+
+## Send a product card
+
+A product card shows an item from a WhatsApp Business catalog, with its image, name, and price:
+
+```ts
+await client.send(jid).product({
+  image: './products/running-shoes.jpg',
+  title: 'Running Shoes',
+  businessOwnerId: '6281234567890@s.whatsapp.net',
+  description: 'Lightweight trainers, sizes 38–45',
+  price: 450000,
+  currency: 'IDR',
+  body: 'Back in stock!',
+  footer: 'Free delivery in Jakarta',
+})
+```
+
+<ParamField body="image" type="string | Buffer | URL" required>
+  The product photo — a URL, a file path, or bytes, like any [media source](/messaging/media#pick-where-the-file-comes-from).
+</ParamField>
+<ParamField body="title" type="string" required>
+  The product name.
+</ParamField>
+<ParamField body="businessOwnerId" type="string" required>
+  The JID of the business that owns the catalog.
+</ParamField>
+<ParamField body="price" type="number">
+  The price in normal currency units: `450000` means Rp 450.000, and `49.99` means $49.99.
+</ParamField>
+<ParamField body="currency" type="string">
+  The currency code, such as `'IDR'` or `'USD'`.
+</ParamField>
+<ParamField body="description" type="string">
+  The product description.
+</ParamField>
+<ParamField body="body" type="string">
+  Text shown with the card.
+</ParamField>
+<ParamField body="footer" type="string">
+  Small text under the card.
+</ParamField>
+<ParamField body="productId" type="string">
+  The product's ID in the catalog.
+</ParamField>
+<ParamField body="retailerId" type="string">
+  Your own SKU or product code.
+</ParamField>
+<ParamField body="url" type="string">
+  A link to the product.
+</ParamField>
+
+An empty `title` or a missing `businessOwnerId` throws `INVALID_OPTIONS`. An image that can't be loaded rejects with `MEDIA_LOAD_FAILED`.
+
+## Ask for or share a phone number
+
+Neither takes any arguments:
+
+```ts
+await client.send(jid).requestPhoneNumber() // ask the recipient to share their number with you
+await client.send(jid).sharePhoneNumber()   // share the bot's own number with the recipient
+```
+
+## Limit sharing in a chat
+
+```ts
+await client.send(jid).limitSharing()      // turn the chat's sharing limit on
+await client.send(jid).limitSharing(false) // turn it off
+```
+
+<ParamField body="enabled" type="boolean" default="true">
+  `true` turns the limit on, `false` turns it off. It's sent as a change to the chat's settings, not as a chat bubble.
+</ParamField>
+
+## Post a personal status
+
+A status is WhatsApp's version of a story. Send any message — text, photo, video, or voice note — to `status@broadcast`, and list who can see it with `.audience()`:
+
+```ts
+await client
+  .send('status@broadcast')
+  .image('./promo/weekend-sale.jpg', { caption: 'Weekend sale: 20% off everything' })
+  .audience(['6281111111111@s.whatsapp.net', '6282222222222@s.whatsapp.net'])
+```
+
+<ParamField body="jids" type="string[]" required>
+  The people who can see the status. Every entry must be a full JID containing `@`. Calling `.audience()` again adds to the list and removes duplicates.
+</ParamField>
+
+**The audience is required.** WhatsApp accepts a status with nobody in its audience and returns a normal message key, but no one ever sees it. Because that failure is silent, Zaileys rejects it with `INVALID_OPTIONS` instead. There's no "all my contacts" default, so a status never reaches more people than you listed.
+
+`.audience()` on any other recipient throws `INVALID_RECIPIENT`. Personal text statuses have no background color or font options — those exist only for group statuses.
+
+## Post a group status
+
+A group status is a status posted to a group instead of to your contacts. The recipient must be a group.
+
+<Tabs>
+  <Tab title="Text">
+
+    ```ts
+    await client.send('120363012345678901@g.us').groupStatus('Reminder: the meeting moved to 15:00', {
+      backgroundColor: '#25D366',
+      font: 'calistoga',
+    })
+    ```
+
+    <ParamField body="backgroundColor" type="string | number">
+      The background, as `#RGB`, `#RRGGBB`, or `#AARRGGBB` (the `#` is optional), or an ARGB integer such as `0xff25d366`.
+    </ParamField>
+    <ParamField body="font" type="string | number">
+      One of `'system'`, `'system-text'`, `'fb-script'`, `'system-bold'`, `'morningbreeze'`, `'calistoga'`, `'exo2'`, or `'courierprime'`.
+    </ParamField>
+
+  </Tab>
+  <Tab title="Photo, video, or voice note">
+
+    ```ts
+    const group = '120363012345678901@g.us'
+
+    await client.send(group).groupStatus({ image: './open-house.jpg', caption: 'Open house this Saturday, 10:00' })
+    await client.send(group).groupStatus({ audio: './announcement.ogg', ptt: true })
+    ```
+
+    <ParamField body="image | video | audio" type="string | Buffer | URL" required>
+      The file, from a URL, a path, or bytes. Pass one of the three.
+    </ParamField>
+    <ParamField body="caption" type="string">
+      Text for a photo or video. Ignored for audio.
+    </ParamField>
+    <ParamField body="ptt" type="boolean">
+      Post audio as a voice note.
+    </ParamField>
+
+  </Tab>
+  <Tab title="Repost a message">
+
+    Pass a message instead of text to post it as the group status. This bot posts whatever message a member replies to with `!status`:
+
+    ```ts
+    client.on('text', async (msg) => {
+      if (!msg.isGroup || msg.text !== '!status') return
+
+      const original = await msg.replied()
+      if (!original) {
+        await msg.reply('Reply to a message with !status to post it as the group status.')
+        return
+      }
+
+      await client.send(msg.roomId ?? msg.senderId).groupStatus(original)
+    })
+    ```
+
+    You can repost text, photos, videos, and voice notes. Photos, videos, and audio are downloaded and uploaded again, because a status needs its own copy of the file. A text repost drops the original's quote.
+
+    <ParamField body="caption" type="string">
+      Replaces the original text or caption. Ignored for voice notes.
+    </ParamField>
+
+  </Tab>
+</Tabs>
+
+| Mistake | Error code |
+| --- | --- |
+| The recipient isn't a group | `INVALID_RECIPIENT` — `groupStatus() can only be sent to a group jid ending in @g.us` |
+| Empty text, or a message with nothing to repost | `EMPTY_CONTENT` |
+| A malformed color, an unknown font, or a message type other than text, photo, video, or audio | `INVALID_OPTIONS` |
+| The file or the original media can't be loaded | `MEDIA_LOAD_FAILED` |
+
+<Accordion title="Using your own patchMessageBeforeSending?">
+
+  Group statuses with media rely on Zaileys adjusting the message just before it's sent. If you pass your own `patchMessageBeforeSending` through the `baileys` option on `new Client()`, both run: Zaileys' step first, then yours.
+
+</Accordion>
+
+## Differences on the Cloud API
+
+| Method | What happens on the Cloud API |
+| --- | --- |
+| `location()` | Works, including `name` and `address`. |
+| `contact()` | Works. The vCard is converted — see [How contact cards work on the Cloud API](#send-a-contact-card). |
+| `poll()`, `event()`, `groupInvite()`, `product()` | Reject with `SEND_FAILED`; `error.cause.code` is `NOT_IMPLEMENTED`. |
+| `requestPhoneNumber()`, `sharePhoneNumber()`, `limitSharing()` | Reject with `SEND_FAILED`; `error.cause.code` is `NOT_IMPLEMENTED`. |
+| Personal and group statuses | Not available — the Cloud API has no statuses. |
+
+Need people to choose between options on the Cloud API? Use reply buttons or a list instead of a poll — see [Buttons & lists](/messaging/interactive).
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="How do I know who voted in my poll?">
+    Listen for `poll-vote`. Each vote includes the voter (`vote.voter`), the poll's key (`vote.pollKey`), and `vote.options()` for the text they picked. See [Events](/concepts/events).
+  </Accordion>
+  <Accordion title="I sent an event but it didn't show up as a card">
+    Event cards only appear in groups. Send it to a group JID ending in `@g.us`.
+  </Accordion>
+  <Accordion title="Can I post a status on the Cloud API?">
+    No. Statuses — personal and group — exist only on WhatsApp Web. The Cloud API has no status feature.
+  </Accordion>
+  <Accordion title="Can I send several contacts in one card?">
+    No — `contact()` takes one vCard. Send one message per contact.
+  </Accordion>
+</AccordionGroup>
+
+## When a send fails
+
+| Error code | What went wrong | How to fix it |
+| --- | --- | --- |
+| `INVALID_OPTIONS` | A poll outside 2–12 unique options, an out-of-range coordinate, a string that isn't a vCard, an invalid event date, a bad invite, a product without `title` or `businessOwnerId`, or a status without `.audience()`. | The error message names the method and the problem. Fix that value. |
+| `EMPTY_CONTENT` | An empty poll question, empty group status text, or a reposted message with no content. | Check the value before sending. |
+| `INVALID_RECIPIENT` | `.groupStatus()` to a chat that isn't a group, or `.audience()` on a recipient other than `status@broadcast`. | Send group statuses to a `@g.us` JID, and personal statuses to `status@broadcast`. |
+| `MEDIA_LOAD_FAILED` | A product image or status file couldn't be loaded. | Check the URL or path, as for [media](/messaging/media#when-a-send-fails). |
+| `SEND_FAILED` | WhatsApp or the Cloud API refused the message — for example, a poll on the Cloud API. | The original reason is on `error.cause`. See [Differences on the Cloud API](#differences-on-the-cloud-api). |
+
+```ts
+import { ZaileysBuilderError } from 'zaileys'
+
+try {
+  await client.send(jid).poll('Pick a day', ['Monday'])
+} catch (error) {
+  if (error instanceof ZaileysBuilderError && error.code === 'INVALID_OPTIONS') {
+    console.error(error.message) // poll() requires a minimum of 2 options
+  }
+}
+```
+
+More in [Error handling](/data/error-handling).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Buttons & lists" icon="mouse-pointer-click" href="/messaging/interactive">
+    Reply buttons, lists, and carousels — including on the Cloud API.
+  </Card>
+  <Card title="Group invites" icon="link" href="/groups/invites">
+    Create, revoke, and accept invite codes.
+  </Card>
+</CardGroup>

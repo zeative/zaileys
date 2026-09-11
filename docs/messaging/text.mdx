@@ -1,9 +1,277 @@
 ---
 title: "Text & replies"
-description: "Send text, reply to messages, mention people, and format text."
+sidebarTitle: "Text & replies"
+description: "Send text messages, format them, reply with a quote, mention people, and make messages disappear."
 icon: "message-square-text"
+keywords: ["send message", "send text", "reply", "quote", "mention", "tag", "tag all", "everyone", "bold", "italic", "formatting", "disappearing", "ephemeral", "message key"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/sending-messages](https://zeative.github.io/zaileys/sending-messages).
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+A text message is `client.send(jid).text('…')`. You add replies, mentions, and timers by chaining calls onto it, and `await` sends it.
+
+<ProviderSupport web={true} cloud="partial" note="Mentions and disappearing messages are WhatsApp Web only." />
+
+## Quick reference
+
+| To | Call | What happens |
+| --- | --- | --- |
+| Send text | [`.text('…')`](#send-a-text-message) | A plain chat bubble |
+| Use bold, italic, and more | [`*bold*` `_italic_` in the string](#format-text) | WhatsApp renders the formatting |
+| Answer the message you got | [`msg.reply('…')`](#reply-to-a-message) | Your answer quotes their message |
+| Quote a message in any send | [`.reply(msg.message())`](#reply-to-a-message) | Any message type, with a quote |
+| Tag people | [`.mentions([jid])`](#mention-people) | Their name is highlighted and they get notified |
+| Tag the whole group | [`.mentionAll()`](#mention-everyone-in-a-group) | Everyone in the group is mentioned |
+| Make the message disappear | [`.disappearing(seconds)`](#send-disappearing-messages) | WhatsApp deletes it after the timer |
+| Act on the message later | [`const key = await …`](#use-the-message-key) | You get a key to edit, react to, or delete it |
+
+## Send a text message
+
+```ts
+client.on('connect', async () => {
+  const key = await client.send('6281234567890@s.whatsapp.net').text('Hi Budi, your order #1042 has shipped.')
+  console.log('Sent message', key.id)
+})
+```
+
+The recipient sees a normal chat bubble from the bot's number. `6281234567890@s.whatsapp.net` is a <Term id="jid" /> — the address of that person's chat.
+
+- **Nothing is sent until you `await`.** The chain only describes the message. There's no `.send()` at the end.
+- **One content method per message.** Pick `.text()`, `.image()`, `.poll()`, and so on — your editor won't offer a second one.
+- **Send after the bot connects.** Calling `client.send()` before there's a connection throws `INVALID_OPTIONS` with `client not connected`. Inside an event handler you're always connected.
+
+An empty or whitespace-only string throws `EMPTY_CONTENT`.
+
+## Format text
+
+WhatsApp's own formatting works inside any text, caption, or reply:
+
+```ts
+await client.send(jid).text(
+  [
+    '*Order #1042 confirmed*',
+    '_Estimated delivery: Friday_',
+    'Total: ~Rp 150.000~ Rp 120.000',
+    'Tracking code: ```JKT-8831```',
+  ].join('\n'),
+)
+```
+
+| Write | Recipient sees |
+| --- | --- |
+| `*text*` | **bold** |
+| `_text_` | *italic* |
+| `~text~` | ~~strikethrough~~ |
+| ```` ```text``` ```` | `monospace` |
+
+Use `\n` for line breaks. Want headings, tables, or code blocks? Pass `{ rich: true }` to render Markdown as a rich AI-style card on WhatsApp Web — see [Rich responses](/messaging/rich-responses).
+
+## Reply to a message
+
+Inside a handler, `msg.reply()` answers in the same chat and quotes the message you received:
+
+```ts
+client.on('text', async (msg) => {
+  if (msg.text === 'hours') {
+    await msg.reply('We are open 09:00–21:00, Monday to Saturday.')
+  }
+})
+```
+
+The recipient sees your answer with their `hours` message quoted above it. `msg.reply()` resolves to the new message's key, accepts the same `{ rich: true }` option as `.text()`, and — if the original was a disappearing message — uses the same timer.
+
+`msg.reply()` only sends text. To quote a message in any other send, chain `.reply()` onto the builder. This tags the sender and quotes their message in one go:
+
+```ts
+client.on('text', async (msg) => {
+  if (msg.isGroup && msg.text === '!help') {
+    const number = msg.senderId.split('@')[0]
+
+    await client
+      .send(msg.roomId ?? msg.senderId)
+      .text(`Got it, @${number}. Someone from the team will reply shortly.`)
+      .mentions([msg.senderId])
+      .reply(msg.message())
+  }
+})
+```
+
+`msg.roomId` is the chat the message arrived in — the group, or the private chat. It's typed `string | null`, so fall back to `msg.senderId`.
+
+<ParamField body="quoted" type="WAMessage | WAMessageKey" required>
+  The message to quote. Pass the full message (`msg.message()`) whenever you have it: a bare key carries no content, so the quote can't show the original text, and buttons, lists, and other interactive messages ignore a bare key entirely. Passing `null` or `undefined` throws `INVALID_OPTIONS`.
+</ParamField>
+
+## Mention people
+
+A mention highlights a person's name in the message and notifies them. Pass their JIDs to `.mentions()` **and** write `@` followed by their number in the text:
+
+```ts
+const group = '120363012345678901@g.us'
+
+await client
+  .send(group)
+  .text('Standup in 5 minutes, @6281111111111 and @6282222222222!')
+  .mentions(['6281111111111@s.whatsapp.net', '6282222222222@s.whatsapp.net'])
+```
+
+Both halves matter. Without `.mentions()`, `@6281111111111` is plain text. Without the `@number` in the text, the person is notified but nothing in the bubble is highlighted.
+
+<ParamField body="jids" type="string[]" required>
+  The people to mention. Every entry must be a full JID containing `@`. Calling `.mentions()` again adds to the list and removes duplicates. An empty array or an entry without `@` throws `INVALID_OPTIONS`.
+</ParamField>
+
+Mentions work on media captions and buttons too. To react when someone mentions the bot, listen for the `mention` event — see [Events](/concepts/events).
+
+## Mention everyone in a group
+
+```ts
+await client.send('120363012345678901@g.us').text('The office is closed tomorrow for the holiday.').mentionAll()
+```
+
+`.mentionAll()` mentions every member of the group at once, without you listing their numbers. Use it in groups only.
+
+## Send disappearing messages
+
+```ts
+await client.send(jid).text('Your one-time code is 482913').disappearing(86400)
+```
+
+WhatsApp deletes the message for everyone after the timer runs out — here 86,400 seconds, or 24 hours. `604800` is 7 days.
+
+<ParamField body="seconds" type="number" required>
+  How long the message lives, in seconds. Must be a positive whole number, or it throws `INVALID_OPTIONS`.
+</ParamField>
+
+**You rarely need to call it.** When a chat already has disappearing messages turned on, Zaileys reads the timer from the messages you receive there and applies it to everything you send to that chat — text, media, albums, and buttons alike. `.disappearing()` only overrides it for one message.
+
+<Accordion title="How the automatic timer works">
+
+  - The timer is learned from **incoming** messages. After the bot starts, it knows a chat's timer once that chat has sent it a message.
+  - The latest incoming message wins. If it has no timer, the chat is treated as having none.
+  - Timers are kept in memory for the 500 most recently active chats.
+  - `msg.reply()` always mirrors the timer of the message it quotes.
+
+</Accordion>
+
+To turn a chat's timer on or off for everyone in it — the same as **Disappearing messages** in the chat's settings — use `client.setDisappearing()`:
+
+```ts
+await client.setDisappearing('120363012345678901@g.us', 604800) // every new message lasts 7 days
+await client.setDisappearing('120363012345678901@g.us', 0)      // turn it off
+```
+
+## Choose who receives the message
+
+`client.send()` takes the chat's address:
+
+| Send to | Address | Example |
+| --- | --- | --- |
+| A person | number + `@s.whatsapp.net` | `6281234567890@s.whatsapp.net` |
+| A group | group ID + `@g.us` | `120363012345678901@g.us` |
+| A person, by phone number | digits only, country code first | `6281234567890` |
+| Your status | `status@broadcast` | See [Post a status](/messaging/polls-and-more#post-a-personal-status) |
+
+A bare phone number is looked up when you `await` the send — on WhatsApp Web, Zaileys asks WhatsApp which account owns it and remembers the answer. If no account exists, the send rejects with `USERNAME_NOT_FOUND` (`username "6289999999999" not found`). Addresses ending in `@s.whatsapp.net`, `@g.us`, `@lid`, `@newsletter`, `@broadcast`, or `@c.us` are used as they are.
+
+Not sure what an address looks like or where to find a group's ID? See [Addresses & JIDs](/concepts/jids).
+
+<Accordion title="Change the recipient with .to()">
+
+  `.to()` swaps the recipient before you add content. It uses the value exactly as given — with no phone-number lookup — so pass a full JID:
+
+  ```ts
+  const vip = true
+
+  const builder = client.send('6281234567890@s.whatsapp.net')
+  await (vip ? builder.to('6289876543210@s.whatsapp.net') : builder).text('Your table is ready.')
+  ```
+
+</Accordion>
+
+## Use the message key
+
+Every successful send resolves to the new message's **key**: `{ remoteJid, id, fromMe }` — which chat it's in, its ID, and whether you sent it. Keep it to act on that message later:
+
+```ts
+const key = await client.send(jid).text('Table for 2 at 19:00. Reply YES to confirm.')
+
+await client.react(key, '📌')
+await client.edit(key).text('Table for 2 at 19:30. Reply YES to confirm.')
+```
+
+Editing, deleting, reacting, forwarding, and pinning are covered in [Edit, delete & react](/messaging/edit-delete-react).
+
+## Differences on the Cloud API
+
+The same code runs on both providers. On the Cloud API:
+
+| Feature | What happens on the Cloud API |
+| --- | --- |
+| `.text()`, `msg.reply()`, `.reply()` | Work the same. Replies quote the original message. |
+| `.mentions()`, `.mentionAll()` | Ignored. The text arrives, and `@6281111111111` shows as plain text. |
+| `.disappearing()` and inherited timers | Ignored. The message doesn't disappear. |
+| `client.setDisappearing()` | Throws `ZaileysProviderError` with code `UNSUPPORTED_ON_CLOUD`. |
+| `{ rich: true }` | Rejects with `SEND_FAILED`; `error.cause.code` is `NOT_IMPLEMENTED`. Send plain formatted text instead. |
+| Bare phone numbers | Sent as they are, with no lookup, so `USERNAME_NOT_FOUND` never happens. Any `@…` suffix is removed. |
+
+Free-form text only goes out inside the <Term id="service-window" />. Outside it, send an approved [template](/cloud/templates).
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="I called client.send(jid).text('hi') but nothing arrived">
+    Add `await`. The builder sends only when it's awaited (or when you call `.then()` on it), so a chain without `await` builds the message and throws it away.
+  </Accordion>
+  <Accordion title="My mention shows as plain @number text">
+    Pass the same person to `.mentions([...])` — the `@number` in the text is only the visible half. On the Cloud API mentions aren't supported, so they always show as plain text.
+  </Accordion>
+  <Accordion title="Can I message someone who never messaged the bot?">
+    On WhatsApp Web, yes — any number with a WhatsApp account. On the Cloud API, only with an approved [template](/cloud/templates), because free-form messages need an open 24-hour window.
+  </Accordion>
+  <Accordion title="How do I send the same text to a list of people?">
+    Use `client.broadcast()`, which adds rate limiting so WhatsApp doesn't flag the number. See [Broadcast & schedule](/bots/broadcast-and-schedule).
+  </Accordion>
+</AccordionGroup>
+
+## When a send fails
+
+| Error code | What went wrong | How to fix it |
+| --- | --- | --- |
+| `INVALID_OPTIONS` | `client not connected`, or `.mentions()`, `.disappearing()`, or `.reply()` got a bad value. | Send from a handler or after the `connect` event. Use full JIDs with `@`, and a positive whole number of seconds. |
+| `EMPTY_CONTENT` | `.text()` got an empty or whitespace-only string. | Check the value before sending. |
+| `USERNAME_NOT_FOUND` | A bare phone number has no WhatsApp account. | Check the country code and use digits only, such as `6281234567890`. |
+| `SEND_FAILED` | WhatsApp or the Cloud API refused the message — for example, `{ rich: true }` on the Cloud API. | The original reason is on `error.cause`. |
+| `UNSUPPORTED_ON_CLOUD` | `client.setDisappearing()` on the Cloud API. | Disappearing messages are WhatsApp Web only. |
+
+```ts
+import { ZaileysBuilderError } from 'zaileys'
+
+try {
+  await client.send('6289999999999').text('Hi! Your parcel is ready for pickup.')
+} catch (error) {
+  if (error instanceof ZaileysBuilderError && error.code === 'USERNAME_NOT_FOUND') {
+    console.error('That number is not on WhatsApp')
+  }
+}
+```
+
+More in [Error handling](/data/error-handling).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Send media" icon="image" href="/messaging/media">
+    Photos, voice notes, documents, and stickers.
+  </Card>
+  <Card title="Edit, delete & react" icon="pencil" href="/messaging/edit-delete-react">
+    Change or remove a message after it's sent.
+  </Card>
+  <Card title="Polls, locations & more" icon="list-checks" href="/messaging/polls-and-more">
+    Polls, contact cards, events, and statuses.
+  </Card>
+  <Card title="Buttons & lists" icon="mouse-pointer-click" href="/messaging/interactive">
+    Let people tap instead of type.
+  </Card>
+</CardGroup>

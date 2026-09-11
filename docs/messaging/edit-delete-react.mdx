@@ -1,9 +1,225 @@
 ---
 title: "Edit, delete & react"
-description: "Edit or delete sent messages and react with emoji."
+sidebarTitle: "Edit, delete & react"
+description: "Edit or unsend messages after they're sent, react with emoji, forward messages to other chats, and pin them."
 icon: "pencil"
+keywords: ["edit message", "delete message", "unsend", "delete for everyone", "react", "reaction", "emoji", "remove reaction", "forward", "pin message", "unpin", "message key"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/sending-messages](https://zeative.github.io/zaileys/sending-messages).
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+
+To change a message after it's in the chat, pass its **key** to `client.edit()`, `client.delete()`, `client.react()`, `client.forward()`, or `client.pin()`.
+
+<ProviderSupport web={true} cloud="partial" note="Only reactions work on the Cloud API." />
+
+## Quick reference
+
+| To | Call | Recipient sees |
+| --- | --- | --- |
+| Get a message's key | [`await client.send(…)` or `msg.message().key`](#get-the-message-key) | — |
+| Fix a sent message | [`client.edit(key).text('…')`](#edit-a-message) | The new text, marked as edited |
+| Unsend for everyone | [`client.delete(key)`](#delete-a-message) | A deleted-message notice |
+| Delete only for the bot | [`client.delete(key, { forEveryone: false })`](#delete-a-message) | No change |
+| React | [`client.react(key, '👍')` or `msg.react('👍')`](#react-to-a-message) | Your emoji under the message |
+| Remove a reaction | [`client.react(key, '')`](#react-to-a-message) | Your emoji disappears |
+| Forward | [`client.forward(key, to)`](#forward-a-message) | The message, labeled as forwarded |
+| Pin | [`client.pin(key)`](#pin-a-message) | The message pinned at the top of the chat |
+| Unpin | [`client.unpin(key)`](#pin-a-message) | The pin is removed |
+
+## Get the message key
+
+A key identifies one message: `{ remoteJid, id, fromMe }` — the chat it's in, its ID, and whether the bot sent it. You get one in three ways:
+
+```ts
+// 1. Every send resolves to the key of the message it sent
+const sent = await client.send(jid).text('Your driver arrives in 10 minutes.')
+
+// 2. So does msg.reply()
+client.on('text', async (msg) => {
+  const answer = await msg.reply('Checking your order…')
+
+  // 3. Every incoming message carries its own key
+  const incoming = msg.message().key
+})
+```
+
+Save the key if you'll need it later — for example, in your database next to the order it belongs to.
+
+## Edit a message
+
+```ts
+const key = await client.send(jid).text('Your driver arrives in 10 minutes.')
+
+await client.edit(key).text('Your driver arrives in 3 minutes.')
+```
+
+The recipient's bubble updates in place and is marked as edited.
+
+The edit builder has one content method per edit, and resolves to a message key like a send:
+
+<ParamField body=".text(content)" type="string">
+  Replace the text.
+</ParamField>
+<ParamField body=".image(src, opts)" type="string | Buffer | URL">
+  Edit a photo message. Takes the same options as [sending a photo](/messaging/media#send-a-photo).
+</ParamField>
+<ParamField body=".video(src, opts)" type="string | Buffer | URL">
+  Edit a video message. Takes the same options as [sending a video](/messaging/media#send-a-video).
+</ParamField>
+
+Awaiting `client.edit(key)` without a content method rejects with `EMPTY_CONTENT`.
+
+<Tip>
+  In a [command](/bots/commands), `ctx.edit('…')` edits the command's latest `ctx.reply()` — handy for "Working on it…" messages that turn into the result. It throws `NO_SENT_MESSAGE` if the command hasn't replied yet.
+</Tip>
+
+## Delete a message
+
+```ts
+const key = await client.send(jid).text('Promo code: SALE50')
+
+await client.delete(key)                         // unsend for everyone in the chat
+await client.delete(key, { forEveryone: false }) // remove it from the bot's own chat only
+```
+
+Deleting for everyone replaces the message with a deleted-message notice for everyone in the chat. Deleting only for the bot removes it from the bot's account and leaves everyone else's copy alone.
+
+<ParamField body="forEveryone" type="boolean" default="true">
+  `true` unsends the message for everyone. `false` deletes it from the bot's account only.
+</ParamField>
+
+`client.delete()` resolves with no value.
+
+## React to a message
+
+Inside a handler, `msg.react()` reacts to the message you received:
+
+```ts
+client.on('text', async (msg) => {
+  if (msg.text.toLowerCase().includes('thank')) {
+    await msg.react('❤️')
+  }
+})
+```
+
+To react to any other message — including one the bot sent — use `client.react()` with its key. Pass an empty string to remove your reaction:
+
+```ts
+const key = await client.send(jid).text('Order #1042 is being packed.')
+
+await client.react(key, '📦') // add
+await client.react(key, '')   // remove
+```
+
+Both resolve to the key of the reaction message.
+
+To find out when people react to the bot's messages, listen for the `reaction` event — see [Events](/concepts/events).
+
+## Forward a message
+
+```ts
+const SUPPORT_AGENT = '6289876543210@s.whatsapp.net'
+
+client.on('text', async (msg) => {
+  if (!msg.isGroup && msg.text.startsWith('!complaint')) {
+    await client.forward(msg.message().key, SUPPORT_AGENT)
+    await msg.reply('Thanks, we passed your message to our support team.')
+  }
+})
+```
+
+The agent receives a copy of the message, labeled as forwarded. `client.forward()` resolves to the key of the new copy.
+
+<ParamField body="key" type="WAMessageKey" required>
+  The message to forward.
+</ParamField>
+<ParamField body="to" type="string" required>
+  Where to send it — a JID, or a bare phone number, which is looked up just like in [`client.send()`](/messaging/text#choose-who-receives-the-message).
+</ParamField>
+
+Forwarding copies the message from the [message store](/data/storage), so the store must still have it. The default store keeps the messages the bot has sent and received in memory since it started. A message from before the last restart rejects with `MESSAGE_NOT_FOUND` — use a persistent store if you forward older messages.
+
+## Pin a message
+
+```ts
+const key = await client.send('120363012345678901@g.us').text('House rules: be kind, no spam, no selling.')
+
+await client.pin(key)                        // pinned for 24 hours
+await client.pin(key, { duration: 604800 })  // pinned for 7 days
+await client.unpin(key)
+```
+
+The message is pinned at the top of the chat for everyone until the duration runs out or you unpin it. Both calls resolve to a message key.
+
+<ParamField body="duration" type="number" default="86400">
+  How long the pin lasts, in seconds. WhatsApp offers `86400` (24 hours), `604800` (7 days), and `2592000` (30 days).
+</ParamField>
+
+This pins one message inside a chat. To pin the whole chat to the top of the bot's chat list, use `client.chat.pin(jid)` — see [Chats](/chats/chats).
+
+## Differences on the Cloud API
+
+| Method | What happens on the Cloud API |
+| --- | --- |
+| `client.react()`, `msg.react()` | Work the same, including removing a reaction with `''`. |
+| `client.edit()` | Throws `ZaileysProviderError` (code `UNSUPPORTED_ON_CLOUD`) as soon as you call it. `ctx.edit()` rejects the same way. |
+| `client.delete()`, `client.pin()`, `client.unpin()` | Reject with `ZaileysProviderError` (code `UNSUPPORTED_ON_CLOUD`). |
+| `client.forward()` | Rejects with `INVALID_OPTIONS` (`client not connected`), because forwarding needs a WhatsApp Web connection. Send the content again with `client.send()` instead. |
+
+Check for the provider error by its class:
+
+```ts
+import { ZaileysProviderError } from 'zaileys'
+
+const key = await client.send(jid).text('Flash sale ends at midnight!')
+
+try {
+  await client.delete(key)
+} catch (error) {
+  if (error instanceof ZaileysProviderError) {
+    console.warn(`${error.feature} only works on WhatsApp Web`)
+  }
+}
+```
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="How do I edit or delete a message after the bot restarts?">
+    Save its key when you send it — for example, next to the order in your database — and pass that saved key to `client.edit()` or `client.delete()` later. A key is a plain object, so it stores as JSON.
+  </Accordion>
+  <Accordion title="Forward rejects with MESSAGE_NOT_FOUND">
+    The message isn't in the message store — usually because it arrived before the bot last restarted, and the default store only lives in memory. Use a persistent [store](/data/storage), such as SQLite or Redis.
+  </Accordion>
+  <Accordion title="How do I know when someone edits or deletes their message?">
+    Listen for the `edit` and `delete` events. See [Events](/concepts/events).
+  </Accordion>
+  <Accordion title="What's the difference between pinning a message and pinning a chat?">
+    `client.pin(key)` pins one message at the top of a chat, for everyone in it. `client.chat.pin(jid)` pins the whole chat to the top of the bot's own chat list. See [Chats](/chats/chats).
+  </Accordion>
+</AccordionGroup>
+
+## When something fails
+
+| Error code | What went wrong | How to fix it |
+| --- | --- | --- |
+| `INVALID_OPTIONS` | The key has no `remoteJid`, or the client isn't connected (including `forward()` on the Cloud API). | Pass the key exactly as you got it, and act after the bot connects. |
+| `EMPTY_CONTENT` | `client.edit(key)` was awaited without `.text()`, `.image()`, or `.video()`. | Add one content method. |
+| `MESSAGE_NOT_FOUND` | `forward()` couldn't find the message in the store. | Use a persistent [store](/data/storage), or forward messages the bot saw since it started. |
+| `USERNAME_NOT_FOUND` | `forward()` got a bare phone number with no WhatsApp account. | Check the number, or pass a full JID. |
+| `SEND_FAILED` | WhatsApp refused the edit, or returned no key. | The original reason is on `error.cause`. |
+| `UNSUPPORTED_ON_CLOUD` | `edit()`, `delete()`, `pin()`, or `unpin()` on the Cloud API. | These only exist on WhatsApp Web. |
+| `NO_SENT_MESSAGE` | `ctx.edit()` in a command that hasn't called `ctx.reply()` yet. | Call `ctx.reply()` first. |
+
+More in [Error handling](/data/error-handling).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Text & replies" icon="message-square-text" href="/messaging/text">
+    Send, reply, and mention — and get the keys you act on here.
+  </Card>
+  <Card title="Events" icon="radio" href="/concepts/events">
+    React to incoming reactions, edits, and deletes.
+  </Card>
+</CardGroup>

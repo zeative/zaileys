@@ -221,7 +221,7 @@ If you remove the linked device from the phone, Zaileys notices, deletes the sav
 When the connection drops, Zaileys reconnects on its own. You don't need to write retry code.
 
 ```mermaid
-flowchart LR
+flowchart TD
   close["Connection closes"] --> fatal{"Logged out, replaced,<br/>or forbidden?"}
   fatal -->|yes| stop["Delete the session<br/>and stop"]
   fatal -->|no| wait["Wait: 3s, 6s, 12s…<br/>up to 60s"]

@@ -53,7 +53,7 @@ client.use(logCommands)
 ## How middleware runs
 
 ```mermaid
-flowchart LR
+flowchart TD
   msg["/kick @Budi"] --> match{"Matches a<br/>command?"}
   match -->|no| notFound["command-not-found"]
   match -->|yes| guards{"Guards pass?"}

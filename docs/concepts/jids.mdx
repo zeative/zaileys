@@ -1,9 +1,188 @@
 ---
 title: "Addresses & JIDs"
-description: "Understand WhatsApp addresses (JIDs and LIDs) for people, groups, and channels."
+description: "What WhatsApp addresses look like for people, groups, channels, and status — and how to turn a phone number into one."
 icon: "at-sign"
+keywords: ["jid", "whatsapp id", "phone number to jid", "s.whatsapp.net", "g.us", "group id", "lid", "newsletter id", "status@broadcast", "chat id"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. This is a new page in the rebuilt docs.
-</Note>
+import { Term } from "/snippets/glossary.jsx"
+
+Every chat on WhatsApp has an address called a <Term id="jid" />, and every Zaileys call that talks to a chat takes one.
+
+## What a JID looks like
+
+A JID has two parts joined by `@`: an ID, then a server name that says what kind of chat it is.
+
+```text
+6281234567890@s.whatsapp.net
+└─────┬─────┘ └──────┬──────┘
+   the ID      the kind of chat
+```
+
+| Chat | Example | Notes |
+| --- | --- | --- |
+| A person | `6281234567890@s.whatsapp.net` | Their phone number with the country code, and no `+`, spaces, or leading `0`. |
+| A person, by privacy ID | `123456789012345@lid` | Used when WhatsApp hides the phone number. See [LIDs](#lids-when-whatsapp-hides-the-phone-number). |
+| A group | `120363041234567890@g.us` | An ID WhatsApp assigns. It isn't anyone's phone number. |
+| A channel | `120363098765432109@newsletter` | A WhatsApp Channel. |
+| Your status | `status@broadcast` | Send here to post a status update. |
+
+You'll sometimes see a device number after a colon, as in `6281234567890:12@s.whatsapp.net`. It's still the same person, on one of their devices. The `senderId` and `roomId` Zaileys gives you never include it.
+
+## Where you get JIDs
+
+You rarely type a JID yourself. Zaileys hands them to you:
+
+| Where | What it gives you |
+| --- | --- |
+| `msg.roomId` | The chat a message came from — the group, or the person in a direct chat. |
+| `msg.senderId` | The person who sent a message. |
+| `msg.mentions` | The people mentioned in a message. |
+| `me.id` on the `connect` event | Your bot's own account. |
+| `(await client.group.create(…)).id` | A group you just created. |
+| `await client.group.acceptInvite(code)` | A group you just joined. |
+| `(await client.newsletter.create(…)).id` | A channel you just created. |
+| `sender.jid` on `reaction`, `button-click`, and `list-select` | The person who reacted or tapped. |
+| `participants[].jid` on `group-join` | The people who joined a group. |
+| `from` on `call-incoming` | The caller. |
+
+For example, create a group and post into it straight away:
+
+```ts
+const group = await client.group.create('Weekend hiking', ['6281234567890@s.whatsapp.net'])
+
+await client.send(group.id).text('Welcome! We meet at 06:00 on Saturday.')
+```
+
+To find the JID of a group your bot is already in, log `msg.roomId` from any message sent there.
+
+## Turn a phone number into a JID
+
+Use `phoneToJid()`. It removes everything that isn't a digit and adds the server:
+
+```ts
+import { jidToPhone, phoneToJid } from 'zaileys'
+
+phoneToJid('+62 812-3456-7890')            // '6281234567890@s.whatsapp.net'
+jidToPhone('6281234567890@s.whatsapp.net') // '6281234567890'
+```
+
+<Warning>
+  Write the number in international format first. `phoneToJid('0812-3456-7890')` returns `081234567890@s.whatsapp.net` — a leading `0` instead of the country code, which isn't a valid address.
+</Warning>
+
+### Sending to a bare number
+
+`client.send()` also accepts a number without the `@…` part:
+
+```ts
+await client.send('6281234567890').text('Your order #1042 has shipped.')
+```
+
+What happens next depends on the provider:
+
+<Tabs>
+  <Tab title="Unofficial">
+
+    Anything that doesn't end in a known server (`@s.whatsapp.net`, `@g.us`, `@lid`, `@newsletter`, `@broadcast`, or `@c.us`) is looked up first: Zaileys asks WhatsApp whether that account exists and sends to the JID WhatsApp returns. The answer is remembered, so the next send to the same number skips the lookup. `client.forward()` and `client.setDisappearing()` work the same way.
+
+    If WhatsApp finds no account, the send rejects with `ZaileysBuilderError` code `USERNAME_NOT_FOUND` and a message such as `username "6281234567890" not found`. Formatting characters can break the lookup, so pass the result of `phoneToJid()` when you're unsure.
+
+  </Tab>
+  <Tab title="Official">
+
+    The Cloud API addresses people by phone number only. Zaileys sends the part before `@` to Meta as the recipient, so `'6281234567890'` and `'6281234567890@s.whatsapp.net'` reach the same person, and there's no lookup. If the number isn't on WhatsApp, the Graph API rejects the send.
+
+    Every JID you receive on the Cloud API is a person's `…@s.whatsapp.net` address built from their number. Groups, channels, status, and LIDs don't exist there.
+
+  </Tab>
+</Tabs>
+
+## LIDs: when WhatsApp hides the phone number
+
+A <Term id="lid" /> is a privacy ID that WhatsApp can show instead of someone's phone number, mostly in groups where members' numbers are hidden. It looks like `123456789012345@lid`, and the same person can appear under either address.
+
+Zaileys turns LIDs into phone JIDs for you whenever WhatsApp shares the mapping, so `msg.senderId`, `msg.roomId`, and `msg.mentions` usually hold phone JIDs. When it can't, you'll see the `@lid` form, and `msg.addressingMode` is `'lid'`. `msg.senderLid` always keeps the LID when there is one.
+
+Convert between the two yourself:
+
+```ts
+const phone = await client.lidToPn('123456789012345@lid')         // '6281234567890@s.whatsapp.net', or null
+const lid = await client.pnToLid('6281234567890@s.whatsapp.net') // '123456789012345@lid', or null
+```
+
+Both return `null` when WhatsApp doesn't know the mapping, and never throw. To convert a whole list — every member of a group, say — use `lidToPns()` or `pnToLids()`. They make one request and return a `Map`; addresses WhatsApp couldn't resolve are left out:
+
+```ts
+const meta = await client.group.metadata('120363041234567890@g.us')
+const phones = await client.lidToPns(meta.participants.map((p) => p.id))
+
+for (const p of meta.participants) {
+  console.log(p.id, '→', phones.get(p.id) ?? 'number hidden')
+}
+```
+
+You can send to a LID directly — `client.send('123456789012345@lid')` is accepted as is. LID lookups need a WhatsApp Web connection; on the Cloud API they always return `null` or an empty map.
+
+## Check and compare JIDs
+
+Compare JIDs with helpers instead of plain `===`, which fails when one side carries a device number:
+
+```ts
+import { areJidsSameUser, isJid, isJidGroup, isLidJid, jidNormalizedUser } from 'zaileys'
+
+isJid('6281234567890')                                                      // false: a bare number
+isJidGroup('120363041234567890@g.us')                                       // true
+isLidJid('123456789012345@lid')                                             // true
+jidNormalizedUser('6281234567890:12@s.whatsapp.net')                        // '6281234567890@s.whatsapp.net'
+areJidsSameUser('6281234567890@s.whatsapp.net', '6281234567890:12@s.whatsapp.net') // true
+```
+
+`areJidsSameUser()` compares the ID part only, so a phone JID and a LID of the same person don't match — convert one first with `client.lidToPn()`. The rest of the JID helpers are in the [utilities reference](/reference/utilities).
+
+## Post a status update
+
+Send to `status@broadcast` and list who may see it with `.audience()` — WhatsApp shows a status only to the JIDs you list:
+
+```ts
+await client
+  .send('status@broadcast')
+  .text('Open until 22:00 tonight')
+  .audience(['6281234567890@s.whatsapp.net', '6289876543210@s.whatsapp.net'])
+```
+
+Status updates are WhatsApp Web only. More on the send builder is in the [send builder reference](/reference/send-builder).
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="My JID looks right, but messages never arrive">
+    Check the number part. It must start with the country code — `62…` for Indonesia, `1…` for the US — with no `+`, no spaces, and no leading `0`. `phoneToJid()` removes the formatting, but it can't add a missing country code.
+  </Accordion>
+  <Accordion title="What's @c.us?">
+    An older server name for people, used by some other WhatsApp libraries. Zaileys recognizes it as a JID, and `jidToPhone()` reads it, but the addresses Zaileys gives you use `@s.whatsapp.net`.
+  </Accordion>
+  <Accordion title="Why does senderId sometimes end in @lid?">
+    The sender's number is hidden from your account — common in large groups — and WhatsApp didn't share a phone mapping in time. Use `msg.senderLid`, or try `client.lidToPn(msg.senderId)` later.
+  </Accordion>
+  <Accordion title="Can I message someone who hasn't messaged me first?">
+    On WhatsApp Web, yes — send to their JID. On the Cloud API, only with an approved [template](/cloud/templates), unless they messaged you in the last 24 hours.
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Message context" icon="braces" href="/concepts/message-context">
+    `senderId`, `roomId`, and the rest of `msg`.
+  </Card>
+  <Card title="Text & replies" icon="message-square" href="/messaging/text">
+    Send your first message to a JID.
+  </Card>
+  <Card title="Groups" icon="users" href="/groups/groups">
+    Create groups and read their members.
+  </Card>
+  <Card title="Utilities reference" icon="wrench" href="/reference/utilities">
+    Every JID helper Zaileys exports.
+  </Card>
+</CardGroup>

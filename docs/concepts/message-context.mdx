@@ -1,9 +1,265 @@
 ---
 title: "Message context"
-description: "The message object your handlers receive, and what you can do with it."
+description: "The msg object your handlers receive: who sent the message, where to answer, what it contains, and what you can do with it."
 icon: "braces"
+keywords: ["msg", "message context", "MessageContext", "reply", "react", "senderId", "roomId", "chatId", "quoted message", "sender name", "group name"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/message-payload](https://zeative.github.io/zaileys/message-payload).
-</Note>
+import { Term } from "/snippets/glossary.jsx"
+
+Every message event hands your handler one object, `msg`, that tells you who sent the message and where, and lets you answer it.
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client()
+
+client.on('text', async (msg) => {
+  console.log(msg.senderName) // 'Budi Santoso'
+  console.log(msg.senderId)   // '6281234567890@s.whatsapp.net'
+  console.log(msg.text)       // 'What time do you open?'
+  console.log(msg.isGroup)    // false
+
+  await msg.react('👀')
+  await msg.reply('We open at 9:00 every day.')
+})
+```
+
+You get `msg` from `message`, `text`, `image`, `video`, `audio`, `document`, `sticker`, `mention`, and `mention-all`. Other events, such as `reaction` and `button-click`, have smaller payloads of their own ([Events](/concepts/events)).
+
+## The fields you'll use most
+
+| Field | Example | What it is |
+| --- | --- | --- |
+| `text` | `'What time do you open?'` | The message text, or the caption of a photo, video, or document. `''` when there's none. |
+| `senderId` | `'6281234567890@s.whatsapp.net'` | Who sent the message. |
+| `senderName` | `'Budi Santoso'` | The name the sender set in WhatsApp, or `null`. |
+| `roomId` | `'120363041234567890@g.us'` | The chat the message is in: the group in a group, the person in a direct chat. |
+| `isGroup` | `true` | Whether the message came from a group. |
+| `chatType` | `'image'` | What kind of message it is: `'text'`, `'image'`, `'video'`, `'audio'`, `'document'`, `'sticker'`, `'poll'`, `'location'`, `'contact'`, and more. |
+| `mentions` | `['6289876543210@s.whatsapp.net']` | The people @mentioned in the message. |
+| `media` | `{ type: 'image', … }` | The attachment, or details of a poll, location, or contact. `undefined` for plain text. |
+| `timestamp` | `1789120800000` | When it was sent, in milliseconds. Pass it straight to `new Date()`. |
+| `isFromMe` | `false` | Whether the bot's own account sent it. |
+| `isOld` | `false` | Whether WhatsApp replayed it after a reconnect. |
+
+The [message context reference](/reference/message-context) lists every field.
+
+## Who sent it, and where to answer
+
+In a direct chat, the sender and the chat are the same person. In a group they aren't:
+
+| Field | In a direct chat with Budi | In the group "Weekend hiking" |
+| --- | --- | --- |
+| `senderId` | Budi: `6281234567890@s.whatsapp.net` | Budi: `6281234567890@s.whatsapp.net` |
+| `roomId` | Budi: `6281234567890@s.whatsapp.net` | The group: `120363041234567890@g.us` |
+| `chatId` | The message's ID, such as `3EB0C767D82B0A5E1F9A` | The message's ID |
+
+So send to `roomId` to answer in the same chat, and to `senderId` to message the person privately:
+
+```ts
+client.on('text', async (msg) => {
+  if (!msg.isGroup || msg.text !== '/secret') return
+
+  await msg.reply('I sent you a private message.')
+  await client.send(msg.senderId).text('Here is the secret menu: nasi goreng special, 25k.')
+})
+```
+
+<Warning>
+  Despite its name, `msg.chatId` is the ID of the **message**, not an address. Passing it to `client.send()` fails. Use `msg.roomId` for the chat.
+</Warning>
+
+`roomId` is typed `string | null`, so write `msg.roomId ?? msg.senderId` when you pass it on. All these addresses are <Term id="jid" />s — [Addresses & JIDs](/concepts/jids) explains the formats.
+
+## Reply and react
+
+`msg.reply()` sends text to the same chat, quoting the message. `msg.react()` puts an emoji on it:
+
+```ts
+client.on('text', async (msg) => {
+  if (msg.text.toLowerCase() === 'ping') {
+    await msg.react('🏓')
+    await msg.reply('pong')
+  }
+})
+```
+
+- `reply()` sends text, takes the same options as `client.send(jid).text()` ([Text & replies](/messaging/text)), and resolves to the key of the message it sent.
+- In a chat with disappearing messages, the reply keeps the chat's timer, so it disappears with the rest of the conversation.
+- To mention people, or to reply with a photo or file, use the send builder and quote with `.reply(msg.message())` — [example](/messaging/media#reply-or-mention-with-media).
+
+To send without quoting, use the send builder: `client.send(msg.roomId ?? msg.senderId).text('…')`.
+
+## Read the message it replies to
+
+When someone replies to a message, `msg.replied()` gives you that earlier message as its own `msg`, or `null` when it isn't a reply:
+
+```ts
+client.on('text', async (msg) => {
+  if (msg.text !== '/quote') return
+
+  const original = await msg.replied()
+  if (!original) {
+    await msg.reply('Reply to a message with /quote.')
+    return
+  }
+  await msg.reply(`${original.senderName ?? 'Someone'} said: "${original.text}"`)
+})
+```
+
+## Get the chat name
+
+`await msg.roomName()` gives you the group's name in a group, and the sender's name in a direct chat. Group names are fetched once per group, then remembered:
+
+```ts
+client.on('text', async (msg) => {
+  if (msg.text === '/where') {
+    await msg.reply(`You're in: ${(await msg.roomName()) ?? 'an unnamed chat'}`)
+  }
+})
+```
+
+`await msg.receiverName()` gives you the bot account's own name.
+
+## Work with media
+
+On media messages, `msg.media` describes the file straight away — type, size, dimensions, duration — and downloads it only when you ask:
+
+```ts
+import { writeFile } from 'node:fs/promises'
+
+client.on('image', async (msg) => {
+  if (msg.media?.type !== 'image') return
+
+  console.log(msg.media.mimetype, msg.media.width, msg.media.height) // 'image/jpeg' 1280 960
+  const photo = await msg.media.buffer()
+  await writeFile(`./inbox/${msg.uniqueId}.jpg`, photo)
+})
+```
+
+Checking `msg.media.type` first also tells TypeScript which fields exist. Polls, locations, and contact cards have a `media` object too, with their own fields:
+
+```ts
+client.on('message', async (msg) => {
+  if (msg.media?.type === 'location') {
+    await msg.reply(`Got it: ${msg.media.latitude}, ${msg.media.longitude}`)
+  }
+})
+```
+
+Streaming large files, voice notes, and downloading later are covered in [Receiving media](/messaging/receiving-media).
+
+## Mentions
+
+`msg.mentions` lists everyone @mentioned in the message, and `msg.isTagMe` is `true` when that includes your bot:
+
+```ts
+client.on('text', async (msg) => {
+  if (msg.isGroup && msg.isTagMe) {
+    await msg.reply(`Hi ${msg.senderName ?? 'there'}! Type /help to see what I can do.`)
+  }
+})
+```
+
+## Check who's allowed
+
+`msg.citation.authors()` and `msg.citation.banned()` tell you whether the sender is on the owner or blocked list you set with the `citation` option. Both resolve to `false` when you haven't set one:
+
+```ts
+client.on('text', async (msg) => {
+  if (await msg.citation.banned()) return
+  if (msg.text === '/stats' && (await msg.citation.authors())) {
+    await msg.reply('128 orders today.')
+  }
+})
+```
+
+Set up the lists in [Configuration](/concepts/configuration#mark-owners-and-banned-users).
+
+## Tell messages and conversations apart
+
+- **`uniqueId`** is different for every message. Use it to skip a message you've already handled, or to name a saved file.
+- **`staticId`** is the same for every message from one person in one chat. Use it as the key for per-conversation state, such as a shopping cart:
+
+```ts
+const carts = new Map<string, string[]>()
+
+client.on('text', async (msg) => {
+  if (!msg.text.startsWith('add ')) return
+
+  const cart = carts.get(msg.staticId) ?? []
+  cart.push(msg.text.slice(4))
+  carts.set(msg.staticId, cart)
+  await msg.reply(`Your cart: ${cart.join(', ')}`)
+})
+```
+
+Because the key includes the chat, the same person gets a separate cart in each group.
+
+## Get the raw message
+
+`msg.message()` returns the original Baileys message object. You need it to quote with the send builder, and for any detail Zaileys doesn't surface:
+
+```ts
+client.on('text', async (msg) => {
+  if (msg.text === 'chart') {
+    await client.send(msg.roomId ?? msg.senderId).image('./chart.png').reply(msg.message())
+  }
+})
+```
+
+## Pitfalls
+
+- **`chatId` is a message ID.** Send to `roomId` or `senderId`, never `chatId`.
+- **`senderId` can end in `@lid`.** Zaileys turns a sender's <Term id="lid" /> into their phone JID whenever WhatsApp shares the mapping, and gives up after 3 seconds. If it can't, `senderId` stays a `@lid` address. `senderLid` holds the LID whenever WhatsApp sends one. For owner checks, compare against both, or look the owner up once with `client.pnToLid()` — see [LIDs](/concepts/jids#lids-when-whatsapp-hides-the-phone-number).
+- **`senderName` is whatever the sender typed.** Anyone can name themselves "Admin". Identify people by `senderId`. For verified businesses, `msg.business?.verifiedName` can't be faked.
+- **`timestamp` is in milliseconds**, not the seconds WhatsApp uses internally. Don't multiply it by 1000.
+- **Logging `msg` shows `[Function]`** next to `reply`, `roomName`, and the other methods. They're functions you call, not values.
+
+## On the Cloud API
+
+`msg` has the same shape on both providers. A few fields behave differently because the Cloud API has no groups and no LIDs:
+
+| Field or method | On the Cloud API |
+| --- | --- |
+| `isGroup` | Always `false`. `roomId` equals `senderId`. |
+| `senderLid` | Always `null`. |
+| `roomName()` | The sender's WhatsApp profile name. |
+| `receiverName()` | Always `null`. |
+| `replied()` | Finds the earlier message only if it's still in the message store. |
+| `media` downloads | Work differently — see [Receiving media](/messaging/receiving-media). |
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Why is senderName null?">
+    The sender has no display name WhatsApp shares with you, or the message came from your own account. Fall back to something else: `msg.senderName ?? 'there'`.
+  </Accordion>
+  <Accordion title="How do I answer without quoting the message?">
+    Send to the chat with the builder: `await client.send(msg.roomId ?? msg.senderId).text('Done!')`.
+  </Accordion>
+  <Accordion title="How do I get the group's name, not its ID?">
+    `await msg.roomName()`. For everything else about the group — members, admins, description — use `client.group.metadata(msg.roomId)` ([Groups](/groups/groups)).
+  </Accordion>
+  <Accordion title="Is msg the same thing as ctx in commands?">
+    Almost. A command handler's `ctx` has every `msg` field plus the parsed command, its arguments, and a few extra methods. See [Commands](/bots/commands).
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Addresses & JIDs" icon="at-sign" href="/concepts/jids">
+    What `senderId` and `roomId` look like, and how to build them.
+  </Card>
+  <Card title="Message context reference" icon="square-code" href="/reference/message-context">
+    Every field and method, with types.
+  </Card>
+  <Card title="Text & replies" icon="message-square" href="/messaging/text">
+    Formatting, mentions, and quoting.
+  </Card>
+  <Card title="Receiving media" icon="file-down" href="/messaging/receiving-media">
+    Download what people send you.
+  </Card>
+</CardGroup>

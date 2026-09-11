@@ -1,9 +1,311 @@
 ---
 title: "Events"
-description: "Listen to typed events for messages, reactions, groups, and connection changes."
+description: "Listen for messages, button taps, group changes, calls, and connection changes with typed events — and learn how your handlers run."
 icon: "zap"
+keywords: ["events", "client.on", "listen for messages", "event handler", "unsubscribe", "client.off", "once", "message event", "text event", "event list"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/events](https://zeative.github.io/zaileys/events).
-</Note>
+import { Term } from "/snippets/glossary.jsx"
+
+Everything that happens on your WhatsApp account reaches your code as a named event, and you react to it with `client.on()`.
+
+## Listen for an event
+
+Pass the event name and a function. The function receives one argument — the event's payload:
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client()
+
+client.on('text', async (msg) => {
+  await msg.reply(`You said: ${msg.text}`)
+})
+
+client.on('reaction', (reaction) => {
+  console.log(`${reaction.sender.jid} reacted with ${reaction.emoji ?? 'nothing (removed)'}`)
+})
+```
+
+You can add as many handlers to the same event as you like. They run in the order you added them.
+
+## Stop listening
+
+`client.on()` returns a function that removes the handler again:
+
+```ts
+const stop = client.on('text', (msg) => console.log(msg.text))
+
+stop()
+```
+
+You can also pass the same function to `client.off()`:
+
+```ts
+import type { MessageContext } from 'zaileys'
+
+const logText = (msg: MessageContext) => console.log(msg.text)
+
+client.on('text', logText)
+client.off('text', logText)
+```
+
+`client.removeAllListeners('text')` removes every handler for one event, and `client.listenerCount('text')` tells you how many are attached.
+
+### Listen only once
+
+There's no `client.once()`. Call the returned function inside the handler instead:
+
+```ts
+const stop = client.on('connect', ({ me }) => {
+  stop()
+  console.log(`First connection as ${me.id}`)
+})
+```
+
+The same trick lets you `await` an event:
+
+```ts
+const myId = await new Promise<string>((resolve) => {
+  const stop = client.on('connect', ({ me }) => {
+    stop()
+    resolve(me.id)
+  })
+})
+```
+
+## Which events exist
+
+Here's every event, grouped by what it's about. Payload fields are in the [events reference](/reference/events).
+
+### Messages
+
+These give you the [message context](/concepts/message-context) — the `msg` object with `text`, `senderId`, `reply()`, and the rest.
+
+| Event | Fires when | Cloud API |
+| --- | --- | --- |
+| `message` | Any message arrives — text, media, poll, location, button tap, and so on. | Yes |
+| `text` | A text message arrives. Polls, locations, and contact cards count too, because they carry text. | Yes |
+| `image`, `video`, `audio`, `document`, `sticker` | A media message of that kind arrives. Its caption is in `msg.text`. | Yes |
+| `mention` | A message @mentions **your** account. | No |
+| `mention-all` | A group message mentions the whole group. | No |
+
+### Changes to messages
+
+| Event | Fires when | Cloud API |
+| --- | --- | --- |
+| `reaction` | Someone adds or removes an emoji reaction. `emoji` is `null` when it's removed. | Yes |
+| `edit` | Someone edits a message. | No |
+| `delete` | Someone deletes a message. | No |
+| `poll-vote` | Someone votes in a poll. | No |
+
+### Interactions
+
+| Event | Fires when | Cloud API |
+| --- | --- | --- |
+| `button-click` | Someone taps a reply button. | Yes |
+| `list-select` | Someone picks a row in a list. | Yes |
+
+See [Buttons & lists](/messaging/interactive) for sending them.
+
+### Groups
+
+| Event | Fires when | Cloud API |
+| --- | --- | --- |
+| `group-join` | People join or are added to a group. | No |
+| `group-leave` | People leave or are removed from a group. | No |
+| `group-update` | The group's name, description, settings, or disappearing timer changes. | No |
+| `member-tag` | A member's label in a group changes. | No |
+
+### Calls
+
+| Event | Fires when | Cloud API |
+| --- | --- | --- |
+| `call-incoming` | Someone calls the bot's number. | No |
+| `call-ended` | A call ends. | No |
+
+### Connection
+
+| Event | Fires when | Cloud API |
+| --- | --- | --- |
+| `qr` | A new QR code is ready to scan. | No |
+| `pairing-code` | A <Term id="pairing-code" /> is ready to type in. | No |
+| `connect` | The client is connected. | Yes |
+| `reconnecting` | The connection dropped and a retry is scheduled. | No |
+| `disconnect` | The connection closed. `willReconnect` says whether the client retries. | Yes |
+| `auth-exhausted` | Too many QR or pairing codes went unused, so the client stopped. | No |
+| `error` | The automatic connect at startup failed. | Yes |
+
+When each of these fires is explained in [Client & lifecycle](/concepts/client).
+
+### Commands
+
+| Event | Fires when |
+| --- | --- |
+| `command-blocked` | A command matched, but a guard stopped it — for example, a cooldown. |
+| `command-error` | A command handler threw. |
+| `command-not-found` | A message starts with your prefix but matches no command. |
+
+These come from the command framework ([Commands](/bots/commands)). Commands need the WhatsApp Web connection, so these events never fire on the Cloud API.
+
+### Account and sync
+
+| Event | Fires when | Cloud API |
+| --- | --- | --- |
+| `presence` | A contact starts or stops typing or recording, or goes online or offline. | No |
+| `history-sync` | WhatsApp finishes or pauses syncing chat history after login. | No |
+| `newsletter` | Something happens on a channel: a reaction, views, follower count, or settings. | No |
+| `limited` | WhatsApp limits the account, for example by capping new chats. | No |
+
+### Cloud API only
+
+| Event | Fires when |
+| --- | --- |
+| `message-status` | A message you sent is sent, delivered, read, or failed. |
+| `template-status` | Meta approves, rejects, or pauses one of your templates. |
+| `flow-response` | Someone completes a WhatsApp Flow. |
+| `order` | Someone places an order from your catalog. |
+
+These arrive through the <Term id="webhook" />. See [Cloud events](/cloud/events).
+
+## Should you use `message` or `text`?
+
+One incoming message can fire several events. `message` fires for all of them, and the specific events fire as well:
+
+| Someone sends | Events that fire |
+| --- | --- |
+| `hi` | `message`, `text` |
+| A photo captioned `menu?` | `message`, `image` |
+| A poll | `message`, `text` |
+| A tap on one of your reply buttons | `message`, `button-click` |
+| A group photo that @mentions your bot | `message`, `image`, `mention` |
+
+- **Handle each kind separately** with `text`, `image`, and so on. This is the simplest choice for most bots.
+- **Handle everything in one place** with `message`, and branch on `msg.chatType`.
+- **Don't listen to both** `message` and `text` for the same job, or your bot answers text messages twice.
+- **`text` ignores captions.** A photo captioned `/help` fires only `message` and `image`. That's why the command framework listens to `message`.
+
+```ts
+client.on('message', async (msg) => {
+  switch (msg.chatType) {
+    case 'text':
+      await msg.reply('Thanks for your message.')
+      break
+    case 'image':
+      await msg.reply(msg.text ? `Nice photo: ${msg.text}` : 'Nice photo.')
+      break
+    case 'location':
+      await msg.reply('Got your location. A courier is on the way.')
+      break
+  }
+})
+```
+
+## Skip messages from before the bot started
+
+When the bot reconnects, WhatsApp delivers the messages it missed. They arrive with `msg.isOld` set to `true`, so you can decide whether to answer them:
+
+```ts
+client.on('text', async (msg) => {
+  if (msg.isOld) return
+  await msg.reply('pong')
+})
+```
+
+## Your own messages are skipped
+
+Messages sent from the bot's own account — by the bot, or by you on its phone — never reach your handlers, because `ignoreMe` defaults to `true`. To see them, set `ignoreMe: false` and check `msg.isFromMe` ([how](/concepts/configuration#react-to-your-own-messages)).
+
+## When a handler throws
+
+- **An error thrown straight away** in a handler is caught. The other handlers still run, and the error goes to the client's logger — which is silent by default, so run with `ZAILEYS_DEBUG=1` to see it.
+- **An `async` handler that rejects is not caught.** Node.js treats it as an unhandled promise rejection, which stops your process by default.
+
+Catch errors inside async handlers yourself, and tell the user something went wrong:
+
+```ts
+const lookUpOrder = async (orderId: string): Promise<string> => {
+  const res = await fetch(`https://api.example.com/orders/${orderId}`)
+  if (!res.ok) throw new Error(`Order API answered ${res.status}`)
+  return res.text()
+}
+
+client.on('text', async (msg) => {
+  try {
+    await msg.reply(await lookUpOrder(msg.text))
+  } catch (error) {
+    console.error('Order lookup failed:', error)
+    await msg.reply('Sorry, something went wrong. Try again in a minute.')
+  }
+})
+```
+
+Command handlers are different: their errors go to the `command-error` event ([Commands](/bots/commands)).
+
+## Types and autocomplete
+
+Events are fully typed. Your editor suggests every event name, a misspelled name is a compile error, and the payload's type follows from the name — `msg` in a `text` handler is a `MessageContext`, `tap` in a `button-click` handler is a `ButtonClickPayload`.
+
+When you write a handler as a separate function, import its payload type:
+
+```ts
+import type { ButtonClickPayload, MessageContext } from 'zaileys'
+
+const onText = async (msg: MessageContext) => {
+  await msg.reply('Hi!')
+}
+
+const onButton = (tap: ButtonClickPayload) => {
+  console.log(`${tap.sender.jid} tapped ${tap.buttonId}`)
+}
+
+client.on('text', onText)
+client.on('button-click', onButton)
+```
+
+For any event, `ClientEventMap` gives you the payload type by name:
+
+```ts
+import type { ClientEventMap } from 'zaileys'
+
+const welcome = async (event: ClientEventMap['group-join']) => {
+  const names = event.participants.map((p) => p.jid).join(', ')
+  await client.send(event.groupId).text(`Welcome, ${names}!`)
+}
+
+client.on('group-join', welcome)
+```
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Why does my handler run twice for one message?">
+    Either you listen to both `message` and `text`, or the same handler was added twice — for example, when the file that calls `client.on()` runs again after a reload. Check with `client.listenerCount('text')`.
+  </Accordion>
+  <Accordion title="Someone tagged another person, but mention didn't fire">
+    `mention` fires only when **your** account is mentioned. To react to any mention, listen to `message` and read `msg.mentions`.
+  </Accordion>
+  <Accordion title="My handler throws, but I see no error">
+    Errors thrown inside handlers go to the client's logger, which is silent unless you set `ZAILEYS_DEBUG`. Run with `ZAILEYS_DEBUG=1 npx tsx bot.ts`, or catch the error in the handler.
+  </Accordion>
+  <Accordion title="Which events work on the Cloud API?">
+    The **Cloud API** column in each table above tells you. Messages, reactions, button taps, and connection changes work on both providers. Groups, calls, edits, deletes, poll votes, and command events are WhatsApp Web only, and the Cloud API adds its own status, template, flow, and order events.
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Message context" icon="braces" href="/concepts/message-context">
+    Everything on the `msg` object your handlers get.
+  </Card>
+  <Card title="Events reference" icon="square-code" href="/reference/events">
+    Every event's payload, field by field.
+  </Card>
+  <Card title="Commands" icon="square-terminal" href="/bots/commands">
+    Answer `/help` and `/price` without parsing text yourself.
+  </Card>
+  <Card title="Receiving media" icon="file-down" href="/messaging/receiving-media">
+    Download the photos and files people send.
+  </Card>
+</CardGroup>

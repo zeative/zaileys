@@ -1,9 +1,577 @@
 ---
 title: "Business & commerce"
-description: "Flows, catalogs, orders, and analytics on the Cloud API."
+description: "Send WhatsApp Flows and catalog products, take orders, and manage the business profile, blocklist, QR codes, analytics, and phone numbers."
 icon: "shopping-bag"
+keywords: ["whatsapp flows", "flow-response", "send product", "product list", "catalog", "order", "address request", "business profile", "block user", "blocklist", "qr code", "click to chat", "analytics", "register phone number", "wabaId", "client.cloud"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/official/business](https://zeative.github.io/zaileys/official/business).
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+`client.cloud` covers everything the Cloud API offers beyond plain messages: Flows, catalog products and orders, the business profile, blocking, click-to-chat QR codes, analytics, and phone number registration.
+
+<ProviderSupport web={false} cloud={true} note="On WhatsApp Web, use client.business for the catalog instead." />
+
+## Quick reference
+
+Methods marked **WABA** need `wabaId` in your client options — see [Before you start](#before-you-start).
+
+| To | Call | You get |
+| --- | --- | --- |
+| Send a Flow | [`flows.send(to, options)`](#send-a-whatsapp-flow-and-read-the-answers) | The sent message's key |
+| List your Flows | [`flows.list()`](#list-your-flows) **WABA** | `{ id, name, status }[]` |
+| List your catalogs | [`commerce.catalogs()`](#send-a-product-from-your-catalog) **WABA** | `{ id, name }[]` |
+| List a catalog's products | [`commerce.products(catalogId, limit)`](#send-a-product-from-your-catalog) | `{ id, retailer_id, name, price, availability }[]` |
+| Send one product | [`commerce.sendProduct(to, options)`](#send-a-product-from-your-catalog) | The sent message's key |
+| Send several products | [`commerce.sendProductList(to, options)`](#send-several-products-at-once) | The sent message's key |
+| Receive an order | [`client.on('order', …)`](#take-orders) | Items, quantities, and prices |
+| Ask for a delivery address | [`sendAddressRequest(to, options)`](#ask-for-a-delivery-address) | The sent message's key |
+| Read or change the business profile | [`profile.get()`, `profile.update(fields)`](#update-the-business-profile) | The profile fields |
+| Block, unblock, list blocked users | [`blocklist.add()`, `.remove()`, `.list()`](#block-a-user) | `{ wa_id }[]` from `list()` |
+| Create, list, delete QR codes | [`qr.create()`, `.list()`, `.delete()`](#create-a-click-to-chat-qr-code) | The code and its QR image link |
+| Read analytics | [`analytics.conversations()`, `.messages()`](#read-conversation-analytics) **WABA** | Meta's analytics data |
+| Check this number's status | [`info()`](#check-this-numbers-status) | Quality rating, throughput, and more |
+| List every number on the account | [`phoneNumbers()`](#check-this-numbers-status) **WABA** | One entry per number |
+| Register or deregister this number | [`phone.requestCode()`, `.verifyCode()`, `.register()`, `.deregister()`](#register-a-phone-number) | Nothing — resolves when Meta accepts |
+| Manage templates | `templates.list()`, `.get()`, `.create()`, `.delete()` **WABA** | See [Templates](/cloud/templates) |
+
+Sending templates (`client.sendTemplate()`) and read receipts (`client.markRead()`) live on the client itself — see [Templates](/cloud/templates) and [Cloud messaging](/cloud/messaging).
+
+## Before you start
+
+- **`client.cloud` needs `provider: 'cloud'`.** On WhatsApp Web, reading it throws `ZaileysCloudError` with code `CONFIG` and the message `wa.cloud requires provider: 'cloud'`.
+- **Account-level calls need your <Term id="waba" /> ID.** Flows, catalogs, analytics, `phoneNumbers()`, and templates belong to the WhatsApp Business Account, not to one number. Add `wabaId` to the client — you'll find it in the Meta dashboard under **WhatsApp → API Setup**:
+
+  ```ts bot.ts
+  import { Client } from 'zaileys'
+
+  const client = new Client({
+    provider: 'cloud',
+    cloud: {
+      accessToken: process.env.WA_TOKEN!,
+      phoneNumberId: process.env.WA_PHONE_ID!,
+      wabaId: process.env.WA_WABA_ID!,
+      verifyToken: process.env.WA_VERIFY_TOKEN!,
+      appSecret: process.env.WA_APP_SECRET!,
+    },
+  })
+  ```
+
+  Without it, those calls throw `CONFIG`: `this operation needs cloud.wabaId (WhatsApp Business Account id)`.
+- **Everything else acts on this client's number** — the <Term id="phone-number-id" /> you passed. To manage a second number, create a second client with its phone number ID.
+- **Flows, products, and address requests are free-form messages.** Meta only delivers them inside the <Term id="service-window" />. To reach someone outside it, send a [template](/cloud/templates) first.
+- **`to` is a phone number with its country code**, such as `'6281234567890'`. A JID like `6281234567890@s.whatsapp.net` works too — Zaileys drops the part after `@`.
+
+## Send a WhatsApp Flow and read the answers
+
+A Flow is a multi-screen form — a booking, a survey, a sign-up — that opens inside the chat. You design and publish it in WhatsApp Manager; Zaileys sends it and hands you the answers.
+
+```ts
+await client.cloud.flows.send('6281234567890', {
+  flowId: '1234567890123456',
+  cta: 'Book a table',
+  headerText: 'Table booking',
+  bodyText: 'Reserve a table at Warung Sari in under a minute.',
+  footerText: 'We confirm every booking by WhatsApp',
+  screen: 'BOOKING',
+  flowToken: 'booking-2026-09-12-001',
+  data: { branch: 'Kuta' },
+})
+
+client.on('flow-response', async (flow) => {
+  console.log(`${flow.senderName ?? flow.senderId} submitted`, flow.response)
+  await client.send(flow.senderId).text('Thanks! Your booking request is in.')
+})
+```
+
+The customer sees a message with your header, body, and footer, and a **Book a table** button. Tapping it opens the Flow on the `BOOKING` screen, with `data` available to that screen. When they submit the last screen, `flow-response` fires.
+
+<ParamField body="flowId" type="string">
+  The Flow's ID from WhatsApp Manager. Pass `flowId` or `flowName` — with neither, the call throws `CONFIG` (`flows.send needs flowId or flowName`).
+</ParamField>
+<ParamField body="flowName" type="string">
+  The Flow's name, instead of its ID.
+</ParamField>
+<ParamField body="cta" type="string" required>
+  The button label. Meta advises 30 characters or fewer, with no emoji.
+</ParamField>
+<ParamField body="bodyText" type="string" required>
+  The message text above the button.
+</ParamField>
+<ParamField body="screen" type="string" required>
+  The ID of the screen the Flow opens on.
+</ParamField>
+<ParamField body="headerText" type="string">
+  A text header above the body.
+</ParamField>
+<ParamField body="footerText" type="string">
+  Small text under the body.
+</ParamField>
+<ParamField body="flowToken" type="string">
+  Your own ID for this send, such as a booking or session ID. Meta passes it to your Flow.
+</ParamField>
+<ParamField body="data" type="Record<string, unknown>">
+  Values the first screen can show, such as a prefilled name.
+</ParamField>
+<ParamField body="mode" type="'draft' | 'published'">
+  Send `'draft'` to test a Flow you haven't published yet. Meta uses `'published'` when you leave it out.
+</ParamField>
+<ParamField body="action" type="'navigate' | 'data_exchange'" default="'navigate'">
+  `'navigate'` opens `screen` directly. Use `'data_exchange'` for Flows that load their first screen from your own Flow endpoint.
+</ParamField>
+
+The `flow-response` payload:
+
+<ResponseField name="id" type="string">
+  The ID of the reply message.
+</ResponseField>
+<ResponseField name="name" type="string">
+  The reply's name from Meta — `'flow'` when Meta sends none, `'address_message'` for [address requests](#ask-for-a-delivery-address).
+</ResponseField>
+<ResponseField name="response" type="Record<string, unknown>">
+  The answers, parsed from Meta's JSON. Its keys are the field names you set in the Flow. If your Flow's completion payload includes `flow_token`, it's here too. An empty object if Meta's JSON couldn't be parsed.
+</ResponseField>
+<ResponseField name="body" type="string">
+  The summary text WhatsApp shows in the chat, when Meta sends one.
+</ResponseField>
+<ResponseField name="senderId" type="string">
+  The customer's JID, ready for `client.send()`.
+</ResponseField>
+<ResponseField name="senderName" type="string">
+  The customer's WhatsApp profile name, when known.
+</ResponseField>
+<ResponseField name="timestamp" type="number">
+  When they submitted, in Unix seconds.
+</ResponseField>
+
+A Flow submission fires only `flow-response` — not `message` or `text`.
+
+### List your Flows
+
+```ts
+const flows = await client.cloud.flows.list()
+
+for (const flow of flows) {
+  console.log(flow.id, flow.name, flow.status)
+}
+```
+
+Each entry has the Flow's `id`, `name`, and `status` as Meta reports it, such as `DRAFT` or `PUBLISHED`. Needs `wabaId`.
+
+## Send a product from your catalog
+
+Product messages show items from a catalog connected to your WhatsApp Business Account in Meta's Commerce Manager. Find the catalog, pick a product by its retailer ID (your SKU), and send it:
+
+```ts
+const [catalog] = await client.cloud.commerce.catalogs()
+if (!catalog) throw new Error('No catalog is connected to this WhatsApp Business Account')
+
+const products = await client.cloud.commerce.products(catalog.id, 20)
+for (const product of products) {
+  console.log(product.retailer_id, product.name, product.price, product.availability)
+}
+
+await client.cloud.commerce.sendProduct('6281234567890', {
+  catalogId: catalog.id,
+  retailerId: 'LATTE-ICED-400',
+  bodyText: 'Our best seller this week',
+  footerText: 'Prices include tax',
+})
+```
+
+The customer sees a product card with the product's photo, name, and price from your catalog. From there they can add it to a cart and send you an [order](#take-orders).
+
+`catalogs()` needs `wabaId` and returns each catalog's `id` and `name`. `products(catalogId, limit)` returns up to `limit` products (default `50`), each with `id`, `retailer_id`, `name`, and — when set in the catalog — `price` (a string formatted by Meta) and `availability`.
+
+<ParamField body="catalogId" type="string" required>
+  The catalog's ID, from `catalogs()`.
+</ParamField>
+<ParamField body="retailerId" type="string" required>
+  The product's retailer ID (SKU) — `retailer_id` from `products()`. If it doesn't match a product in the catalog, Meta rejects the message.
+</ParamField>
+<ParamField body="bodyText" type="string">
+  Text shown with the product.
+</ParamField>
+<ParamField body="footerText" type="string">
+  Small text under the body.
+</ParamField>
+
+### Send several products at once
+
+A product list groups products into titled sections. Meta shows up to 30 products in one message.
+
+```ts
+await client.cloud.commerce.sendProductList('6281234567890', {
+  catalogId: '987654321098765',
+  headerText: 'Warung Sari menu',
+  bodyText: 'Tap a product to see details, then add it to your cart.',
+  footerText: 'Delivery across Kuta and Seminyak',
+  sections: [
+    { title: 'Coffee', productIds: ['LATTE-ICED-400', 'AMERICANO-HOT'] },
+    { title: 'Pastries', productIds: ['CROISSANT-BUTTER'] },
+  ],
+})
+```
+
+<ParamField body="catalogId" type="string" required>
+  The catalog's ID.
+</ParamField>
+<ParamField body="headerText" type="string" required>
+  The title at the top of the message.
+</ParamField>
+<ParamField body="bodyText" type="string" required>
+  The message text.
+</ParamField>
+<ParamField body="sections" type="Array<{ title: string; productIds: string[] }>" required>
+  Each section's title and the retailer IDs of its products.
+</ParamField>
+<ParamField body="footerText" type="string">
+  Small text under the body.
+</ParamField>
+
+The `.product()` send builder is WhatsApp Web only — on the Cloud API it rejects with `NOT_IMPLEMENTED`. Use these two methods instead.
+
+## Take orders
+
+When a customer sends their cart, the `order` event fires:
+
+```ts
+client.on('order', async (order) => {
+  const total = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
+  const currency = order.items[0]?.currency ?? ''
+  const lines = order.items.map((item) => `${item.quantity}× ${item.productRetailerId}`).join('\n')
+
+  await client.send(order.senderId).text(`Thanks! We got your order:\n${lines}\nTotal: ${total} ${currency}`)
+})
+```
+
+The customer gets a reply such as:
+
+```text
+Thanks! We got your order:
+2× LATTE-ICED-400
+1× CROISSANT-BUTTER
+Total: 89000 IDR
+```
+
+<ResponseField name="id" type="string">
+  The ID of the order message.
+</ResponseField>
+<ResponseField name="catalogId" type="string">
+  The catalog the products come from.
+</ResponseField>
+<ResponseField name="items" type="Array<{ productRetailerId: string; quantity: number; price: number; currency: string }>">
+  One entry per product: its retailer ID, how many, the price of one item, and the currency code.
+</ResponseField>
+<ResponseField name="text" type="string">
+  A note the customer added to the order, if any.
+</ResponseField>
+<ResponseField name="senderId" type="string">
+  The customer's JID.
+</ResponseField>
+<ResponseField name="senderName" type="string">
+  The customer's WhatsApp profile name, when known.
+</ResponseField>
+<ResponseField name="timestamp" type="number">
+  When the order was sent, in Unix seconds.
+</ResponseField>
+
+Orders fire only `order`, not `message`. Orders on WhatsApp Web work differently — see [Business catalog](/data/business).
+
+### Ask for a delivery address
+
+An address request shows a native address form. The customer fills it in and sends it back:
+
+```ts
+await client.cloud.sendAddressRequest('919876543210', {
+  bodyText: 'Where should we deliver your order?',
+  countryIso: 'IN',
+})
+
+client.on('flow-response', async (reply) => {
+  if (reply.name !== 'address_message') return
+  console.log('Delivery address:', reply.response)
+  await client.send(reply.senderId).text('Got it — your order is on its way.')
+})
+```
+
+The filled-in address arrives on the `flow-response` event with `name` set to `'address_message'`, and the address fields in `response`.
+
+<Warning>
+  Meta offers address requests only to businesses in India messaging customers in India, so `countryIso` must be `'IN'`. This is Meta policy and may change — check Meta's [address messages](https://developers.facebook.com/docs/whatsapp/cloud-api/messages/address-messages/) page.
+</Warning>
+
+<ParamField body="bodyText" type="string" required>
+  The message text above the form.
+</ParamField>
+<ParamField body="countryIso" type="string" required>
+  The country's ISO code for the form's address format.
+</ParamField>
+<ParamField body="values" type="Record<string, unknown>">
+  Fields to prefill, using Meta's address field names.
+</ParamField>
+
+## Update the business profile
+
+The business profile is what customers see when they open your business number's info page.
+
+```ts
+const profile = await client.cloud.profile.get()
+console.log(profile.about, profile.websites)
+
+await client.cloud.profile.update({
+  about: 'Open daily 09:00–21:00',
+  description: 'Balinese home cooking and specialty coffee.',
+  address: 'Jl. Sunset Road 88, Kuta, Bali',
+  email: 'hello@warungsari.id',
+  websites: ['https://warungsari.id'],
+  vertical: 'RESTAURANT',
+})
+```
+
+Pass only the fields you want to change. `get()` returns an empty object when no profile is set.
+
+<ParamField body="about" type="string">
+  The short "About" text.
+</ParamField>
+<ParamField body="description" type="string">
+  A longer description of the business.
+</ParamField>
+<ParamField body="address" type="string">
+  The business's street address.
+</ParamField>
+<ParamField body="email" type="string">
+  A contact email address.
+</ParamField>
+<ParamField body="websites" type="string[]">
+  Links to your websites.
+</ParamField>
+<ParamField body="vertical" type="string">
+  The business category, as one of Meta's values, such as `RESTAURANT`, `RETAIL`, `EDU`, or `OTHER`.
+</ParamField>
+
+Zaileys doesn't change the profile photo — set it in WhatsApp Manager.
+
+## Block a user
+
+```ts
+await client.cloud.blocklist.add(['6281234567890'])
+
+const blocked = await client.cloud.blocklist.list()
+console.log(blocked.map((user) => user.wa_id))
+
+await client.cloud.blocklist.remove(['6281234567890'])
+```
+
+A blocked user can't message you or see when you're online, and your sends to them fail.
+
+Pass bare phone numbers, not JIDs — unlike sends, the blocklist doesn't strip `@s.whatsapp.net`. To block whoever sent a message, use `msg.senderId.split('@')[0]`.
+
+`list()` returns the first page of blocked users Meta sends back, each with its `wa_id`.
+
+Meta's rules (Meta policy, may change):
+
+- You can only block users who messaged you in the last 24 hours. Others fail with error `131047`.
+- Up to 1,000 users per request, and 64,000 on the blocklist. Past that, Meta returns error `139101`.
+- You can't block another WhatsApp Business account.
+
+## Create a click-to-chat QR code
+
+A click-to-chat QR code opens a chat with your number, with a message already typed in. Print it on a menu, a receipt, or a poster.
+
+```ts
+const qr = await client.cloud.qr.create("Hi! I'd like to book a table", 'PNG')
+
+console.log(qr.code)
+console.log(qr.qr_image_url)
+
+const { deep_link_url } = qr as typeof qr & { deep_link_url?: string }
+console.log(deep_link_url)
+```
+
+When someone scans the code, WhatsApp opens a chat with your business with `Hi! I'd like to book a table` in the text box.
+
+<ParamField body="prefilledMessage" type="string" required>
+  The message typed in for the customer. Meta allows up to 140 characters.
+</ParamField>
+<ParamField body="imageFormat" type="'PNG' | 'SVG'" default="'PNG'">
+  The format of the QR image Meta generates.
+</ParamField>
+
+<ResponseField name="code" type="string">
+  The code's ID. Use it to delete the code.
+</ResponseField>
+<ResponseField name="prefilled_message" type="string">
+  The message you set.
+</ResponseField>
+<ResponseField name="qr_image_url" type="string">
+  A link to the QR image, when Meta generates one.
+</ResponseField>
+
+Meta's response also carries `deep_link_url`, a link that opens the same chat. Zaileys doesn't declare it in the type, so the example reads it with a cast.
+
+List and delete codes:
+
+```ts
+const codes = await client.cloud.qr.list()
+for (const { code, prefilled_message } of codes) {
+  console.log(code, prefilled_message)
+}
+
+await client.cloud.qr.delete('ABCD1234EFGH')
+```
+
+Zaileys has no call to edit a code — create a new one and delete the old one.
+
+## Read conversation analytics
+
+Both methods take a time range in Unix seconds and need `wabaId`:
+
+```ts
+const end = Math.floor(Date.now() / 1000)
+const start = end - 7 * 24 * 60 * 60
+
+const conversations = await client.cloud.analytics.conversations({ start, end, granularity: 'DAILY' })
+const messages = await client.cloud.analytics.messages({ start, end, granularity: 'DAY' })
+
+console.log(JSON.stringify(messages, null, 2))
+```
+
+- `conversations()` returns Meta's `conversation_analytics` data: conversation counts and costs.
+- `messages()` returns Meta's `analytics` data: how many messages you sent and how many were delivered.
+
+Zaileys returns Meta's data unchanged, typed `unknown` — describe the fields you use with your own type.
+
+<ParamField body="start" type="number" required>
+  The start of the range, in Unix seconds.
+</ParamField>
+<ParamField body="end" type="number" required>
+  The end of the range, in Unix seconds.
+</ParamField>
+<ParamField body="granularity" type="string">
+  How to group the data. `conversations()` takes `'HALF_HOUR'`, `'DAILY'` (default), or `'MONTHLY'`. `messages()` takes `'HALF_HOUR'`, `'DAY'` (default), or `'MONTH'` — Meta spells them differently for each.
+</ParamField>
+
+Meta bills per message since July 2025. For a cost breakdown in that model, Meta's `pricing_analytics` field has the details — Zaileys doesn't wrap it. See [What the Cloud API costs](/cloud/limits#what-the-cloud-api-costs).
+
+## Manage phone numbers
+
+### Check this number's status
+
+```ts
+const me = await client.cloud.info()
+console.log(me.display_phone_number, me.verified_name, me.quality_rating, me.throughput)
+
+const numbers = await client.cloud.phoneNumbers()
+for (const number of numbers) {
+  console.log(number.id, number.display_phone_number, number.quality_rating)
+}
+```
+
+`info()` returns this number's `id`, `display_phone_number`, `verified_name`, `quality_rating`, `throughput`, `code_verification_status`, and `platform_type`. Keep an eye on `quality_rating` — a low rating limits how much you can send ([why](/cloud/limits#error-131048-quality-rating-restrictions)).
+
+`phoneNumbers()` needs `wabaId` and returns every number on the account with its `id`, `display_phone_number`, `verified_name`, and `quality_rating`.
+
+### Register a phone number
+
+<Warning>
+  These calls change the live registration of the client's number. Registering can take a number off the WhatsApp Business app, and deregistering stops it from working with the Cloud API. Try them on a test number first.
+</Warning>
+
+Verify that you own the number, then register it for the Cloud API:
+
+<Steps>
+  <Step title="Request a verification code">
+
+    ```ts
+    await client.cloud.phone.requestCode('SMS', 'en_US')
+    ```
+
+    Meta sends a code to the number by SMS, or by phone call with `'VOICE'`. The second argument is the language of the message and defaults to `'en_US'`.
+
+  </Step>
+  <Step title="Submit the code">
+
+    ```ts
+    await client.cloud.phone.verifyCode('123456')
+    ```
+
+  </Step>
+  <Step title="Register the number">
+
+    ```ts
+    await client.cloud.phone.register('482913')
+    ```
+
+    The PIN is the number's 6-digit two-step verification PIN. If two-step verification isn't on yet, the PIN you pass becomes it. Meta allows 10 registration attempts per number in 72 hours (error `133016` after that).
+
+  </Step>
+</Steps>
+
+To take the number off the Cloud API, call `deregister()`. It stays unusable until you register it again, but the number and its message history aren't deleted:
+
+```ts
+await client.cloud.phone.deregister()
+```
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Which calls need wabaId?">
+    `flows.list()`, `commerce.catalogs()`, `analytics.*`, `phoneNumbers()`, and the template calls. `templates.get()` needs it only when you look up a template by name, not by numeric ID. Everything else works with just the phone number ID.
+  </Accordion>
+  <Accordion title="My Flow, product, or address request never arrives">
+    Check three things. The customer must have messaged you in the last 24 hours — outside that window, send a [template](/cloud/templates) first. For products, the catalog must be connected to your WhatsApp Business Account and the retailer ID must match a product. Address requests only work for India. Listen for [`message-status`](/cloud/events) to see Meta's error code.
+  </Accordion>
+  <Accordion title="Can I use client.cloud on WhatsApp Web?">
+    No. It throws `CONFIG`. WhatsApp Web has its own catalog and product features on `client.business` — see [Business catalog](/data/business).
+  </Accordion>
+  <Accordion title="Do flow-response and order also fire the message event?">
+    No. Zaileys routes Flow submissions, address replies, and orders to their own events, so your `message` and `text` handlers never see them.
+  </Accordion>
+  <Accordion title="How do I match a Flow answer to the Flow I sent?">
+    Use `flow.senderId` to find the customer. For more than one open Flow per customer, pass a `flowToken` and include it in your Flow's completion payload, so it comes back in `flow.response`.
+  </Accordion>
+</AccordionGroup>
+
+## When a call fails
+
+`client.cloud` methods throw a `ZaileysCloudError` directly — they don't go through the send builder, so there's no `SEND_FAILED` wrapper.
+
+| Code | What went wrong | How to fix it |
+| --- | --- | --- |
+| `CONFIG` | `client.cloud` was used on WhatsApp Web, `wabaId` is missing, or `flows.send()` got neither `flowId` nor `flowName`. | Create the client with `provider: 'cloud'`, add `wabaId`, or pass a Flow ID. |
+| `AUTH` | Meta rejected the access token (HTTP 401 or 403). | Check the token and its permissions — see [Error 190](/cloud/limits#error-190-the-access-token-expired). |
+| `RATE_LIMITED` | Meta answered HTTP 429 three times in a row. | Slow down — see [Limits](/cloud/limits#error-130429-too-many-messages-per-second). |
+| `REQUEST_FAILED` | Meta refused the request, the network failed, or Meta returned no message ID. | Read the Meta code in the message, such as `(code 131047)`, and look it up in [Limits](/cloud/limits). |
+
+```ts
+import { ZaileysCloudError } from 'zaileys'
+
+try {
+  await client.cloud.blocklist.add(['6281234567890'])
+} catch (error) {
+  if (error instanceof ZaileysCloudError) {
+    console.error(error.code, error.message)
+  }
+}
+```
+
+More in [Error handling](/data/error-handling).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Templates" icon="file-text" href="/cloud/templates">
+    Reach customers outside the 24-hour window.
+  </Card>
+  <Card title="Cloud events" icon="bell" href="/cloud/events">
+    Delivery status, template reviews, Flow answers, and orders.
+  </Card>
+  <Card title="Limits & pricing" icon="gauge" href="/cloud/limits">
+    Every limit you can hit, and how to fix it.
+  </Card>
+  <Card title="Business catalog (WhatsApp Web)" icon="store" href="/data/business">
+    Catalogs and products on the Unofficial provider.
+  </Card>
+</CardGroup>

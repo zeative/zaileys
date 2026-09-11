@@ -1,9 +1,389 @@
 ---
 title: "Limits & pricing"
-description: "Rate limits, messaging tiers, and pricing on the Cloud API."
+description: "Every Cloud API limit you can hit — the 24-hour window, templates, messaging limits, throughput, media, buttons — with the fix for each, and how pricing works."
 icon: "gauge"
+keywords: ["131047", "131056", "130429", "132000", "132001", "131048", "131049", "131009", "190", "RATE_LIMITED", "24 hour window", "messaging limits", "quality rating", "throughput", "rate limit", "media size", "reply buttons", "test number", "pricing", "cost"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/official/limits](https://zeative.github.io/zaileys/official/limits).
-</Note>
+import { Term } from "/snippets/glossary.jsx"
+
+This page lists every limit you can run into on the Cloud API — what you see, why it happens, and how to fix it.
+
+Each limit is marked with where it comes from:
+
+- **Meta policy** — Meta sets it and can change it. The section links Meta's page for the current rule.
+- **Enforced by Zaileys** — Zaileys checks it in code, before or while sending.
+
+## At a glance
+
+| You see | Go to | Source |
+| --- | --- | --- |
+| Error `131047` | [The 24-hour window is closed](#error-131047-the-24-hour-window-is-closed) | Meta policy |
+| Error `132000` or `132001` | [The template won't send](#error-132000-or-132001-the-template-wont-send) | Meta policy |
+| Error `131048` or `131049` | [Messaging limits](#messaging-limits-too-many-new-conversations) | Meta policy |
+| `RATE_LIMITED`, error `130429` | [Too many messages per second](#error-130429-too-many-messages-per-second) | Meta policy, retried by Zaileys |
+| Error `131056` | [Too many messages to one person](#error-131056-too-many-messages-to-one-person) | Meta policy |
+| `AUTH`, error `190` | [The access token expired](#error-190-the-access-token-expired) | Meta policy |
+| Error `131053`, a file that won't send | [Media size and format](#media-rejected-file-size-and-format) | Meta policy |
+| A button or list send rejects | [Buttons, lists, and headers](#buttons-or-lists-rejected) | Both |
+| `UNSUPPORTED_ON_CLOUD`, `NOT_IMPLEMENTED` | [Features the Cloud API doesn't have](#a-feature-isnt-available-on-the-cloud-api) | Enforced by Zaileys |
+| Test messages don't arrive | [Test number recipients](#test-number-messages-only-reach-5-recipients) | Meta policy |
+| Error `133010` | [The number isn't registered](#error-133010-the-number-isnt-registered) | Meta policy |
+| Duplicate webhook deliveries, `invalid signature` | [Webhook](#webhook-deliveries-repeat-or-fail-the-signature-check) | Both |
+
+## How Zaileys reports Meta's errors
+
+**Enforced by Zaileys.** Every request to Meta goes through one client that reacts to Meta's HTTP answer like this:
+
+| Meta answers | What Zaileys does | Error you catch |
+| --- | --- | --- |
+| HTTP 401 or 403 | Stops at once | `ZaileysCloudError`, code `AUTH` |
+| HTTP 429 | Retries twice, after 0.5 s and then 1 s | `RATE_LIMITED` if the third try fails too |
+| HTTP 500 or higher | Retries the same way | `REQUEST_FAILED` if the third try fails too |
+| Any other error, such as HTTP 400 | Stops at once | `REQUEST_FAILED` |
+| No answer (network error) | Stops at once | `REQUEST_FAILED`, with the network error on `cause` |
+
+Meta's own error code is in the message, for example `graph request failed: <Meta's message> (code 131047)`.
+
+Where the error shows up depends on the call:
+
+- **`client.send(…)`** rejects with a `ZaileysBuilderError` (code `SEND_FAILED`). The `ZaileysCloudError` is on `error.cause`.
+- **`client.sendTemplate()`, `client.markRead()`, and `client.cloud.*`** throw the `ZaileysCloudError` directly.
+- **After Meta accepted the message**, a delivery can still fail. Then the <Term id="webhook" /> sends a `message-status` event with `status: 'failed'` and Meta's code on `error.code`.
+
+This helper reads Meta's code from either kind of thrown error:
+
+```ts
+import { ZaileysBuilderError, ZaileysCloudError } from 'zaileys'
+
+export function metaErrorCode(error: unknown): number | undefined {
+  const cloudError = error instanceof ZaileysBuilderError ? error.cause : error
+  if (!(cloudError instanceof ZaileysCloudError)) return undefined
+  const match = /\(code (\d+)/.exec(cloudError.message)
+  return match ? Number(match[1]) : undefined
+}
+```
+
+## Error 131047: the 24-hour window is closed
+
+A text, media, or button message to a customer fails with error `131047` — either when you send it, or later as a failed `message-status`.
+
+**Why.** **Meta policy.** You can send free-form messages only within 24 hours of the customer's last message to you — the <Term id="service-window" />. Once it closes, or if they never messaged you, only approved templates get through.
+
+**Fix.** Send a [template](/cloud/templates). When the customer replies, the window opens again and free-form messages work.
+
+```ts
+import { ZaileysBuilderError, ZaileysCloudError } from 'zaileys'
+
+const customer = '6281234567890'
+
+try {
+  await client.send(customer).text('Your order #1042 has shipped.')
+} catch (error) {
+  const cause = error instanceof ZaileysBuilderError ? error.cause : error
+  if (cause instanceof ZaileysCloudError && cause.message.includes('(code 131047')) {
+    await client.sendTemplate(customer, 'order_shipped', 'en_US', [
+      { type: 'body', parameters: [{ type: 'text', text: '#1042' }] },
+    ])
+  } else {
+    throw error
+  }
+}
+```
+
+Catch the failures Meta reports after the send, too:
+
+```ts
+client.on('message-status', (status) => {
+  if (status.status === 'failed' && status.error?.code === 131047) {
+    console.warn(`Not delivered to ${status.recipientId}: the 24-hour window is closed`)
+  }
+})
+```
+
+## Error 132000 or 132001: the template won't send
+
+`client.sendTemplate()` throws `REQUEST_FAILED` with `(code 132000)` or `(code 132001)`.
+
+**Why.** **Meta policy.** Meta reviews every template before you can use it.
+
+- `132001` — the template doesn't exist in the language you asked for, or isn't approved yet.
+- `132000` — you passed a different number of parameters than the template has placeholders (`{{1}}`, `{{2}}`, …).
+
+**Fix.** Look the template up, then send exactly its language code and one parameter per placeholder:
+
+```ts
+const template = await client.cloud.templates.get('order_shipped')
+
+console.log(template?.status, template?.language)
+console.log(JSON.stringify(template?.components, null, 2))
+```
+
+Looking a template up by name needs `wabaId`. To hear when Meta approves or rejects one, listen for `template-status`:
+
+```ts
+client.on('template-status', (update) => {
+  console.log(update.name, update.event, update.reason ?? '')
+})
+```
+
+More in [Templates](/cloud/templates).
+
+## Messaging limits: too many new conversations
+
+Template sends start failing once you've contacted many new people in a day.
+
+**Why.** **Meta policy.** A messaging limit caps how many different people you can message **outside** the service window in a moving 24-hour period. Replies inside the window don't count. Meta sets the limit for your whole business portfolio, and all its numbers share it.
+
+The limit steps up from 250 to 2,000, 10,000, 100,000, and then unlimited. You reach 2,000 by verifying your business, or by delivering templates with a high quality rating to 2,000 different people outside the window within 30 days. Above that, Meta raises the limit on its own when you use most of it and keep quality high.
+
+**Fix.** Start fewer new conversations per day, keep your templates relevant so their quality stays high, and verify your business. Meta's [messaging limits](https://developers.facebook.com/docs/whatsapp/messaging-limits/) page has the current rules.
+
+### Error 131048: quality rating restrictions
+
+Meta limits how many messages this number can send, because its quality rating dropped. Check the rating:
+
+```ts
+const me = await client.cloud.info()
+console.log(me.quality_rating)
+```
+
+The rating is Meta's summary of how customers react to you — such as `GREEN`, `YELLOW`, or `RED`. Blocks and reports lower it. Message only people who opted in, stop when they ask you to, and keep marketing relevant.
+
+### Error 131049: marketing message not delivered
+
+Meta held back a marketing template "to maintain healthy ecosystem engagement" — it caps how many marketing messages one person receives. Don't resend right away. Space out marketing to the same person, and use utility templates for transactional updates.
+
+## Error 130429: too many messages per second
+
+Sends throw `ZaileysCloudError` with code `RATE_LIMITED`.
+
+**Why.** **Meta policy.** A business number can send up to 80 messages per second by default, and Meta offers capacity upgrades. Meta also caps how many API calls your app (error `4`) and your business account (error `80007`) can make.
+
+**Enforced by Zaileys.** Meta answers these with HTTP 429, so Zaileys retries twice — after 0.5 s and 1 s — and throws `RATE_LIMITED` only if all three tries fail. Zaileys doesn't queue or pace your sends, and `client.broadcast()` doesn't run on the Cloud API.
+
+**Fix.** Pace bulk sends yourself:
+
+```ts
+import { setTimeout as sleep } from 'node:timers/promises'
+import { ZaileysCloudError } from 'zaileys'
+
+const customers = ['6281234567890', '6281298765432', '6285712345678']
+
+for (const to of customers) {
+  try {
+    await client.sendTemplate(to, 'weekly_menu', 'id')
+  } catch (error) {
+    if (error instanceof ZaileysCloudError && error.code === 'RATE_LIMITED') {
+      await sleep(5_000)
+      continue
+    }
+    throw error
+  }
+  await sleep(100)
+}
+```
+
+Waiting 100 ms between sends keeps you near 10 messages per second, well under the default limit. Meta's [throughput](https://developers.facebook.com/docs/whatsapp/cloud-api/overview/) page explains upgrades.
+
+## Error 131056: too many messages to one person
+
+Several quick messages to the same customer fail with `131056`, usually as `RATE_LIMITED`.
+
+**Why.** **Meta policy.** A business number can send one message every 6 seconds to the same person — about 10 per minute. Short bursts of up to 45 messages are allowed, but they use up the quota for the time after.
+
+**Enforced by Zaileys.** This is also an HTTP 429, so Zaileys retries after 0.5 s and 1 s. Both retries fall inside the 6 seconds, so a burst usually still ends in `RATE_LIMITED`.
+
+**Fix.** Put related text into one message instead of several, and leave at least 6 seconds between messages to the same person:
+
+```ts
+const lines = ['Order #1042 confirmed', 'Total: Rp150.000', 'Delivery: today, 18:00–19:00']
+
+await client.send('6281234567890').text(lines.join('\n'))
+```
+
+## Error 190: the access token expired
+
+`connect()` fails with `AUTH` (`cloud auth rejected (401) — check accessToken/phoneNumberId`), or any call throws `AUTH` with `(code 190)`.
+
+**Why.** **Meta policy.** The temporary token on Meta's **API Setup** page expires quickly. It's meant for a first test, not a running bot.
+
+**Enforced by Zaileys.** A rejected token (HTTP 401 or 403) is never retried — waiting doesn't fix it.
+
+**Fix.** Create a system user token in Meta Business Settings with the `whatsapp_business_messaging` and `whatsapp_business_management` permissions, and use it as `accessToken`. Keep it secret — anyone with the token can send as your business. [Cloud setup](/cloud/setup) walks through it.
+
+## Media rejected: file size and format
+
+A media send fails with `131053` (media upload failed), or Meta refuses the file.
+
+**Why.** **Meta policy.** Each kind of media has its own formats and size limit:
+
+| Kind | Formats | Largest file |
+| --- | --- | --- |
+| Image | JPEG, PNG | 5 MB |
+| Video | MP4, 3GPP | 16 MB |
+| Audio | AAC, AMR, MP3, MP4 audio, OGG | 16 MB |
+| Document | PDF, text, Word, Excel, PowerPoint | 100 MB |
+| Sticker | WebP | 100 KB, or 500 KB animated |
+
+**Enforced by Zaileys.**
+
+- Zaileys uploads the file's bytes to Meta. A URL source is downloaded by your bot first, so it only has to be reachable from your server — within 30 seconds.
+- Zaileys doesn't check file size before uploading. Meta decides.
+- Captions are dropped from audio and stickers. `fileName` is sent only for documents.
+- Albums, view once, GIF playback, and round video notes don't carry over — see [Send media](/messaging/media#differences-on-the-cloud-api).
+
+**Fix.** Compress or resize the file, convert it to a listed format, or send a large file as a document. Meta's [media reference](https://developers.facebook.com/docs/whatsapp/cloud-api/reference/media/) has the current list.
+
+## Buttons or lists rejected
+
+A `buttons()` or `list()` send rejects before anything reaches the customer, or Meta refuses it.
+
+**Enforced by Zaileys.** These are checked before the message leaves your bot:
+
+| What you sent | Error | Message |
+| --- | --- | --- |
+| More than 3 reply buttons | `SEND_FAILED`, cause `NOT_IMPLEMENTED` | `cloud interactive buttons allow at most 3 reply buttons (got 4)` |
+| A photo or video header | `SEND_FAILED`, cause `NOT_IMPLEMENTED` | `interactive media headers are not supported on the cloud provider yet` |
+| Copy-code or call buttons, a URL button next to other buttons, mixed button types, or a carousel | `SEND_FAILED`, cause `NOT_IMPLEMENTED` | `this interactive layout is not supported on the cloud provider yet` |
+| More than 10 buttons (either provider) | `INVALID_OPTIONS` | `buttons() accepts at most 10 buttons` |
+| More than 10 list rows in total (either provider) | `INVALID_OPTIONS` | `list() accepts at most 10 rows total` |
+
+**Meta policy.** Zaileys doesn't check these — Meta rejects the message:
+
+| Part | Limit |
+| --- | --- |
+| Reply button title | 20 characters |
+| Reply button ID | 256 characters |
+| Body text | 1,024 characters with buttons, 4,096 with a list |
+| Header and footer text | 60 characters |
+| List sections | 10 |
+| List button text | 20 characters |
+| List section title and row title | 24 characters |
+| List row description | 72 characters |
+| List row ID | 200 characters |
+
+See Meta's [reply buttons](https://developers.facebook.com/docs/whatsapp/cloud-api/messages/interactive-reply-buttons-messages/) and [list messages](https://developers.facebook.com/docs/whatsapp/cloud-api/messages/interactive-list-messages/) pages for the current limits.
+
+**Fix.** For more than 3 choices, send a list:
+
+```ts
+await client.send('6281234567890').list({
+  title: 'Warung Sari',
+  description: 'What would you like to order?',
+  buttonText: 'See menu',
+  footerText: 'Kitchen open until 21:00',
+  sections: [
+    {
+      title: 'Mains',
+      rows: [
+        { id: 'nasi-campur', title: 'Nasi campur', description: 'Rp45.000' },
+        { id: 'mie-goreng', title: 'Mie goreng', description: 'Rp38.000' },
+      ],
+    },
+    {
+      title: 'Drinks',
+      rows: [
+        { id: 'es-teh', title: 'Es teh', description: 'Rp10.000' },
+        { id: 'iced-latte', title: 'Iced latte', description: 'Rp32.000' },
+      ],
+    },
+  ],
+})
+```
+
+Taps arrive on the same `list-select` and `button-click` events as on WhatsApp Web — see [Buttons & lists](/messaging/interactive).
+
+## Error 131009: a parameter is invalid
+
+Meta rejects a message because a value is missing or has the wrong format.
+
+**Why.** **Meta policy.** Meta validates every field. A common case is a contact card: Meta needs a formatted name plus a first or last name.
+
+**Enforced by Zaileys.** For contact cards, Zaileys fills in the first and last name from the vCard's `FN` line when there's no `N` line, so Meta accepts them. A vCard with neither a name nor a phone number is skipped.
+
+**Fix.** Read Meta's message for the field it names. For contacts, give each vCard an `FN` and a `TEL` line.
+
+## A feature isn't available on the Cloud API
+
+A call throws `UNSUPPORTED_ON_CLOUD`, or a send rejects with `NOT_IMPLEMENTED`.
+
+**Why.** The Cloud API has no groups, channels, communities, status, polls, carousels, albums, editing, deleting, pinning, presence, or calls, and no rich responses. Zaileys fails straight away instead of sending something that never arrives:
+
+- WhatsApp Web–only modules and methods — `client.group`, `edit()`, `delete()`, and others — throw `ZaileysProviderError` with code `UNSUPPORTED_ON_CLOUD`.
+- Message types the Cloud API can't carry reject with `NOT_IMPLEMENTED` — from `client.send()` as `SEND_FAILED` with `error.cause.code === 'NOT_IMPLEMENTED'`.
+- Commands, middleware, plugins, `broadcast()`, `scheduleAt()`, `forward()`, and auto-delete need the WhatsApp Web connection, so they don't run on the Cloud API.
+
+**Fix.** Check the [feature matrix](/feature-matrix) before you build. Text formatting such as `*bold*` and `_italic_` works on both providers, so send plain text where you'd use a rich response.
+
+## Test number: messages only reach 5 recipients
+
+Messages from Meta's test number never arrive on your phone.
+
+**Why.** **Meta policy.** The test number Meta gives you delivers only to recipients you've added and verified — up to 5 of them. Real numbers you register have no such list.
+
+**Fix.** In the Meta dashboard, open **WhatsApp → API Setup**, choose **Manage phone number list** under the **To** field, and add your phone. WhatsApp sends it a confirmation code to enter.
+
+## Error 133010: the number isn't registered
+
+Every send fails with `133010`.
+
+**Why.** **Meta policy.** A number must be registered for the Cloud API before it can send. A number registered directly for the Cloud API also stops working in the WhatsApp Business app — unless the business connects it through Meta's Embedded Signup "coexistence" flow, which keeps both working but fixes throughput at 20 messages per second.
+
+**Fix.** Register the number with `client.cloud.phone.register(pin)` — see [Register a phone number](/cloud/business#register-a-phone-number). Meta allows 10 registration attempts per number in 72 hours.
+
+## Webhook deliveries repeat or fail the signature check
+
+The same message arrives twice, or every webhook call answers `invalid signature`.
+
+**Why.** **Meta policy.** Meta resends a webhook delivery when your server doesn't answer with HTTP 200.
+
+**Enforced by Zaileys.** `client.webhook()` answers 200 as soon as the payload is valid — before your handlers finish — so a slow handler doesn't cause a resend. With `appSecret` set, it checks Meta's signature against the raw request body and answers `401 invalid signature` when it doesn't match.
+
+**Fix.** Make handlers safe to run twice: skip message IDs you've already handled. If signatures fail, pass the raw, unparsed body to the handler — a JSON body parser that runs first changes the body. [Webhook](/cloud/webhook) shows the setup for Express, Hono, and Next.js.
+
+## What the Cloud API costs
+
+**Meta policy.** Meta charges for the Cloud API, and its prices and rules change over time. Zaileys adds no charges of its own.
+
+Since July 1, 2025, Meta charges **per delivered template message**:
+
+- **Free:** non-template messages — text, media, buttons, Flows — sent inside an open 24-hour window, and utility templates inside that window.
+- **Charged:** marketing templates always, and utility and authentication templates outside the 24-hour window.
+- **Free entry point windows:** in some cases Meta opens a 72-hour window in which every message is free, templates included.
+
+Rates depend on the template category and the recipient's country. Check Meta's [pricing page](https://developers.facebook.com/docs/whatsapp/pricing/) for current rates before you plan a campaign. To see what you've sent, use [`client.cloud.analytics`](/cloud/business#read-conversation-analytics).
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Does Zaileys throttle my Cloud API sends?">
+    No. It retries a request twice when Meta answers HTTP 429 or a server error, and that's all. For bulk sends, pace them yourself as in [Too many messages per second](#error-130429-too-many-messages-per-second).
+  </Accordion>
+  <Accordion title="The send succeeded, but the customer never got the message">
+    Meta accepted it, then failed to deliver it. Listen for `message-status` with `status: 'failed'` — `error.code` tells you why, for example `131047` (window closed) or `131049` (marketing cap). See [Cloud events](/cloud/events).
+  </Accordion>
+  <Accordion title="Can I raise the 80 messages per second limit?">
+    Meta offers capacity upgrades for business numbers. See Meta's [throughput](https://developers.facebook.com/docs/whatsapp/cloud-api/overview/) page for who qualifies.
+  </Accordion>
+  <Accordion title="Do these limits apply on WhatsApp Web?">
+    No. WhatsApp Web has no 24-hour window, templates, or messaging tiers — its main risk is a ban for bot-like behavior. See [Avoid bans](/whatsapp-web#avoid-bans).
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Templates" icon="file-text" href="/cloud/templates">
+    Reach customers outside the 24-hour window.
+  </Card>
+  <Card title="Cloud events" icon="bell" href="/cloud/events">
+    Catch failed deliveries with `message-status`.
+  </Card>
+  <Card title="Business & commerce" icon="shopping-bag" href="/cloud/business">
+    Flows, products, analytics, and phone numbers.
+  </Card>
+  <Card title="Error handling" icon="triangle-alert" href="/data/error-handling">
+    Every Zaileys error class and code.
+  </Card>
+</CardGroup>

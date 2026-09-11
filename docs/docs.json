@@ -209,5 +209,12 @@
   },
   "contextual": {
     "options": ["copy", "view", "chatgpt", "claude", "perplexity", "cursor", "vscode"]
+  },
+  "errors": {
+    "404": {
+      "redirect": false,
+      "title": "Page not found",
+      "description": "This page doesn't exist, or it moved when the docs were rebuilt. Search with ⌘K, or start from the [Introduction](/), the [Quickstart](/quickstart), or [Troubleshooting](/reference/troubleshooting)."
+    }
   }
 }

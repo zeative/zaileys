@@ -42,15 +42,17 @@ await client.send(jid).image(await readFile('./photos/cat.jpg')) // bytes alread
 - **Paths** are relative to the folder you started the bot from, not to the file the code is in.
 - **You never pass a file type.** Zaileys reads it from the file's contents.
 
-`jid` is the chat you're sending to. Inside a handler, use `msg.chatId` to answer in the same chat:
+`jid` is the chat you're sending to. Inside a handler, answer in the chat the message came from with `msg.roomId` — the group for group messages, the other person for private chats:
 
 ```ts
 client.on('text', async (msg) => {
   if (msg.text === 'menu') {
-    await client.send(msg.chatId).image('./menu.jpg', { caption: "Today's menu 🍜" })
+    await client.send(msg.roomId ?? msg.senderId).image('./menu.jpg', { caption: "Today's menu 🍜" })
   }
 })
 ```
+
+`roomId` is typed `string | null`, so `?? msg.senderId` keeps TypeScript happy. Don't use `msg.chatId` here — despite its name, it's the ID of the message, not the chat.
 
 Not sure what a chat address looks like? See [Addresses & JIDs](/concepts/jids).
 
@@ -207,7 +209,10 @@ Media accepts the same extras as text. This answers a message with a chart, quot
 ```ts
 client.on('text', async (msg) => {
   if (msg.text === 'sales') {
-    await client.send(msg.chatId).image('./chart.png', { caption: 'Sales this week 📈' }).reply(msg.message())
+    await client
+      .send(msg.roomId ?? msg.senderId)
+      .image('./chart.png', { caption: 'Sales this week 📈' })
+      .reply(msg.message())
   }
 })
 ```

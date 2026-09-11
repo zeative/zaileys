@@ -1,9 +1,296 @@
 ---
 title: "Communities"
-description: "Create and manage WhatsApp Communities."
+description: "Create WhatsApp Communities, add new or existing groups to them, and manage their invite links and settings."
 icon: "network"
+keywords: ["community", "whatsapp community", "create community", "sub group", "link group", "unlink group", "community groups", "community invite", "community settings", "leave community"]
 ---
 
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+`client.community` creates WhatsApp Communities, puts groups inside them, and manages their links and settings.
+
+<ProviderSupport web={true} cloud={false} note="The Cloud API has no communities." />
+
+<Accordion title="What is a community?">
+  A community is a parent that holds several related groups — say, one community for a school with a group per class. Members see all its groups in one place, and the community has its own announcement group for messages to everyone.
+
+  A community has an ID that ends in `@g.us`, just like a group. When you read a community's or group's details, these fields tell them apart:
+
+  - `isCommunity` is `true` on the community itself.
+  - `linkedParent` is the community's ID on each group inside it.
+  - `isCommunityAnnounce` is `true` on the community's announcement group.
+</Accordion>
+
+## Quick reference
+
+| To | Call | What happens |
+| --- | --- | --- |
+| Create a community | [`create(name, description)`](#create-a-community) | A new community with the bot as admin |
+| Create a group inside it | [`createGroup(name, members, communityId)`](#create-a-group-inside-a-community) | A new group, already linked |
+| Add an existing group | [`linkGroup(communityId, groupId)`](#add-an-existing-group) | The group joins the community |
+| Remove a group | [`unlinkGroup(communityId, groupId)`](#remove-a-group-from-a-community) | The group becomes standalone again |
+| List its groups | [`subGroups(communityId)`](#list-a-communitys-groups) | Name, ID, and size of each group |
+| Read its details | [`metadata(communityId)`](#read-a-communitys-details) | Name, description, members, and settings |
+| List the bot's communities | [`list()`](#read-a-communitys-details) | Details of every community the bot is in |
+| Rename it | [`updateSubject(communityId, name)`](#rename-it-or-change-the-description) | Members see the new name |
+| Change the description | [`updateDescription(communityId, text)`](#rename-it-or-change-the-description) | Members see the new description |
+| Get or reset the invite link | [`inviteCode()`, `revokeInvite()`](#share-an-invite-link) | The code at the end of the link |
+| Preview or join by link | [`inviteInfo(code)`, `acceptInvite(code)`](#join-a-community-from-a-link) | Details without joining, or the bot joins |
+| Change settings | [`setting()`, `memberAddMode()`, `joinApproval()`, `toggleEphemeral()`](#change-community-settings) | Who can post, who can add, approval, timer |
+| Leave it | [`leave(communityId)`](#leave-a-community) | The bot is no longer a member |
+
+Every call needs a connected client — before the `connect` event, it throws `ZaileysDomainError` with code `NOT_CONNECTED`.
+
+## Create a community
+
+```ts
+const community = await client.community.create(
+  'Bandung Outdoor Club',
+  'Hiking, cycling, and climbing groups in Bandung.',
+)
+
+console.log(community.id) // 120363055512345678@g.us
+```
+
+<ParamField body="subject" type="string" required>
+  The community name.
+</ParamField>
+<ParamField body="body" type="string" required>
+  The community description. Pass `''` for none.
+</ParamField>
+
+It resolves to the new community's details, the same shape as [`metadata()`](#read-a-communitys-details).
+
 <Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/community](https://zeative.github.io/zaileys/community).
+  Creating communities quickly gets numbers restricted, so Zaileys spaces `create()` and `createGroup()` at least 120 seconds apart — together. [Why some calls take longer](/groups/groups#why-some-calls-take-longer)
 </Note>
+
+## Create a group inside a community
+
+`createGroup()` creates a new group and links it to the community in one step:
+
+```ts
+const communityId = '120363055512345678@g.us'
+
+const hiking = await client.community.createGroup(
+  'Hiking',
+  ['6281234567890@s.whatsapp.net', '6289876543210@s.whatsapp.net'],
+  communityId,
+)
+
+console.log(hiking.id) // 120363041234567890@g.us
+```
+
+<ParamField body="subject" type="string" required>
+  The new group's name.
+</ParamField>
+<ParamField body="participants" type="string[]" required>
+  People to add to the group, as <Term id="jid" />s like `6281234567890@s.whatsapp.net`.
+</ParamField>
+<ParamField body="communityId" type="string" required>
+  The community to put the group in.
+</ParamField>
+
+It resolves to the group's details. The group is a normal group: manage it with [`client.group`](/groups/groups) and [members](/groups/members) calls.
+
+## Add an existing group
+
+```ts
+await client.community.linkGroup('120363055512345678@g.us', '120363041234567890@g.us')
+```
+
+The group keeps its members and messages, and shows up in the community. The bot needs admin rights in both the community and the group.
+
+<Warning>
+  Argument order is **community first, then group** — the same for `linkGroup()` and `unlinkGroup()`.
+</Warning>
+
+## Remove a group from a community
+
+```ts
+await client.community.unlinkGroup('120363055512345678@g.us', '120363041234567890@g.us')
+```
+
+The group isn't deleted — it carries on as a standalone group with the same members.
+
+## List a community's groups
+
+```ts
+const groups = await client.community.subGroups('120363055512345678@g.us')
+
+for (const group of groups) {
+  console.log(`${group.subject}: ${group.size ?? '?'} members`)
+}
+```
+
+You can pass the ID of any group inside the community instead — Zaileys looks up its community first. Each entry has:
+
+<ResponseField name="id" type="string | undefined">
+  The group's ID.
+</ResponseField>
+<ResponseField name="subject" type="string">
+  The group's name.
+</ResponseField>
+<ResponseField name="size" type="number | undefined">
+  Member count.
+</ResponseField>
+<ResponseField name="owner" type="string | undefined">
+  JID of the group's creator.
+</ResponseField>
+<ResponseField name="creation" type="number | undefined">
+  When the group was created, in Unix seconds.
+</ResponseField>
+
+## Read a community's details
+
+```ts
+const info = await client.community.metadata('120363055512345678@g.us')
+console.log(`${info.subject}: ${info.participants.length} members`)
+
+const communities = await client.community.list()
+console.log(`The bot is in ${communities.length} communities`)
+```
+
+Both resolve to the same fields as a group's [`metadata()`](/groups/groups#read-a-groups-details), with `isCommunity` set on communities.
+
+## Rename it or change the description
+
+```ts
+const communityId = '120363055512345678@g.us'
+
+await client.community.updateSubject(communityId, 'Bandung Outdoor Club 2026')
+await client.community.updateDescription(communityId, 'Weekly trips. New members welcome.')
+await client.community.updateDescription(communityId) // clears the description
+```
+
+## Share an invite link
+
+A community has its own invite link, separate from its groups' links:
+
+```ts
+const communityId = '120363055512345678@g.us'
+
+const code = await client.community.inviteCode(communityId)
+if (code) console.log(`https://chat.whatsapp.com/${code}`)
+
+const newCode = await client.community.revokeInvite(communityId) // the old link stops working
+```
+
+Unlike their [group versions](/groups/invites), these don't throw when WhatsApp returns no code — they resolve to `undefined`, so check the result. Both need admin rights.
+
+## Join a community from a link
+
+```ts
+const code = 'Hq7rT2mNp45XyZaBcDeFgH'
+
+const info = await client.community.inviteInfo(code) // preview, without joining
+console.log(info.subject)
+
+const communityId = await client.community.acceptInvite(code) // the ID, or undefined
+```
+
+`acceptInvite()` resolves to `undefined` if WhatsApp returns no ID. Zaileys spaces `acceptInvite()` calls at least 30 seconds apart ([why](/groups/groups#why-some-calls-take-longer)).
+
+## Change community settings
+
+```ts
+const communityId = '120363055512345678@g.us'
+
+await client.community.setting(communityId, 'announcement') // only admins can post
+await client.community.memberAddMode(communityId, true)     // only admins can add people
+await client.community.joinApproval(communityId, true)      // admins approve people who join by link
+await client.community.toggleEphemeral(communityId, 86400)  // messages disappear after 24 hours
+```
+
+| Call | Values | Effect |
+| --- | --- | --- |
+| `setting(communityId, value)` | `'announcement'` or `'not_announcement'` | Only admins can post, or everyone can. Communities have no `'locked'` setting. |
+| `memberAddMode(communityId, adminsOnly)` | `true` or `false` | `true` lets only admins add people. |
+| `joinApproval(communityId, enabled)` | `true` or `false` | `true` makes people who follow the link wait for approval. |
+| `toggleEphemeral(communityId, seconds)` | seconds, or `0` | Disappearing-messages timer. `0` turns it off. |
+
+All four need admin rights.
+
+## Leave a community
+
+```ts
+await client.community.leave('120363055512345678@g.us')
+```
+
+## A complete example
+
+This bot sets up a community with two groups the first time it connects, and prints the invite link:
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client()
+const NAME = 'Bandung Outdoor Club'
+
+client.on('connect', async () => {
+  const communities = await client.community.list()
+  if (communities.some((community) => community.subject === NAME)) return
+
+  const community = await client.community.create(NAME, 'Hiking and cycling groups in Bandung.')
+
+  await client.community.createGroup('Hiking', ['6281234567890@s.whatsapp.net'], community.id)
+  await client.community.createGroup('Cycling', ['6289876543210@s.whatsapp.net'], community.id)
+
+  const groups = await client.community.subGroups(community.id)
+  console.log('Groups:', groups.map((group) => group.subject).join(', '))
+
+  const code = await client.community.inviteCode(community.id)
+  if (code) console.log(`Invite link: https://chat.whatsapp.com/${code}`)
+})
+```
+
+The whole setup takes about four minutes: each of the two `createGroup()` calls waits 120 seconds after the call before it.
+
+## Permissions
+
+| Action | Who can do it |
+| --- | --- |
+| Read details, list, list groups, leave | Any member |
+| Create a group inside, link or unlink a group | Community admins (and admins of the group being linked) |
+| Rename, change the description | Community admins |
+| Settings, invite links | Community admins |
+| Preview or join by link | Anyone with a valid code |
+
+When the bot isn't allowed to do something, the call rejects with WhatsApp's own error, as it does for [groups](/groups/groups#permissions).
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Are there events for communities?">
+    There are no community-specific events. Messages in a community's groups arrive through the usual message events, like any group message.
+  </Accordion>
+  <Accordion title="Can I use client.group calls on a community?">
+    The groups inside a community are regular groups — use `client.group` on them. For the community itself, use the `client.community` calls on this page.
+  </Accordion>
+  <Accordion title="Why does inviteCode() give me undefined?">
+    WhatsApp returned no code, usually because the bot isn't a community admin. The community calls resolve to `undefined` here instead of throwing like `client.group.inviteCode()` does.
+  </Accordion>
+  <Accordion title="Can I use communities on the Cloud API?">
+    No. On `provider: 'cloud'`, reading `client.community` throws `ZaileysProviderError` with code `UNSUPPORTED_ON_CLOUD`. See [On the Cloud API](/groups/groups#on-the-cloud-api) for alternatives.
+  </Accordion>
+</AccordionGroup>
+
+## When a call fails
+
+| Error | What went wrong | How to fix it |
+| --- | --- | --- |
+| `UNSUPPORTED_ON_CLOUD` (`ZaileysProviderError`) | You used `client.community` with `provider: 'cloud'`. | Use the WhatsApp Web provider. |
+| `NOT_CONNECTED` (`ZaileysDomainError`) | The call ran before the client connected. | Call it from a `connect` handler or a message handler. |
+| An error from WhatsApp | The bot isn't an admin, or an ID is wrong. | Check IDs with `list()` and `subGroups()`, and make the bot an admin. |
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Groups" icon="users" href="/groups/groups">
+    Manage the groups inside a community.
+  </Card>
+  <Card title="Channels" icon="rss" href="/groups/newsletters">
+    One-way broadcasts to followers.
+  </Card>
+</CardGroup>

@@ -1,9 +1,222 @@
 ---
 title: "Invites"
-description: "Create, revoke, and accept group invite links."
+description: "Get a group's invite link, reset it, preview or join groups by link, and send invite cards people tap to join."
 icon: "link"
+keywords: ["invite link", "group link", "chat.whatsapp.com", "invite code", "revoke invite", "reset link", "join group by link", "accept invite", "invite info", "invite card", "groupInvite"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/groups](https://zeative.github.io/zaileys/groups).
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+
+Invite links let people join a group on their own: share the link, reset it when it leaks, and send it as a card people can tap.
+
+<ProviderSupport web={true} cloud={false} note="The Cloud API has no groups." />
+
+## Quick reference
+
+| To | Call | What happens |
+| --- | --- | --- |
+| Get the invite link | [`group.inviteCode(groupId)`](#get-the-invite-link) | Resolves to the code at the end of the link |
+| Reset the link | [`group.revokeInvite(groupId)`](#reset-the-invite-link) | The old link stops working; resolves to the new code |
+| Preview a group from a link | [`group.inviteInfo(code)`](#preview-a-group-before-joining) | The group's name and details, without joining |
+| Join a group from a link | [`group.acceptInvite(code)`](#join-a-group-from-a-link) | The bot joins; resolves to the group ID |
+| Send an invite card | [`send(jid).groupInvite({ ... })`](#send-an-invite-card) | A card the recipient taps to join |
+
+Community invite links work the same way, with `client.community` — see [Communities](/groups/communities#share-an-invite-link).
+
+## How invite links work
+
+A WhatsApp invite link looks like `https://chat.whatsapp.com/Fk3pQ8xYz12AbCdEfGhIjK`. The part after the last `/` is the **invite code**. Zaileys methods take and return just the code, so build the link yourself:
+
+```ts
+const code = await client.group.inviteCode('120363041234567890@g.us')
+const link = `https://chat.whatsapp.com/${code}`
+```
+
+And to get the code back out of a link:
+
+```ts
+const link = 'https://chat.whatsapp.com/Fk3pQ8xYz12AbCdEfGhIjK'
+const code = new URL(link).pathname.slice(1) // 'Fk3pQ8xYz12AbCdEfGhIjK'
+```
+
+Each group has one link at a time. Anyone who has it can join until it's reset, unless [join approval](/groups/members#require-approval-to-join) is on.
+
+## Get the invite link
+
+```ts
+const groupId = '120363041234567890@g.us'
+
+const code = await client.group.inviteCode(groupId)
+await client.send(groupId).text(`Invite your friends: https://chat.whatsapp.com/${code}`)
+```
+
+The bot must be an admin of the group. If WhatsApp answers without a code, the call throws `ZaileysDomainError` with code `OPERATION_FAILED` (`invite code unavailable`).
+
+## Reset the invite link
+
+Reset the link when it's been posted somewhere it shouldn't be. The old link stops working immediately, and the call resolves to the new code:
+
+```ts
+const groupId = '120363041234567890@g.us'
+
+const newCode = await client.group.revokeInvite(groupId)
+console.log(`New link: https://chat.whatsapp.com/${newCode}`)
+```
+
+People who already joined stay in the group. Like `inviteCode()`, it needs admin rights and throws `OPERATION_FAILED` (`invite code unavailable`) if WhatsApp returns no code.
+
+## Preview a group before joining
+
+`inviteInfo()` reads a group's details from its code without joining it — useful to check a group before the bot commits:
+
+```ts
+const info = await client.group.inviteInfo('Fk3pQ8xYz12AbCdEfGhIjK')
+
+console.log(info.subject)       // 'Weekend Hikers'
+console.log(info.desc)          // 'Saturday hikes around Bandung. Meet at 6 AM.'
+console.log(info.size)          // 42
+```
+
+It resolves to the same shape as [`metadata()`](/groups/groups#read-a-groups-details). No admin rights are needed — only a valid code. An expired or reset code rejects with WhatsApp's error.
+
+## Join a group from a link
+
+```ts
+const groupId = await client.group.acceptInvite('Fk3pQ8xYz12AbCdEfGhIjK')
+console.log(groupId) // 120363041234567890@g.us
+```
+
+The bot becomes a member and starts receiving the group's messages. If the group has [join approval](/groups/members#require-approval-to-join) on, the bot sends a request instead, and an admin has to approve it. If WhatsApp answers without a group ID, the call throws `ZaileysDomainError` with code `OPERATION_FAILED` (`invite acceptance failed`).
+
+<Warning>
+  Joining many groups quickly is a strong signal of a spam account. Zaileys spaces `acceptInvite()` calls at least 30 seconds apart ([why](/groups/groups#why-some-calls-take-longer)), but don't script mass joins at all.
+</Warning>
+
+### Join groups when the owner sends a link
+
+This bot joins a group whenever its owner sends it a group link in a private chat, and ignores links from anyone else:
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client()
+const OWNER = '6281234567890@s.whatsapp.net'
+
+client.on('text', async (msg) => {
+  if (msg.isGroup || msg.senderId !== OWNER) return
+
+  const link = msg.links.find((url) => url.startsWith('https://chat.whatsapp.com/'))
+  if (!link) return
+
+  const code = new URL(link).pathname.slice(1)
+  try {
+    const info = await client.group.inviteInfo(code)
+    await msg.reply(`Joining "${info.subject}"...`)
+    await client.group.acceptInvite(code)
+    await msg.reply('Done.')
+  } catch (error) {
+    await msg.reply(`Couldn't join: ${(error as Error).message}`)
+  }
+})
+```
+
+`msg.links` lists every `http://` or `https://` URL in the message, with trailing punctuation removed.
+
+## Send an invite card
+
+An invite card is a message with the group's name that the recipient taps to join — tidier than pasting a link. It needs the group's ID and a current invite code:
+
+```ts
+const groupId = '120363041234567890@g.us'
+const code = await client.group.inviteCode(groupId)
+
+await client.send('6289876543210@s.whatsapp.net').groupInvite({
+  jid: groupId,
+  code,
+  subject: 'Weekend Hikers',
+  caption: 'Join us for Saturday’s hike!',
+})
+```
+
+<ParamField body="jid" type="string" required>
+  The group's ID. Anything that doesn't end in `@g.us` rejects with `INVALID_OPTIONS`.
+</ParamField>
+<ParamField body="code" type="string" required>
+  The invite code from `inviteCode()`. An empty code rejects with `INVALID_OPTIONS`.
+</ParamField>
+<ParamField body="subject" type="string" default="''">
+  The group name printed on the card.
+</ParamField>
+<ParamField body="caption" type="string" default="''">
+  Text shown with the card.
+</ParamField>
+<ParamField body="expiresAt" type="number" default="about 3 days from now">
+  When the card stops working, in Unix **seconds** (not milliseconds).
+</ParamField>
+<ParamField body="thumbnail" type="Buffer">
+  A small JPEG, usually the group picture, shown on the card.
+</ParamField>
+
+Resetting the link with `revokeInvite()` also stops cards built from the old code. The card is one of several special message types — see [Polls, locations & more](/messaging/polls-and-more).
+
+## Permissions
+
+| Action | Who can do it |
+| --- | --- |
+| `inviteCode()`, `revokeInvite()` | Group admins |
+| `inviteInfo()`, `acceptInvite()` | Anyone with a valid code |
+| Send an invite card | Anyone — but you need the code, which only admins can get |
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="How do I know when someone joins through the link?">
+    Listen for `group-join`. See [Welcome new members](/groups/members#welcome-new-members).
+  </Accordion>
+  <Accordion title="Can the bot accept an invite card someone sends it?">
+    Zaileys reads incoming cards — the message's `msg.media` has `type: 'group-invite'` with `groupId`, `groupName`, `inviteCode`, `caption`, and `expiresAt` — but it has no call for accepting one. Ask for the group link instead, and pass its code to `acceptInvite()`.
+  </Accordion>
+  <Accordion title="Is there an event when an admin resets the link?">
+    A reset fires `group-update`, but with an empty `update` — the event doesn't carry the new code. Call `inviteCode()` to read it.
+  </Accordion>
+  <Accordion title="Can I make a link that works only once, or only for a day?">
+    Not for links: a group has one link, and it works until it's reset. An invite card has an expiry — set it with `expiresAt`.
+  </Accordion>
+</AccordionGroup>
+
+## When a call fails
+
+| Error | What went wrong | How to fix it |
+| --- | --- | --- |
+| `OPERATION_FAILED` — `invite code unavailable` | WhatsApp returned no code for `inviteCode()` or `revokeInvite()`. | Make sure the bot is an admin of the group and the group ID is right. |
+| `OPERATION_FAILED` — `invite acceptance failed` | WhatsApp returned no group ID for `acceptInvite()`. | Check the code with `inviteInfo()` first. It may have been reset. |
+| `INVALID_OPTIONS` (`ZaileysBuilderError`) | `groupInvite()` got a `jid` not ending in `@g.us`, or an empty `code`. | Pass the group's ID and a code from `inviteCode()`. |
+| `UNSUPPORTED_ON_CLOUD` | You used `client.group` with `provider: 'cloud'`. | Groups need the WhatsApp Web provider. See [On the Cloud API](/groups/groups#on-the-cloud-api). |
+| `NOT_CONNECTED` | The call ran before the client connected. | Call it from a `connect` handler or a message handler. |
+| An error from WhatsApp | The bot isn't an admin, or the code is wrong, expired, or reset. | Get a fresh link from a group admin. |
+
+```ts
+import { ZaileysDomainError } from 'zaileys'
+
+try {
+  const code = await client.group.inviteCode('120363041234567890@g.us')
+  console.log(`https://chat.whatsapp.com/${code}`)
+} catch (error) {
+  if (error instanceof ZaileysDomainError && error.code === 'OPERATION_FAILED') {
+    console.error('No invite code — is the bot an admin of this group?')
+  } else {
+    throw error
+  }
+}
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Members & admins" icon="user-cog" href="/groups/members">
+    Approve join requests and welcome new members.
+  </Card>
+  <Card title="Polls, locations & more" icon="list-checks" href="/messaging/polls-and-more">
+    Other special message types, including invite cards.
+  </Card>
+</CardGroup>

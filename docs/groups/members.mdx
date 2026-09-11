@@ -1,9 +1,398 @@
 ---
 title: "Members & admins"
-description: "Add, remove, promote, and demote group members."
+description: "Add and remove group members, promote and demote admins, approve join requests, and welcome people who join."
 icon: "user-cog"
+keywords: ["add member", "remove member", "kick", "promote admin", "demote admin", "group admins", "is admin", "join requests", "approve join", "join approval", "welcome message", "group-join", "group-leave", "anti link", "member label", "member-tag"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/groups](https://zeative.github.io/zaileys/groups).
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+Add and remove people, hand out admin rights, and approve join requests — and react when someone joins or leaves.
+
+<ProviderSupport web={true} cloud={false} note="The Cloud API has no groups." />
+
+## Quick reference
+
+| To | Call | What happens |
+| --- | --- | --- |
+| Add people | [`addMember(groupId, jids)`](#add-people-to-a-group) | They're in the group, or you get a status per person |
+| Remove people | [`removeMember(groupId, jids)`](#remove-people) | They're out of the group |
+| Make someone an admin | [`promote(groupId, jids)`](#make-someone-an-admin) | They can change settings and members |
+| Take admin rights away | [`demote(groupId, jids)`](#take-admin-rights-away) | They're a regular member again |
+| Check who is an admin | [`metadata(groupId)`](#check-who-is-an-admin) | `participants[].admin` tells you |
+| Make people ask to join | [`joinApproval(groupId, true)`](#require-approval-to-join) | Link visitors send a request instead of joining |
+| See, approve, or reject requests | [`joinRequests()`, `approveJoin()`, `rejectJoin()`](#review-join-requests) | Requesters join, or their request is turned down |
+| Set the bot's member label | [`tagMember(groupId, jid, label)`](#set-the-bots-member-label) | A label next to the bot's name in that group |
+| Welcome people who join | [`group-join` event](#welcome-new-members) | Your handler runs for each join |
+| Notice people who leave | [`group-leave` event](#notice-when-someone-leaves) | Your handler runs for each leave or removal |
+
+Every call needs a connected client and a group ID like `120363041234567890@g.us` — see [Before you start](/groups/groups#before-you-start).
+
+## Add people to a group
+
+```ts
+const results = await client.group.addMember('120363041234567890@g.us', [
+  '6281234567890@s.whatsapp.net',
+  '6289876543210@s.whatsapp.net',
+])
+
+for (const { jid, status } of results) {
+  console.log(jid, status === '200' ? 'added' : `not added (${status})`)
+}
+```
+
+The people you add see the group in their chat list, and the group sees a notice that they were added.
+
+<ParamField body="groupId" type="string" required>
+  The group's ID.
+</ParamField>
+<ParamField body="jids" type="string[]" required>
+  People to add, as <Term id="jid" />s like `6281234567890@s.whatsapp.net`.
+</ParamField>
+
+It resolves to one result per person — the call doesn't reject when a single person fails:
+
+<ResponseField name="jid" type="string">
+  The person this result is about.
+</ResponseField>
+<ResponseField name="status" type="string">
+  `'200'` when it worked. Anything else, such as `'403'`, is the code WhatsApp returned for that person.
+</ResponseField>
+
+WhatsApp won't add some people directly — for example, when their privacy settings only let contacts add them to groups. Send those people an [invite link](/groups/invites) instead.
+
+<Tip>
+  Put everyone in one call. Zaileys waits at least 10 seconds between member changes to protect the number, and the wait applies per call, not per person. [Why some calls take longer](/groups/groups#why-some-calls-take-longer)
+</Tip>
+
+`removeMember()`, `promote()`, `demote()`, `approveJoin()`, and `rejectJoin()` take the same arguments and resolve to the same results.
+
+## Remove people
+
+```ts
+const results = await client.group.removeMember('120363041234567890@g.us', ['6289876543210@s.whatsapp.net'])
+```
+
+The group sees a notice that they were removed, and they can no longer read or send messages there. They can come back with an invite link unless you [reset it](/groups/invites#reset-the-invite-link).
+
+## Make someone an admin
+
+```ts
+await client.group.promote('120363041234567890@g.us', ['6281234567890@s.whatsapp.net'])
+```
+
+Admins can change settings, add and remove people, and manage invite links. Promote someone who's already a member.
+
+## Take admin rights away
+
+```ts
+await client.group.demote('120363041234567890@g.us', ['6281234567890@s.whatsapp.net'])
+```
+
+They stay in the group as a regular member.
+
+No Zaileys event fires when someone is promoted or demoted. Read `metadata()` when you need the current admins.
+
+## Check who is an admin
+
+`metadata()` lists every member with their role in `admin`:
+
+| `admin` | Means |
+| --- | --- |
+| `'superadmin'` | The group's creator |
+| `'admin'` | An admin |
+| `null` | A regular member |
+
+Members can be listed by phone-number JID or by <Term id="lid" />, and a device suffix like `:12` may appear, so compare only the number part. This helper checks one person:
+
+```ts
+const bare = (jid: string) => jid.split('@')[0]!.split(':')[0]!
+
+async function isAdmin(groupId: string, jid: string): Promise<boolean> {
+  const { participants } = await client.group.metadata(groupId)
+  return participants.some(
+    (member) => member.admin != null && [member.id, member.phoneNumber, member.lid].some((id) => id && bare(id) === bare(jid)),
+  )
+}
+```
+
+To check the bot itself, keep its IDs from the `connect` event:
+
+```ts
+let botIds: string[] = []
+
+client.on('connect', ({ me }) => {
+  botIds = [me.id, me.lid].filter((id): id is string => Boolean(id))
+})
+```
+
+Then `botIds` holds the bot's phone-number JID and, when WhatsApp assigned one, its LID. Pass each to `isAdmin()`.
+
+<Tip>
+  For commands, you don't need the helper: `client.command({ name: 'kick', admin: true }, handler)` runs only when the sender is a group admin. See [Commands](/bots/commands).
+</Tip>
+
+## Require approval to join
+
+With join approval on, people who open the group's invite link send a request instead of joining. An admin has to approve it.
+
+```ts
+const groupId = '120363041234567890@g.us'
+
+await client.group.joinApproval(groupId, true)  // requests must be approved
+await client.group.joinApproval(groupId, false) // anyone with the link joins straight away
+```
+
+<ParamField body="enabled" type="boolean" required>
+  `true` turns approval on, `false` turns it off.
+</ParamField>
+
+## Review join requests
+
+```ts
+const groupId = '120363041234567890@g.us'
+
+const requests = await client.group.joinRequests(groupId)
+const jids = requests.map((request) => request.jid).filter((jid): jid is string => Boolean(jid))
+
+if (jids.length > 0) {
+  await client.group.approveJoin(groupId, jids)   // they join the group
+  // or: await client.group.rejectJoin(groupId, jids)
+}
+```
+
+`joinRequests()` resolves to one entry per pending request. Each entry is the raw set of attributes WhatsApp sends, typed `{ [key: string]: string }`. The requester's JID is under `jid`. Log an entry to see what else your account receives.
+
+`approveJoin()` and `rejectJoin()` resolve to one `{ jid, status }` per person, like [`addMember()`](#add-people-to-a-group), and are spaced like other member changes.
+
+### Get notified about new requests
+
+Zaileys has no event for new join requests. The underlying WhatsApp Web socket does emit one, `group.join-request`, and you can listen to it on `client.socket`. Register it on each `connect`, because a reconnect replaces the socket:
+
+```ts
+client.on('connect', () => {
+  client.socket?.ev.on('group.join-request', async (request) => {
+    if (request.action !== 'created') return
+    const who = request.participantPn ?? request.participant
+    await client.send(request.id).text(`New join request from ${who}. An admin can approve it in the group info.`)
+  })
+})
+```
+
+`request.action` is `'created'` for a new request, and `'revoked'` or `'rejected'` when one is withdrawn or turned down. This event comes straight from the WhatsApp Web library, not from Zaileys, so its shape can change when that library updates.
+
+## Set the bot's member label
+
+WhatsApp lets each member set a short label that shows next to their name in a group. `tagMember()` sets **the bot's own** label:
+
+```ts
+await client.group.tagMember('120363041234567890@g.us', '6281234567890@s.whatsapp.net', 'Trip bot')
+```
+
+<Warning>
+  The `jid` argument is ignored. WhatsApp only lets members label themselves, so the label always goes on the bot, whatever JID you pass. Labels longer than 30 characters are cut to 30.
+</Warning>
+
+When any member sets a label, the `member-tag` event fires:
+
+```ts
+client.on('member-tag', (event) => {
+  console.log(`${event.participant} is now "${event.label}" in ${event.groupId}`)
+})
+```
+
+<ResponseField name="groupId" type="string">The group.</ResponseField>
+<ResponseField name="participant" type="string">The member who set the label.</ResponseField>
+<ResponseField name="participantAlt" type="string | undefined">The same member's other ID — their phone-number JID or LID — when WhatsApp sent it.</ResponseField>
+<ResponseField name="label" type="string">The new label.</ResponseField>
+<ResponseField name="timestamp" type="number">When WhatsApp sent the change, in Unix seconds. If WhatsApp didn't include a time, it's when Zaileys received the change, in milliseconds.</ResponseField>
+
+Removing a label doesn't fire the event.
+
+## Welcome new members
+
+`group-join` fires when people join a group the bot is in — added by an admin, through an invite link, or approved from a request. This bot greets them by name:
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client()
+const bare = (jid: string) => jid.split('@')[0]!.split(':')[0]!
+let botIds: string[] = []
+
+client.on('connect', ({ me }) => {
+  botIds = [me.id, me.lid].filter((id): id is string => Boolean(id)).map(bare)
+})
+
+client.on('group-join', async (event) => {
+  const newcomers = event.participants.filter((member) => !botIds.includes(bare(member.jid)))
+  if (newcomers.length === 0) return // the bot itself was added
+
+  const { subject } = await client.group.metadata(event.groupId)
+  const names = newcomers.map((member) => `@${bare(member.jid)}`).join(', ')
+
+  await client
+    .send(event.groupId)
+    .text(`Welcome to ${subject}, ${names}! Trip rules are in the group description.`)
+    .mentions(newcomers.map((member) => member.jid))
+})
+```
+
+In the group, the message tags each newcomer, so they get a notification. `.mentions()` turns each `@number` in the text into a tag — see [Text & replies](/messaging/text).
+
+<ResponseField name="groupId" type="string">
+  The group people joined.
+</ResponseField>
+<ResponseField name="participants" type="GroupParticipantInfo[]">
+  Who joined.
+
+  <Expandable title="fields">
+    <ResponseField name="jid" type="string">The member's ID — a phone-number JID or a LID.</ResponseField>
+    <ResponseField name="participantAlt" type="string | undefined">Their other ID, when WhatsApp sent it.</ResponseField>
+    <ResponseField name="isAdmin" type="boolean">Whether they joined as an admin.</ResponseField>
+    <ResponseField name="authorPn" type="string | undefined">Phone-number JID of whoever made the change, when WhatsApp sent it. The same on every entry.</ResponseField>
+    <ResponseField name="authorUsername" type="string | undefined">Username of whoever made the change, when WhatsApp sent it.</ResponseField>
+  </Expandable>
+</ResponseField>
+<ResponseField name="action" type="'add' | 'invite' | 'invite-link'">
+  How they joined. In practice it's always `'add'` — WhatsApp Web reports adds, link joins, and approved requests the same way.
+</ResponseField>
+<ResponseField name="by" type="string | undefined">
+  JID of whoever made the change — the admin who added them, for example.
+</ResponseField>
+<ResponseField name="timestamp" type="number">
+  When Zaileys received the event, in milliseconds.
+</ResponseField>
+
+The event also fires when the bot itself is added to a group — that's why the example skips the bot's own ID.
+
+## Notice when someone leaves
+
+`group-leave` fires when people leave a group or are removed from it. It has the same fields as `group-join`:
+
+```ts
+client.on('group-leave', (event) => {
+  for (const member of event.participants) {
+    const leftByThemselves = event.by === member.jid || event.by === member.participantAlt
+    console.log(leftByThemselves ? `${member.jid} left` : `${member.jid} was removed by ${event.by ?? 'an admin'}`)
+  }
+})
+```
+
+`action` is typed `'remove' | 'leave'`, but WhatsApp Web reports both as `'remove'`. To tell them apart, compare `by` with the member's IDs, as above: when they match, the member left on their own.
+
+When the bot itself is removed, `group-leave` fires with the bot among `participants`, and it can no longer send to that group.
+
+## Remove members who post group links
+
+A common moderation rule: delete any message with a WhatsApp group link and remove the sender — unless they're an admin.
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client()
+const GROUP_LINK = /chat\.whatsapp\.com\/\S+/i
+const bare = (jid: string) => jid.split('@')[0]!.split(':')[0]!
+
+async function isAdmin(groupId: string, jid: string): Promise<boolean> {
+  const { participants } = await client.group.metadata(groupId)
+  return participants.some(
+    (member) => member.admin != null && [member.id, member.phoneNumber, member.lid].some((id) => id && bare(id) === bare(jid)),
+  )
+}
+
+client.on('text', async (msg) => {
+  if (!msg.isGroup || !msg.roomId || !GROUP_LINK.test(msg.text)) return
+  if (await isAdmin(msg.roomId, msg.senderId)) return // admins may share links
+
+  await client.delete(msg.message().key)
+  await client.group.removeMember(msg.roomId, [msg.senderId])
+  await client.send(msg.roomId).text('Group links aren’t allowed here, so that member was removed.')
+})
+```
+
+- The regex checks the text itself, so it also catches links typed without `https://`. `msg.links` only lists URLs that start with `http://` or `https://`.
+- The `text` event skips media captions. To catch a link in a photo caption too, listen on `message` instead — `msg.text` holds the caption there.
+- `client.delete()` deletes the message for everyone. For someone else's message, the bot must be an admin. More in [Edit, delete & react](/messaging/edit-delete-react).
+- The bot must be an admin to remove people, too.
+
+**Variation — warn first.** Keep a count per sender and only remove on the third link:
+
+```ts
+const strikes = new Map<string, number>()
+
+client.on('text', async (msg) => {
+  if (!msg.isGroup || !msg.roomId || !/chat\.whatsapp\.com\/\S+/i.test(msg.text)) return
+
+  const key = `${msg.roomId} ${msg.senderId}`
+  const count = (strikes.get(key) ?? 0) + 1
+  strikes.set(key, count)
+
+  await client.delete(msg.message().key)
+  if (count < 3) {
+    await msg.reply(`No group links, please. Warning ${count} of 2.`)
+  } else {
+    await client.group.removeMember(msg.roomId, [msg.senderId])
+    strikes.delete(key)
+  }
+})
+```
+
+## Permissions
+
+| Action | Who can do it |
+| --- | --- |
+| Add people | Admins, or every member when [`memberAddMode(groupId, false)`](/groups/groups#choose-who-can-add-members) |
+| Remove, promote, demote | Admins |
+| Turn join approval on or off, see and answer requests | Admins |
+| Set your own member label | Any member |
+| Delete someone else's message for everyone | Admins |
+
+When the bot isn't allowed to change members, WhatsApp either rejects the whole call with its own error or returns a non-`'200'` status for each person. Check both — see [Permissions](/groups/groups#permissions) for the error shape.
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="Why is group-join's action always 'add'?">
+    WhatsApp Web reports every kind of join as an add, so you can't tell a link join from a manual add by `action`. `by` shows who made the change when WhatsApp sends it.
+  </Accordion>
+  <Accordion title="addMember() worked, but one person isn't in the group">
+    Look at that person's `status` in the results. Anything other than `'200'` means WhatsApp didn't add them, often because of their privacy settings. Send them an [invite link](/groups/invites) instead.
+  </Accordion>
+  <Accordion title="Why does removeMember() take 10 seconds sometimes?">
+    Zaileys spaces member changes at least 10 seconds apart to protect the number. A call right after another member change waits. See [Why some calls take longer](/groups/groups#why-some-calls-take-longer).
+  </Accordion>
+  <Accordion title="Is there an event when someone becomes an admin?">
+    No. Zaileys emits events for joins and leaves only. Read `metadata()` for the current admins.
+  </Accordion>
+  <Accordion title="Can members use these calls on the Cloud API?">
+    No. On `provider: 'cloud'`, reading `client.group` throws `ZaileysProviderError` with code `UNSUPPORTED_ON_CLOUD`. See [On the Cloud API](/groups/groups#on-the-cloud-api) for alternatives.
+  </Accordion>
+</AccordionGroup>
+
+## When a call fails
+
+| Error | What went wrong | How to fix it |
+| --- | --- | --- |
+| A `status` other than `'200'` | WhatsApp didn't apply the change for that person. | For adds, send an invite link. Otherwise check the bot is an admin and the JID is right. |
+| An error from WhatsApp | The bot isn't an admin or isn't in the group, or the group ID is wrong. | Make the bot an admin, and check the ID with `client.group.list()`. |
+| `NOT_CONNECTED` (`ZaileysDomainError`) | The call ran before the client connected. | Call it from a `connect` handler or a message handler. |
+| `UNSUPPORTED_ON_CLOUD` (`ZaileysProviderError`) | You used `client.group` with `provider: 'cloud'`. | Use the WhatsApp Web provider. |
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Invites" icon="link" href="/groups/invites">
+    Links for people who can't be added directly.
+  </Card>
+  <Card title="Commands" icon="square-terminal" href="/bots/commands">
+    Admin-only commands such as `/kick`.
+  </Card>
+  <Card title="Edit, delete & react" icon="pencil" href="/messaging/edit-delete-react">
+    Delete messages for everyone.
+  </Card>
+  <Card title="Groups" icon="users" href="/groups/groups">
+    Group settings and the group-update event.
+  </Card>
+</CardGroup>

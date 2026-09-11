@@ -1,9 +1,331 @@
 ---
-title: "Newsletters"
-description: "Create, follow, and post to WhatsApp Channels."
+title: "Channels"
+sidebarTitle: "Channels"
+description: "Create and post to WhatsApp Channels, follow other channels, react to posts, and manage channel admins."
 icon: "rss"
+keywords: ["whatsapp channel", "channels", "newsletter", "create channel", "post to channel", "follow channel", "unfollow", "mute channel", "channel reactions", "channel subscribers", "channel owner", "@newsletter"]
 ---
 
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+
+WhatsApp Channels are one-way broadcasts: admins post, followers read and react. `client.newsletter` creates and runs channels, and follows other people's.
+
+<ProviderSupport web={true} cloud={false} note="The Cloud API has no channels." />
+
+WhatsApp's internal name for a channel is "newsletter", which is why the API is `client.newsletter` and channel IDs end in `@newsletter` — for example `120363198765432109@newsletter`.
+
+## Quick reference
+
+| To | Call | What happens |
+| --- | --- | --- |
+| Create a channel | [`create(name, options)`](#create-a-channel) | A new channel owned by the bot |
+| Post to it | [`client.send(channelId).text(...)`](#post-to-your-channel) | Followers see the post |
+| Read its details | [`metadata(channelId)`](#read-a-channels-details) | Name, description, followers, invite code |
+| Follow or unfollow | [`follow(channelId)`, `unfollow(channelId)`](#follow-or-unfollow-a-channel) | The bot starts or stops receiving posts |
+| Mute or unmute | [`mute(channelId)`, `unmute(channelId)`](#mute-a-channel) | Notifications off or on |
+| Edit it | [`updateName()`, `updateDescription()`, `updatePicture()`, `removePicture()`](#edit-your-channel) | Followers see the change |
+| Read its posts | [`messages(channelId, count)`](#read-a-channels-posts) | Recent posts, as WhatsApp sends them |
+| React to a post | [`react(channelId, serverId, emoji)`](#react-to-a-post) | Your emoji on the post |
+| See followers | [`subscribers(channelId)`](#see-who-follows-your-channel) | The follower list, as WhatsApp sends it |
+| Manage admins | [`adminCount()`, `demote()`, `changeOwner()`](#manage-channel-admins) | Count, remove, or hand over ownership |
+| Delete it | [`delete(channelId)`](#delete-a-channel) | The channel is gone for good |
+
+Every call needs a connected client — before the `connect` event, it throws `ZaileysDomainError` with code `NOT_CONNECTED`.
+
+## Create a channel
+
+```ts
+import { readFile } from 'node:fs/promises'
+
+const channel = await client.newsletter.create('Bandung Trail Report', {
+  description: 'Trail conditions every Friday.',
+  picture: await readFile('./trail-logo.jpg'),
+})
+
+console.log(channel.id) // 120363198765432109@newsletter
+```
+
+<ParamField body="name" type="string" required>
+  The channel name.
+</ParamField>
+<ParamField body="options.description" type="string">
+  Text shown on the channel's info page.
+</ParamField>
+<ParamField body="options.picture" type="Buffer">
+  The channel picture. Zaileys creates the channel first, then uploads the picture.
+</ParamField>
+
+It resolves to the channel's details — see [Read a channel's details](#read-a-channels-details) for the fields.
+
 <Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/newsletter](https://zeative.github.io/zaileys/newsletter).
+  Zaileys spaces `create()` calls at least 120 seconds apart to protect the number. [Why some calls take longer](/groups/groups#why-some-calls-take-longer)
 </Note>
+
+## Post to your channel
+
+A channel is a chat like any other — send to its ID with `client.send()`:
+
+```ts
+await client.send('120363198765432109@newsletter').text('Tangkuban Perahu trail is open again. Expect mud after 2 PM.')
+```
+
+Followers see the post in the channel. Only the channel's owner and admins can post. More ways to send text are in [Text & replies](/messaging/text).
+
+## Read a channel's details
+
+```ts
+const info = await client.newsletter.metadata('120363198765432109@newsletter')
+
+console.log(info.name)        // 'Bandung Trail Report'
+console.log(info.subscribers) // 1250
+console.log(`https://whatsapp.com/channel/${info.invite}`)
+```
+
+If WhatsApp doesn't return the channel — it doesn't exist, or the bot can't see it — this throws `ZaileysDomainError` with code `NEWSLETTER_NOT_FOUND` (`newsletter <id> not found`).
+
+<ResponseField name="id" type="string">
+  The channel's ID, ending in `@newsletter`.
+</ResponseField>
+<ResponseField name="name" type="string">
+  The channel name.
+</ResponseField>
+<ResponseField name="description" type="string | undefined">
+  The channel description.
+</ResponseField>
+<ResponseField name="subscribers" type="number | undefined">
+  How many people follow the channel.
+</ResponseField>
+<ResponseField name="invite" type="string | undefined">
+  The channel's invite code — the end of its `whatsapp.com/channel/` link.
+</ResponseField>
+<ResponseField name="owner" type="string | undefined">
+  JID of the channel's owner.
+</ResponseField>
+<ResponseField name="creation_time" type="number | undefined">
+  When the channel was created, in Unix seconds.
+</ResponseField>
+<ResponseField name="picture" type="object | undefined">
+  The channel picture: `url`, `directPath`, `mediaKey`, and `id`, each optional.
+</ResponseField>
+<ResponseField name="verification" type="'VERIFIED' | 'UNVERIFIED' | undefined">
+  Whether the channel has WhatsApp's verified badge.
+</ResponseField>
+<ResponseField name="mute_state" type="'ON' | 'OFF' | undefined">
+  Whether the bot has muted the channel.
+</ResponseField>
+<ResponseField name="reaction_codes" type="{ code: string; count: number }[] | undefined">
+  Reaction emoji and their counts, when WhatsApp includes them.
+</ResponseField>
+
+`metadata()` looks channels up by ID only, not by invite link.
+
+## Follow or unfollow a channel
+
+```ts
+const channelId = '120363198765432109@newsletter'
+
+await client.newsletter.follow(channelId)
+await client.newsletter.unfollow(channelId)
+```
+
+While the bot follows a channel, new posts arrive as `message` events with `msg.isNewsletter` set to `true`. Zaileys spaces follows and unfollows at least 2 seconds apart ([why](/groups/groups#why-some-calls-take-longer)).
+
+## Mute a channel
+
+```ts
+const channelId = '120363198765432109@newsletter'
+
+await client.newsletter.mute(channelId)   // no notifications
+await client.newsletter.unmute(channelId) // notifications again
+```
+
+Muting only affects notifications on the bot's phone. The bot still follows the channel and still receives its posts.
+
+## Edit your channel
+
+```ts
+import { readFile } from 'node:fs/promises'
+
+const channelId = '120363198765432109@newsletter'
+
+await client.newsletter.updateName(channelId, 'Bandung Trail Report 2026')
+await client.newsletter.updateDescription(channelId, 'Trail conditions every Friday, closures as they happen.')
+await client.newsletter.updatePicture(channelId, await readFile('./trail-logo-2026.jpg'))
+await client.newsletter.removePicture(channelId)
+```
+
+| Call | Takes |
+| --- | --- |
+| `updateName(channelId, name)` | The new name. |
+| `updateDescription(channelId, description)` | The new description. Required — there's no call to clear it. |
+| `updatePicture(channelId, picture)` | The new picture as a `Buffer`. |
+| `removePicture(channelId)` | Nothing else — removes the picture. |
+
+## Read a channel's posts
+
+```ts
+const posts = await client.newsletter.messages('120363198765432109@newsletter', 20)
+console.log(posts)
+```
+
+<ParamField body="count" type="number" default="50">
+  How many posts to fetch.
+</ParamField>
+<ParamField body="opts.since" type="number">
+  Passed to WhatsApp as the fetch's `since` filter.
+</ParamField>
+<ParamField body="opts.after" type="number">
+  Passed to WhatsApp as the fetch's `after` filter.
+</ParamField>
+
+The result is WhatsApp's raw response, typed `unknown` — Zaileys doesn't reshape it. Log it once to see what your channel returns before you depend on its shape.
+
+## React to a post
+
+Reactions target a post by its **server ID** — the number WhatsApp gives each channel post. Posts from channels the bot follows carry it on the message key:
+
+```ts
+client.on('message', async (msg) => {
+  if (!msg.isNewsletter) return
+
+  const { remoteJid, server_id } = msg.message().key
+  if (remoteJid && server_id) {
+    await client.newsletter.react(remoteJid, server_id, '🔥')
+  }
+})
+```
+
+To take a reaction back, call `client.newsletter.unreact(channelId, serverId)`.
+
+## See who follows your channel
+
+```ts
+const followers = await client.newsletter.subscribers('120363198765432109@newsletter')
+console.log(followers)
+```
+
+Like `messages()`, this resolves to WhatsApp's raw response, typed `unknown`. For just the number, read `subscribers` from [`metadata()`](#read-a-channels-details).
+
+## Manage channel admins
+
+```ts
+const channelId = '120363198765432109@newsletter'
+
+const admins = await client.newsletter.adminCount(channelId) // 3
+await client.newsletter.demote(channelId, '6289876543210@s.whatsapp.net')
+await client.newsletter.changeOwner(channelId, '6281234567890@s.whatsapp.net')
+```
+
+| Call | What it does |
+| --- | --- |
+| `adminCount(channelId)` | Resolves to the number of admins. |
+| `demote(channelId, userJid)` | Takes admin rights away from that person. |
+| `changeOwner(channelId, newOwnerJid)` | Hands the channel to someone else. The bot is no longer the owner afterwards. |
+
+## Delete a channel
+
+```ts
+await client.newsletter.delete('120363198765432109@newsletter')
+```
+
+<Warning>
+  Deleting is permanent: the channel and its posts are gone for every follower, and there's no confirmation step. Double-check the ID first.
+</Warning>
+
+## Listen for channel activity
+
+The `newsletter` event reports activity on channels the bot follows or runs. Check `action` to see what happened:
+
+```ts
+client.on('newsletter', (event) => {
+  switch (event.action) {
+    case 'reaction':
+      console.log(`${event.emoji} on post ${event.serverId}`)
+      break
+    case 'view':
+      console.log(`Post ${event.serverId} now has ${event.count} views`)
+      break
+    case 'participants':
+      console.log(`Followers changed on ${event.newsletterId}`)
+      break
+    case 'settings':
+      console.log('Settings changed:', event.update)
+      break
+  }
+})
+```
+
+Every payload has `newsletterId` (the channel) and `timestamp` (when Zaileys received it, in milliseconds). The rest depends on `action`:
+
+| `action` | Extra fields |
+| --- | --- |
+| `'reaction'` | `serverId` — the post. `emoji` — the reaction. Both optional. |
+| `'view'` | `serverId` — the post. `count` — its view count. Both optional. |
+| `'participants'` | `count` is typed, but Zaileys doesn't fill it today — read `subscribers` from `metadata()`. |
+| `'settings'` | `update` — the changed settings, as WhatsApp sends them. |
+
+## Permissions
+
+| Action | Who can do it |
+| --- | --- |
+| Follow, unfollow, mute, read details and posts, react | Anyone |
+| Post, edit the name, description, or picture | The channel's owner and admins |
+| See followers, manage admins | The channel's owner and admins |
+| `changeOwner()`, `delete()` | The owner |
+
+When the bot isn't allowed to do something, the call rejects with WhatsApp's own error, not a Zaileys error.
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="How do I find a channel's ID?">
+    Take it from `create()`, from a `newsletter` event (`newsletterId`), or from a post the bot receives (`msg.message().key.remoteJid`). `metadata()` can't look a channel up by its invite link.
+  </Accordion>
+  <Accordion title="Why is it called newsletter, not channel?">
+    "Newsletter" is WhatsApp's internal name for channels, and Zaileys keeps it so the API matches what WhatsApp sends — IDs end in `@newsletter`. In the WhatsApp app, they're called Channels.
+  </Accordion>
+  <Accordion title="Why are messages() and subscribers() typed unknown?">
+    Zaileys passes WhatsApp's response through without reshaping it, and that shape isn't stable enough to promise. Log it and read the fields you need defensively.
+  </Accordion>
+  <Accordion title="I followed a channel but never get its posts.">
+    Check that your handler listens for `message` (or `text`) and doesn't return early for `msg.isNewsletter`. Posts arrive only after the follow, not from before.
+  </Accordion>
+  <Accordion title="Can I use channels on the Cloud API?">
+    No. On `provider: 'cloud'`, reading `client.newsletter` throws `ZaileysProviderError` with code `UNSUPPORTED_ON_CLOUD`. See [On the Cloud API](/groups/groups#on-the-cloud-api) for alternatives.
+  </Accordion>
+</AccordionGroup>
+
+## When a call fails
+
+| Error | What went wrong | How to fix it |
+| --- | --- | --- |
+| `NEWSLETTER_NOT_FOUND` (`ZaileysDomainError`) | `metadata()` got no channel back. | Check the ID ends in `@newsletter` and the channel still exists. |
+| `NOT_CONNECTED` (`ZaileysDomainError`) | The call ran before the client connected. | Call it from a `connect` handler or a message handler. |
+| `UNSUPPORTED_ON_CLOUD` (`ZaileysProviderError`) | You used `client.newsletter` with `provider: 'cloud'`. | Use the WhatsApp Web provider. |
+| An error from WhatsApp | The bot isn't the owner or an admin, or the ID is wrong. | Check who owns the channel with `metadata()`. |
+
+```ts
+import { ZaileysDomainError } from 'zaileys'
+
+try {
+  const info = await client.newsletter.metadata('120363198765432109@newsletter')
+  console.log(info.name)
+} catch (error) {
+  if (error instanceof ZaileysDomainError && error.code === 'NEWSLETTER_NOT_FOUND') {
+    console.error('That channel does not exist or is not visible to the bot')
+  } else {
+    throw error
+  }
+}
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Text & replies" icon="message-square" href="/messaging/text">
+    Formatting and more ways to write posts.
+  </Card>
+  <Card title="Broadcast & schedule" icon="calendar-clock" href="/bots/broadcast-and-schedule">
+    Schedule posts for later.
+  </Card>
+</CardGroup>

@@ -1,9 +1,523 @@
 ---
 title: "Groups"
-description: "Create groups and manage their settings."
+description: "Create WhatsApp groups, read who is in them, and change their name, description, picture, and settings — or leave them."
 icon: "users"
+keywords: ["create group", "group metadata", "group info", "list groups", "rename group", "group description", "group picture", "announcement group", "admins only", "lock group", "disappearing messages", "leave group", "group-update", "operationGuard"]
 ---
 
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+import { Term } from "/snippets/glossary.jsx"
+
+`client.group` lets your bot do what a group admin does in the WhatsApp app: create groups, read who's in them, and change how they work.
+
+<ProviderSupport web={true} cloud={false} note="The Cloud API has no groups. See On the Cloud API below." />
+
+## Quick reference
+
+| To | Call | What happens |
+| --- | --- | --- |
+| Create a group | [`create(name, members)`](#create-a-group) | A new group with the bot as its creator |
+| Read a group's details | [`metadata(groupId)`](#read-a-groups-details) | Name, description, members, admins, and settings |
+| List the bot's groups | [`list()`](#list-every-group-the-bot-is-in) | Details of every group the bot is in |
+| Rename a group | [`updateSubject(groupId, name)`](#rename-a-group) | Everyone sees the new name |
+| Change the description | [`updateDescription(groupId, text)`](#change-or-clear-the-description) | Everyone sees the new description |
+| Change the picture | [`client.profile.setPicture(groupId, image)`](#change-the-group-picture) | The group gets a new picture |
+| Let only admins send | [`setting(groupId, 'announcement')`](#let-only-admins-send-messages) | Members can read but not write |
+| Let only admins edit info | [`setting(groupId, 'locked')`](#lock-the-group-info) | Only admins can change name, picture, and description |
+| Choose who can add members | [`memberAddMode(groupId, adminsOnly)`](#choose-who-can-add-members) | Adding people becomes admin-only, or open to all |
+| Turn on disappearing messages | [`toggleEphemeral(groupId, seconds)`](#turn-on-disappearing-messages) | New messages vanish after the timer |
+| Leave a group | [`leave(groupId)`](#leave-a-group) | The bot is no longer a member |
+
+Adding people, admins, and join requests are on [Members & admins](/groups/members). Invite links are on [Invites](/groups/invites).
+
+## Before you start
+
+**Wait until the client is connected.** Every `client.group` method needs a live connection. Called too early, it throws `ZaileysDomainError` with code `NOT_CONNECTED` (`client not connected`). Put startup work in a `connect` handler:
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client()
+
+client.on('connect', async () => {
+  const groups = await client.group.list()
+  console.log(`The bot is in ${groups.length} groups`)
+})
+```
+
+**Every group has an ID** — its <Term id="jid" />, such as `120363041234567890@g.us`. You get it from:
+
+- `msg.roomId` inside a handler, when the message came from a group (`msg.isGroup` is `true`),
+- the `id` of the object `create()` returns,
+- the `id` of each group in `list()`.
+
+**Most changes need admin rights.** The bot must be a group admin to change settings, and usually to rename or edit the group. See [Permissions](#permissions).
+
+## Create a group
+
+```ts
+const group = await client.group.create('Weekend Hikers', [
+  '6281234567890@s.whatsapp.net',
+  '6289876543210@s.whatsapp.net',
+])
+
+console.log(group.id)                  // 120363041234567890@g.us
+console.log(group.participants.length) // members who made it in, the bot included
+```
+
+The group appears in each member's chat list. The bot's number is its creator and first admin.
+
+<ParamField body="subject" type="string" required>
+  The group name everyone sees.
+</ParamField>
+<ParamField body="participants" type="string[]" required>
+  People to add straight away, as JIDs like `6281234567890@s.whatsapp.net`.
+</ParamField>
+
+It resolves to the new group's details — the same shape as [`metadata()`](#read-a-groups-details). Some people can't be added directly because of their privacy settings. Check `group.participants` to see who got in, and send the rest an [invite link](/groups/invites).
+
 <Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/groups](https://zeative.github.io/zaileys/groups).
+  Creating groups quickly is a common reason WhatsApp restricts accounts, so Zaileys spaces `create()` calls at least 60 seconds apart. A second `create()` right after the first waits before it runs. [Why some calls take longer](#why-some-calls-take-longer)
 </Note>
+
+## Read a group's details
+
+```ts
+const info = await client.group.metadata('120363041234567890@g.us')
+
+const admins = info.participants.filter((member) => member.admin)
+
+console.log(`${info.subject}: ${info.participants.length} members, ${admins.length} admins`)
+console.log(info.desc ?? '(no description)')
+console.log(info.announce ? 'Only admins can send' : 'Everyone can send')
+```
+
+The fields you'll use most:
+
+<ResponseField name="id" type="string">
+  The group's JID, such as `120363041234567890@g.us`.
+</ResponseField>
+<ResponseField name="subject" type="string">
+  The group name.
+</ResponseField>
+<ResponseField name="desc" type="string | undefined">
+  The description. `undefined` when there is none.
+</ResponseField>
+<ResponseField name="owner" type="string | undefined">
+  JID of the person who created the group.
+</ResponseField>
+<ResponseField name="creation" type="number | undefined">
+  When the group was created, in Unix seconds.
+</ResponseField>
+<ResponseField name="size" type="number | undefined">
+  Member count, when WhatsApp includes it. `participants.length` is always there.
+</ResponseField>
+<ResponseField name="participants" type="GroupParticipant[]">
+  Every member. Each has an `id`, and `admin` set to `'admin'`, `'superadmin'` (the creator), or `null`. When `id` is a <Term id="lid" />, `phoneNumber` holds the phone-number JID if WhatsApp shared it.
+</ResponseField>
+<ResponseField name="announce" type="boolean | undefined">
+  `true` when only admins can send messages.
+</ResponseField>
+<ResponseField name="restrict" type="boolean | undefined">
+  `true` when only admins can edit the group info.
+</ResponseField>
+<ResponseField name="memberAddMode" type="boolean | undefined">
+  `true` when every member can add people.
+</ResponseField>
+<ResponseField name="joinApprovalMode" type="boolean | undefined">
+  `true` when an admin must approve people who join by link.
+</ResponseField>
+<ResponseField name="ephemeralDuration" type="number | undefined">
+  The disappearing-messages timer in seconds. Missing when it's off.
+</ResponseField>
+<ResponseField name="linkedParent" type="string | undefined">
+  The community ID, when this group belongs to a [community](/groups/communities).
+</ResponseField>
+
+Reading details doesn't need admin rights, but the bot must be a member of the group.
+
+## List every group the bot is in
+
+```ts
+const groups = await client.group.list()
+
+for (const group of groups) {
+  console.log(`${group.subject} (${group.id}): ${group.participants.length} members`)
+}
+```
+
+Each entry has the same fields as [`metadata()`](#read-a-groups-details). `list()` is the easiest way to find a group's ID by its name:
+
+```ts
+const groups = await client.group.list()
+const hikers = groups.find((group) => group.subject === 'Weekend Hikers')
+```
+
+## Rename a group
+
+```ts
+await client.group.updateSubject('120363041234567890@g.us', 'Weekend Hikers 2026')
+```
+
+Members see a notice in the chat that the name changed.
+
+<ParamField body="subject" type="string" required>
+  The new group name.
+</ParamField>
+
+## Change or clear the description
+
+```ts
+const groupId = '120363041234567890@g.us'
+
+await client.group.updateDescription(groupId, 'Saturday hikes around Bandung. Meet at 6 AM.')
+await client.group.updateDescription(groupId) // clears the description
+```
+
+<ParamField body="description" type="string">
+  The new description. Leave it out to remove the current one.
+</ParamField>
+
+## Change the group picture
+
+Group pictures use `client.profile`, the same methods that set the bot's own profile picture. Pass the group ID instead of the bot's:
+
+```ts
+import { readFile } from 'node:fs/promises'
+
+const groupId = '120363041234567890@g.us'
+
+await client.profile.setPicture(groupId, await readFile('./hikers-logo.jpg'))
+```
+
+The image can also be a URL: `client.profile.setPicture(groupId, { url: 'https://example.com/logo.jpg' })`.
+
+| To | Call |
+| --- | --- |
+| Set the picture | `client.profile.setPicture(groupId, image)` |
+| Remove the picture | `client.profile.removePicture(groupId)` |
+| Get the picture's URL | `client.profile.getPicture(groupId)` — resolves to a URL, or `null` when there's no picture. Pass `true` as the second argument for the full-size image. |
+
+More on these methods in [Profile](/chats/profile).
+
+## Let only admins send messages
+
+An announcement group is one where only admins can post — everyone else can read and react.
+
+```ts
+const groupId = '120363041234567890@g.us'
+
+await client.group.setting(groupId, 'announcement')     // only admins can send
+await client.group.setting(groupId, 'not_announcement') // everyone can send again
+```
+
+### Build an announcement-only group
+
+This bot keeps one announcement group set up, and lets admins of a staff group post to it with `/announce`:
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client({ commandPrefix: '/' })
+
+const NAME = 'Hikers: Announcements'
+const STAFF_GROUP = '120363041234567890@g.us'
+let announcementsId: string | undefined
+
+client.on('connect', async () => {
+  const groups = await client.group.list()
+  const existing = groups.find((group) => group.subject === NAME)
+  if (existing) {
+    announcementsId = existing.id
+    return
+  }
+
+  const group = await client.group.create(NAME, ['6281234567890@s.whatsapp.net'])
+  await client.group.setting(group.id, 'announcement') // only admins can post
+  await client.group.setting(group.id, 'locked')       // only admins can edit the info
+  await client.group.updateDescription(group.id, 'Trip dates and meeting points. Questions go to the main group.')
+  announcementsId = group.id
+
+  const code = await client.group.inviteCode(group.id)
+  await client.send(STAFF_GROUP).text(`Announcements group is ready: https://chat.whatsapp.com/${code}`)
+})
+
+client.command({ name: 'announce', admin: true, description: 'Post to the announcements group' }, async (ctx) => {
+  const text = ctx.args.join(' ')
+  if (!announcementsId || !text) {
+    await ctx.reply('Usage: /announce <message>')
+    return
+  }
+  await client.send(announcementsId).text(`📢 ${text}`)
+  await ctx.reply('Posted.')
+})
+```
+
+- The `connect` handler runs after every reconnect, so it looks for the group by name before creating one.
+- `commandPrefix: '/'` turns commands on. Without a prefix, `client.command()` handlers never run.
+- `admin: true` makes `/announce` work only for admins of the group it's sent in. Other senders are ignored — listen for `command-blocked` to tell them why. See [Commands](/bots/commands).
+- The bot created the group, so it's an admin there and can always post.
+
+## Lock the group info
+
+```ts
+const groupId = '120363041234567890@g.us'
+
+await client.group.setting(groupId, 'locked')   // only admins can edit the group info
+await client.group.setting(groupId, 'unlocked') // every member can edit it
+```
+
+All four values of `setting()`:
+
+| Value | Effect |
+| --- | --- |
+| `'announcement'` | Only admins can send messages. |
+| `'not_announcement'` | Everyone can send messages. |
+| `'locked'` | Only admins can change the name, picture, description, and disappearing-messages timer. |
+| `'unlocked'` | Every member can change them. |
+
+## Choose who can add members
+
+```ts
+const groupId = '120363041234567890@g.us'
+
+await client.group.memberAddMode(groupId, true)  // only admins can add people
+await client.group.memberAddMode(groupId, false) // every member can add people
+```
+
+<ParamField body="adminsOnly" type="boolean" required>
+  `true` limits adding people to admins. `false` lets every member add people.
+</ParamField>
+
+To make people ask before they join by link, turn on [join approval](/groups/members#require-approval-to-join).
+
+## Turn on disappearing messages
+
+```ts
+const groupId = '120363041234567890@g.us'
+
+await client.group.toggleEphemeral(groupId, 604800) // 7 days
+await client.group.toggleEphemeral(groupId, 0)      // off
+```
+
+<ParamField body="seconds" type="number" required>
+  How long new messages last. The WhatsApp app offers `86400` (24 hours), `604800` (7 days), and `7776000` (90 days). `0` turns disappearing messages off.
+</ParamField>
+
+Messages sent before you turn it on don't disappear.
+
+## Leave a group
+
+```ts
+await client.group.leave('120363041234567890@g.us')
+```
+
+The bot stops receiving the group's messages. To come back, someone has to add it again or send it an [invite link](/groups/invites#join-a-group-from-a-link). Zaileys has no call that deletes a group — to close one down, [remove the members](/groups/members#remove-people) and then leave.
+
+## Listen for group changes
+
+`group-update` fires when the name, description, or a setting of a group the bot is in changes — whoever made the change, including the bot itself.
+
+```ts
+client.on('group-update', async (event) => {
+  if (event.update.announce === true) {
+    await client.send(event.groupId).text('This group is now read-only. Admins will post updates here.')
+  }
+  if (event.update.subject) {
+    console.log(`Group ${event.groupId} is now called "${event.update.subject}"`)
+  }
+})
+```
+
+<ResponseField name="groupId" type="string">
+  The group that changed.
+</ResponseField>
+<ResponseField name="update" type="object">
+  Only the fields that changed. Can be empty — see below.
+
+  <Expandable title="fields">
+    <ResponseField name="subject" type="string">The new name.</ResponseField>
+    <ResponseField name="description" type="string">The new description.</ResponseField>
+    <ResponseField name="announce" type="boolean">`true` when the group became admins-only, `false` when it reopened.</ResponseField>
+    <ResponseField name="restrict" type="boolean">`true` when the group info was locked, `false` when it was unlocked.</ResponseField>
+    <ResponseField name="ephemeralDuration" type="number">The disappearing-messages timer, when WhatsApp includes it. Timer changes often arrive without it — read `metadata()` for the current value.</ResponseField>
+  </Expandable>
+</ResponseField>
+<ResponseField name="timestamp" type="number">
+  When Zaileys received the change, in milliseconds.
+</ResponseField>
+
+The payload doesn't say who made the change. Resetting the invite link, changing who can add members, or toggling join approval also fires `group-update`, but with an empty `update` — call `metadata()` if you need the new state.
+
+## Listen for mentions
+
+Two events tell you when a message tags the bot or a whole group. Both carry everything a normal message has — `msg.text`, `msg.roomId`, `msg.reply()` — plus a few fields:
+
+```ts
+client.on('mention', async (msg) => {
+  await msg.reply(`Hi ${msg.senderName ?? 'there'}! Send /help to see what I can do.`)
+})
+
+client.on('mention-all', async (msg) => {
+  console.log(`${msg.senderId} tagged a whole group in ${msg.roomId}`)
+})
+```
+
+| Event | Fires when | Extra fields |
+| --- | --- | --- |
+| `mention` | A message @-mentions the bot, in a group or a private chat. | `mentionedJids` — everyone mentioned in the message. `selfJid` — the bot's own JID. |
+| `mention-all` | A group message tags a whole group rather than single people. The tagged groups are also on `msg.mentionedGroups`. | `isMentionAll` — always `true`. `selfJid`. `members` is typed but Zaileys doesn't fill it — call `metadata()` for the member list. |
+
+A mention also fires `text` (or `image`, and so on) and `message` for the same message. If you handle several of these events, make sure only one of them replies.
+
+## Why some calls take longer
+
+WhatsApp watches for accounts that create groups, join groups, or change members in quick bursts — it's a pattern bulk spammers use, and it gets numbers restricted. So Zaileys puts a minimum gap between sensitive calls of the same kind. This is the `operationGuard` option, and it's on by default.
+
+| Category | Calls | Minimum gap |
+| --- | --- | --- |
+| `group.create` | `group.create()` | 60 s |
+| `group.participants` | `group.addMember()`, `removeMember()`, `promote()`, `demote()`, `approveJoin()`, `rejectJoin()` | 10 s |
+| `group.join` | `group.acceptInvite()` | 30 s |
+| `community.create` | `community.create()`, `community.createGroup()` | 120 s |
+| `community.join` | `community.acceptInvite()` | 30 s |
+| `newsletter.create` | `newsletter.create()` | 120 s |
+| `newsletter.follow` | `newsletter.follow()`, `newsletter.unfollow()` | 2 s |
+
+How it behaves:
+
+- The first call in a category runs straight away. The next one in the same category waits until the gap has passed since the previous one started.
+- Calls in a category run one at a time, in the order you made them. A call that fails doesn't hold up the ones behind it.
+- Categories are independent: creating a group doesn't delay adding members.
+- The gap applies per call, not per person. Adding 20 people in one `addMember()` call waits once; 20 separate calls take over three minutes.
+- Everything else — reading details, renaming, settings, invite links — isn't spaced.
+
+Your `await` lasts as long as the wait. If a handler adds three people in three calls, the last one finishes about 20 seconds later — reply to the user first if they're waiting.
+
+To change the gaps, pass milliseconds per category:
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client({
+  operationGuard: {
+    intervalsMs: {
+      'group.participants': 20_000, // slower than the default 10 s
+      'newsletter.follow': 5_000,
+    },
+  },
+})
+```
+
+<ParamField body="operationGuard.enabled" type="boolean" default="true">
+  `false` turns spacing off for every category.
+</ParamField>
+<ParamField body="operationGuard.intervalsMs" type="Partial<Record<OperationCategory, number>>">
+  Minimum gap in milliseconds for the categories you list. The rest keep their defaults. `0` removes the gap for that category. The option also accepts `group.update`, `community.update`, and `newsletter.update` (3 s by default), but no call uses those categories yet.
+</ParamField>
+
+<Warning>
+  Turning the guard off with `operationGuard: { enabled: false }` makes every call run immediately. Only do that when you already space these calls out yourself — a burst of group changes can get the bot's number restricted.
+</Warning>
+
+## Permissions
+
+The bot needs to be a group admin for most changes. WhatsApp checks this — Zaileys doesn't check it for you first.
+
+| Action | Who can do it |
+| --- | --- |
+| Read details, list groups, leave | Any member |
+| Send messages | Any member, or only admins when `'announcement'` is on |
+| Rename, change description or picture, change the timer | Any member when the group is `'unlocked'`; only admins when `'locked'` |
+| `setting()`, `memberAddMode()` | Admins |
+| Add people | Admins, or every member when `memberAddMode(groupId, false)` |
+| Remove, promote, demote, approve join requests | Admins |
+| Get or reset the invite link | Admins |
+
+When the bot isn't allowed to do something, the call rejects with the error WhatsApp sent back — not a Zaileys error. Its `message` is WhatsApp's reason, and it carries WhatsApp's numeric code in `error.data`. Calls that change members don't reject per person; they report a status for each JID instead ([details](/groups/members#add-people-to-a-group)).
+
+To check before you call, see [Check who is an admin](/groups/members#check-who-is-an-admin).
+
+## On the Cloud API
+
+The Cloud API has no groups, communities, or channels. On `provider: 'cloud'`, reading `client.group`, `client.community`, or `client.newsletter` throws `ZaileysProviderError` right away:
+
+```text
+group is not supported by the official WhatsApp Cloud API — it only exists on the web (baileys) provider
+```
+
+What you can do instead:
+
+- **Message a list of people** one at a time with `client.send()` in a loop. `client.broadcast()` needs WhatsApp Web, so it doesn't run on the Cloud API. Outside the <Term id="service-window" />, send approved [templates](/cloud/templates) instead.
+- **Run a second client on WhatsApp Web** for the group features, next to your Cloud API client. See [Multiple accounts](/data/multi-account).
+
+Code that runs on both providers can check first:
+
+```ts
+if (client.provider === 'baileys') {
+  await client.group.updateSubject('120363041234567890@g.us', 'Weekend Hikers')
+}
+```
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="How do I find a group's ID?">
+    Inside a handler, `msg.roomId` is the group's ID when `msg.isGroup` is `true` — send any message in the group and log it. Outside a handler, search `client.group.list()` by name, as in [List every group the bot is in](#list-every-group-the-bot-is-in).
+  </Accordion>
+  <Accordion title="Why did my second create() take a whole minute?">
+    That's the operation guard spacing group creation 60 seconds apart to protect the number. See [Why some calls take longer](#why-some-calls-take-longer) to change the gap.
+  </Accordion>
+  <Accordion title="group-update fired, but update is empty. Why?">
+    Something changed that the event doesn't describe: the invite link was reset, the member-add setting changed, or join approval was toggled. Call `client.group.metadata(event.groupId)` to read the current state.
+  </Accordion>
+  <Accordion title="Does the bot see messages from groups it's added to?">
+    Yes. Group messages arrive through the usual events (`message`, `text`, `image`, and so on) with `msg.isGroup` set to `true` and the group's ID in `msg.roomId`.
+  </Accordion>
+  <Accordion title="Can the bot delete a group?">
+    No — Zaileys has no delete call. Remove the members with [`removeMember()`](/groups/members#remove-people), then [`leave()`](#leave-a-group).
+  </Accordion>
+</AccordionGroup>
+
+## When a call fails
+
+| Error | What went wrong | How to fix it |
+| --- | --- | --- |
+| `UNSUPPORTED_ON_CLOUD` (`ZaileysProviderError`) | You used `client.group` with `provider: 'cloud'`. | Use the WhatsApp Web provider for groups. See [On the Cloud API](#on-the-cloud-api). |
+| `NOT_CONNECTED` (`ZaileysDomainError`) | The call ran before the client connected, or while it was reconnecting. | Call group methods from a `connect` handler or a message handler. |
+| An error from WhatsApp | The bot isn't an admin, isn't in the group, or the group ID is wrong. | Check the ID with `list()`, and make the bot an admin. See [Permissions](#permissions). |
+
+```ts
+import { ZaileysDomainError, ZaileysProviderError } from 'zaileys'
+
+try {
+  await client.group.updateSubject('120363041234567890@g.us', 'Weekend Hikers')
+} catch (error) {
+  if (error instanceof ZaileysProviderError) {
+    console.error('Groups need the WhatsApp Web provider')
+  } else if (error instanceof ZaileysDomainError && error.code === 'NOT_CONNECTED') {
+    console.error('Not connected yet — try again after the connect event')
+  } else {
+    console.error('WhatsApp refused the change:', (error as Error).message)
+  }
+}
+```
+
+`ZaileysDomainError` also lists `GROUP_NOT_FOUND` and `INVALID_PARTICIPANT` as codes, but no group call throws them today. More in [Error handling](/data/error-handling).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Members & admins" icon="user-cog" href="/groups/members">
+    Add and remove people, promote admins, and welcome newcomers.
+  </Card>
+  <Card title="Invites" icon="link" href="/groups/invites">
+    Share invite links, reset them, and send invite cards.
+  </Card>
+  <Card title="Communities" icon="network" href="/groups/communities">
+    Put several groups under one community.
+  </Card>
+  <Card title="Commands" icon="square-terminal" href="/bots/commands">
+    Admin-only commands like `/announce` with the `admin` guard.
+  </Card>
+</CardGroup>

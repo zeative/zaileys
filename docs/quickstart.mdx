@@ -1,9 +1,275 @@
 ---
 title: "Quickstart"
-description: "Build a WhatsApp bot that replies to messages in about five minutes."
+description: "Build a WhatsApp bot that replies to messages in about five minutes, on WhatsApp Web or the official Cloud API."
 icon: "rocket"
+keywords: ["getting started", "first bot", "hello world", "qr code", "scan qr", "pairing code", "echo bot", "tutorial", "setup"]
 ---
 
+import { Term } from "/snippets/glossary.jsx"
+
+By the end of this page, a bot running on your machine answers every text message it receives:
+
+```text
+You: hi
+Bot: You said: hi
+```
+
+Pick your provider in any tab below — the choice carries across this page and the rest of the docs.
+
 <Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/getting-started](https://zeative.github.io/zaileys/getting-started).
+  **Unofficial** logs in as a linked device of a normal WhatsApp account — no approval needed, ready in about five minutes. **Official** uses Meta's Cloud API with a business number and needs a Meta app first. Not sure which? [Compare them](/providers).
 </Note>
+
+## Before you start
+
+<Tabs>
+  <Tab title="Unofficial">
+
+    - A Node.js 20+ project to add the bot to.
+    - A phone with WhatsApp for the bot's number. Use a number you can afford to lose — WhatsApp can ban numbers that behave like automated accounts. [Read why](/providers)
+    - A second WhatsApp account to test with, since the bot ignores messages from its own number.
+
+  </Tab>
+  <Tab title="Official">
+
+    - A Node.js 20+ project to add the bot to.
+    - A Meta app with the WhatsApp product, and four values from it: access token, <Term id="phone-number-id" />, verify token, and app secret. [Get them](/cloud/setup)
+    - A public HTTPS URL that reaches your machine, for the <Term id="webhook" />. A tunnel such as ngrok gives you one.
+
+  </Tab>
+</Tabs>
+
+## Build it
+
+<Steps>
+  <Step title="Install Zaileys">
+
+    <Tabs>
+      <Tab title="Unofficial">
+
+        ```bash
+        npm install zaileys
+        ```
+
+      </Tab>
+      <Tab title="Official">
+
+        ```bash
+        npm install zaileys hono @hono/node-server
+        ```
+
+        Hono is a small web framework that serves the webhook. Any framework works — see [Webhook](/cloud/webhook) for Express and Next.js.
+
+      </Tab>
+    </Tabs>
+
+    Using pnpm, yarn, or bun? The commands are in [Installation](/installation).
+
+  </Step>
+  <Step title="Write the bot">
+
+    Create `bot.ts`:
+
+    <Tabs>
+      <Tab title="Unofficial">
+
+        ```ts bot.ts
+        import { Client } from 'zaileys'
+
+        const client = new Client()
+
+        client.on('text', async (msg) => {
+          await msg.reply(`You said: ${msg.text}`)
+        })
+        ```
+
+        - `new Client()` starts connecting straight away — there's no separate `connect()` call.
+        - `client.on('text', …)` runs your function for every incoming text message.
+        - `msg.reply()` answers in the same chat the message came from.
+
+      </Tab>
+      <Tab title="Official">
+
+        ```ts bot.ts
+        import { serve } from '@hono/node-server'
+        import { Hono } from 'hono'
+        import { Client } from 'zaileys'
+
+        const client = new Client({
+          provider: 'cloud',
+          cloud: {
+            accessToken: process.env.WA_TOKEN!,
+            phoneNumberId: process.env.WA_PHONE_ID!,
+            verifyToken: process.env.WA_VERIFY_TOKEN!,
+            appSecret: process.env.WA_APP_SECRET!,
+          },
+        })
+
+        client.on('text', async (msg) => {
+          await msg.reply(`You said: ${msg.text}`)
+        })
+
+        const webhook = client.webhook()
+        const app = new Hono()
+        app.all('/webhook', (c) => webhook(c.req.raw))
+
+        serve({ fetch: app.fetch, port: 3000 })
+        ```
+
+        - `provider: 'cloud'` switches Zaileys to the Cloud API, using the four values from your Meta app.
+        - `client.on('text', …)` is exactly the same code as on the Unofficial tab.
+        - `client.webhook()` returns the handler Meta calls with every message. Here it's served at `http://localhost:3000/webhook`.
+
+      </Tab>
+    </Tabs>
+
+  </Step>
+  <Step title="Start it and connect">
+
+    <Tabs>
+      <Tab title="Unofficial">
+
+        Run the file with your TypeScript runner, for example:
+
+        ```bash
+        npx tsx bot.ts
+        ```
+
+        Your terminal shows a QR code and these lines:
+
+        ```text
+        [zaileys] Connecting to WhatsApp (session: default)...
+        [zaileys] Scan the QR code above with WhatsApp > Linked devices to authenticate.
+        ```
+
+        On the bot's phone, open **WhatsApp → Settings → Linked devices → Link a device** and scan the code. When linking finishes, the terminal prints:
+
+        ```text
+        [zaileys] Connected as 6281234567890@s.whatsapp.net.
+        ```
+
+        <Accordion title="Can't scan a QR? Use a pairing code instead">
+
+          Give the client the bot's own number — country code first, digits only:
+
+          ```ts bot.ts
+          import { Client } from 'zaileys'
+
+          const client = new Client({ authType: 'pairing', phoneNumber: '6281234567890' })
+          ```
+
+          The terminal prints an 8-character code:
+
+          ```text
+          [zaileys] Pairing code: ABCD1234 — enter it in WhatsApp > Linked devices > Link with phone number.
+          ```
+
+          On the phone, open **WhatsApp → Settings → Linked devices → Link a device → Link with phone number instead**, and type the <Term id="pairing-code" />. To show the code somewhere else, such as a web page, listen for the `pairing-code` event.
+
+        </Accordion>
+
+      </Tab>
+      <Tab title="Official">
+
+        Set the four values from your Meta app, then run the file with your TypeScript runner:
+
+        ```bash
+        export WA_TOKEN="your-access-token"
+        export WA_PHONE_ID="your-phone-number-id"
+        export WA_VERIFY_TOKEN="any-secret-string-you-choose"
+        export WA_APP_SECRET="your-app-secret"
+
+        npx tsx bot.ts
+        ```
+
+        Make port 3000 reachable over HTTPS — for example, `ngrok http 3000` prints a public URL. Then, in the Meta dashboard, open **WhatsApp → Configuration → Webhook** and:
+
+        1. Set **Callback URL** to your public URL followed by `/webhook`, such as `https://ab12-34.ngrok-free.app/webhook`.
+        2. Set **Verify token** to the same value as `WA_VERIFY_TOKEN`.
+        3. Click **Verify and save**. Meta calls your webhook once, and Zaileys answers automatically.
+        4. Subscribe to the **messages** field.
+
+      </Tab>
+    </Tabs>
+
+  </Step>
+  <Step title="Send it a message">
+
+    <Tabs>
+      <Tab title="Unofficial">
+
+        From your **second** WhatsApp account, send the bot `hi`. It answers `You said: hi`, and the terminal keeps running while it waits for the next message.
+
+      </Tab>
+      <Tab title="Official">
+
+        From your phone, send `hi` to the business number. It answers `You said: hi`. Your message also opens the <Term id="service-window" />, so the bot can reply freely for the next 24 hours.
+
+        Testing with Meta's test number? Add your phone as a recipient under **WhatsApp → API Setup** first — Meta only delivers test messages to numbers on that list.
+
+      </Tab>
+    </Tabs>
+
+  </Step>
+</Steps>
+
+## What just happened
+
+- **The client connected on its own.** `autoConnect` defaults to `true`. On the Official provider, "connecting" only checks your token — messages arrive through the webhook.
+- **Your login was saved** (Unofficial). The <Term id="session" /> is stored next to your code, so restarting the bot doesn't need a new QR:
+
+  <Tree>
+    <Tree.Folder name="your-project" defaultOpen>
+      <Tree.File name="bot.ts" />
+      <Tree.Folder name=".zaileys" defaultOpen>
+        <Tree.Folder name="auth" defaultOpen>
+          <Tree.Folder name="default" />
+        </Tree.Folder>
+      </Tree.Folder>
+    </Tree.Folder>
+  </Tree>
+
+- **Your own messages are skipped.** `ignoreMe` defaults to `true`, so the bot never answers itself in an endless loop.
+
+<Warning>
+  Add `.zaileys` to your `.gitignore`. It holds the bot's WhatsApp login — anyone who gets that folder can use the account.
+</Warning>
+
+## If something goes wrong
+
+<AccordionGroup>
+  <Accordion title="The QR code expired before I scanned it">
+    QR codes are only valid for a short time. Zaileys prints a fresh one automatically — scan the newest code in your terminal.
+  </Accordion>
+  <Accordion title="The terminal keeps printing “Connection lost … Reconnecting”">
+    The saved session is probably broken, for example because you removed the linked device from the phone. Stop the bot, delete the `.zaileys` folder, start it again, and scan a new QR code.
+  </Accordion>
+  <Accordion title="The bot doesn't answer my messages">
+    Check that you're messaging from a **different** account than the bot's own — its own messages are ignored. Also make sure the handler listens for `'text'` and the terminal shows `Connected as …`.
+  </Accordion>
+  <Accordion title="Meta says the webhook couldn't be verified (Official)">
+    Check that the bot is running, that the public URL opens in your browser, that the callback URL ends in `/webhook`, and that the verify token matches `WA_VERIFY_TOKEN` exactly.
+  </Accordion>
+  <Accordion title="Replies fail with error 131047 (Official)">
+    More than 24 hours have passed since the user last messaged you, so free-form replies aren't allowed. Wait for them to message again, or send an approved [template](/cloud/templates).
+  </Accordion>
+</AccordionGroup>
+
+More fixes are in [Troubleshooting](/reference/troubleshooting).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Send media" icon="image" href="/messaging/media">
+    Photos, voice notes, documents, and stickers.
+  </Card>
+  <Card title="Add buttons" icon="mouse-pointer-click" href="/messaging/interactive">
+    Let people tap instead of type.
+  </Card>
+  <Card title="Build commands" icon="square-terminal" href="/bots/commands">
+    Answer `/help`, `/price`, and other commands.
+  </Card>
+  <Card title="Configure the client" icon="sliders-horizontal" href="/concepts/configuration">
+    Sessions, storage, reconnects, and more.
+  </Card>
+</CardGroup>

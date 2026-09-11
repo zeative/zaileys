@@ -1,9 +1,292 @@
 ---
-title: "Media"
-description: "Send images, videos, audio, documents, stickers, and albums."
+title: "Send media"
+sidebarTitle: "Media"
+description: "Send photos, videos, voice notes, documents, stickers, and albums — from a URL, a file on disk, or memory."
 icon: "image"
+keywords: ["send image", "send photo", "send picture", "send video", "voice note", "send audio", "send mp3", "send pdf", "send file", "document", "sticker", "album", "gif", "view once", "caption"]
 ---
 
-<Note>
-  This page is being rewritten for the new docs. Until then, the previous version is at [https://zeative.github.io/zaileys/sending-messages](https://zeative.github.io/zaileys/sending-messages).
-</Note>
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+
+Every media message follows the same pattern: `client.send(jid)`, then the kind of media, then optional settings. Zaileys downloads the file, detects its format, and converts audio and stickers for you.
+
+<ProviderSupport web={true} cloud="partial" note="Albums, round video notes, and view-once are WhatsApp Web only." />
+
+## Quick reference
+
+| To send | Call | Recipient sees |
+| --- | --- | --- |
+| A photo | [`.image(src, { caption })`](#send-a-photo) | The photo, with your caption underneath |
+| A video | [`.video(src, { caption })`](#send-a-video) | A playable video |
+| A GIF | [`.video(src, { gifPlayback: true })`](#send-a-gif) | A silent video that loops |
+| A round video note | [`.videoNote(src)`](#send-a-round-video-note) | A circular video bubble |
+| A voice note | [`.audio(src)`](#send-a-voice-note-or-an-audio-file) | A voice message with a waveform |
+| A music or audio file | [`.audio(src, { ptt: false })`](#send-a-voice-note-or-an-audio-file) | An audio player |
+| A PDF, ZIP, or any file | [`.document(src, { fileName })`](#send-a-document) | A downloadable file with its name |
+| A sticker | [`.sticker(src)`](#send-a-sticker) | A sticker, converted from your image or video |
+| Several photos or videos | [`.album([...])`](#send-an-album) | One grouped album |
+
+## Pick where the file comes from
+
+Every method above accepts the same three kinds of source:
+
+```ts
+import { readFile } from 'node:fs/promises'
+
+await client.send(jid).image('https://example.com/cat.jpg')     // downloaded for you
+await client.send(jid).image('./photos/cat.jpg')                 // read from disk
+await client.send(jid).image(await readFile('./photos/cat.jpg')) // bytes already in memory
+```
+
+- **URLs** must answer within 30 seconds, or the send fails with `MEDIA_LOAD_FAILED`.
+- **Paths** are relative to the folder you started the bot from, not to the file the code is in.
+- **You never pass a file type.** Zaileys reads it from the file's contents.
+
+`jid` is the chat you're sending to. Inside a handler, use `msg.chatId` to answer in the same chat:
+
+```ts
+client.on('text', async (msg) => {
+  if (msg.text === 'menu') {
+    await client.send(msg.chatId).image('./menu.jpg', { caption: "Today's menu 🍜" })
+  }
+})
+```
+
+Not sure what a chat address looks like? See [Addresses & JIDs](/concepts/jids).
+
+## Send a photo
+
+```ts
+await client.send(jid).image('./sunset.jpg', { caption: 'Sunset at Kuta beach 🌅' })
+```
+
+<ParamField body="caption" type="string">
+  Text shown under the photo. Supports WhatsApp formatting like `*bold*` and `_italic_`.
+</ParamField>
+<ParamField body="viewOnce" type="boolean" default="false">
+  The recipient can open the photo only once. WhatsApp Web only.
+</ParamField>
+
+## Send a video
+
+```ts
+await client.send(jid).video('./demo.mp4', { caption: 'Product demo, 30 seconds' })
+```
+
+<ParamField body="caption" type="string">
+  Text shown under the video.
+</ParamField>
+<ParamField body="gifPlayback" type="boolean" default="false">
+  Play silently in a loop, like a GIF. WhatsApp Web only.
+</ParamField>
+<ParamField body="viewOnce" type="boolean" default="false">
+  The recipient can watch the video only once. WhatsApp Web only.
+</ParamField>
+
+The source must be a video file. An image or audio file rejects with `INVALID_OPTIONS`.
+
+## Send a GIF
+
+WhatsApp has no GIF message type — a "GIF" in WhatsApp is an MP4 that loops silently. Send an MP4 with `gifPlayback`:
+
+```ts
+await client.send(jid).video('./dance.mp4', { gifPlayback: true })
+```
+
+Only have a `.gif` file? See [Can I send a .gif file?](#common-questions) below.
+
+## Send a round video note
+
+A video note is the circular video bubble you get by holding the camera button in WhatsApp.
+
+```ts
+await client.send(jid).videoNote('./hello.mp4')
+```
+
+<ParamField body="viewOnce" type="boolean" default="false">
+  The recipient can watch it only once.
+</ParamField>
+
+## Send a voice note or an audio file
+
+WhatsApp shows audio in two ways: a **voice note** (a voice message with a waveform) or an **audio file** (a music-style player with a title). `audio()` sends a voice note unless you say otherwise:
+
+```ts
+await client.send(jid).audio('./greeting.ogg')                // voice note
+await client.send(jid).audio('./jingle.mp3', { ptt: false }) // audio file
+```
+
+You can pass MP3, M4A, WAV, OGG, or any other common format. Zaileys converts it to Opus — the format WhatsApp plays — and draws the waveform for voice notes.
+
+<ParamField body="ptt" type="boolean" default="true">
+  `true` sends a voice note ("push to talk"). `false` sends an audio file.
+</ParamField>
+<ParamField body="seconds" type="number">
+  The duration shown on the message. Worked out automatically for voice notes.
+</ParamField>
+
+## Send a document
+
+Use `document()` for any file people should download: PDFs, spreadsheets, ZIP archives, and so on.
+
+```ts
+await client.send(jid).document('./invoices/0042.pdf', {
+  fileName: 'Invoice-0042.pdf',
+  caption: 'Your invoice for September',
+})
+```
+
+Files you create in code work too — pass a `Buffer` and tell WhatsApp its type:
+
+```ts
+const csv = 'name,total\nBudi,120000\nSari,85000\n'
+
+await client.send(jid).document(Buffer.from(csv), {
+  fileName: 'sales-report.csv',
+  mimetype: 'text/csv',
+})
+```
+
+<ParamField body="fileName" type="string" required>
+  The name the recipient sees, including the extension. Leaving it out or empty rejects with `INVALID_OPTIONS`.
+</ParamField>
+<ParamField body="mimetype" type="string">
+  The file type, such as `text/csv`. Detected automatically when you leave it out.
+</ParamField>
+<ParamField body="caption" type="string">
+  Text shown under the document.
+</ParamField>
+
+## Send a sticker
+
+Pass any image, GIF, or video — Zaileys turns it into a WhatsApp sticker:
+
+```ts
+await client.send(jid).sticker('./logo.png', {
+  packageName: 'Zaileys Bot',
+  authorName: 'My Store',
+  shape: 'rounded',
+})
+```
+
+<ParamField body="shape" type="'default' | 'circle' | 'rounded' | 'oval'" default="'default'">
+  Crop the sticker to a shape.
+</ParamField>
+<ParamField body="animated" type="boolean" default="false">
+  Mark the sticker as animated. Set it when the source is a GIF or video.
+</ParamField>
+<ParamField body="packageName" type="string">
+  Pack name people see when they save the sticker.
+</ParamField>
+<ParamField body="authorName" type="string">
+  Author shown next to the pack name.
+</ParamField>
+
+<Tip>
+  Tired of repeating `packageName` and `authorName`? Set them once for every sticker with the `sticker` option on `new Client()` — see [Configuration](/concepts/configuration).
+</Tip>
+
+## Send an album
+
+Group 2 to 30 photos and videos into a single album:
+
+```ts
+await client.send(jid).album([
+  { type: 'image', src: './trip/day-1.jpg', caption: 'Day 1: arrival' },
+  { type: 'image', src: './trip/day-2.jpg', caption: 'Day 2: the mountain' },
+  { type: 'video', src: './trip/day-3.mp4' },
+])
+```
+
+Each item needs a `type` (`'image'` or `'video'`) and a `src`. A `caption` is optional. The send resolves to the key of the album's first message.
+
+## Reply or mention with media
+
+Media accepts the same extras as text. This answers a message with a chart, quoting the question:
+
+```ts
+client.on('text', async (msg) => {
+  if (msg.text === 'sales') {
+    await client.send(msg.chatId).image('./chart.png', { caption: 'Sales this week 📈' }).reply(msg.message())
+  }
+})
+```
+
+`.reply()`, `.mentions()`, and `.disappearing()` are covered in [Text & replies](/messaging/text).
+
+## Differences on the Cloud API
+
+The same code runs on both providers. A few media features only exist on WhatsApp Web:
+
+| Feature | What happens on the Cloud API |
+| --- | --- |
+| `album()` | Rejects with `SEND_FAILED`. Send each photo on its own instead (example below). |
+| `videoNote()` | Arrives as a regular video, not a round bubble. |
+| `viewOnce`, `gifPlayback` | Ignored — the file arrives as a normal photo or video. |
+| `ptt` on `audio()` | Ignored — the file arrives as an audio message. |
+
+To send several photos on the Cloud API, send them one after another:
+
+```ts
+for (const photo of ['./trip/day-1.jpg', './trip/day-2.jpg']) {
+  await client.send(jid).image(photo)
+}
+```
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="My audio arrives as a voice note. How do I send a normal audio file?">
+    Add `{ ptt: false }`: `client.send(jid).audio('./song.mp3', { ptt: false })`. Voice note is the default because that's what most bots send.
+  </Accordion>
+  <Accordion title="Can I send a .gif file?">
+    Not with `video()` — it only accepts video files, and a `.gif` is an image. You have two options:
+
+    - **As a sticker:** `client.send(jid).sticker('./party.gif', { animated: true })` works as-is.
+    - **As a looping video:** convert it to MP4 first, for example with `ffmpeg -i party.gif -pix_fmt yuv420p party.mp4`, then send it with `{ gifPlayback: true }`.
+  </Accordion>
+  <Accordion title="Do I need to install ffmpeg?">
+    No. Zaileys ships its own ffmpeg binary for converting audio and stickers. Termux is the exception — see [Runtimes](/data/runtimes).
+  </Accordion>
+  <Accordion title="Why does it say the file wasn't found when it's right there?">
+    Relative paths start from the folder you ran the bot from. If you run `node dist/bot.js` from your project root, `./photo.jpg` means `<project root>/photo.jpg`. Use an absolute path when in doubt.
+  </Accordion>
+  <Accordion title="How do I send media to everyone in a list?">
+    Use `client.broadcast()`, which adds rate limiting so WhatsApp doesn't flag you. See [Broadcast & schedule](/bots/broadcast-and-schedule).
+  </Accordion>
+</AccordionGroup>
+
+## When a send fails
+
+| Error code | What went wrong | How to fix it |
+| --- | --- | --- |
+| `MEDIA_LOAD_FAILED` | The URL didn't answer within 30 seconds or returned an error, the file doesn't exist, or conversion failed. | Open the URL in a browser, check the path from the folder you started the bot in, and make sure the file isn't corrupted. |
+| `INVALID_OPTIONS` | A non-video passed to `video()`, a document without `fileName`, or an album outside 2–30 items. | Match the method to the file type, add `fileName`, or split the album. |
+| `SEND_FAILED` | WhatsApp refused the message — for example, an album on the Cloud API. | Check [Differences on the Cloud API](#differences-on-the-cloud-api). The original reason is on `error.cause`. |
+
+Catch a specific error by its `code`:
+
+```ts
+import { ZaileysBuilderError } from 'zaileys'
+
+try {
+  await client.send(jid).image('./missing.jpg')
+} catch (error) {
+  if (error instanceof ZaileysBuilderError && error.code === 'MEDIA_LOAD_FAILED') {
+    console.error('Could not load the photo:', error.message)
+  }
+}
+```
+
+More in [Error handling](/data/error-handling).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Receiving media" icon="file-down" href="/messaging/receiving-media">
+    Download the photos, voice notes, and files people send you.
+  </Card>
+  <Card title="Buttons & lists" icon="mouse-pointer-click" href="/messaging/interactive">
+    Let people tap instead of type.
+  </Card>
+</CardGroup>

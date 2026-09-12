@@ -51,7 +51,7 @@ erase stored credentials; all are closed.
 
 - Media loading refuses paths resolving inside the auth directory, so a bot echoing user input can
   no longer be made to send its own `creds.json`. Local paths otherwise keep working; opt into
-  strict mode with `media: { allowLocalPaths: false }`.
+  strict mode with `loadMedia(src, { allowLocalPaths: false })` (not yet exposed as a `Client` option).
 - Private, loopback and link-local addresses are blocked for media fetches by default.
 - Credential files and directories are created `0600` / `0700`.
 - Redis connection errors no longer echo the password; pino redacts credentials and tokens; the

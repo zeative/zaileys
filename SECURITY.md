@@ -95,7 +95,7 @@ auth store, jadi membersihkan riwayat chat ikut menghapus sesi.
 - **Media dari input user.** String biasa masih diperlakukan sebagai path lokal, tapi path yang
   resolve ke dalam direktori auth ditolak — jadi bot yang meneruskan teks user tidak bisa dipaksa
   mengirim `creds.json`-nya sendiri. Alamat privat/loopback/link-local diblokir, ada batas ukuran
-  dan timeout. Mode ketat: `media: { allowLocalPaths: false }`.
+  dan timeout. Mode ketat: `loadMedia(src, { allowLocalPaths: false })` — belum tersedia sebagai opsi `Client`.
 - **Webhook Cloud API wajib bertanda tangan.** POST tanpa `appSecret` ditolak. Untuk development
   lokal: `cloud: { allowUnsigned: true }`.
 - **`sessionId`** wajib cocok `/^[A-Za-z0-9_-]{1,64}$/` — ia diinterpolasi ke path yang dihapus

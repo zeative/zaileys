@@ -142,9 +142,9 @@ export default definePlugin({
   groupJoin: async (event, plugin) => {
     try {
       const count = event.participants.length
-      await plugin.client
-        .send(event.groupId)
-        .text(count === 1 ? 'Welcome to the group! Please read the pinned rules.' : `Welcome, all ${count} of you!`)
+      let message = `Welcome, all ${count} of you!`
+      if (count === 1) message = 'Welcome to the group! Please read the pinned rules.'
+      await plugin.client.send(event.groupId).text(message)
     } catch (error) {
       plugin.logger?.error(error, 'welcome message failed')
     }
@@ -176,16 +176,27 @@ const notes = new Map<string, string[]>()
 export default definePlugin({
   name: 'notes',
   setup(ctx) {
-    ctx.command({ name: 'note add', description: 'Save a note', usage: '<text>' }, async (c) => {
-      const list = notes.get(c.senderId) ?? []
-      list.push(c.args.join(' '))
-      notes.set(c.senderId, list)
-      await c.reply(`Saved. You have ${list.length} note(s).`)
+    ctx.command({ name: 'note add', description: 'Save a note', usage: '<text>' }, async (cmd) => {
+      const list = notes.get(cmd.senderId) ?? []
+      list.push(cmd.args.join(' '))
+      notes.set(cmd.senderId, list)
+      await cmd.reply(`Saved. You have ${list.length} note(s).`)
     })
 
-    ctx.command({ name: 'note list', description: 'List your notes' }, async (c) => {
-      const list = notes.get(c.senderId) ?? []
-      await c.reply(list.length > 0 ? list.map((note, i) => `${i + 1}. ${note}`).join('\n') : 'No notes yet.')
+    ctx.command({ name: 'note list', description: 'List your notes' }, async (cmd) => {
+      const list = notes.get(cmd.senderId) ?? []
+      if (list.length === 0) {
+        await cmd.reply('No notes yet.')
+        return
+      }
+
+      let text = ''
+      let number = 1
+      for (const note of list) {
+        text += `${number}. ${note}\n`
+        number += 1
+      }
+      await cmd.reply(text.trim())
     })
 
     const daily = setInterval(() => notes.clear(), 24 * 60 * 60 * 1000)

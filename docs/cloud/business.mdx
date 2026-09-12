@@ -237,11 +237,16 @@ When a customer sends their cart, the `order` event fires:
 
 ```ts
 client.on('order', async (order) => {
-  const total = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
   const currency = order.items[0]?.currency ?? ''
-  const lines = order.items.map((item) => `${item.quantity}× ${item.productRetailerId}`).join('\n')
 
-  await client.send(order.senderId).text(`Thanks! We got your order:\n${lines}\nTotal: ${total} ${currency}`)
+  let total = 0
+  let lines = ''
+  for (const item of order.items) {
+    total += item.price * item.quantity
+    lines += `${item.quantity}× ${item.productRetailerId}\n`
+  }
+
+  await client.send(order.senderId).text(`Thanks! We got your order:\n${lines}Total: ${total} ${currency}`)
 })
 ```
 

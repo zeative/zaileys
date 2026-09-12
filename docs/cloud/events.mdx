@@ -189,11 +189,16 @@ When a customer adds products from your catalog to their cart and sends it, `ord
 
 ```ts
 client.on('order', async (order) => {
-  const total = order.items.reduce((sum, item) => sum + item.price * item.quantity, 0)
   const currency = order.items[0]?.currency ?? ''
-  const lines = order.items.map((item) => `${item.quantity} × ${item.productRetailerId}`).join('\n')
 
-  await client.send(order.senderId).text(`Got your order:\n${lines}\nTotal: ${currency} ${total}`)
+  let total = 0
+  let lines = ''
+  for (const item of order.items) {
+    total += item.price * item.quantity
+    lines += `${item.quantity} × ${item.productRetailerId}\n`
+  }
+
+  await client.send(order.senderId).text(`Got your order:\n${lines}Total: ${currency} ${total}`)
 })
 ```
 

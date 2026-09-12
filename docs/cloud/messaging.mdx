@@ -172,14 +172,12 @@ It resolves to `{ buffer, mime, size }`, or `null` when the message isn't in the
 `contact()` takes a vCard, the same as on WhatsApp Web. The Cloud API needs a first name as well as a display name, so Zaileys reads the `N:` line — or, without one, splits the `FN:` name at the first space:
 
 ```ts
-const vcard = [
-  'BEGIN:VCARD',
-  'VERSION:3.0',
-  'FN:Budi Santoso',
-  'N:Santoso;Budi',
-  'TEL;type=CELL;waid=6281234567890:+62 812-3456-7890',
-  'END:VCARD',
-].join('\n')
+const vcard = `BEGIN:VCARD
+VERSION:3.0
+FN:Budi Santoso
+N:Santoso;Budi
+TEL;type=CELL;waid=6281234567890:+62 812-3456-7890
+END:VCARD`
 
 await client.send(jid).contact(vcard)
 ```

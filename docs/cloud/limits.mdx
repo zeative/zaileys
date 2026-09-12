@@ -197,9 +197,9 @@ Several quick messages to the same customer fail with `131056`, usually as `RATE
 **Fix.** Put related text into one message instead of several, and leave at least 6 seconds between messages to the same person:
 
 ```ts
-const lines = ['Order #1042 confirmed', 'Total: Rp150.000', 'Delivery: today, 18:00–19:00']
-
-await client.send('6281234567890').text(lines.join('\n'))
+await client.send('6281234567890').text(`Order #1042 confirmed
+Total: Rp150.000
+Delivery: today, 18:00–19:00`)
 ```
 
 ## Error 190: the access token expired

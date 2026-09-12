@@ -258,15 +258,22 @@ client.command({ name: 'dice', description: 'Roll a die', usage: '[sides]', cate
 })
 
 client.command({ name: 'help', aliases: ['menu'], description: 'Show this menu', category: 'general' }, async (ctx) => {
-  const sections = new Map<string, string[]>()
+  const sections = new Map<string, string>()
   for (const command of client.commands()) {
     if (command.hidden) continue
     const category = command.category ?? 'other'
-    const line = `/${command.name}${command.usage ? ` ${command.usage}` : ''} — ${command.description ?? ''}`
-    sections.set(category, [...(sections.get(category) ?? []), line])
+    let line = `/${command.name}`
+    if (command.usage) line += ` ${command.usage}`
+    line += ` — ${command.description ?? ''}`
+    const lines = sections.get(category) ?? ''
+    sections.set(category, `${lines}${line}\n`)
   }
-  const menu = [...sections].map(([category, lines]) => `*${category}*\n${lines.join('\n')}`).join('\n\n')
-  await ctx.reply(menu)
+
+  let menu = ''
+  for (const [category, lines] of sections) {
+    menu += `*${category}*\n${lines}\n`
+  }
+  await ctx.reply(menu.trim())
 })
 ```
 

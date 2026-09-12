@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { constants as fsConstants } from 'node:fs';
 
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -49,27 +50,55 @@ let ffmpegPath = 'ffmpeg';
 let ffprobePath = 'ffprobe';
 let ffmpegInitialized = false;
 
+/**
+ * The installer packages make their binary executable in a postinstall script, which pnpm 10 and
+ * bun skip by default — leaving a `-rw-r--r--` file that fails every spawn with EACCES. Repair it
+ * when we own the file, otherwise fall back to the system binary on PATH.
+ */
+export const resolveExecutable = async (bundled: string | undefined, systemName: string): Promise<string> => {
+  if (bundled === undefined || bundled.length === 0) return systemName;
+  /** Never throws: failing to pick a binary must degrade to PATH, not break media processing. */
+  try {
+    if (process.platform === 'win32') {
+      await fs.access(bundled);
+      return bundled;
+    }
+    const executable = (): Promise<boolean> => fs.access(bundled, fsConstants.X_OK).then(() => true, () => false);
+    if (await executable()) return bundled;
+    const { mode } = await fs.stat(bundled);
+    await fs.chmod(bundled, mode | 0o100);
+    return (await executable()) ? bundled : systemName;
+  } catch {
+    return systemName;
+  }
+};
+
 export const initializeFFmpeg = async (disable: boolean = false) => {
   if (disable || ffmpegInitialized) return;
   ffmpegInitialized = true;
 
-  try {
-    const ffmpegInstaller = (await import('@ffmpeg-installer/ffmpeg')).default;
-    if (ffmpegInstaller?.path) {
-      ffmpegPath = ffmpegInstaller.path;
-      const dir = path.dirname(ffmpegInstaller.path);
-      const sep = process.platform === 'win32' ? ';' : ':';
-      const current = process.env['PATH'] ?? '';
-      if (!current.split(sep).includes(dir)) {
-        process.env['PATH'] = `${dir}${sep}${current}`;
-      }
-    }
-  } catch {}
+  const envFfmpeg = process.env['FFMPEG_PATH'];
+  const envFfprobe = process.env['FFPROBE_PATH'];
 
+  let bundledFfmpeg: string | undefined;
   try {
-    const ffprobeInstaller = (await import('@ffprobe-installer/ffprobe')).default;
-    if (ffprobeInstaller?.path) ffprobePath = ffprobeInstaller.path;
+    bundledFfmpeg = (await import('@ffmpeg-installer/ffmpeg')).default?.path;
   } catch {}
+  ffmpegPath = envFfmpeg ?? (await resolveExecutable(bundledFfmpeg, 'ffmpeg'));
+  if (ffmpegPath !== 'ffmpeg') {
+    const dir = path.dirname(ffmpegPath);
+    const sep = process.platform === 'win32' ? ';' : ':';
+    const current = process.env['PATH'] ?? '';
+    if (!current.split(sep).includes(dir)) {
+      process.env['PATH'] = `${dir}${sep}${current}`;
+    }
+  }
+
+  let bundledFfprobe: string | undefined;
+  try {
+    bundledFfprobe = (await import('@ffprobe-installer/ffprobe')).default?.path;
+  } catch {}
+  ffprobePath = envFfprobe ?? (await resolveExecutable(bundledFfprobe, 'ffprobe'));
 };
 
 /** A hung child never settles its promise, leaks a PID and strands its temp files. */
@@ -260,6 +289,8 @@ export class FFmpegProcessor {
    * are all meaningful — so only an existing local file is accepted.
    */
   static async getDuration(filePath: string): Promise<number> {
+    /** Resolve binaries first: otherwise ffprobe came from PATH until some ffmpeg job ran, then switched. */
+    await initializeFFmpeg();
     if (typeof filePath !== 'string' || filePath.length === 0 || filePath.startsWith('-')) {
       throw new Error('getDuration expects a local file path');
     }

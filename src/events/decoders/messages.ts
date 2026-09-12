@@ -672,7 +672,19 @@ const decodeQuotedContext = async (
       pushName != null ? { pushName } : {},
     ) as WAMessage
     const text = anyText(reconstructed) ?? ''
-    return buildContext(reconstructed, ctx, chatTypeOf(qm), text, mediaOf(reconstructed, ctx), parentRoomName)
+    /**
+     * Rebuilt from the sender's own contextInfo — nothing binds it to a message we sent, so it is
+     * reported unverified and its `isFromMe` must not be read as proof of authorship.
+     */
+    return buildContext(
+      reconstructed,
+      ctx,
+      chatTypeOf(qm),
+      text,
+      mediaOf(reconstructed, ctx),
+      parentRoomName,
+      false,
+    )
   } catch {
     return null
   }
@@ -715,6 +727,7 @@ const buildContext = (
   text: string,
   media?: ContextMedia,
   roomNameOverride?: () => Promise<string | null>,
+  verified = true,
 ): MessageContext | null => {
   const key = msg.key
   if (key == null) return null
@@ -797,10 +810,11 @@ const buildContext = (
     react,
   }
   const withMedia = media !== undefined ? { ...baseInput, media } : baseInput
+  const withVerified = { ...withMedia, verified }
   return buildMessageContext(
     ctx.citationConfig !== undefined
-      ? { ...withMedia, citationConfig: ctx.citationConfig }
-      : withMedia,
+      ? { ...withVerified, citationConfig: ctx.citationConfig }
+      : withVerified,
   )
 }
 

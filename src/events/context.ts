@@ -252,6 +252,12 @@ export interface MessageContext {
   mentions: string[]
   links: string[]
   isFromMe: boolean
+  /**
+   * Whether this context came from a message we actually stored. `false` means it was rebuilt from
+   * the sender's own `contextInfo` — the text, the author and `isFromMe` are the sender's claim, not
+   * proof. Require `verified` before trusting a quote for an authorization decision.
+   */
+  verified: boolean
   isGroup: boolean
   isNewsletter: boolean
   isBroadcast: boolean
@@ -301,6 +307,8 @@ export interface MentionAllContext extends MessageContext {
 }
 
 export interface BuildContextInput {
+  /** Defaults to true; set false when the context was rebuilt from unauthenticated `contextInfo`. */
+  verified?: boolean
   message: WAMessage
   key: WAMessageKey
   channelId: string
@@ -496,6 +504,7 @@ export const buildMessageContext = (input: BuildContextInput): MessageContext =>
     mentions: input.mentions,
     links: extractLinks(input.text),
     isFromMe: input.key.fromMe === true,
+    verified: input.verified !== false,
     isGroup,
     isNewsletter: input.isNewsletter,
     isBroadcast: input.isBroadcast,

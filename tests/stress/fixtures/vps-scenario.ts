@@ -9,6 +9,7 @@
  *   VPS_HOSTILE    1 to mix in adversarial shapes  (default 1)
  *   VPS_MEDIA      1 to also run media processing  (default 1)
  *   VPS_STORE      none | memory | pruned | sqlite (default memory)
+ *   VPS_SESSIONS   independent sessions in one process (default 1)
  */
 import { EventEmitter } from 'node:events'
 import type { WAMessage } from 'baileys'
@@ -32,6 +33,7 @@ const HOSTILE = process.env['VPS_HOSTILE'] !== '0'
 const MEDIA = process.env['VPS_MEDIA'] !== '0'
 const STORE_MODE = process.env['VPS_STORE'] ?? 'memory'
 const PRUNE_KEEP_PER_CHAT = 50
+const SESSIONS = Math.max(1, num('VPS_SESSIONS', 1))
 const PRUNE_WINDOW = 2_000
 const SELF = '628000@s.whatsapp.net'
 
@@ -82,29 +84,35 @@ const hostile = (i: number): WAMessage => {
 }
 
 const main = async (): Promise<void> => {
-  const ev = new EventEmitter()
-  ev.setMaxListeners(0)
-  const sock = { ev, user: { id: SELF } }
-  const emitter = new TypedEventEmitter<ClientEventMap>()
-  const store =
-    STORE_MODE === 'sqlite'
-      ? new SqliteMessageStore({ database: process.env['VPS_SQLITE'] ?? ':memory:' })
-      : new MemoryMessageStore()
-  const auth = new MemoryAuthStore()
-
   let delivered = 0
   const latencies: number[] = []
-  emitter.on('message', () => {
-    delivered += 1
-  })
 
-  const handle = attachInboundPipeline(emitter as never, sock as never, {
-    selfJid: SELF,
-    channelId: 'vps',
-    receiverId: SELF,
-    prefixes: ['!'],
-    resolveLidToPn: async (lid: string) => lid.replace('@lid', '@s.whatsapp.net'),
-  } as never)
+  /** One socket, pipeline and store per WhatsApp number, as a multi-number host would run them. */
+  const sessions = Array.from({ length: SESSIONS }, (_, idx) => {
+    const ev = new EventEmitter()
+    ev.setMaxListeners(0)
+    const self = `62800${idx}@s.whatsapp.net`
+    const sock = { ev, user: { id: self } }
+    const emitter = new TypedEventEmitter<ClientEventMap>()
+    emitter.on('message', () => {
+      delivered += 1
+    })
+    const store =
+      STORE_MODE === 'sqlite'
+        ? new SqliteMessageStore({
+            database: process.env['VPS_SQLITE'] !== undefined ? `${process.env['VPS_SQLITE']}.${idx}` : ':memory:',
+          })
+        : new MemoryMessageStore()
+    const handle = attachInboundPipeline(emitter as never, sock as never, {
+      selfJid: self,
+      channelId: `vps-${idx}`,
+      receiverId: self,
+      prefixes: ['!'],
+      resolveLidToPn: async (lid: string) => lid.replace('@lid', '@s.whatsapp.net'),
+    } as never)
+    return { ev, store, handle }
+  })
+  const auth = new MemoryAuthStore()
 
   const batchSize = Math.max(1, Math.round(RATE / 20))
   const samples: Array<{ rss: number; heap: number }> = []
@@ -115,8 +123,9 @@ const main = async (): Promise<void> => {
     for (let b = 0; b < batchSize && i + b < TOTAL; b += 1) {
       const n = i + b
       const msg = HOSTILE && n % 5 === 0 ? hostile(n) : ordinary(n)
-      ev.emit('messages.upsert', { type: 'notify', messages: [msg] })
-      if (STORE_MODE !== 'none') await store.saveMessage(msg)
+      const session = sessions[n % SESSIONS]!
+      session.ev.emit('messages.upsert', { type: 'notify', messages: [msg] })
+      if (STORE_MODE !== 'none') await session.store.saveMessage(msg)
     }
     await new Promise((r) => setTimeout(r, 50))
     latencies.push(Number(process.hrtime.bigint() - t0) / 1e6)
@@ -125,7 +134,7 @@ const main = async (): Promise<void> => {
        * A sliding retention window, which is what actually bounds a busy bot: `maxPerChat` alone
        * does nothing when traffic is spread thin across thousands of chats.
        */
-      await store.pruneMessages?.({
+      for (const sess of sessions) await sess.store.pruneMessages?.({
         olderThan: 1700000000 + i - PRUNE_WINDOW,
         maxPerChat: PRUNE_KEEP_PER_CHAT,
       })
@@ -142,7 +151,7 @@ const main = async (): Promise<void> => {
   }
 
   await new Promise((r) => setTimeout(r, 500))
-  handle.detach()
+  for (const sess of sessions) sess.handle.detach()
 
   const elapsed = (Date.now() - started) / 1000
   const peakRss = Math.max(...samples.map((s) => s.rss), rssMb())
@@ -164,17 +173,19 @@ const main = async (): Promise<void> => {
 
   /** i=0 is hostile (i % 5 === 0) and hostile jids use a different prefix, so probe an ordinary one. */
   if (STORE_MODE !== 'none') {
-    const stored = await store.listMessages('628100001@s.whatsapp.net', { limit: 10 })
+    const probe = sessions[1 % SESSIONS]!.store
+    const stored = await probe.listMessages('628100001@s.whatsapp.net', { limit: 10 })
     if (stored.length === 0) throw new Error('store lost every message')
   }
   if (delivered < TOTAL * 0.7) throw new Error(`only ${delivered}/${TOTAL} delivered`)
 
-  await store.close?.()
+  for (const sess of sessions) await sess.store.close?.()
 
   process.stdout.write(
     JSON.stringify({
       ok: true,
       store: STORE_MODE,
+      sessions: SESSIONS,
       total: TOTAL,
       delivered,
       elapsedSec: Number(elapsed.toFixed(1)),

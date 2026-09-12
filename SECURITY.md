@@ -107,6 +107,11 @@ auth store, jadi membersihkan riwayat chat ikut menghapus sesi.
   `id = 'default'` dan tabel store tidak punya kolom tenant. Dua `Client` yang berbagi satu database
   akan saling menimpa. Sampai skema di-migrasi: gunakan database (atau `namespace`) terpisah per
   sesi.
+- **Tidak ada backpressure di pipeline inbound.** Burst pesan yang tiba sekaligus ditahan di memori
+  sebanding dengan ukuran burst — 4.000 pesan dengan 2.000 mention memuncak ~1 GB sebelum turun lagi
+  ke baseline setelah selesai diproses. Tidak bocor (memori kembali), tapi tidak ada batas jumlah
+  pesan yang diproses bersamaan. Di produksi kedatangan pesan dibatasi jaringan, jadi ini catatan
+  ketahanan, bukan celah yang bisa dipicu langsung.
 - **`disconnect()` menutup store.** Setelah `disconnect()`, `connect()` berikutnya gagal karena
   message store sudah ditutup. Untuk sekarang buat `Client` baru daripada memakai ulang instance
   yang sudah di-disconnect.

@@ -1,4 +1,8 @@
 import type { RetryPolicy, TaskQueueOptions } from './types.js'
+import { ZaileysAutomationError } from './errors.js'
+
+const DEFAULT_MAX_PENDING = 10_000
+const DEFAULT_TASK_TIMEOUT_MS = 120_000
 
 export type TaskQueueClock = {
   sleep?: (ms: number) => Promise<void>
@@ -17,7 +21,10 @@ export class TaskQueue {
   private readonly concurrency: number
   private readonly retry: RetryPolicy
   private readonly sleep: (ms: number) => Promise<void>
+  /** Bounded backlog: an unbounded queue plus a hung task retains every caller's closure forever. */
   private readonly pending: Job[] = []
+  private readonly maxPending: number
+  private readonly taskTimeoutMs: number
   private active = 0
   private idleWaiters: (() => void)[] = []
 
@@ -25,9 +32,16 @@ export class TaskQueue {
     this.concurrency = options.concurrency ?? 1
     this.retry = options.retry ?? defaultRetry
     this.sleep = clock.sleep ?? defaultSleep
+    this.maxPending = options.maxPending ?? DEFAULT_MAX_PENDING
+    this.taskTimeoutMs = options.taskTimeoutMs ?? DEFAULT_TASK_TIMEOUT_MS
   }
 
   add<T>(task: () => Promise<T>): Promise<T> {
+    if (this.pending.length >= this.maxPending) {
+      return Promise.reject(
+        new ZaileysAutomationError('QUEUE_FULL', `task queue is full (${this.maxPending} pending)`),
+      )
+    }
     return new Promise<T>((resolve, reject) => {
       this.pending.push({
         run: () => this.execute(task).then(resolve, reject),
@@ -70,11 +84,30 @@ export class TaskQueue {
     }
   }
 
+  /** A task with no deadline parks its concurrency slot forever on a half-open socket. */
+  private async withDeadline<T>(task: () => Promise<T>): Promise<T> {
+    if (this.taskTimeoutMs <= 0) return task()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    try {
+      return await Promise.race([
+        task(),
+        new Promise<never>((_resolve, reject) => {
+          timer = setTimeout(
+            () => reject(new ZaileysAutomationError('QUEUE_TIMEOUT', `task exceeded ${this.taskTimeoutMs}ms`)),
+            this.taskTimeoutMs,
+          )
+        }),
+      ])
+    } finally {
+      if (timer !== undefined) clearTimeout(timer)
+    }
+  }
+
   private async execute<T>(task: () => Promise<T>): Promise<T> {
     let attempt = 0
     for (;;) {
       try {
-        return await task()
+        return await this.withDeadline(task)
       } catch (error) {
         if (attempt >= this.retry.maxRetries) {
           throw error

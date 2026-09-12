@@ -99,6 +99,8 @@ const MAX_LID_TARGETS_PER_MESSAGE = 128
 const LID_RESOLVE_CONCURRENCY = 8
 const LID_CACHE_MAX = 2000
 const LID_CACHE_TTL_MS = 10 * 60 * 1000
+const ROOM_NAME_CACHE_MAX = 500
+const ROOM_NAME_CACHE_TTL_MS = 5 * 60 * 1000
 
 const raceTimeout = <T>(p: Promise<T>, ms: number): Promise<T | null> =>
   new Promise<T | null>((resolve) => {
@@ -122,14 +124,25 @@ export function attachInboundPipeline(
   ctx: InboundPipelineContext,
 ): InboundPipelineHandle {
   const cleanups: Array<() => void> = []
-  const roomNameCache = new Map<string, Promise<string | null>>()
+  /** Bounded and short-lived: an unbounded map grew per group forever, and a cached failure or
+   *  rename stuck until restart. */
+  const roomNameCache = new LRUCache<string, Promise<string | null>>({
+    max: ROOM_NAME_CACHE_MAX,
+    ttl: ROOM_NAME_CACHE_TTL_MS,
+  })
   const resolveRoomName = ctx.groupMetadata != null
     ? (roomId: string): Promise<string | null> => {
         const cached = roomNameCache.get(roomId)
         if (cached !== undefined) return cached
         const gm = ctx.groupMetadata
         if (gm == null) return Promise.resolve(null)
-        const pending = gm(roomId).then((m) => m?.subject ?? null).catch(() => null)
+        /** A failed lookup is not cached, so a transient error does not pin the name to null. */
+        const pending = gm(roomId)
+          .then((m) => m?.subject ?? null)
+          .catch(() => {
+            roomNameCache.delete(roomId)
+            return null
+          })
         roomNameCache.set(roomId, pending)
         return pending
       }

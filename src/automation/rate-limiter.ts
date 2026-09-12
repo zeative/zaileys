@@ -1,4 +1,5 @@
 import { ZaileysAutomationError } from './errors.js'
+import { LRUCache } from 'lru-cache'
 import type { RateLimiterOptions } from './types.js'
 
 export type RateLimiterClock = {
@@ -16,13 +17,20 @@ type Bucket = {
 const defaultSleep = (ms: number): Promise<void> =>
   ms <= 0 ? Promise.resolve() : new Promise((resolve) => setTimeout(resolve, ms))
 
+const PER_JID_BUCKET_MAX = 5000
+const PER_JID_BUCKET_TTL_MS = 10 * 60 * 1000
+
 export class RateLimiter {
   private readonly now: () => number
   private readonly sleep: (ms: number) => Promise<void>
   private readonly perJidRatePerMs?: number
   private readonly perJidCapacity?: number
   private readonly global: Bucket
-  private readonly perJid = new Map<string, Bucket>()
+  /** Bounded: a refilled bucket is indistinguishable from a fresh one, so retaining it is waste. */
+  private readonly perJid = new LRUCache<string, Bucket>({
+    max: PER_JID_BUCKET_MAX,
+    ttl: PER_JID_BUCKET_TTL_MS,
+  })
 
   constructor(options: RateLimiterOptions, clock: RateLimiterClock = {}) {
     if (!(options.perSec > 0)) {

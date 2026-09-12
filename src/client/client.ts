@@ -708,6 +708,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.pluginLoader = undefined
     this.pluginRegistry = undefined
     this._scheduler?.dispose()
+    this._presence?.dispose()
     for (const c of this.listenerCleanup) c.off()
     this.listenerCleanup = []
     if (this._socket) {

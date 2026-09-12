@@ -5,6 +5,8 @@ export type AutomationErrorCode =
   | 'SCHEDULE_INVALID'
   | 'STORE_UNAVAILABLE'
   | 'PRESENCE_FAILED'
+  | 'QUEUE_FULL'
+  | 'QUEUE_TIMEOUT'
 
 export class ZaileysAutomationError extends Error {
   readonly code: AutomationErrorCode

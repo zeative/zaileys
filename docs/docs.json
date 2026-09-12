@@ -172,6 +172,7 @@
               "reference/commands",
               "reference/storage",
               "reference/errors",
+              "reference/error-codes",
               "reference/utilities"
             ]
           },

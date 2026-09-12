@@ -25,6 +25,7 @@ const walk = (dir) =>
 step('Building the search index')
 run('node', [join(DOCS, 'scripts', 'build-search-index.mjs')], ROOT)
 run('node', [join(DOCS, 'scripts', 'check-search.mjs')], ROOT)
+run('node', [join(DOCS, 'scripts', 'check-error-codes.mjs')], ROOT)
 
 // ---------------------------------------------------------------- 2. export
 step('Exporting the Mintlify site')

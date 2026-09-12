@@ -28,19 +28,17 @@ describe('e2e: clearing the message store never touches the session', () => {
 
 describe('e2e: a bot echoing user input cannot leak its own session', () => {
   it('refuses to send creds.json as media, but still sends an ordinary file', async () => {
-    const auth = new FileAuthStore({ basePath: path.join('.zaileys', 'auth', 'e2e') })
-    await auth.creds.writeCreds(sampleCreds())
-    try {
-      const attackerInput = path.join('.zaileys', 'auth', 'e2e', 'creds.json')
-      await expect(loadMedia(attackerInput)).rejects.toThrow(/protected directory/)
+    /** The denial happens before any read, so nothing is ever written into the real .zaileys. */
+    const attackerInput = path.join('.zaileys', 'auth', 'default', 'creds.json')
+    await expect(loadMedia(attackerInput)).rejects.toThrow(/protected directory/)
 
-      const ok = path.join(os.tmpdir(), `zaileys-ok-${randomBytes(4).toString('hex')}.bin`)
-      await fs.writeFile(ok, Buffer.alloc(16))
+    const ok = path.join(os.tmpdir(), `zaileys-ok-${randomBytes(4).toString('hex')}.bin`)
+    await fs.writeFile(ok, Buffer.alloc(16))
+    try {
       const loaded = await loadMedia(ok)
       expect(loaded.size).toBe(16)
-      await fs.rm(ok, { force: true })
     } finally {
-      await fs.rm(path.join('.zaileys', 'auth', 'e2e'), { recursive: true, force: true })
+      await fs.rm(ok, { force: true })
     }
   })
 })

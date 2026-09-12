@@ -1,19 +1,17 @@
-import { describe, expect, it, beforeEach, afterEach } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { promises as fs } from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
+import { randomBytes } from 'node:crypto'
 import { loadMedia } from '../../src/builder/media-loader.js'
 
+/**
+ * Never create, overwrite or delete anything under the real `.zaileys` directory: that is a live
+ * session on a developer machine. The denial fires before any read, so the file need not exist.
+ */
 const AUTH_FILE = path.join('.zaileys', 'auth', 'default', 'creds.json')
 
 describe('media loading cannot exfiltrate the session', () => {
-  beforeEach(async () => {
-    await fs.mkdir(path.dirname(AUTH_FILE), { recursive: true })
-    await fs.writeFile(AUTH_FILE, '{"noiseKey":"SECRET"}', 'utf8')
-  })
-
-  afterEach(async () => {
-    await fs.rm(AUTH_FILE, { force: true })
-  })
 
   it('refuses to read creds.json as media', async () => {
     await expect(loadMedia(AUTH_FILE)).rejects.toThrow(/protected directory/)
@@ -29,7 +27,7 @@ describe('media loading cannot exfiltrate the session', () => {
   })
 
   it('still loads an ordinary local file — sendImage(jid, "./foto.png") keeps working', async () => {
-    const file = path.join('.zaileys-test-ok.bin')
+    const file = path.join(os.tmpdir(), `zaileys-ok-${randomBytes(4).toString('hex')}.bin`)
     await fs.writeFile(file, Buffer.alloc(8))
     try {
       const out = await loadMedia(file)

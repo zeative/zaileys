@@ -688,13 +688,13 @@ Generated bots can use the full current API — don't hand-roll what the library
   `assist` skill).
 - Error classes from `zaileys`: `ZaileysBuilderError`, `ZaileysCommandError`, `ZaileysDomainError`,
   `ZaileysAutomationError`, `ZaileysStoreError`.
-- Live full docs (single file): <https://zeative.github.io/zaileys/llms-full.txt>.
+- Live full docs (single file): <https://zaileys.kejaa.id/llms-full.txt>.
 
 
 ## Live docs (fetch for the latest)
 
 These are authoritative and kept in sync with the code — **fetch them** when you need more detail, the newest API, or to verify before answering (do not guess when unsure):
 
-- **Docs site:** <https://zeative.github.io/zaileys/>
-- **Full docs as one file (best for LLMs):** <https://zeative.github.io/zaileys/llms-full.txt>
-- **Per-topic pages:** `/getting-started` · `/installation` · `/configuration` · `/client` · `/events` · `/sending-messages` · `/media` · `/interactive` · `/rich-responses` · `/commands` · `/automation` · `/storage` · `/error-handling` · `/runtimes` · `/troubleshooting` · `/api-reference` (e.g. <https://zeative.github.io/zaileys/sending-messages>)
+- **Docs site:** <https://zaileys.kejaa.id>
+- **Full docs as one file (best for LLMs):** <https://zaileys.kejaa.id/llms-full.txt>
+- **Per-topic pages:** `/getting-started` · `/installation` · `/configuration` · `/client` · `/events` · `/sending-messages` · `/media` · `/interactive` · `/rich-responses` · `/commands` · `/automation` · `/storage` · `/error-handling` · `/runtimes` · `/troubleshooting` · `/api-reference` (e.g. <https://zaileys.kejaa.id/messaging/text>)

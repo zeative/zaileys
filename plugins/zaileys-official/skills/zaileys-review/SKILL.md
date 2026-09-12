@@ -15,7 +15,7 @@ hand back actionable fixes. Import is always `import { Client } from 'zaileys'`.
 a typed wrapper over Baileys; runs on Node 20+, Bun, Deno. Do NOT invent methods — verify
 every claim against the checklist below and the hub references in the `assist` skill
 (`references/pitfalls.md`, `references/api.md`, `references/recipes.md`) or the live full
-docs at <https://zeative.github.io/zaileys/llms-full.txt>.
+docs at <https://zaileys.kejaa.id/llms-full.txt>.
 
 ## Workflow
 
@@ -235,13 +235,13 @@ WHY: inbound is push + HMAC-verified; a body-parser corrupts the signature.
 
 For the exhaustive anti-pattern list (15 entries with source citations) read
 `references/pitfalls.md` in the `assist` skill, and the full docs at
-<https://zeative.github.io/zaileys/llms-full.txt>.
+<https://zaileys.kejaa.id/llms-full.txt>.
 
 
 ## Live docs (fetch for the latest)
 
 These are authoritative and kept in sync with the code — **fetch them** when you need more detail, the newest API, or to verify before answering (do not guess when unsure):
 
-- **Docs site:** <https://zeative.github.io/zaileys/>
-- **Full docs as one file (best for LLMs):** <https://zeative.github.io/zaileys/llms-full.txt>
-- **Per-topic pages:** `/getting-started` · `/installation` · `/configuration` · `/client` · `/events` · `/sending-messages` · `/media` · `/interactive` · `/rich-responses` · `/commands` · `/automation` · `/storage` · `/error-handling` · `/runtimes` · `/troubleshooting` · `/api-reference` (e.g. <https://zeative.github.io/zaileys/sending-messages>)
+- **Docs site:** <https://zaileys.kejaa.id>
+- **Full docs as one file (best for LLMs):** <https://zaileys.kejaa.id/llms-full.txt>
+- **Per-topic pages:** `/getting-started` · `/installation` · `/configuration` · `/client` · `/events` · `/sending-messages` · `/media` · `/interactive` · `/rich-responses` · `/commands` · `/automation` · `/storage` · `/error-handling` · `/runtimes` · `/troubleshooting` · `/api-reference` (e.g. <https://zaileys.kejaa.id/messaging/text>)

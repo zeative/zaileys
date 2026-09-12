@@ -15,7 +15,7 @@
 
 <div align="center">
   <a href="https://github.com/zeative/zaileys/blob/main/LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License: MIT"></a>
-  <a href="https://discord.gg/KBHhTTVUc5"><img alt="Discord" src="https://img.shields.io/discord/1105833273415962654?logo=discord&label=discord&link=https%3A%2F%2Fgithub.com%2Fzeative%2Fzaileys"></a>
+  <a href="https://discord.gg/HUcQe4xGr3"><img alt="Discord" src="https://img.shields.io/discord/1105833273415962654?logo=discord&label=discord&link=https%3A%2F%2Fgithub.com%2Fzeative%2Fzaileys"></a>
   <a href="https://chat.whatsapp.com/GlQfvc83mSH3F6ov06vuCt"><img alt="WhatsApp" src="https://img.shields.io/badge/WhatsApp-Group-25D366?logo=whatsapp&logoColor=white"></a>
   <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/stars/zeative/zaileys" alt="GitHub Stars"></a>
   <a href="https://github.com/zeative/zaileys"><img src="https://img.shields.io/github/forks/zeative/zaileys" alt="GitHub Forks"></a>
@@ -40,7 +40,7 @@
 [What you can build](#what-you-can-build) &nbsp;•&nbsp;
 [Storage](#storage) &nbsp;•&nbsp;
 [Runtimes](#runtime-support) &nbsp;•&nbsp;
-[Docs](https://zeative.github.io/zaileys/)
+[Docs](https://zaileys.kejaa.id)
 
 </div>
 
@@ -49,7 +49,7 @@
 <br>
 
 > [!NOTE]
-> This README is a **high-level overview**. The complete API reference, guides, and recipes live in the documentation site at **<https://zeative.github.io/zaileys/>**. Runnable code lives in [`examples/`](./examples).
+> This README is a **high-level overview**. The complete API reference, guides, and recipes live in the documentation site at **<https://zaileys.kejaa.id>**. Runnable code lives in [`examples/`](./examples).
 
 ---
 
@@ -110,10 +110,11 @@ export const POST = client.webhook()
 | Login | QR / pairing code, no approval | Permanent token |
 | Ban risk | Exists | None (sanctioned) |
 | Groups / channels / polls | ✅ | ❌ |
+| Commands, plugins, broadcast, scheduled sends | ✅ | ❌ (need the WhatsApp Web connection) |
 | Templates / OTP / marketing | ❌ | ✅ |
 | Message users who never texted you | ✅ any number | ✅ via approved templates |
 
-Pick your provider → **[Choose Your Provider](https://zeative.github.io/zaileys/providers)** · **[Official Cloud API guide](https://zeative.github.io/zaileys/official)**.
+Pick your provider → **[Choose Your Provider](https://zaileys.kejaa.id/providers)** · **[Official Cloud API guide](https://zaileys.kejaa.id/cloud/overview)**.
 
 ## Build with AI
 
@@ -130,7 +131,7 @@ to fix errors. Install it straight from this repo:
 npx skills add zeative/zaileys        # add -g for a global install
 ```
 
-The suite has an orchestrator that auto-routes plus focused scaffold, debug, and review skills. See the full guide → **[zeative.github.io/zaileys/skill](https://zeative.github.io/zaileys/skill/)**.
+The suite has an orchestrator that auto-routes plus focused scaffold, debug, and review skills. See the full guide → **[zaileys.kejaa.id/ai](https://zaileys.kejaa.id/ai)**.
 
 ## Why Zaileys
 
@@ -140,9 +141,9 @@ The suite has an orchestrator that auto-routes plus focused scaffold, debug, and
 - **Rich & interactive out of the box** — native buttons, lists, carousels, and Meta-AI-style rich responses written as plain markdown.
 - **Auto lifecycle** — QR or pairing-code login, auto-reconnect with backoff, clean logout, optional `ignoreMe`.
 - **Pluggable storage** — independent `AuthStore` and `MessageStore` interfaces with `file`, `memory`, `sqlite`, `redis`, `postgres`, and `convex` adapters.
-- **Batteries included** — command framework, broadcast with rate limiting, scheduled sends, and lazy media processing (image/video/audio/sticker).
+- **Batteries included** — command framework, broadcast with rate limiting, and scheduled sends (WhatsApp Web only), plus lazy media processing (image/video/audio/sticker) on both providers.
 - **Runs everywhere** — dual ESM/CJS with `.d.ts` + `.d.cts` types; verified on Node, Bun, Deno, and Termux.
-- **Modern foundation** — Baileys `7.0.0-rc13` (includes the CVE-2026-48063 spoofing patch), built and type-checked with the native (Go) TypeScript 7 compiler.
+- **Modern foundation** — Baileys `7.0.0-rc14` (includes the CVE-2026-48063 spoofing patch), built and type-checked with the native (Go) TypeScript 7 compiler.
 
 ## Install
 
@@ -201,23 +202,15 @@ client.on('button-click', (ctx) => console.log('tapped:', ctx.buttonId))
 Toggle `{ rich: true }` and write ordinary markdown — fenced code (syntax-highlighted), tables, images, and `:::` directives for products, suggestions, and more.
 
 ```typescript
-await client.send(jid).text(
-  [
-    '*Daily brief* ☕',
-    '',
-    '```ts',
-    "const client = new Client()",
-    '```',
-    '',
-    ':::suggest',
-    'See changelog | Upgrade guide',
-    ':::',
-  ].join('\n'),
-  { rich: true, title: '📰 zaileys' },
-)
+// The message contains backticks, so write it as a plain string with \n line breaks.
+const brief = "*Daily brief* ☕\n\n```ts\nconst client = new Client()\n```\n\n:::suggest\nSee changelog | Upgrade guide\n:::"
+
+await client.send(jid).text(brief, { rich: true, title: '📰 zaileys' })
 ```
 
 ### Commands, broadcast & schedule
+
+These run on the WhatsApp Web provider; on the Cloud API, handle `text` events and send in a loop instead.
 
 ```typescript
 const client = new Client({ commandPrefix: ['/', '!'] })
@@ -281,8 +274,14 @@ Package managers: **npm**, **pnpm**, **yarn**, and **bun** are all supported.
 
 ## Documentation
 
-- 🌐 [**zeative.github.io/zaileys**](https://zeative.github.io/zaileys/) — full documentation site: guides, API reference, recipes
-- 🤖 [**AI Skill**](https://zeative.github.io/zaileys/skill/) — official Claude Code / `npx skills` skill
+- 🌐 [**zaileys.kejaa.id**](https://zaileys.kejaa.id) — the documentation site
+  - [Quickstart](https://zaileys.kejaa.id/quickstart) — a working bot in about five minutes
+  - [Guides](https://zaileys.kejaa.id/messaging/text) — messaging, media, buttons, commands, groups, storage
+  - [Cloud API](https://zaileys.kejaa.id/cloud/overview) — webhook, templates, limits
+  - [Recipes](https://zaileys.kejaa.id/recipes/auto-reply) — complete bots you can copy
+  - [Reference](https://zaileys.kejaa.id/reference/client) — every method, option, and event
+  - [Feature matrix](https://zaileys.kejaa.id/feature-matrix) — what works on which provider
+- 🤖 [**Build with AI**](https://zaileys.kejaa.id/ai) — official Claude Code / `npx skills` skill
 - 📦 [**examples/**](./examples) — runnable bots: quickstart, interactive buttons, AIRich, storage adapters, broadcast
 - 🔀 [**MIGRATION.md**](./MIGRATION.md) — upgrading from v3.x to v4.0.0 (breaking changes, side-by-side snippets)
 - 🤝 [**CONTRIBUTING.md**](./CONTRIBUTING.md) — dev setup, tests, commit convention, release flow

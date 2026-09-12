@@ -12,7 +12,7 @@ description: >-
 You are the **zaileys expert orchestrator**. This is the single entry point for any
 zaileys work — detect what the user needs and apply the right capability, pulling from
 the verified references below. zaileys ([github](https://github.com/zeative/zaileys),
-npm `zaileys`, docs <https://zeative.github.io/zaileys/>) is a typed WhatsApp framework.
+npm `zaileys`, docs <https://zaileys.kejaa.id>) is a typed WhatsApp framework.
 
 > Import is always `import { Client } from 'zaileys'`. Dual ESM/CJS; runs on Node 20+, Bun, Deno, Termux.
 
@@ -54,7 +54,7 @@ Read the relevant file before writing or debugging — they contain the verified
 - [references/mcp.md](references/mcp.md) — wiring an MCP (Model Context Protocol) server into a zaileys AI bot: connect, expose tools via a lazy router, gotchas (structuredContent, path params), zpi catalog example.
 - [references/cloud.md](references/cloud.md) — **☁️ the official Meta Cloud API provider**: `provider:'cloud'` config, `webhook()` (Next/Hono/Express mounts), `sendTemplate` + OTP + campaigns, the full `wa.cloud.*` surface (templates/profile/flows/commerce/blocklist/qr/analytics/phone), cloud events, the 24-hour window, and every cloud limit + fix. **Read this for anything cloud/official/webhook/template.**
 
-For exhaustive detail, the full docs are one file: <https://zeative.github.io/zaileys/llms-full.txt>.
+For exhaustive detail, the full docs are one file: <https://zaileys.kejaa.id/llms-full.txt>.
 
 ## Mental model
 
@@ -168,6 +168,6 @@ Message mutations on `client`: `pin(key,{duration?})` · `unpin(key)` · `setDis
 
 These are authoritative and kept in sync with the code — **fetch them** when you need more detail, the newest API, or to verify before answering (do not guess when unsure):
 
-- **Docs site:** <https://zeative.github.io/zaileys/>
-- **Full docs as one file (best for LLMs):** <https://zeative.github.io/zaileys/llms-full.txt>
-- **Per-topic pages:** `/getting-started` · `/installation` · `/configuration` · `/client` · `/events` · `/sending-messages` · `/media` · `/interactive` · `/rich-responses` · `/commands` · `/automation` · `/storage` · `/error-handling` · `/runtimes` · `/troubleshooting` · `/api-reference` (e.g. <https://zeative.github.io/zaileys/sending-messages>)
+- **Docs site:** <https://zaileys.kejaa.id>
+- **Full docs as one file (best for LLMs):** <https://zaileys.kejaa.id/llms-full.txt>
+- **Per-topic pages:** `/getting-started` · `/installation` · `/configuration` · `/client` · `/events` · `/sending-messages` · `/media` · `/interactive` · `/rich-responses` · `/commands` · `/automation` · `/storage` · `/error-handling` · `/runtimes` · `/troubleshooting` · `/api-reference` (e.g. <https://zaileys.kejaa.id/messaging/text>)

@@ -49,7 +49,11 @@ rmSync(tmp, { recursive: true, force: true })
 // Mintlify's export copies .js but skips .json, so the index has to be placed by hand.
 copyFileSync(join(DOCS, 'search-index.json'), join(OUT, 'search-index.json'))
 
-// ------------------------------------------------------------- 3. 404 page
+// --------------------------------------------------------------- 3. llms.txt
+step('Writing llms.txt and llms-full.txt')
+run('node', [join(DOCS, 'scripts', 'build-llms.mjs'), OUT.split('/').pop()], ROOT)
+
+// ------------------------------------------------------------- 4. 404 page
 // The export ships no 404, so a missing URL would return a bare server error.
 step('Writing 404.html')
 const NOT_FOUND = `<!doctype html>
@@ -88,7 +92,7 @@ const NOT_FOUND = `<!doctype html>
 `
 writeFileSync(join(OUT, '404.html'), NOT_FOUND)
 
-// ---------------------------------------------------------- 4. host config
+// ---------------------------------------------------------- 5. host config
 // Ships inside the output because the deployed artifact is this folder itself.
 step('Writing vercel.json')
 const VERCEL = {

@@ -18,7 +18,7 @@
       "description": "Official zaileys skill suite — an orchestrator (zaileys-assist) plus focused zaileys-scaffold, zaileys-debug, and zaileys-review skills for building WhatsApp bots with best practices.",
       "version": "4.2.0",
       "author": { "name": "zeative" },
-      "homepage": "https://zeative.github.io/zaileys/",
+      "homepage": "https://zaileys.kejaa.id",
       "repository": "https://github.com/zeative/zaileys",
       "license": "MIT",
       "keywords": ["whatsapp", "bot", "baileys", "zaileys", "typescript", "nodejs", "whatsapp-api"]

@@ -234,6 +234,10 @@ export class PostgresAuthStore implements AuthStoreBundle {
         }
       }
     },
+    /** close() already released the pool it owned; it is re-established lazily. */
+    reopen: async (): Promise<void> => {
+      this.closed = false
+    },
   }
 
   readonly creds: AuthCredsStore = {

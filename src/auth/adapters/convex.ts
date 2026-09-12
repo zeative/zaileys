@@ -83,6 +83,9 @@ export class ConvexAuthStore implements AuthStoreBundle {
       async close(): Promise<void> {
         kv.close()
       },
+      async reopen(): Promise<void> {
+        kv.reopen()
+      },
     }
   }
 }

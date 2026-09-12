@@ -60,6 +60,9 @@ export function makeCacheableAuthStore(
       else await underlying.clear()
     },
     close: (): Promise<void> => underlying.close(),
+    ...(underlying.reopen !== undefined
+      ? { reopen: (): Promise<void> => (underlying.reopen as () => Promise<void>).call(underlying) }
+      : {}),
   }
   return { creds: bundle.creds, signal }
 }

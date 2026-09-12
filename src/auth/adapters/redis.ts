@@ -159,6 +159,9 @@ export class RedisAuthStore implements AuthStoreBundle {
     close: async (): Promise<void> => {
       await this.shutdown()
     },
+    reopen: async (): Promise<void> => {
+      this.closed = false
+    },
   }
 
   readonly creds: AuthCredsStore = {

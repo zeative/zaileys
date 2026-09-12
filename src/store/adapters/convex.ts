@@ -205,6 +205,11 @@ export class ConvexMessageStore implements MessageStore {
     }
   }
 
+  async reopen(): Promise<void> {
+    this.closed = false
+    this.kv.reopen()
+  }
+
   async close(): Promise<void> {
     if (this.closed) return
     this.closed = true

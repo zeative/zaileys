@@ -13,6 +13,11 @@ export interface AuthStore {
   delete<K extends AuthStoreKey>(type: K, ids: readonly string[]): Promise<void>
   clear(): Promise<void>
   close(): Promise<void>
+  /**
+   * Undo `close()` so a disconnected client can connect again. Optional: without it the client
+   * reports that the adapter cannot be reused and a new Client must be built.
+   */
+  reopen?(): Promise<void>
 }
 
 export interface AuthCredsStore {

@@ -65,6 +65,9 @@ export class MemoryAuthStore implements AuthStoreBundle {
     close: async (): Promise<void> => {
       this.closed = true
     },
+    reopen: async (): Promise<void> => {
+      this.closed = false
+    },
   }
 
   readonly creds: AuthCredsStore = {

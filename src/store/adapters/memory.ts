@@ -226,6 +226,10 @@ export class MemoryMessageStore implements MessageStore {
     return Promise.resolve()
   }
 
+  async reopen(): Promise<void> {
+    this.closed = false
+  }
+
   private assertOpen(): void {
     if (this.closed) {
       throw new ZaileysStoreError('STORE_CLOSED', 'MemoryMessageStore is closed')

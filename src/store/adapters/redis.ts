@@ -317,6 +317,11 @@ export class RedisMessageStore implements MessageStore {
     }
   }
 
+  /** close() already released the connection it owned; it is re-established lazily. */
+  async reopen(): Promise<void> {
+    this.closed = false
+  }
+
   async close(): Promise<void> {
     if (this.closed) return
     this.closed = true

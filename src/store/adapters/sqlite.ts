@@ -289,6 +289,14 @@ export class SqliteMessageStore implements MessageStore {
     }
   }
 
+  /** close() drops the handle and prepared statements; the ready promise must go with them. */
+  async reopen(): Promise<void> {
+    this.closed = false
+    this.db = null
+    this.prepared = null
+    this.readyPromise = null
+  }
+
   private async ensureReady(): Promise<PreparedSet> {
     if (this.closed) {
       throw new ZaileysStoreError('STORE_CLOSED', 'SqliteMessageStore is closed')

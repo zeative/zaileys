@@ -257,6 +257,15 @@ export const runMessageStoreContract = (
         await expectStoreClosed(store.saveChat(sampleChat('x@s.whatsapp.net')))
       })
 
+      it('F3b: reopen after close restores operation', async () => {
+        expect(typeof store.reopen).toBe('function')
+        await store.saveChat(sampleChat('before@s.whatsapp.net'))
+        await store.close()
+        await store.reopen?.()
+        await store.saveChat(sampleChat('after@s.whatsapp.net'))
+        await expect(store.getChat('after@s.whatsapp.net')).resolves.toBeDefined()
+      })
+
       it('F4: close is idempotent', async () => {
         await store.close()
         await expect(store.close()).resolves.toBeUndefined()

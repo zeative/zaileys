@@ -284,6 +284,19 @@ export const runAuthStoreContract = (
         await expectStoreClosed(bundle.creds.writeCreds(sampleCreds()))
       })
 
+      it('F1b: reopen after close restores operation', async () => {
+        await bundle.creds.writeCreds(sampleCreds())
+        expect(typeof bundle.signal.reopen).toBe('function')
+        await bundle.signal.close()
+        await bundle.signal.reopen?.()
+        await bundle.signal.write({ session: { r: Uint8Array.from([7]) } })
+        const read = await bundle.signal.read('session', ['r'])
+        expect(read['r']).toBeDefined()
+        /** Functional only: an in-memory SQLite database legitimately loses its rows on close. */
+        await bundle.creds.writeCreds(sampleCreds())
+        await expect(bundle.creds.readCreds()).resolves.toBeDefined()
+      })
+
       it('F2: close is idempotent', async () => {
         await bundle.signal.close()
         await expect(bundle.signal.close()).resolves.toBeUndefined()

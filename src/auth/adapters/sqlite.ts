@@ -195,6 +195,13 @@ export class SqliteAuthStore implements AuthStoreBundle {
         this.prepared = null
       }
     },
+    /** close() drops the handle and prepared statements; the ready promise must go with them. */
+    reopen: async (): Promise<void> => {
+      this.closed = false
+      this.db = null
+      this.prepared = null
+      this.readyPromise = null
+    },
   }
 
   private async ensureReady(): Promise<PreparedSet> {

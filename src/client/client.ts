@@ -254,6 +254,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private readonly presenceThrottle: PresenceThrottleOptions | undefined
   private readonly scheduleLimiter: RateLimiter | undefined
   private authExhausted = false
+  private storesClosedByDisconnect = false
   /** Each chat's disappearing timer, learned from inbound messages so outbound sends can inherit it. */
   private readonly chatExpiration = new Map<string, number>()
   private _socket: BaileysSocket | undefined
@@ -566,6 +567,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       this.listenerCleanup = []
       this._socket = undefined
     }
+    if (this.storesClosedByDisconnect) await this.reopenStores()
     const fromReconnect = this.machine.state === 'reconnecting'
     if (!fromReconnect) {
       this.authGuard.reset()
@@ -755,6 +757,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     } catch (err) {
       this.logger.warn(err, 'store.close failed')
     }
+    this.storesClosedByDisconnect = true
     this.machine.transition('disconnected')
     if (this.disconnectEmittedFor !== this.connectAttemptSeq) {
       const reason: DisconnectReasonDomain = this.pendingDisconnectReason ?? 'unknown'
@@ -1540,6 +1543,23 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       }
       this.rejectPendingConnect(new Error(`connection closed (${reason})`))
     }
+  }
+
+  /**
+   * disconnect() still releases connections, so a script that disconnects can exit. Reconnecting
+   * re-opens what it closed; before this, connect() after disconnect() failed with STORE_CLOSED.
+   */
+  private async reopenStores(): Promise<void> {
+    const signalReopen = this.auth.signal.reopen
+    const storeReopen = this.store.reopen
+    if (typeof signalReopen !== 'function' || typeof storeReopen !== 'function') {
+      throw new Error(
+        'this auth or message store adapter cannot be reopened after disconnect(); implement reopen() or create a new Client',
+      )
+    }
+    await signalReopen.call(this.auth.signal)
+    await storeReopen.call(this.store)
+    this.storesClosedByDisconnect = false
   }
 
   /** Snapshot the credentials before any erase, so a wrong wipe stays recoverable. */

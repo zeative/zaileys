@@ -1,0 +1,184 @@
+---
+title: "Server sizing"
+description: "How much RAM and CPU a Zaileys bot needs, what actually uses the memory, and the settings that keep a small server from running out."
+icon: "memory-stick"
+keywords: ["server sizing", "how much ram", "vps", "memory usage", "ram requirements", "cpu", "256mb", "512mb", "1gb", "out of memory", "oom", "ffmpeg memory", "maxConcurrentFfmpeg", "maxImagePixels", "maxQueuedFfmpeg", "ffmpegQueueTimeoutMs", "max-old-space-size", "hosting", "production"]
+---
+
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+
+<ProviderSupport web={true} cloud={true} note="The sizes were measured on WhatsApp Web connections. Media conversion costs and the media limits apply on the Cloud API too." />
+
+Two things decide how much memory a bot needs: **which media it converts**, and **where it keeps message history**. Text and commands on their own are cheap — and most bots never run the most expensive conversion, re-encoding video.
+
+## Pick a server size
+
+| What your bot does | RAM | vCPU |
+| --- | --- | --- |
+| Text and commands only, no media conversion | 256 MB | 1 |
+| An everyday bot: text, image stickers, voice notes, a 720p video now and then | 512 MB | 1 |
+| Several numbers, 100–200 messages a second, mixed media including 1080p video | 1 GB | 2 |
+| Re-encoding 1080p video all the time, several at once | 2 GB | 2–4 |
+
+Each tier is the peak memory we measured for that workload — the Node.js process plus every ffmpeg child it started — with 60–120 MB added for a minimal Linux install and about 20% headroom.
+
+<Warning>
+  These numbers were measured on an Apple Silicon Mac with no CPU limit, against a simulated WhatsApp connection. They don't include the cost of each real WhatsApp connection, and Linux can use a little more or less memory. Start from the tier that fits, then [watch memory on your real server](#check-it-on-your-own-server) before you settle.
+</Warning>
+
+## Where the memory goes
+
+### Text and commands
+
+A bot handling text settles at **50–65 MB** of resident memory and stays there. In a 2.5-minute run at about 30 messages a second, with history in SQLite, memory stayed flat after startup — it didn't creep up over time.
+
+### Message history
+
+The default `MemoryMessageStore` keeps every stored message in the bot's own memory for 30 days, so its size follows your traffic. `SqliteMessageStore` keeps the same history on disk, and the bot's memory stays flat no matter how much history piles up. On any server with 512 MB or less, keep history on disk:
+
+```ts bot.ts
+import { Client, SqliteAuthStore, SqliteMessageStore } from 'zaileys'
+
+const client = new Client({
+  auth: new SqliteAuthStore({ database: './session.db' }),
+  store: new SqliteMessageStore({ database: './messages.db' }),
+})
+```
+
+If you stay on the memory store, shorten how long it keeps messages with [`autoDelete.maxAgeMs`](/bots/auto-delete). A per-chat cap alone won't bound it — see the warning on that page.
+
+### Media
+
+Zaileys only converts media when a send needs it, or when your code asks for it. Sending an image, video, or document passes the file through as it is:
+
+| Your code calls | What Zaileys runs |
+| --- | --- |
+| `send().image()`, `send().video()`, `send().document()` | Nothing — the file is sent unchanged |
+| `send().audio()` | ffmpeg, to convert it to Opus — every time, voice note or not |
+| `send().sticker()` from a photo | An image library, inside the Node.js process |
+| `send().sticker()` from a GIF or video, with `animated: true` | ffmpeg |
+| `new Media(file).video.toMp4()` or `.video.thumbnail()` | ffmpeg — the video costs below |
+| `new Media(file).image.toJpeg()` | A full-resolution image decode — the image costs below |
+
+Each conversion holds memory only while it runs. Video is by far the largest:
+
+| Operation | 720p | 1080p |
+| --- | --- | --- |
+| Re-encode a video to MP4 | ~121 MB | ~235 MB |
+| Make a thumbnail from a video | ~51 MB | ~89 MB |
+| Convert audio to a voice note | ~18 MB | — |
+
+Video memory depends on resolution, not length: a 15-second and a 5-minute 1080p clip need the same.
+
+Images run inside the Node.js process. With [`sharp`](/installation#speed-up-image-processing-with-sharp-optional) installed, loading it costs about 70 MB once, and then:
+
+| Operation | 12 MP photo | 48 MP photo |
+| --- | --- | --- |
+| Make a sticker | +11 MB | +11 MB |
+| Make a thumbnail | +4 MB | +5 MB |
+| Convert to JPEG at full resolution | +85 MB | **+305 MB** |
+
+Without `sharp`, Zaileys falls back to `jimp`, which we didn't measure.
+
+## Keep a small server within budget
+
+### Run fewer ffmpeg jobs at once
+
+Zaileys runs up to 4 ffmpeg jobs at the same time. Four 1080p re-encodes together measured **947 MB** — more than a 512 MB server has. If your bot calls `video.toMp4()`, lower the limit to match your RAM:
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client({
+  media: { maxConcurrentFfmpeg: 1 },
+})
+```
+
+With one job at a time, the worst case is a single 1080p re-encode, about 235 MB. The trade-off is waiting: extra jobs queue for a free slot instead of running.
+
+The queue is bounded too, so a flood of video can't keep memory growing or leave users waiting forever:
+
+<ParamField body="media.maxConcurrentFfmpeg" type="number" default="4">
+  ffmpeg jobs running at the same time. Each 1080p re-encode holds about 235 MB.
+</ParamField>
+<ParamField body="media.maxQueuedFfmpeg" type="number" default="64">
+  Jobs allowed to wait for a free slot. Past this, new jobs are rejected straight away.
+</ParamField>
+<ParamField body="media.ffmpegQueueTimeoutMs" type="number" default="120000">
+  The longest a job waits for a slot before it's rejected.
+</ParamField>
+
+A rejected job throws, and the message says why: `ffmpeg queue is full (64 jobs waiting)` or `ffmpeg job waited more than 120000ms for a slot`. From `send().audio()` or `send().sticker()` it arrives as a `MEDIA_LOAD_FAILED` error, with that text after `audio() transcode failed:` or `sticker() conversion failed:`. If you lower `maxConcurrentFfmpeg`, jobs wait longer, so raise `ffmpegQueueTimeoutMs` if media arrives in bursts.
+
+### Refuse images too large to process
+
+Converting a photo at full resolution decodes every pixel, and a 48 MP photo takes about 305 MB — enough to take down a 256 MB server on its own. Zaileys refuses images above 50 MP by default. Lower that on a small server:
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client({
+  media: { maxImagePixels: 12_000_000 },
+})
+```
+
+<ParamField body="media.maxImagePixels" type="number" default="50000000">
+  The largest image, in pixels (width × height), Zaileys will decode. A 12 MP phone photo is 4000 × 3000. Anything larger fails with `Image too large to decode safely: <width>x<height>`, before any memory is spent on it.
+</ParamField>
+
+<Note>
+  `media` limits apply to the **whole process**, because every client in it shares the same RAM and ffmpeg jobs. If you run [several clients in one process](/data/multi-account), set `media` the same way on each — the last client created wins.
+</Note>
+
+### Cap the Node.js heap
+
+On a 256 MB text-only server, give Node.js a heap limit so it collects garbage before the system runs out of memory:
+
+```bash
+node --max-old-space-size=96 bot.js
+```
+
+With history kept on disk, the heap limit was never what ran out in our tests — even the heaviest media workload fit in a 64–96 MB heap. What fills a server is total memory, which is why the ffmpeg and image limits above matter more. The one workload that did exhaust the heap was the in-memory message store, which is why [history belongs on disk](#message-history) on a small server.
+
+## CPU
+
+- **Messages** are processed on a single thread, so one core does the work. Our test pipeline handled about 800 messages a second — far more than most bots receive.
+- **Video conversion** is what needs cores. If your bot calls `video.toMp4()` often, add vCPUs before RAM: extra cores clear the ffmpeg queue faster, while extra RAM only lets more jobs wait.
+
+## Check it on your own server
+
+Measure on the server you'll actually use, with your own traffic. Open `top` (or `htop`) and watch the resident memory column — `RES` — for the `node` process **and** every `ffmpeg` process next to it. Add them up. Check while media is being converted, not only when the bot is idle: the peak is what has to fit.
+
+## What these numbers don't cover
+
+<AccordionGroup>
+  <Accordion title="A real CPU limit">
+    The test machine had several cores and no CPU cap. A real 1 vCPU server wasn't measured: expect slower message processing, and a much longer ffmpeg queue whenever video is being converted.
+  </Accordion>
+  <Accordion title="Linux">
+    Everything was measured on macOS. Linux uses a different memory allocator, so resident memory can come out a little higher or lower.
+  </Accordion>
+  <Accordion title="The real cost of each WhatsApp connection">
+    The WhatsApp connection was simulated, so the encryption and session state of each connected number isn't in these numbers. Running many numbers in one process costs more than shown here, and that cost hasn't been measured.
+  </Accordion>
+  <Accordion title="Real camera video">
+    The test videos were generated, not recorded. Memory is representative, but a real camera video takes longer to process.
+  </Accordion>
+</AccordionGroup>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Storage" icon="database" href="/data/storage">
+    Move message history out of memory.
+  </Card>
+  <Card title="Auto-delete" icon="timer" href="/bots/auto-delete">
+    Keep the memory store from growing without limit.
+  </Card>
+  <Card title="Runtimes" icon="server" href="/data/runtimes">
+    Node.js, Bun, Deno, and Termux.
+  </Card>
+  <Card title="Multi-account" icon="users" href="/data/multi-account">
+    Run several numbers in one process.
+  </Card>
+</CardGroup>

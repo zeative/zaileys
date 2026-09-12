@@ -62,6 +62,7 @@ export interface RedisClientLike {
     max: string | number,
     options?: { LIMIT?: { offset: number; count: number } },
   ): Promise<string[]>
+
   scan(
     cursor: number,
     options?: { MATCH?: string; COUNT?: number },

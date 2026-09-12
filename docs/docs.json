@@ -177,12 +177,21 @@
           },
           {
             "group": "Resources",
-            "pages": ["reference/troubleshooting", "reference/glossary", "reference/migration", "reference/changelog"]
+            "pages": ["reference/troubleshooting", "reference/glossary"]
           }
         ]
+      },
+      {
+        "tab": "Releases",
+        "icon": "tag",
+        "pages": ["releases/changelog", "releases/versioning", "releases/migration"]
       }
     ]
   },
+  "redirects": [
+    { "source": "/reference/changelog", "destination": "/releases/changelog", "permanent": true },
+    { "source": "/reference/migration", "destination": "/releases/migration", "permanent": true }
+  ],
   "footer": {
     "socials": {
       "github": "https://github.com/zeative/zaileys",

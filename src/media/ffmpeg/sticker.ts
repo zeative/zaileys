@@ -118,16 +118,25 @@ export class StickerProcessor {
       } catch {
         console.warn('Using default duration:', FFMPEG_CONSTANTS.STICKER.MAX_DURATION);
       }
+      /**
+       * One argv element per token. Combined `"-flag value"` strings reach ffmpeg as a single
+       * option literally named `flag value` (so this path always exited 1), and that shape becomes
+       * argument injection the moment an interpolated value comes from remote data.
+       */
+      const safeQuality = Number.isFinite(qualityValue) ? Math.round(qualityValue) : 60;
+      const safeDuration = Number.isFinite(duration) && duration > 0
+        ? Math.min(duration, FFMPEG_CONSTANTS.STICKER.MAX_DURATION)
+        : FFMPEG_CONSTANTS.STICKER.MAX_DURATION;
       return [
-        '-vcodec libwebp',
-        `-vf ${videoFilter}`,
-        `-q:v ${qualityValue}`,
-        '-loop 0',
-        '-preset default',
+        '-vcodec', 'libwebp',
+        '-vf', videoFilter,
+        '-q:v', String(safeQuality),
+        '-loop', '0',
+        '-preset', 'default',
         '-an',
-        '-vsync 0',
-        `-t ${duration}`,
-        `-compression_level ${FFMPEG_CONSTANTS.STICKER.COMPRESSION_LEVEL}`,
+        '-vsync', '0',
+        '-t', String(safeDuration),
+        '-compression_level', String(FFMPEG_CONSTANTS.STICKER.COMPRESSION_LEVEL),
       ];
     });
   }

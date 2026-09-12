@@ -114,14 +114,36 @@ export class RedisMessageStore implements MessageStore {
     const client = await this.ensureReady()
     const limit = options?.limit ?? 100
     const max = typeof options?.before === 'number' ? `(${options.before}` : '+inf'
-    const members = await this.runRead(() =>
-      client.zRangeByScore(this.msgIndexKey(jid), '-inf', max, {
-        LIMIT: { offset: 0, count: limit + 1024 },
-      }),
-    )
+    /**
+     * Newest first. `zRangeByScore` is ascending, so limiting there took the OLDEST `limit` entries
+     * and reversed them — past a thousand or so messages a chat never returned a recent one, and
+     * quoted-message resolution silently always missed.
+     */
+    const key = this.msgIndexKey(jid)
+    type RevRange = (
+      key: string,
+      start: string | number,
+      stop: string | number,
+      options: { BY: 'SCORE'; REV: true; LIMIT: { offset: number; count: number } },
+    ) => Promise<string[]>
+    const zRange = (client as unknown as { zRange?: RevRange }).zRange
+    const members = await this.runRead(async () => {
+      if (typeof zRange === 'function') {
+        try {
+          return await zRange.call(client, key, max, '-inf', {
+            BY: 'SCORE',
+            REV: true,
+            LIMIT: { offset: 0, count: limit },
+          })
+        } catch {
+          /** Older clients reject the options form; fall through to the portable path. */
+        }
+      }
+      const all = await client.zRangeByScore(key, '-inf', max)
+      return [...all].reverse().slice(0, limit)
+    })
     if (members.length === 0) return []
-    const ordered = [...members].reverse()
-    const sliced = ordered.slice(0, limit)
+    const sliced = members.slice(0, limit)
     const raws = await this.runRead(() => client.hmGet(this.msgDataKey(jid), sliced))
     const out: WAMessage[] = []
     for (const raw of raws) {

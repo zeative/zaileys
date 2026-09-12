@@ -53,7 +53,8 @@ const slugify = (t) => t.toLowerCase().replace(/`/g, '').replace(/[^\w\s-]/g, ''
 const placeOf = new Map()
 const nav = JSON.parse(readFileSync(join(DOCS, 'docs.json'), 'utf8')).navigation
 nav.tabs.forEach((tab, tabIndex) => {
-  for (const group of tab.groups ?? []) {
+  // A tab may list pages directly instead of grouping them; treat the tab as its own group.
+  for (const group of tab.groups ?? [{ group: tab.tab, pages: tab.pages }]) {
     for (const page of group.pages ?? []) placeOf.set(page, { tab: tab.tab, tabIndex, group: group.group })
   }
 })
@@ -167,6 +168,16 @@ const docs = raw.map((doc) => {
   }
   return { ...doc.meta, w }
 })
+
+// A page missing from docs.json is skipped above, which would drop it from search silently.
+const onDisk = new Set(walk(DOCS).map((f) => f.slice(DOCS.length + 1, -'.mdx'.length)))
+const orphaned = [...onDisk].filter((s) => !placeOf.has(s))
+const missing = [...placeOf.keys()].filter((s) => !onDisk.has(s))
+if (orphaned.length || missing.length) {
+  if (orphaned.length) console.error(`✗ not in docs.json navigation: ${orphaned.join(', ')}`)
+  if (missing.length) console.error(`✗ in docs.json but no .mdx file: ${missing.join(', ')}`)
+  process.exit(1)
+}
 
 const out = join(DOCS, 'search-index.json')
 writeFileSync(out, JSON.stringify({ v: 3, N: docs.length, k1: 1.2, hiBoost: 3, df, docs }))

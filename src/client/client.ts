@@ -103,6 +103,7 @@ import {
 import type { BaileysSocketLike, MessageStore } from '../store/types.js'
 import { MemoryMessageStore } from '../store/adapters/memory.js'
 import { adoptLogger } from '../utils/logger.js'
+import { sameUser } from '../utils/jid.js'
 import {
   attachInboundPipeline,
   type InboundPipelineHandle,
@@ -841,14 +842,13 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private async isGroupAdmin(groupJid: string, senderJid: string): Promise<boolean> {
     try {
       const meta = await this.group.metadata(groupJid)
-      const bare = (jid: string): string => jid.split('@')[0]?.split(':')[0] ?? jid
-      const target = bare(senderJid)
+      /** Namespace-aware: a LID must never satisfy an admin entry stored as a phone number. */
       return (meta.participants ?? []).some((p) => {
         const entry = p as unknown as Record<string, unknown>
         const ids = [p.id, entry['phoneNumber'], entry['jid']].filter(
           (v): v is string => typeof v === 'string',
         )
-        return ids.some((id) => bare(id) === target) && p.admin != null
+        return ids.some((id) => sameUser(id, senderJid)) && p.admin != null
       })
     } catch {
       return false

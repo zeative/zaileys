@@ -1,6 +1,7 @@
 import type { Logger } from '../client/types.js'
 import type { CallPayload } from '../events/types.js'
 import { ZaileysAutomationError } from './errors.js'
+import { matchesUser } from '../utils/jid.js'
 
 export interface CallSocketLike {
   rejectCall(callId: string, callFrom: string): Promise<void>
@@ -72,8 +73,8 @@ export class AutoRejectCallModule {
     if (allow === undefined) return false
     try {
       if (Array.isArray(allow)) {
-        const target = digitsOf(jid)
-        return allow.some((entry) => entry === jid || digitsOf(entry) === target)
+        /** Namespace-aware: a LID must not satisfy an allow entry written as a phone number. */
+        return allow.some((entry) => matchesUser(entry, jid))
       }
       return (await allow(jid)) === true
     } catch (err) {

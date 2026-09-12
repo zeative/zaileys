@@ -3,6 +3,7 @@ import { Readable } from 'node:stream'
 import { asRecord, GROUP_STATUS_FIELDS, isGroupJid, wrapperChainHas } from './decoders/_shared.js'
 import type { SenderInfo } from './types.js'
 import type { TextOptions } from '../builder/builder.js'
+import { matchesUser } from '../utils/jid.js'
 
 export type ChatType =
   | 'text'
@@ -414,7 +415,10 @@ export const makeCitation = (
     field: string[] | ((jid: string) => boolean | Promise<boolean>) | undefined,
   ): Promise<boolean> => {
     if (field === undefined) return false
-    if (Array.isArray(field)) return field.includes(senderJid)
+    /** Device-suffix and format tolerant, but never across the LID/phone-number namespaces. */
+    if (Array.isArray(field)) {
+      return field.some((entry) => matchesUser(entry, senderJid))
+    }
     return field(senderJid)
   }
   return {
@@ -520,7 +524,7 @@ export const buildMessageContext = (input: BuildContextInput): MessageContext =>
     ...(input.ad !== undefined ? { ad: input.ad } : {}),
     ...(input.business !== undefined ? { business: input.business } : {}),
     ...(input.media !== undefined ? { media: input.media } : {}),
-    citation: makeCitation(input.citationConfig, input.sender.pn ?? input.sender.jid),
+    citation: makeCitation(input.citationConfig, senderId),
     roomName: input.resolveRoomName,
     receiverName: input.resolveReceiverName,
     replied: input.resolveReplied,

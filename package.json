@@ -48,6 +48,7 @@
     "test:security": "vitest run tests/security",
     "bench:vps": "node scripts/vps-bench.mjs",
     "bench:vps:soak": "node scripts/vps-bench.mjs --sustained",
+    "bench:vps:heavy": "node scripts/vps-bench.mjs --heavy",
     "smoke:baileys": "tsx scripts/smoke-baileys.mts",
     "docs:dev": "cd docs && npx -y mint@latest dev",
     "docs:links": "cd docs && npx -y mint@latest broken-links",

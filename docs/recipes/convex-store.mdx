@@ -168,10 +168,13 @@ Two files go in your Convex project's `convex/` folder, and the bot sits next to
         const chat = msg.message().key.remoteJid
         if (!chat) return
         const recent = await client.store.listMessages(chat, { limit: 5 })
-        const lines = recent
-          .map((m) => m.message?.conversation ?? m.message?.extendedTextMessage?.text)
-          .filter((text): text is string => typeof text === 'string')
-        await msg.reply(lines.length > 0 ? `Latest messages in this chat:\n${lines.join('\n')}` : 'No history yet.')
+        let lines = ''
+        for (const stored of recent) {
+          const text = stored.message?.conversation ?? stored.message?.extendedTextMessage?.text
+          if (text) lines += `${text}\n`
+        }
+        if (lines) await msg.reply(`Latest messages in this chat:\n${lines}`)
+        else await msg.reply('No history yet.')
       } catch (error) {
         console.error('history lookup failed:', error)
       }

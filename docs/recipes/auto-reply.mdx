@@ -83,7 +83,7 @@ Save this as `bot.ts`:
       if (msg.isGroup || msg.isStory || msg.isNewsletter || msg.isOld) return
 
       const words = new Set(msg.text.toLowerCase().match(/[a-z]+/g) ?? [])
-      const match = answers.find((a) => a.keywords.some((k) => words.has(k)))
+      const match = answers.find((entry) => entry.keywords.some((keyword) => words.has(keyword)))
 
       const now = Date.now()
       const greet = now - (lastGreeted.get(msg.senderId) ?? 0) > GREET_EVERY_MS
@@ -91,13 +91,14 @@ Save this as `bot.ts`:
 
       const greeting = `Hi ${msg.senderName ?? 'there'}! Thanks for messaging ${BUSINESS}.`
       const answer = match?.reply ?? FALLBACK
-      await msg.reply(greet ? `${greeting}\n${answer}` : answer)
+      if (greet) await msg.reply(`${greeting}\n${answer}`)
+      else await msg.reply(answer)
     })
     ```
 
     Or run it in your browser, and scan the QR code that appears in its terminal:
 
-    <StackBlitz code={"import { Client } from 'zaileys'\n\nconst BUSINESS = 'Warung Sari'\nconst GREET_EVERY_MS = 12 * 60 * 60 * 1000\n\nconst answers = [\n  { keywords: ['hours', 'open', 'close', 'closing'], reply: \"We're open every day from 10:00 to 22:00.\" },\n  { keywords: ['address', 'where', 'location', 'map'], reply: \"We're at Jl. Sunset Road 88, Kuta, Bali, next to the petrol station.\" },\n  { keywords: ['menu', 'price', 'prices'], reply: 'Nasi Goreng Rp25.000 · Mie Ayam Rp20.000 · Es Teh Rp5.000 · Kopi Susu Rp15.000' },\n  { keywords: ['delivery', 'deliver'], reply: \"Yes, we deliver within 5 km. Send your order here and we'll confirm the total.\" },\n]\n\nconst FALLBACK =\n  'Thanks! A team member will reply soon. Meanwhile, ask me about our *hours*, *address*, *menu*, or *delivery*.'\n\nconst lastGreeted = new Map<string, number>()\n\nconst client = new Client()\n\nclient.on('text', async (msg) => {\n  if (msg.isGroup || msg.isStory || msg.isNewsletter || msg.isOld) return\n\n  const words = new Set(msg.text.toLowerCase().match(/[a-z]+/g) ?? [])\n  const match = answers.find((a) => a.keywords.some((k) => words.has(k)))\n\n  const now = Date.now()\n  const greet = now - (lastGreeted.get(msg.senderId) ?? 0) > GREET_EVERY_MS\n  if (greet) lastGreeted.set(msg.senderId, now)\n\n  const greeting = `Hi ${msg.senderName ?? 'there'}! Thanks for messaging ${BUSINESS}.`\n  const answer = match?.reply ?? FALLBACK\n  await msg.reply(greet ? `${greeting}\\n${answer}` : answer)\n})\n"} title="Zaileys auto-reply bot" />
+    <StackBlitz code={"import { Client } from 'zaileys'\n\nconst BUSINESS = 'Warung Sari'\nconst GREET_EVERY_MS = 12 * 60 * 60 * 1000\n\nconst answers = [\n  { keywords: ['hours', 'open', 'close', 'closing'], reply: \"We're open every day from 10:00 to 22:00.\" },\n  { keywords: ['address', 'where', 'location', 'map'], reply: \"We're at Jl. Sunset Road 88, Kuta, Bali, next to the petrol station.\" },\n  { keywords: ['menu', 'price', 'prices'], reply: 'Nasi Goreng Rp25.000 · Mie Ayam Rp20.000 · Es Teh Rp5.000 · Kopi Susu Rp15.000' },\n  { keywords: ['delivery', 'deliver'], reply: \"Yes, we deliver within 5 km. Send your order here and we'll confirm the total.\" },\n]\n\nconst FALLBACK =\n  'Thanks! A team member will reply soon. Meanwhile, ask me about our *hours*, *address*, *menu*, or *delivery*.'\n\nconst lastGreeted = new Map<string, number>()\n\nconst client = new Client()\n\nclient.on('text', async (msg) => {\n  if (msg.isGroup || msg.isStory || msg.isNewsletter || msg.isOld) return\n\n  const words = new Set(msg.text.toLowerCase().match(/[a-z]+/g) ?? [])\n  const match = answers.find((entry) => entry.keywords.some((keyword) => words.has(keyword)))\n\n  const now = Date.now()\n  const greet = now - (lastGreeted.get(msg.senderId) ?? 0) > GREET_EVERY_MS\n  if (greet) lastGreeted.set(msg.senderId, now)\n\n  const greeting = `Hi ${msg.senderName ?? 'there'}! Thanks for messaging ${BUSINESS}.`\n  const answer = match?.reply ?? FALLBACK\n  if (greet) await msg.reply(`${greeting}\\n${answer}`)\n  else await msg.reply(answer)\n})\n"} title="Zaileys auto-reply bot" />
 
   </Tab>
   <Tab title="Official">
@@ -136,7 +137,7 @@ Save this as `bot.ts`:
       if (msg.isGroup || msg.isStory || msg.isNewsletter || msg.isOld) return
 
       const words = new Set(msg.text.toLowerCase().match(/[a-z]+/g) ?? [])
-      const match = answers.find((a) => a.keywords.some((k) => words.has(k)))
+      const match = answers.find((entry) => entry.keywords.some((keyword) => words.has(keyword)))
 
       const now = Date.now()
       const greet = now - (lastGreeted.get(msg.senderId) ?? 0) > GREET_EVERY_MS
@@ -144,7 +145,8 @@ Save this as `bot.ts`:
 
       const greeting = `Hi ${msg.senderName ?? 'there'}! Thanks for messaging ${BUSINESS}.`
       const answer = match?.reply ?? FALLBACK
-      await msg.reply(greet ? `${greeting}\n${answer}` : answer)
+      if (greet) await msg.reply(`${greeting}\n${answer}`)
+      else await msg.reply(answer)
     })
 
     const webhook = client.webhook()
@@ -186,7 +188,7 @@ const answers = [{ keywords: ['hours', 'open'], reply: "We're open every day fro
 
 client.on('text', async (msg) => {
   const words = new Set(msg.text.toLowerCase().match(/[a-z]+/g) ?? [])
-  const match = answers.find((a) => a.keywords.some((k) => words.has(k)))
+  const match = answers.find((entry) => entry.keywords.some((keyword) => words.has(keyword)))
   if (match) await msg.reply(match.reply)
 })
 ```
@@ -312,10 +314,13 @@ On WhatsApp Web, the same reply can carry a real table. Pass `rich: true`:
 ```ts
 client.on('text', async (msg) => {
   if (msg.text.trim().toLowerCase() !== 'menu') return
-  await msg.reply(
-    ['*Our menu*', '', '| Dish | Price |', '| --- | --- |', '| Nasi Goreng | Rp25.000 |', '| Mie Ayam | Rp20.000 |'].join('\n'),
-    { rich: true, title: 'Warung Sari' },
-  )
+  const menu = `*Our menu*
+
+| Dish | Price |
+| --- | --- |
+| Nasi Goreng | Rp25.000 |
+| Mie Ayam | Rp20.000 |`
+  await msg.reply(menu, { rich: true, title: 'Warung Sari' })
 })
 ```
 

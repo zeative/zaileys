@@ -52,14 +52,12 @@ import { Client } from 'zaileys'
 
 type Turn = { role: 'user' | 'assistant'; content: string }
 
-const SYSTEM_PROMPT = [
-  'You are Sari, the assistant of Warung Sari, a small restaurant in Kuta, Bali.',
-  'Answer briefly in markdown. Use *bold*, fenced code blocks, and tables with a header row when they help.',
-  'End every answer with two or three follow-up questions, written exactly like this:',
-  ':::suggest',
-  'First question | Second question',
-  ':::',
-].join('\n')
+const SYSTEM_PROMPT = `You are Sari, the assistant of Warung Sari, a small restaurant in Kuta, Bali.
+Answer briefly in markdown. Use *bold*, fenced code blocks, and tables with a header row when they help.
+End every answer with two or three follow-up questions, written exactly like this:
+:::suggest
+First question | Second question
+:::`
 
 const MAX_TURNS = 12
 const history = new Map<string, Turn[]>()
@@ -67,20 +65,18 @@ const history = new Map<string, Turn[]>()
 // Replace this body with a call to your model provider, and return its answer as markdown.
 async function askModel(system: string, turns: Turn[]): Promise<string> {
   const question = turns.at(-1)?.content ?? ''
-  return [
-    `*You asked:* ${question}`,
-    '',
-    'This is a placeholder. Connect a language model in askModel() to answer for real.',
-    '',
-    '| Dish | Price |',
-    '| --- | --- |',
-    '| Nasi Goreng | Rp25.000 |',
-    '| Mie Ayam | Rp20.000 |',
-    '',
-    ':::suggest',
-    'What do you recommend? | Are you open today?',
-    ':::',
-  ].join('\n')
+  return `*You asked:* ${question}
+
+This is a placeholder. Connect a language model in askModel() to answer for real.
+
+| Dish | Price |
+| --- | --- |
+| Nasi Goreng | Rp25.000 |
+| Mie Ayam | Rp20.000 |
+
+:::suggest
+What do you recommend? | Are you open today?
+:::`
 }
 
 const client = new Client()
@@ -143,13 +139,11 @@ Most model APIs take a system prompt plus a list of role-and-content messages, s
 A rich message renders a specific kind of markdown, so the system prompt spells it out:
 
 ```ts
-const SYSTEM_PROMPT = [
-  'Answer briefly in markdown. Use *bold*, fenced code blocks, and tables with a header row when they help.',
-  'End every answer with two or three follow-up questions, written exactly like this:',
-  ':::suggest',
-  'First question | Second question',
-  ':::',
-].join('\n')
+const SYSTEM_PROMPT = `Answer briefly in markdown. Use *bold*, fenced code blocks, and tables with a header row when they help.
+End every answer with two or three follow-up questions, written exactly like this:
+:::suggest
+First question | Second question
+:::`
 ```
 
 - **Tables** need a header row and a `| --- |` separator row. They become real tables in the bubble.
@@ -293,10 +287,13 @@ const products = [
   { title: 'Mie Ayam', price: 'Rp20.000', image: 'https://example.com/menu/mie-ayam.jpg' },
 ]
 
-const answer = 'Here are our most popular dishes:'
-const cards = [':::product', ...products.map((p) => `- title: ${p.title} | price: ${p.price} | image: ${p.image}`), ':::']
+let message = 'Here are our most popular dishes:\n\n:::product\n'
+for (const product of products) {
+  message += `- title: ${product.title} | price: ${product.price} | image: ${product.image}\n`
+}
+message += ':::'
 
-await msg.reply([answer, '', ...cards].join('\n'), { rich: true })
+await msg.reply(message, { rich: true })
 ```
 
 The user sees the answer followed by a row of product cards they can swipe through. Image URLs must be public — the recipient's phone loads them.

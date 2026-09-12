@@ -74,7 +74,8 @@ client.command({ name: 'ping', description: 'Check that the bot is alive' }, asy
 client.command({ name: 'time', description: 'The time right now in a city', usage: '<city>' }, async (ctx) => {
   const city = CITIES[ctx.args.join(' ').toLowerCase()]
   if (!city) {
-    await ctx.reply(`Usage: /time <city>. I know: ${Object.values(CITIES).map((c) => c.name).join(', ')}.`)
+    const cityNames = Object.values(CITIES).map((entry) => entry.name).join(', ')
+    await ctx.reply(`Usage: /time <city>. I know: ${cityNames}.`)
     return
   }
   const time = new Intl.DateTimeFormat('en-GB', { timeZone: city.timeZone, hour: '2-digit', minute: '2-digit' })
@@ -91,19 +92,23 @@ client.command(
       return
     }
     const chat = ctx.roomId ?? ctx.senderId
-    await client.scheduleAt(new Date(Date.now() + minutes * 60_000), (b) =>
-      b.to(chat).text(`⏰ Reminder: ${words.join(' ')}`),
+    await client.scheduleAt(new Date(Date.now() + minutes * 60_000), (builder) =>
+      builder.to(chat).text(`⏰ Reminder: ${words.join(' ')}`),
     )
-    await ctx.reply(`OK, I'll remind you in ${minutes} minute${minutes === 1 ? '' : 's'}.`)
+    const unit = minutes === 1 ? 'minute' : 'minutes'
+    await ctx.reply(`OK, I'll remind you in ${minutes} ${unit}.`)
   },
 )
 
 client.command({ name: 'help', aliases: ['h', '?'], description: 'Show this list' }, async (ctx) => {
-  const lines = client
-    .commands()
-    .filter((c) => !c.hidden)
-    .map((c) => `/${c.name}${c.usage ? ` ${c.usage}` : ''} — ${c.description ?? ''}`)
-  await ctx.reply(['*Commands*', ...lines].join('\n'))
+  let menu = '*Commands*\n'
+  for (const command of client.commands()) {
+    if (command.hidden) continue
+    let line = `/${command.name}`
+    if (command.usage) line += ` ${command.usage}`
+    menu += `${line} — ${command.description ?? ''}\n`
+  }
+  await ctx.reply(menu.trim())
 })
 
 client.on('command-blocked', async ({ reason, retryIn, ctx }) => {
@@ -125,7 +130,7 @@ client.on('connect', ({ me }) => console.log(`Command bot ready as ${me.id}`))
 
 Or run it in your browser, and scan the QR code that appears in its terminal:
 
-<StackBlitz code={"import { Client, type Middleware } from 'zaileys'\n\nconst CITIES: Record<string, { name: string; timeZone: string }> = {\n  jakarta: { name: 'Jakarta', timeZone: 'Asia/Jakarta' },\n  bali: { name: 'Bali', timeZone: 'Asia/Makassar' },\n  singapore: { name: 'Singapore', timeZone: 'Asia/Singapore' },\n  tokyo: { name: 'Tokyo', timeZone: 'Asia/Tokyo' },\n  london: { name: 'London', timeZone: 'Europe/London' },\n  'new york': { name: 'New York', timeZone: 'America/New_York' },\n}\n\nconst client = new Client({ commandPrefix: ['/', '!'] })\n\nconst logCommands: Middleware = async (ctx, next) => {\n  const started = Date.now()\n  await next()\n  console.log(`/${ctx.command} from ${ctx.senderId} took ${Date.now() - started} ms`)\n}\n\nclient.use(logCommands)\n\nclient.command({ name: 'ping', description: 'Check that the bot is alive' }, async (ctx) => {\n  await ctx.reply('pong')\n})\n\nclient.command({ name: 'time', description: 'The time right now in a city', usage: '<city>' }, async (ctx) => {\n  const city = CITIES[ctx.args.join(' ').toLowerCase()]\n  if (!city) {\n    await ctx.reply(`Usage: /time <city>. I know: ${Object.values(CITIES).map((c) => c.name).join(', ')}.`)\n    return\n  }\n  const time = new Intl.DateTimeFormat('en-GB', { timeZone: city.timeZone, hour: '2-digit', minute: '2-digit' })\n  await ctx.reply(`It's ${time.format(new Date())} in ${city.name}.`)\n})\n\nclient.command(\n  { name: 'remind', description: 'Remind you after some minutes', usage: '<minutes> <text>', cooldown: 30 },\n  async (ctx) => {\n    const [minutesArg, ...words] = ctx.args\n    const minutes = Number(minutesArg)\n    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440 || words.length === 0) {\n      await ctx.reply('Usage: /remind <minutes> <text>, for example /remind 10 take the laundry out')\n      return\n    }\n    const chat = ctx.roomId ?? ctx.senderId\n    await client.scheduleAt(new Date(Date.now() + minutes * 60_000), (b) =>\n      b.to(chat).text(`⏰ Reminder: ${words.join(' ')}`),\n    )\n    await ctx.reply(`OK, I'll remind you in ${minutes} minute${minutes === 1 ? '' : 's'}.`)\n  },\n)\n\nclient.command({ name: 'help', aliases: ['h', '?'], description: 'Show this list' }, async (ctx) => {\n  const lines = client\n    .commands()\n    .filter((c) => !c.hidden)\n    .map((c) => `/${c.name}${c.usage ? ` ${c.usage}` : ''} — ${c.description ?? ''}`)\n  await ctx.reply(['*Commands*', ...lines].join('\\n'))\n})\n\nclient.on('command-blocked', async ({ reason, retryIn, ctx }) => {\n  if (reason === 'cooldown') await ctx.reply(`Please wait ${retryIn} seconds before using /${ctx.command} again.`)\n})\n\nclient.on('command-not-found', async ({ command, message }) => {\n  if (message.isGroup) return\n  await message.reply(`There's no /${command} command. Send /help to see what I can do.`)\n})\n\nclient.on('command-error', async ({ command, error, ctx }) => {\n  console.error(`/${command} failed:`, error)\n  await ctx.reply('Sorry, that command failed. Please try again.')\n})\n\nclient.on('connect', ({ me }) => console.log(`Command bot ready as ${me.id}`))\n"} title="Zaileys command bot" />
+<StackBlitz code={"import { Client, type Middleware } from 'zaileys'\n\nconst CITIES: Record<string, { name: string; timeZone: string }> = {\n  jakarta: { name: 'Jakarta', timeZone: 'Asia/Jakarta' },\n  bali: { name: 'Bali', timeZone: 'Asia/Makassar' },\n  singapore: { name: 'Singapore', timeZone: 'Asia/Singapore' },\n  tokyo: { name: 'Tokyo', timeZone: 'Asia/Tokyo' },\n  london: { name: 'London', timeZone: 'Europe/London' },\n  'new york': { name: 'New York', timeZone: 'America/New_York' },\n}\n\nconst client = new Client({ commandPrefix: ['/', '!'] })\n\nconst logCommands: Middleware = async (ctx, next) => {\n  const started = Date.now()\n  await next()\n  console.log(`/${ctx.command} from ${ctx.senderId} took ${Date.now() - started} ms`)\n}\n\nclient.use(logCommands)\n\nclient.command({ name: 'ping', description: 'Check that the bot is alive' }, async (ctx) => {\n  await ctx.reply('pong')\n})\n\nclient.command({ name: 'time', description: 'The time right now in a city', usage: '<city>' }, async (ctx) => {\n  const city = CITIES[ctx.args.join(' ').toLowerCase()]\n  if (!city) {\n    const cityNames = Object.values(CITIES).map((entry) => entry.name).join(', ')\n    await ctx.reply(`Usage: /time <city>. I know: ${cityNames}.`)\n    return\n  }\n  const time = new Intl.DateTimeFormat('en-GB', { timeZone: city.timeZone, hour: '2-digit', minute: '2-digit' })\n  await ctx.reply(`It's ${time.format(new Date())} in ${city.name}.`)\n})\n\nclient.command(\n  { name: 'remind', description: 'Remind you after some minutes', usage: '<minutes> <text>', cooldown: 30 },\n  async (ctx) => {\n    const [minutesArg, ...words] = ctx.args\n    const minutes = Number(minutesArg)\n    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440 || words.length === 0) {\n      await ctx.reply('Usage: /remind <minutes> <text>, for example /remind 10 take the laundry out')\n      return\n    }\n    const chat = ctx.roomId ?? ctx.senderId\n    await client.scheduleAt(new Date(Date.now() + minutes * 60_000), (builder) =>\n      builder.to(chat).text(`⏰ Reminder: ${words.join(' ')}`),\n    )\n    const unit = minutes === 1 ? 'minute' : 'minutes'\n    await ctx.reply(`OK, I'll remind you in ${minutes} ${unit}.`)\n  },\n)\n\nclient.command({ name: 'help', aliases: ['h', '?'], description: 'Show this list' }, async (ctx) => {\n  let menu = '*Commands*\\n'\n  for (const command of client.commands()) {\n    if (command.hidden) continue\n    let line = `/${command.name}`\n    if (command.usage) line += ` ${command.usage}`\n    menu += `${line} — ${command.description ?? ''}\\n`\n  }\n  await ctx.reply(menu.trim())\n})\n\nclient.on('command-blocked', async ({ reason, retryIn, ctx }) => {\n  if (reason === 'cooldown') await ctx.reply(`Please wait ${retryIn} seconds before using /${ctx.command} again.`)\n})\n\nclient.on('command-not-found', async ({ command, message }) => {\n  if (message.isGroup) return\n  await message.reply(`There's no /${command} command. Send /help to see what I can do.`)\n})\n\nclient.on('command-error', async ({ command, error, ctx }) => {\n  console.error(`/${command} failed:`, error)\n  await ctx.reply('Sorry, that command failed. Please try again.')\n})\n\nclient.on('connect', ({ me }) => console.log(`Command bot ready as ${me.id}`))\n"} title="Zaileys command bot" />
 
 ## How it works
 
@@ -149,8 +154,13 @@ client.command({ name: 'time', description: 'The time right now in a city', usag
 })
 
 client.command({ name: 'help', aliases: ['h', '?'], description: 'Show this list' }, async (ctx) => {
-  const lines = client.commands().map((c) => `/${c.name}${c.usage ? ` ${c.usage}` : ''} — ${c.description ?? ''}`)
-  await ctx.reply(lines.join('\n'))
+  let menu = ''
+  for (const command of client.commands()) {
+    let line = `/${command.name}`
+    if (command.usage) line += ` ${command.usage}`
+    menu += `${line} — ${command.description ?? ''}\n`
+  }
+  await ctx.reply(menu.trim())
 })
 ```
 
@@ -176,7 +186,7 @@ client.command('time', async (ctx) => {
 ```ts
 client.command('remind', async (ctx) => {
   const chat = ctx.roomId ?? ctx.senderId
-  await client.scheduleAt(new Date(Date.now() + 10 * 60_000), (b) => b.to(chat).text('⏰ Reminder: stretch'))
+  await client.scheduleAt(new Date(Date.now() + 10 * 60_000), (builder) => builder.to(chat).text('⏰ Reminder: stretch'))
 })
 ```
 
@@ -277,8 +287,11 @@ client.use(async (ctx, next) => {
 })
 
 client.command({ name: 'stats', hidden: true }, async (ctx) => {
-  const lines = [...counts].map(([name, count]) => `/${name}: ${count}`)
-  await ctx.reply(lines.join('\n'))
+  let report = ''
+  for (const [name, count] of counts) {
+    report += `/${name}: ${count}\n`
+  }
+  await ctx.reply(report.trim())
 })
 ```
 
@@ -302,11 +315,12 @@ client.on('command-blocked', async ({ reason, ctx }) => {
 
 ```ts
 client.command({ name: 'menu', description: 'Show commands as a table' }, async (ctx) => {
-  const rows = client
-    .commands()
-    .filter((c) => !c.hidden)
-    .map((c) => `| /${c.name} ${c.usage ?? ''} | ${c.description ?? ''} |`)
-  await ctx.reply(['| Command | What it does |', '| --- | --- |', ...rows].join('\n'), { rich: true, title: 'Help' })
+  let table = '| Command | What it does |\n| --- | --- |\n'
+  for (const command of client.commands()) {
+    if (command.hidden) continue
+    table += `| /${command.name} ${command.usage ?? ''} | ${command.description ?? ''} |\n`
+  }
+  await ctx.reply(table.trim(), { rich: true, title: 'Help' })
 })
 ```
 

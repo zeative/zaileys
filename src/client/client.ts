@@ -1049,6 +1049,18 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       void this.handleConnectionUpdate(update)
     }
     const onCreds = (update: Partial<AuthenticationCreds>): void => {
+      /** Never let an update walk a registered identity back to unpaired — that is session loss. */
+      if (this.creds?.registered === true) {
+        const dropsRegistration = 'registered' in update && update.registered !== true
+        const dropsIdentity = 'me' in update && update.me == null
+        if (dropsRegistration || dropsIdentity) {
+          this.logger.error(
+            { sessionId: this.sessionId },
+            'refusing a creds update that would de-register the stored session',
+          )
+          return
+        }
+      }
       const merged = this.creds ? Object.assign(this.creds, update) : (update as AuthenticationCreds)
       this.creds = merged
       void this.auth.creds.writeCreds(merged).catch((err) => {
@@ -1093,6 +1105,19 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
 
   private async handleQrUpdate(qr: string): Promise<void> {
     if (this.authExhausted) return
+    /**
+     * A QR for an already-registered identity means the socket took the registration path — pairing
+     * again would overwrite a working session. Stop instead, and keep the stored creds intact.
+     */
+    if (this.creds?.registered === true) {
+      const error = new Error(
+        'WhatsApp asked to pair again while a registered session is stored; aborting to protect it',
+      )
+      this.logger.error({ sessionId: this.sessionId }, error.message)
+      if (this.listenerCount('error') > 0) this.emit('error', { sessionId: this.sessionId, error })
+      void this.disconnect()
+      return
+    }
     if (this.authType === 'pairing' && this.phoneNumber) {
       if (this.pairingRequested) return
       const now = Date.now()

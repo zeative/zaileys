@@ -75,7 +75,16 @@ const frontmatter = (raw) => {
     if (!f) continue
     let v = f[2].trim().replace(/^["']|["']$/g, '')
     if (v.startsWith('[')) {
-      try { v = JSON.parse(f[2].replace(/'/g, '"')) } catch { v = [] }
+      // Parse as-is first: swapping quotes blindly corrupts any item holding an apostrophe.
+      try {
+        v = JSON.parse(f[2].trim())
+      } catch {
+        try { v = JSON.parse(f[2].trim().replace(/'/g, '"')) } catch { v = [] }
+      }
+      if (!v.length) {
+        console.error(`\u2717 keywords failed to parse: ${f[2].trim()}`)
+        process.exit(1)
+      }
     }
     meta[f[1]] = v
   }
@@ -133,6 +142,8 @@ for (const file of walk(DOCS).sort()) {
       t: text.title,
       s: text.sidebar,
       d: text.description,
+      // Raw keywords, so a typed phrase the author declared can win outright.
+      kw: text.keywords.toLowerCase(),
       i: meta.icon ?? '',
       tab: place.tab,
       ti: place.tabIndex,
@@ -180,6 +191,8 @@ if (orphaned.length || missing.length) {
 }
 
 const out = join(DOCS, 'search-index.json')
-writeFileSync(out, JSON.stringify({ v: 3, N: docs.length, k1: 1.2, hiBoost: 3, df, docs }))
+// Ship the stop list: if the query tokenizer used a different one, a word dropped at index
+// time could still be searched for and collide with a camelCase stem ("what" <- WhatsApp).
+writeFileSync(out, JSON.stringify({ v: 4, N: docs.length, k1: 1.2, hiBoost: 3, stop: [...STOP], df, docs }))
 const kb = Math.round(readFileSync(out).length / 1024)
 console.log(`✓ BM25F index (split fields): ${docs.length} pages, ${Object.keys(df).length} terms, ${docs.reduce((n, d) => n + d.secs.length, 0)} sections, ${kb} KB`)

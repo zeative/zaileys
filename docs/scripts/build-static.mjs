@@ -24,6 +24,7 @@ const walk = (dir) =>
 // Built from the .mdx sources before exporting, so it ships inside the bundle.
 step('Building the search index')
 run('node', [join(DOCS, 'scripts', 'build-search-index.mjs')], ROOT)
+run('node', [join(DOCS, 'scripts', 'check-search.mjs')], ROOT)
 
 // ---------------------------------------------------------------- 2. export
 step('Exporting the Mintlify site')

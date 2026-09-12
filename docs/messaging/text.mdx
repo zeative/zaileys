@@ -48,15 +48,12 @@ An empty or whitespace-only string throws `EMPTY_CONTENT`.
 WhatsApp's own formatting works inside any text, caption, or reply:
 
 ```ts
-await client.send(jid).text(
-  [
-    '*Order #1042 confirmed*',
-    '_Estimated delivery: Friday_',
-    'Total: ~Rp 150.000~ Rp 120.000',
-    'Tracking code: ```JKT-8831```',
-  ].join('\n'),
-)
+await client.send(jid).text(`*Order #1042 confirmed*
+_Estimated delivery: Friday_
+Total: ~Rp 150.000~ Rp 120.000`)
 ```
+
+The recipient gets one message with three lines: the first in bold, the second in italics, and the old price crossed out.
 
 | Write | Recipient sees |
 | --- | --- |
@@ -65,7 +62,13 @@ await client.send(jid).text(
 | `~text~` | ~~strikethrough~~ |
 | ```` ```text``` ```` | `monospace` |
 
-Use `\n` for line breaks. Want headings, tables, or code blocks? Pass `{ rich: true }` to render Markdown as a rich AI-style card on WhatsApp Web — see [Rich responses](/messaging/rich-responses).
+Monospace is handy for codes people copy:
+
+```ts
+await client.send(jid).text('Tracking code: ```JKT-8831```')
+```
+
+Backticks (`` ` ``) around the text keep every line break you type. In a normal `'quoted'` string, write `\n` where a new line should start. Want headings, tables, or code blocks? Pass `{ rich: true }` to render Markdown as a rich AI-style card on WhatsApp Web — see [Rich responses](/messaging/rich-responses).
 
 ## Reply to a message
 

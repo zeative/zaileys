@@ -53,3 +53,6 @@ docs/superpowers/
 
 # Static docs build (self-hosted deploy)
 docs-dist/
+
+# Generated search index
+docs/search-index.json

@@ -24,6 +24,7 @@ const walk = (dir) =>
 // Built from the .mdx sources before exporting, so it ships inside the bundle.
 step('Building the search index')
 run('node', [join(DOCS, 'scripts', 'build-search-index.mjs')], ROOT)
+run('node', [join(DOCS, 'scripts', 'check-search.mjs')], ROOT)
 
 // ---------------------------------------------------------------- 2. export
 step('Exporting the Mintlify site')
@@ -95,9 +96,16 @@ writeFileSync(join(OUT, '404.html'), NOT_FOUND)
 // ---------------------------------------------------------- 5. host config
 // Ships inside the output because the deployed artifact is this folder itself.
 step('Writing vercel.json')
+// docs.json redirects are a hosted-plan feature; a static export ships none, so mirror them here.
+const docsRedirects = JSON.parse(readFileSync(join(DOCS, 'docs.json'), 'utf8')).redirects ?? []
 const VERCEL = {
   $schema: 'https://openapi.vercel.sh/vercel.json',
   trailingSlash: false,
+  redirects: docsRedirects.map(({ source, destination, permanent }) => ({
+    source,
+    destination,
+    permanent: permanent !== false,
+  })),
   headers: [
     {
       // Next.js asset filenames carry a content hash, so they never go stale.
@@ -114,4 +122,6 @@ const VERCEL = {
 writeFileSync(join(OUT, 'vercel.json'), `${JSON.stringify(VERCEL, null, 2)}\n`)
 
 const pages = walk(OUT).filter((f) => f.endsWith('.html')).length
-console.log(`\n✓ static site ready in ${OUT.replace(ROOT + '/', '')} — ${pages} pages, search index, 404, vercel.json\n`)
+console.log(
+  `\n✓ static site ready in ${OUT.replace(ROOT + '/', '')} — ${pages} pages, search index, 404, ${docsRedirects.length} redirects, vercel.json\n`,
+)

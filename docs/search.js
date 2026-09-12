@@ -20,7 +20,10 @@
     if (!loading) {
       loading = fetch(INDEX_URL)
         .then((res) => (res.ok ? res.json() : Promise.reject(new Error(String(res.status)))))
-        .then((json) => (data = json))
+        .then((json) => {
+          if (json.stop) STOP = new Set(json.stop)
+          return (data = json)
+        })
         .catch(() => (data = null))
     }
     return loading
@@ -47,7 +50,8 @@
     return out
   }
   // ---- query understanding -------------------------------------------------
-  const STOP = new Set('the a an and or of to in for on is are be with you your it this that as at by from can will not'.split(' '))
+  // Replaced by the index's own list on load; kept as a fallback for a stale cached index.
+  let STOP = new Set('the a an and or of to in for on is are be with you your it this that as at by from can will not'.split(' '))
 
   // Indonesian (and shorthand) → the English words the docs actually use.
   const SYNONYMS = {
@@ -192,9 +196,13 @@
       else if (title.startsWith(phrase)) score *= 1.7
       else if (title.includes(phrase)) score *= 1.4
       // The words next to each other mean far more than the same words scattered around.
-      else if (words.length > 1) {
+      // Gate on what was typed, not on what survived tokenising: "what's new" keeps its phrase
+      // even though "what" is a stop word. One word inside a 20-keyword list says nothing.
+      else if (phrase.includes(' ')) {
         const inHeading = doc.secs.some((sec) => sec.t.toLowerCase().includes(phrase))
-        if (inHeading || (doc.d || '').toLowerCase().includes(phrase)) score *= 1.8
+        // Keywords carrying the exact phrase is the author saying "this page answers that".
+        if ((doc.kw || '').includes(phrase)) score *= 2
+        else if (inHeading || (doc.d || '').toLowerCase().includes(phrase)) score *= 1.8
       }
 
       const section = bestSection(doc, words, phrase, expanded)

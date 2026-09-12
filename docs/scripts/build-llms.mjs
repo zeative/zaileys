@@ -11,7 +11,8 @@ const SITE = 'https://zaileys.kejaa.id'
 const order = []
 const nav = JSON.parse(readFileSync(join(DOCS, 'docs.json'), 'utf8')).navigation
 for (const tab of nav.tabs) {
-  for (const group of tab.groups ?? []) {
+  // A tab may list pages directly instead of grouping them; treat the tab as its own group.
+  for (const group of tab.groups ?? [{ group: tab.tab, pages: tab.pages }]) {
     for (const page of group.pages ?? []) order.push({ page, tab: tab.tab, group: group.group })
   }
 }

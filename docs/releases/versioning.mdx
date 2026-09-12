@@ -1,0 +1,151 @@
+---
+title: "Versioning & support"
+description: "What each part of a Zaileys version number means, which releases still get fixes, and how to pin or upgrade without surprises."
+icon: "git-branch"
+keywords: ["versioning", "semver", "semantic versioning", "support policy", "which version", "pin version", "upgrade zaileys", "breaking change", "node version", "supported node", "peer dependencies", "release cadence", "latest version", "deprecation"]
+---
+
+Zaileys ships as a single npm package, `zaileys`, on one release line at a time. Today that line is **v4**, and `npm install zaileys` gives you the newest v4. This page tells you what a version bump means before you take it.
+
+## Reading a version number
+
+A version looks like `4.14.1` — major, minor, patch. Releases are cut from the commits since the last release, and the commit type decides the bump.
+
+| Bump | Example | Triggered by | What it means for your bot |
+| --- | --- | --- | --- |
+| **Patch** `4.14.0 → 4.14.1` | A `/sticker` caption now runs the command | `fix:` or `perf:` commits | A bug was fixed. Nothing you wrote needs to change. |
+| **Minor** `4.13.0 → 4.14.0` | `ctx.send()` added to command handlers | `feat:` commits | Something new exists. Your existing code keeps working. |
+| **Major** `4.x → 5.0.0` | — | `feat!:` or a `BREAKING CHANGE` commit body | Something you already use changed name or behaviour. You edit code before upgrading. |
+
+Commits that only touch docs, tooling, or tests (`chore:`, `docs:`) don't produce a release at all.
+
+<Warning>
+**One minor release has carried a breaking change.** In `4.12.0`, the plugin command handler was renamed from `command` to `message` — a rename that belonged in a major bump. If you skipped that release, read its [changelog entry](/releases/changelog) before upgrading. Every release labelled **Breaking** in the changelog is one to read, whatever the number says.
+</Warning>
+
+## Which versions get fixes
+
+<Note>
+Fixes land on the newest v4 release only. There is no maintenance branch for older 4.x versions, and none for v3.
+</Note>
+
+| Line | Status | What to do |
+| --- | --- | --- |
+| **v4** — current, `4.14.1` | Actively developed. Fixes and features land here. | Stay on it. |
+| **v4**, older patches | No backports. A fix released in `4.14.1` is not published for `4.13.x`. | Upgrade to the newest v4 to pick up a fix. |
+| **v3** | Ended. v4 was a rewrite with no compatibility layer, so v3 gets no fixes. | [Migrate to v4](/releases/migration) — the page maps every renamed option and API. |
+
+Older releases stay installable on npm forever, so pinning to `4.10.0` keeps working. It just won't receive fixes.
+
+## Upgrading
+
+Check which version you're actually running:
+
+<CodeGroup>
+
+```bash npm
+npm list zaileys
+```
+
+```bash pnpm
+pnpm list zaileys
+```
+
+```bash yarn
+yarn why zaileys
+```
+
+```bash bun
+bun pm ls | grep zaileys
+```
+
+</CodeGroup>
+
+The newest published version is on the [npm page](https://www.npmjs.com/package/zaileys), or from `npm view zaileys version`. Then take it:
+
+<CodeGroup>
+
+```bash npm
+npm install zaileys@latest
+```
+
+```bash pnpm
+pnpm add zaileys@latest
+```
+
+```bash yarn
+yarn add zaileys@latest
+```
+
+```bash bun
+bun add zaileys@latest
+```
+
+</CodeGroup>
+
+Read the [changelog](/releases/changelog) from your current version up to the new one — it's a short list, and each entry links to the guide for that change.
+
+### Pinning
+
+A fresh install writes a caret range into your `package.json`:
+
+```json package.json
+{
+  "dependencies": {
+    "zaileys": "^4.14.1"
+  }
+}
+```
+
+`^4.14.1` accepts anything from `4.14.1` up to (but not including) `5.0.0`, so a fresh `npm install` on a new machine can pull a newer minor than the one you tested. Your lockfile prevents that for existing installs — commit it.
+
+If you want the version fixed no matter what, drop the caret:
+
+```json package.json
+{
+  "dependencies": {
+    "zaileys": "4.14.1"
+  }
+}
+```
+
+Now upgrades only happen when you change that line yourself. The trade-off is that security and bug fixes also stop arriving until you do.
+
+## Runtime requirements
+
+<ParamField path="node" type=">=20.0.0" required>
+  Zaileys is tested on Node.js 20 and newer. Bun, Deno, and Termux also run it — see [Runtimes](/data/runtimes) for what each one needs.
+</ParamField>
+
+Database drivers are **optional** peer dependencies — you install only the one your store uses, and Zaileys loads it the first time that store runs. The accepted ranges are `better-sqlite3@^11`, `pg@^8.11`, `redis@^4.7`, and `convex@^1`. The file and memory stores need nothing extra. Which store to pick, and what each one costs you, is in [Storage](/data/storage).
+
+### The Baileys dependency
+
+The Unofficial provider is built on [Baileys](https://github.com/WhiskeySockets/Baileys), which Zaileys depends on at `^7.0.0-rc14` — a release candidate, not a stable release. That range accepts later `7.0.0` candidates and stable `7.x` when it lands.
+
+<Warning>
+Because it is a prerelease, a plain `npm install` on a new machine can resolve to a newer release candidate than the one Zaileys was tested against, and WhatsApp Web internals change between candidates. Commit your lockfile so every machine and every deploy installs the same Baileys build.
+</Warning>
+
+This only affects the Unofficial provider. The Official provider talks to Meta's Cloud API over HTTP and doesn't load Baileys at all — see [Providers](/providers).
+
+## Reporting a regression
+
+If a release breaks something that worked before, the version numbers are the useful part of the report: the version it worked on, the version it broke on, and the provider you're using. Open an [issue](https://github.com/zeative/zaileys/issues) with those three, or ask on [Discord](https://discord.gg/HUcQe4xGr3).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Changelog" icon="history" href="/releases/changelog">
+    Every v4 release, newest first, with links to the guide for each change.
+  </Card>
+  <Card title="Migrating from v3" icon="move-up-right" href="/releases/migration">
+    Move a v3 bot to v4, concept by concept.
+  </Card>
+  <Card title="Runtimes" icon="server" href="/data/runtimes">
+    Node.js, Bun, Deno, and Termux, and what each one needs.
+  </Card>
+  <Card title="Troubleshooting" icon="life-buoy" href="/reference/troubleshooting">
+    Fix a connection, login, or sending problem.
+  </Card>
+</CardGroup>

@@ -113,9 +113,20 @@ describe('FFmpegProcessor.process', () => {
 })
 
 describe('FFmpegProcessor.getDuration', () => {
+  beforeEach(() => {
+    /** getDuration now proves the argument is a real local file before handing it to ffprobe. */
+    fsMock.stat.mockResolvedValue({ isFile: () => true, size: 10 } as never)
+  })
+
+  /** getDuration validates the path first, so ffprobe is spawned a microtask later than before. */
+  const spawned = async (): Promise<void> => {
+    await vi.waitFor(() => expect(spawnMock).toHaveBeenCalled())
+  }
+
   it('CR5: parses ffprobe stdout into a float', async () => {
     const child = makeChild()
     const promise = FFmpegProcessor.getDuration('/file.mp4')
+    await spawned()
     child.stdout.emit('data', '12.5\n')
     child.emit('close', 0)
     expect(await promise).toBe(12.5)
@@ -124,6 +135,7 @@ describe('FFmpegProcessor.getDuration', () => {
   it('CR6: resolves 0 when ffprobe emits no parseable duration', async () => {
     const child = makeChild()
     const promise = FFmpegProcessor.getDuration('/file.mp4')
+    await spawned()
     child.emit('close', 0)
     expect(await promise).toBe(0)
   })
@@ -131,6 +143,7 @@ describe('FFmpegProcessor.getDuration', () => {
   it('CR7: rejects on a non-zero ffprobe exit code', async () => {
     const child = makeChild()
     const promise = FFmpegProcessor.getDuration('/file.mp4')
+    await spawned()
     child.emit('close', 2)
     await expect(promise).rejects.toThrow('ffprobe exited with code 2')
   })
@@ -225,5 +238,26 @@ describe('initializeFFmpeg', () => {
 
   it('CR23: swallows installer import failures', async () => {
     await expect(initializeFFmpeg(false)).resolves.toBeUndefined()
+  })
+})
+
+describe('FFmpegProcessor.getDuration — input validation', () => {
+  it('refuses a URL, which ffprobe would happily fetch', async () => {
+    fsMock.stat.mockResolvedValue({ isFile: () => true, size: 10 } as never)
+    await expect(FFmpegProcessor.getDuration('http://attacker.tld/x.mp4')).rejects.toThrow(/protocol/i)
+  })
+
+  it('refuses a concat: protocol input', async () => {
+    fsMock.stat.mockResolvedValue({ isFile: () => true, size: 10 } as never)
+    await expect(FFmpegProcessor.getDuration('concat:/etc/passwd|/etc/shadow')).rejects.toThrow(/protocol/i)
+  })
+
+  it('refuses a value that would be read as an ffprobe flag', async () => {
+    await expect(FFmpegProcessor.getDuration('-loglevel')).rejects.toThrow(/local file path/i)
+  })
+
+  it('refuses a path that is not a readable file', async () => {
+    fsMock.stat.mockRejectedValue(new Error('ENOENT'))
+    await expect(FFmpegProcessor.getDuration('/tmp/nope.mp4')).rejects.toThrow(/readable file/i)
   })
 })

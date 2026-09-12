@@ -3,6 +3,7 @@ import fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawn } from 'node:child_process';
+import { randomBytes } from 'node:crypto';
 
 export const FFMPEG_CONSTANTS = {
   OPUS: {
@@ -71,7 +72,31 @@ export const initializeFFmpeg = async (disable: boolean = false) => {
   } catch {}
 };
 
-export const generateId = (): string => Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+/** A hung child never settles its promise, leaks a PID and strands its temp files. */
+const FFMPEG_TIMEOUT_MS = 120_000;
+const FFPROBE_TIMEOUT_MS = 30_000;
+const FFPROBE_MAX_STDOUT = 64 * 1024;
+const MAX_CONCURRENT_FFMPEG = 4;
+
+let activeFfmpeg = 0;
+const ffmpegWaiters: Array<() => void> = [];
+
+const acquireFfmpegSlot = async (): Promise<() => void> => {
+  if (activeFfmpeg >= MAX_CONCURRENT_FFMPEG) {
+    await new Promise<void>((resolve) => ffmpegWaiters.push(resolve));
+  }
+  activeFfmpeg += 1;
+  let released = false;
+  return () => {
+    if (released) return;
+    released = true;
+    activeFfmpeg -= 1;
+    const next = ffmpegWaiters.shift();
+    if (next) next();
+  };
+};
+
+export const generateId = (): string => Date.now().toString(36) + randomBytes(4).toString('hex');
 
 export const detectFileType = async (buffer: Buffer): Promise<{ ext: string; mime: string } | undefined> => {
   const { fileTypeFromBuffer } = await import('file-type');
@@ -79,8 +104,9 @@ export const detectFileType = async (buffer: Buffer): Promise<{ ext: string; mim
 };
 
 export class FileManager {
+  /** Unpredictable by design: a guessable name in a shared tmpdir is a symlink-overwrite target. */
   private static generateUniqueId(): string {
-    return `${Date.now()}_${Math.random().toString(36).slice(2, 11)}`;
+    return randomBytes(12).toString('hex');
   }
 
   static createTempPath(prefix: string, ext: FileExtension): string {
@@ -101,7 +127,7 @@ export class FileManager {
 
   static async safeWriteFile(filePath: string, data: Buffer): Promise<void> {
     try {
-      await fs.writeFile(filePath, data);
+      await fs.writeFile(filePath, data, { flag: 'wx', mode: 0o600 });
     } catch {
       throw new Error(`Failed to write file: ${filePath}`);
     }
@@ -174,40 +200,65 @@ export class MimeValidator {
 export class FFmpegProcessor {
   static async process(config: FFmpegConfig): Promise<void> {
     await initializeFFmpeg();
-    return new Promise((resolve, reject) => {
-      const args = ['-y', '-i', config.input, ...config.options, config.output];
-      const child = spawn(ffmpegPath, args, { stdio: 'ignore' });
+    const release = await acquireFfmpegSlot();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const args = ['-y', '-i', config.input, ...config.options, config.output];
+        const child = spawn(ffmpegPath, args, { stdio: 'ignore' });
+        let settled = false;
+        const finish = (fn: () => void): void => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          fn();
+        };
+        const timer = setTimeout(() => {
+          child.kill('SIGKILL');
+          const err = new Error(`FFmpeg timed out after ${FFMPEG_TIMEOUT_MS}ms`);
+          void Promise.resolve(config.onError(err)).catch(() => undefined);
+          finish(() => reject(err));
+        }, FFMPEG_TIMEOUT_MS);
 
-      child.on('close', async (code) => {
-        if (code === 0) {
-          try {
-            await config.onEnd();
-            resolve();
-          } catch (error) {
-            reject(error);
+        child.on('close', (code) => {
+          if (settled) return;
+          if (code === 0) {
+            void Promise.resolve(config.onEnd()).then(
+              () => finish(resolve),
+              (error: unknown) => finish(() => reject(error)),
+            );
+            return;
           }
-        } else {
-          try {
-            const err = new Error(`FFmpeg exited with code ${code}`);
-            await config.onError(err);
-            reject(err);
-          } catch (error) {
-            reject(error);
-          }
-        }
-      });
+          const err = new Error(`FFmpeg exited with code ${code}`);
+          void Promise.resolve(config.onError(err)).then(
+            () => finish(() => reject(err)),
+            (error: unknown) => finish(() => reject(error)),
+          );
+        });
 
-      child.on('error', async (err: Error) => {
-        try {
-          await config.onError(err);
-        } finally {
-          reject(err);
-        }
+        child.on('error', (err: Error) => {
+          void Promise.resolve(config.onError(err)).finally(() => finish(() => reject(err)));
+        });
       });
-    });
+    } finally {
+      release();
+    }
   }
 
+  /**
+   * `filePath` lands in ffprobe's INPUT position, where `http://…`, `concat:` and a leading `-`
+   * are all meaningful — so only an existing local file is accepted.
+   */
   static async getDuration(filePath: string): Promise<number> {
+    if (typeof filePath !== 'string' || filePath.length === 0 || filePath.startsWith('-')) {
+      throw new Error('getDuration expects a local file path');
+    }
+    if (/^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(filePath)) {
+      throw new Error('getDuration does not accept protocol inputs');
+    }
+    const info = await fs.stat(filePath).catch(() => undefined);
+    if (info === undefined || !info.isFile()) {
+      throw new Error(`getDuration: not a readable file: ${filePath}`);
+    }
     return new Promise((resolve, reject) => {
       const child = spawn(ffprobePath, [
         '-v', 'error',
@@ -217,16 +268,28 @@ export class FFmpegProcessor {
       ]);
 
       let output = '';
-      child.stdout.on('data', (data) => output += data.toString());
+      let settled = false;
+      const finish = (fn: () => void): void => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        fn();
+      };
+      const timer = setTimeout(() => {
+        child.kill('SIGKILL');
+        finish(() => reject(new Error(`ffprobe timed out after ${FFPROBE_TIMEOUT_MS}ms`)));
+      }, FFPROBE_TIMEOUT_MS);
+
+      child.stdout.on('data', (data) => {
+        if (output.length > FFPROBE_MAX_STDOUT) return;
+        output += data.toString();
+      });
 
       child.on('close', (code) => {
-        if (code === 0) {
-          resolve(parseFloat(output.trim()) || 0);
-        } else {
-          reject(new Error(`ffprobe exited with code ${code}`));
-        }
+        if (code === 0) finish(() => resolve(parseFloat(output.trim()) || 0));
+        else finish(() => reject(new Error(`ffprobe exited with code ${code}`)));
       });
-      child.on('error', reject);
+      child.on('error', (err) => finish(() => reject(err)));
     });
   }
 }

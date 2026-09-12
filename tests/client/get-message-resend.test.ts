@@ -68,6 +68,7 @@ describe('getMessage resend wiring', () => {
     const store = fakeStore({ MSG1: { key: { id: 'MSG1' }, message: content } })
     const c = new Client({ auth: memAuth(), autoConnect: false, store })
     void c.connect()
+    await vi.waitFor(() => expect(makeWASocketMock).toHaveBeenCalled())
     const config = makeWASocketMock.mock.calls[0][0] as {
       getMessage?: (k: { id?: string }) => Promise<unknown>
     }
@@ -80,6 +81,7 @@ describe('getMessage resend wiring', () => {
     makeWASocketMock.mockReturnValue(sock)
     const c = new Client({ auth: memAuth(), autoConnect: false, store: fakeStore({}) })
     void c.connect()
+    await vi.waitFor(() => expect(makeWASocketMock).toHaveBeenCalled())
     const config = makeWASocketMock.mock.calls[0][0] as {
       getMessage?: (k: { id?: string }) => Promise<unknown>
     }

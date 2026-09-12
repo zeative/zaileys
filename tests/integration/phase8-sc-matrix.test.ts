@@ -96,15 +96,13 @@ describe('Phase 8 SC#4 — README + examples + MIGRATION', () => {
   })
 })
 
-describe('Phase 8 SC#5 — Nextra docs + governance docs + version 4.x', () => {
-  it('nextra docs site and docs scripts exist', () => {
-    expect(has('docs/next.config.mjs')).toBe(true)
-    expect(has('docs/content/index.mdx')).toBe(true)
+describe('Phase 8 SC#5 — Mintlify docs + governance docs + version 4.x', () => {
+  it('mintlify docs site and docs scripts exist', () => {
+    expect(has('docs/docs.json')).toBe(true)
+    expect(has('docs/index.mdx')).toBe(true)
     const pkg = JSON.parse(read('package.json'))
-    expect(pkg.scripts['docs:build']).toBeDefined()
-    expect(pkg.scripts['docs:deploy']).toBeDefined()
-    const docsPkg = JSON.parse(read('docs/package.json'))
-    expect(docsPkg.scripts.build).toMatch(/next build/)
+    expect(pkg.scripts['docs:dev']).toBeDefined()
+    expect(pkg.scripts['docs:static']).toBeDefined()
   })
 
   it('CONTRIBUTING, SECURITY, and CHANGELOG ship', () => {

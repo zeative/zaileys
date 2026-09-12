@@ -503,20 +503,20 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     await socket.sendMessage(snapshot.recipient, snapshot.content, snapshot.options)
   }
 
-  connect(): Promise<void> {
+  async connect(): Promise<void> {
     if (this._provider === 'cloud') return this.connectCloud()
     if (this.authType === 'pairing' && !this.phoneNumber) {
-      return Promise.reject(new Error('phoneNumber is required when authType is "pairing"'))
+      throw new Error('phoneNumber is required when authType is "pairing"')
     }
     if (this.machine.state === 'connecting' || this.machine.state === 'connected') {
-      return Promise.resolve()
+      return
     }
     if (
       this.machine.state !== 'idle' &&
       this.machine.state !== 'disconnected' &&
       this.machine.state !== 'reconnecting'
     ) {
-      return Promise.resolve()
+      return
     }
     if (this._socket) {
       for (const c of this.listenerCleanup) c.off()
@@ -538,7 +538,22 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       this.cachedSignalWrap = true
     }
     void this.warmVersion()
-    const creds = {} as AuthenticationCreds
+    /**
+     * Load before the socket exists. Baileys reads `creds.routingInfo` synchronously and decides
+     * register-vs-login from `creds.me` on open, so a socket built on an empty object loses the
+     * routing hint and can re-register the device — silently replacing a valid session.
+     */
+    let loaded: AuthenticationCreds | undefined
+    try {
+      loaded = await this.auth.creds.readCreds()
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err))
+      if (this.machine.canTransition('disconnected')) this.machine.transition('disconnected')
+      this.logger.error(error, 'failed to read stored credentials; aborting connect to protect the session')
+      throw error
+    }
+    this.credsLoadedAtConnect = Boolean(loaded)
+    const creds = Object.assign({} as AuthenticationCreds, loaded ?? initAuthCreds())
     this.creds = creds
     const keys = signalKeyStoreFromAuthStore(this.auth.signal, this.logger)
     const config: UserFacingSocketConfig = {
@@ -552,10 +567,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       getMessage: (key) => this.resolveMessageForResend(key),
       patchMessageBeforeSending: this.patchOutgoing as never,
     }
-    const socket = makeWASocket(config)
-    this._socket = socket
-    this.store.bind(socket as unknown as BaileysSocketLike)
-    this.wireSocket(socket)
+    /** Armed before the socket so an immediate close cannot land with no rejection handler. */
     const promise = new Promise<void>((resolve, reject) => {
       const prevResolve = this.connectResolve
       const prevReject = this.connectReject
@@ -568,15 +580,10 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         reject(err)
       }
     })
-    void this.auth.creds
-      .readCreds()
-      .then((loaded) => {
-        this.credsLoadedAtConnect = Boolean(loaded)
-        Object.assign(creds, loaded ?? initAuthCreds())
-      })
-      .catch((err) => {
-        this.rejectPendingConnect(err instanceof Error ? err : new Error(String(err)))
-      })
+    const socket = makeWASocket(config)
+    this._socket = socket
+    this.store.bind(socket as unknown as BaileysSocketLike)
+    this.wireSocket(socket)
     return promise
   }
 

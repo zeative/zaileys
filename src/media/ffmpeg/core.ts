@@ -105,25 +105,84 @@ export const initializeFFmpeg = async (disable: boolean = false) => {
 const FFMPEG_TIMEOUT_MS = 120_000;
 const FFPROBE_TIMEOUT_MS = 30_000;
 const FFPROBE_MAX_STDOUT = 64 * 1024;
-const MAX_CONCURRENT_FFMPEG = 4;
 const URL_FETCH_TIMEOUT_MS = 30_000;
 const URL_FETCH_MAX_BYTES = 64 * 1024 * 1024;
 
-let activeFfmpeg = 0;
-const ffmpegWaiters: Array<() => void> = [];
+export interface MediaLimits {
+  /** ffmpeg children running at once. Each 1080p re-encode holds ~235 MB of RSS. Default 4. */
+  maxConcurrent: number;
+  /** Jobs allowed to wait for a slot; beyond this new work is rejected. Default 64. */
+  maxQueued: number;
+  /** Longest a job may wait for a slot before it is rejected. Default 120000. */
+  queueTimeoutMs: number;
+  /** Largest image, in pixels, the decoders will accept. Default 50 MP. */
+  maxImagePixels: number;
+}
 
+/**
+ * Process-wide, like the ffmpeg children they govern: a server has one CPU and RAM budget no matter
+ * how many clients share it. Without a queue bound a video flood kept memory flat but pushed job
+ * latency past six minutes.
+ */
+const mediaLimits: MediaLimits = {
+  maxConcurrent: 4,
+  maxQueued: 64,
+  queueTimeoutMs: 120_000,
+  maxImagePixels: 50_000_000,
+};
+
+export const getMediaLimits = (): Readonly<MediaLimits> => ({ ...mediaLimits });
+
+export const configureMediaLimits = (next: Partial<MediaLimits>): void => {
+  const positiveInt = (name: keyof MediaLimits, value: number | undefined, min: number): void => {
+    if (value === undefined) return;
+    if (!Number.isFinite(value) || !Number.isInteger(value) || value < min) {
+      throw new Error(`invalid media limit ${name}: ${value}`);
+    }
+  };
+  positiveInt('maxConcurrent', next.maxConcurrent, 1);
+  positiveInt('maxQueued', next.maxQueued, 0);
+  positiveInt('queueTimeoutMs', next.queueTimeoutMs, 1);
+  positiveInt('maxImagePixels', next.maxImagePixels, 1);
+  Object.assign(mediaLimits, Object.fromEntries(Object.entries(next).filter(([, v]) => v !== undefined)));
+};
+
+let activeFfmpeg = 0;
+const ffmpegWaiters: Array<{ grant: () => void }> = [];
+
+/**
+ * A released slot is handed straight to the next waiter rather than freed, so a fresh caller
+ * cannot slip in between and push the running count above the limit.
+ */
 const acquireFfmpegSlot = async (): Promise<() => void> => {
-  if (activeFfmpeg >= MAX_CONCURRENT_FFMPEG) {
-    await new Promise<void>((resolve) => ffmpegWaiters.push(resolve));
+  if (activeFfmpeg < mediaLimits.maxConcurrent) {
+    activeFfmpeg += 1;
+  } else {
+    if (ffmpegWaiters.length >= mediaLimits.maxQueued) {
+      throw new Error(`ffmpeg queue is full (${mediaLimits.maxQueued} jobs waiting)`);
+    }
+    await new Promise<void>((resolve, reject) => {
+      const waiter = {
+        grant: (): void => {
+          clearTimeout(timer);
+          resolve();
+        },
+      };
+      const timer = setTimeout(() => {
+        const idx = ffmpegWaiters.indexOf(waiter);
+        if (idx >= 0) ffmpegWaiters.splice(idx, 1);
+        reject(new Error(`ffmpeg job waited more than ${mediaLimits.queueTimeoutMs}ms for a slot`));
+      }, mediaLimits.queueTimeoutMs);
+      ffmpegWaiters.push(waiter);
+    });
   }
-  activeFfmpeg += 1;
   let released = false;
   return () => {
     if (released) return;
     released = true;
-    activeFfmpeg -= 1;
     const next = ffmpegWaiters.shift();
-    if (next) next();
+    if (next) next.grant();
+    else activeFfmpeg -= 1;
   };
 };
 

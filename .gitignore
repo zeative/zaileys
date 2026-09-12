@@ -56,3 +56,5 @@ docs-dist/
 
 # Generated search index
 docs/search-index.json
+.vercel
+.env*

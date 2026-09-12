@@ -2,7 +2,7 @@
 // The hosted plan's search and 404 don't ship in an export, so we bring our own.
 // Usage: node docs/scripts/build-static.mjs [outDir]   (default: docs-dist/)
 import { execFileSync } from 'node:child_process'
-import { mkdtempSync, rmSync, mkdirSync, readdirSync, statSync, readFileSync, writeFileSync, copyFileSync } from 'node:fs'
+import { mkdtempSync, rmSync, mkdirSync, readdirSync, statSync, readFileSync, writeFileSync, copyFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -31,8 +31,18 @@ const tmp = mkdtempSync(join(tmpdir(), 'zaileys-docs-'))
 const zip = join(tmp, 'export.zip')
 run('npx', ['-y', 'mint@latest', 'export', '--output', zip], DOCS)
 
+// The output dir is wiped on every build, which would drop the Vercel project link
+// and make the next deploy create a stray project named after the folder.
+const linkFile = join(OUT, '.vercel', 'project.json')
+const savedLink = existsSync(linkFile) ? readFileSync(linkFile) : null
+
 rmSync(OUT, { recursive: true, force: true })
 mkdirSync(OUT, { recursive: true })
+
+if (savedLink) {
+  mkdirSync(join(OUT, '.vercel'), { recursive: true })
+  writeFileSync(linkFile, savedLink)
+}
 run('unzip', ['-q', zip, '-d', OUT])
 rmSync(tmp, { recursive: true, force: true })
 

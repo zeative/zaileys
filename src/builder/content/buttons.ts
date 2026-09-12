@@ -11,6 +11,9 @@ export const RELAY_MEDIA_KEY = '__zaileysHeaderMedia'
 /** Marks relay content that may only target a group jid; the value is the method label used in the error. */
 export const RELAY_REQUIRE_GROUP_KEY = '__zaileysRequireGroupJid'
 
+/** Asks `sendRelay` to follow the message with an identical edit, which renders it without the download prompt. */
+export const RELAY_BYPASS_DOWNLOAD_KEY = '__zaileysBypassDownload'
+
 /** Carries a downloaded media buffer that `sendRelay` re-uploads and injects into the status envelope. */
 export const RELAY_STATUS_MEDIA_KEY = '__zaileysStatusMedia'
 
@@ -69,7 +72,7 @@ const toNativeButton = (button: ButtonDef | InteractiveButton, seen: Set<string>
     const webview = (button as { webview?: unknown }).webview === true
     return {
       name: 'cta_url',
-      buttonParamsJson: JSON.stringify({ display_text: text, url, merchant_url: url, webview_interaction: webview }),
+      buttonParamsJson: JSON.stringify({ display_text: text, url, merchant_url: url, landing_page_url: url, webview_interaction: webview }),
     }
   }
   if (type === 'copy') {

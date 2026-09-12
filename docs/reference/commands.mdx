@@ -71,8 +71,13 @@ Removes a command and all its aliases. Pass any one of its names; unknown names 
 ## client.commands()
 
 ```ts
-const visible = client.commands().filter((c) => !c.hidden)
-await ctx.reply(visible.map((c) => `/${c.name} — ${c.description ?? ''}`).join('\n'))
+let menu = ''
+for (const command of client.commands()) {
+  if (command.hidden) continue
+  menu += `/${command.name} — ${command.description ?? ''}\n`
+}
+
+await ctx.reply(menu)
 ```
 
 Returns every registered command, in registration order, as a `RegisteredCommand`:
@@ -235,7 +240,7 @@ import type { Middleware } from 'zaileys'
 const OWNERS = ['6281234567890@s.whatsapp.net']
 
 const ownerOnly: Middleware = async (ctx, next) => {
-  const meta = ctx.client.commands().find((c) => c.name === ctx.command)
+  const meta = ctx.client.commands().find((command) => command.name === ctx.command)
   if (meta?.category === 'owner' && !OWNERS.includes(ctx.senderId)) return
   await next()
 }

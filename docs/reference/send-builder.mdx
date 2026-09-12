@@ -446,13 +446,11 @@ Sends a contact card from a vCard string.
 **Errors:** `INVALID_OPTIONS` — `contact() requires a vcard string starting with BEGIN:VCARD`.
 
 ```ts
-const vcard = [
-  'BEGIN:VCARD',
-  'VERSION:3.0',
-  'FN:Budi Santoso',
-  'TEL;type=CELL;waid=6281234567890:+62 812-3456-7890',
-  'END:VCARD',
-].join('\n')
+const vcard = `BEGIN:VCARD
+VERSION:3.0
+FN:Budi Santoso
+TEL;type=CELL;waid=6281234567890:+62 812-3456-7890
+END:VCARD`
 
 await client.send(jid).contact(vcard)
 ```

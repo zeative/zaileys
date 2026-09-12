@@ -1148,8 +1148,12 @@ Lists every registered command with its aliases, description, and guards — han
 
 ```ts
 client.command('help', async (ctx) => {
-  const lines = client.commands().filter((c) => !c.hidden).map((c) => `/${c.name} — ${c.description ?? ''}`)
-  await ctx.reply(lines.join('\n'))
+  let menu = ''
+  for (const command of client.commands()) {
+    if (command.hidden) continue
+    menu += `/${command.name} — ${command.description ?? ''}\n`
+  }
+  await ctx.reply(menu)
 })
 ```
 
@@ -1345,7 +1349,7 @@ interface Client {
 
 ```ts
 const info = await client.group.metadata('120363025246125486@g.us')
-const phones = await client.lidToPns(info.participants.map((p) => p.id))
+const phones = await client.lidToPns(info.participants.map((participant) => participant.id))
 console.log(`${phones.size} of ${info.participants.length} numbers known`)
 ```
 

@@ -1,4 +1,5 @@
 import type { WACallEvent, WAMessage, WAMessageKey } from 'baileys'
+import { LRUCache } from 'lru-cache'
 import type { CitationConfig } from './context.js'
 import type { TextOptions } from '../builder/builder.js'
 import type { ClientEventMap, Logger } from '../client/types.js'
@@ -93,6 +94,11 @@ type ClientEmitter = TypedEventEmitter<ClientEventMap>
 const asArray = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : [])
 
 const MENTION_RESOLVE_TIMEOUT_MS = 3000
+/** `contextInfo.mentionedJid` is uncapped on the wire; one message must not fan out unbounded. */
+const MAX_LID_TARGETS_PER_MESSAGE = 128
+const LID_RESOLVE_CONCURRENCY = 8
+const LID_CACHE_MAX = 2000
+const LID_CACHE_TTL_MS = 10 * 60 * 1000
 
 const raceTimeout = <T>(p: Promise<T>, ms: number): Promise<T | null> =>
   new Promise<T | null>((resolve) => {
@@ -184,11 +190,14 @@ export function attachInboundPipeline(
     return isLidJid(n) ? n : null
   }
 
+  const lidCache = new LRUCache<string, string>({ max: LID_CACHE_MAX, ttl: LID_CACHE_TTL_MS })
+
   const lidTargetsOf = (msg: WAMessage): string[] => {
     const out = new Set<string>()
     for (const cand of [msg.key?.participant, msg.key?.remoteJid, ctx.selfJid, ...rawMentionsOf(msg)]) {
       const lid = normLid(cand)
       if (lid != null) out.add(lid)
+      if (out.size >= MAX_LID_TARGETS_PER_MESSAGE) break
     }
     return [...out]
   }
@@ -197,18 +206,31 @@ export function attachInboundPipeline(
     const resolve = ctx.resolveLidToPn
     if (resolve == null || lids.length === 0) return undefined
     const map = new Map<string, string>()
-    await Promise.all(
-      lids.map(async (lid) => {
-        try {
-          const pn = await raceTimeout(Promise.resolve(resolve(lid)), MENTION_RESOLVE_TIMEOUT_MS)
-          if (pn != null && pn.length > 0) {
-            try { map.set(lid, jidNormalizedUser(pn)) } catch { map.set(lid, pn) }
+    const pending: string[] = []
+    for (const lid of lids) {
+      const hit = lidCache.get(lid)
+      if (hit !== undefined) map.set(lid, hit)
+      else pending.push(lid)
+    }
+    /** Bounded batches: an unbounded Promise.all here is a usync flood the account gets banned for. */
+    for (let i = 0; i < pending.length; i += LID_RESOLVE_CONCURRENCY) {
+      const batch = pending.slice(i, i + LID_RESOLVE_CONCURRENCY)
+      await Promise.all(
+        batch.map(async (lid) => {
+          try {
+            const pn = await raceTimeout(Promise.resolve(resolve(lid)), MENTION_RESOLVE_TIMEOUT_MS)
+            if (pn != null && pn.length > 0) {
+              let normalized = pn
+              try { normalized = jidNormalizedUser(pn) } catch { normalized = pn }
+              map.set(lid, normalized)
+              lidCache.set(lid, normalized)
+            }
+          } catch (err) {
+            ctx.logger?.warn(err, 'inbound pipeline: lid->pn resolve threw')
           }
-        } catch (err) {
-          ctx.logger?.warn(err, 'inbound pipeline: lid->pn resolve threw')
-        }
-      }),
-    )
+        }),
+      )
+    }
     return map.size > 0 ? map : undefined
   }
 

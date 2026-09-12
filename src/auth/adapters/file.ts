@@ -44,10 +44,24 @@ const syncDirectory = async (dir: string): Promise<void> => {
 
 export class FileAuthStore implements AuthStoreBundle {
   private readonly basePath: string
+  private readonly resolvedBase: string
   private closed = false
 
   constructor(options?: FileAuthStoreOptions) {
     this.basePath = options?.basePath ?? DEFAULT_BASE_PATH
+    this.resolvedBase = path.resolve(this.basePath)
+  }
+
+  /** Independent of the caller's validation: nothing this store touches may escape its base. */
+  private assertContained(target: string): string {
+    const resolved = path.resolve(target)
+    if (resolved !== this.resolvedBase && !resolved.startsWith(this.resolvedBase + path.sep)) {
+      throw new ZaileysStoreError(
+        'STORE_WRITE_FAILED',
+        `refusing to touch ${target}: outside ${this.basePath}`,
+      )
+    }
+    return resolved
   }
 
   readonly signal: AuthStore = {
@@ -223,7 +237,7 @@ export class FileAuthStore implements AuthStoreBundle {
   }
 
   private signalPath(type: AuthStoreKey, id: string): string {
-    return path.join(this.signalDir(type), `${encodeFilename(id)}.json`)
+    return this.assertContained(path.join(this.signalDir(type), `${encodeFilename(id)}.json`))
   }
 
   /**

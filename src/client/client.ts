@@ -193,6 +193,22 @@ interface ConnectionUpdate {
   isNewLogin?: boolean
 }
 
+/**
+ * The default auth store interpolates this straight into a path it later removes recursively, so a
+ * value like `../../..` would delete arbitrary directories — reachable wherever the id comes from a
+ * request or a database row.
+ */
+const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
+
+const assertSafeSessionId = (sessionId: string): string => {
+  if (!SESSION_ID_PATTERN.test(sessionId)) {
+    throw new Error(
+      `invalid sessionId ${JSON.stringify(sessionId)}: use 1-64 characters from A-Z a-z 0-9 _ -`,
+    )
+  }
+  return sessionId
+}
+
 export class Client extends TypedEventEmitter<ClientEventMap> {
   readonly sessionId: string
   auth: AuthStoreBundle
@@ -266,7 +282,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     super({ logger: adoptLogger(options.logger) })
     this._provider = options.provider ?? 'baileys'
     this.cloudOptions = this._provider === 'cloud' ? validateCloudOptions(options.cloud) : undefined
-    this.sessionId = options.sessionId ?? DEFAULT_SESSION_ID
+    this.sessionId = assertSafeSessionId(options.sessionId ?? DEFAULT_SESSION_ID)
     this.logger = adoptLogger(options.logger)
     this.authType = options.authType ?? DEFAULT_AUTH_TYPE
     this.phoneNumber = options.phoneNumber

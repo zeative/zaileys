@@ -68,3 +68,20 @@ describe('strict mode', () => {
     await expect(loadMedia('./whatever.png', { allowLocalPaths: false })).rejects.toThrow(/disabled/)
   })
 })
+
+describe('sessionId cannot escape the auth directory', () => {
+  it.each(['../../..', 'a/b', '..', 'a\\b', 'x'.repeat(65), '', 'a b', 'a;rm'])(
+    'rejects %j',
+    async (bad) => {
+      const { Client } = await import('../../src/client/client.js')
+      expect(() => new Client({ sessionId: bad, autoConnect: false })).toThrow(/invalid sessionId/)
+    },
+  )
+
+  it('accepts ordinary ids', async () => {
+    const { Client } = await import('../../src/client/client.js')
+    for (const ok of ['default', 'tenant-01', 'a_b-9']) {
+      expect(() => new Client({ sessionId: ok, autoConnect: false })).not.toThrow()
+    }
+  })
+})

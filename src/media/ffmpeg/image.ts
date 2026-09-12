@@ -1,5 +1,5 @@
 import { Jimp } from 'jimp';
-import { BufferConverter, FFMPEG_CONSTANTS, type MediaInput } from './core.js';
+import { BufferConverter, FFMPEG_CONSTANTS, getMediaLimits, type MediaInput } from './core.js';
 import { ffmpegTransform } from './transform.js';
 
 interface SharpInstance {
@@ -86,14 +86,13 @@ function buildShapeMask(size: number, shape: string): Uint8Array {
  * allocate ~17 GB, killing the process. One inbound message is enough, and the offline queue
  * redelivers it on every restart.
  */
-const MAX_IMAGE_PIXELS = 50_000_000
 const MAX_IMAGE_DIMENSION = 20_000
 
 const assertSaneDimensions = (width: unknown, height: unknown): void => {
   const w = typeof width === 'number' && Number.isFinite(width) ? width : 0
   const h = typeof height === 'number' && Number.isFinite(height) ? height : 0
   if (w <= 0 || h <= 0) return
-  if (w > MAX_IMAGE_DIMENSION || h > MAX_IMAGE_DIMENSION || w * h > MAX_IMAGE_PIXELS) {
+  if (w > MAX_IMAGE_DIMENSION || h > MAX_IMAGE_DIMENSION || w * h > getMediaLimits().maxImagePixels) {
     throw new Error(`Image too large to decode safely: ${w}x${h}`)
   }
 }

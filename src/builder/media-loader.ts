@@ -159,13 +159,39 @@ const assertUrlAllowed = (raw: string, allowPrivateNetwork: boolean): string => 
   return raw
 }
 
-export const loadMedia = async (src: MediaSource, options?: LoadMediaOptions): Promise<LoadedMedia> => {
-  await initializeFFmpeg()
-  const timeoutMs = options?.timeoutMs ?? DEFAULT_TIMEOUT_MS
-  const maxBytes = options?.maxBytes ?? DEFAULT_MAX_BYTES
+let loadingDefaults: LoadMediaOptions = {}
 
-  const allowPrivateNetwork = options?.allowPrivateNetwork === true
-  const deniedDirs = [...DEFAULT_DENIED_DIRS, ...(options?.deniedDirs ?? [])]
+/**
+ * Process-wide defaults under every `loadMedia` call. The builders load media deep inside content
+ * helpers that never see a Client, so security policy is set once here; a per-call option wins.
+ */
+export const configureMediaLoading = (next: LoadMediaOptions): void => {
+  if (next.maxBytes !== undefined && (!Number.isInteger(next.maxBytes) || next.maxBytes < 1)) {
+    throw new ZaileysBuilderError('INVALID_OPTIONS', `invalid maxBytes: ${next.maxBytes}`)
+  }
+  if (next.timeoutMs !== undefined && (!Number.isFinite(next.timeoutMs) || next.timeoutMs < 1)) {
+    throw new ZaileysBuilderError('INVALID_OPTIONS', `invalid timeoutMs: ${next.timeoutMs}`)
+  }
+  loadingDefaults = {
+    ...loadingDefaults,
+    ...Object.fromEntries(Object.entries(next).filter(([, v]) => v !== undefined)),
+  }
+}
+
+export const getMediaLoadingDefaults = (): Readonly<LoadMediaOptions> => ({ ...loadingDefaults })
+
+export const loadMedia = async (src: MediaSource, callOptions?: LoadMediaOptions): Promise<LoadedMedia> => {
+  await initializeFFmpeg()
+  const options: LoadMediaOptions = {
+    ...loadingDefaults,
+    ...callOptions,
+    deniedDirs: [...(loadingDefaults.deniedDirs ?? []), ...(callOptions?.deniedDirs ?? [])],
+  }
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS
+  const maxBytes = options.maxBytes ?? DEFAULT_MAX_BYTES
+
+  const allowPrivateNetwork = options.allowPrivateNetwork === true
+  const deniedDirs = [...DEFAULT_DENIED_DIRS, ...(options.deniedDirs ?? [])]
 
   if (Buffer.isBuffer(src)) return finalize(src)
 
@@ -182,7 +208,7 @@ export const loadMedia = async (src: MediaSource, options?: LoadMediaOptions): P
     return finalize(await fetchUrl(assertUrlAllowed(src, allowPrivateNetwork), timeoutMs, maxBytes))
   }
 
-  if (options?.allowLocalPaths === false) {
+  if (options.allowLocalPaths === false) {
     throw new ZaileysBuilderError(
       'MEDIA_LOAD_FAILED',
       'local filesystem paths are disabled; pass a URL, a Buffer, or a file: URL',

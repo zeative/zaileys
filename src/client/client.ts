@@ -103,6 +103,8 @@ import {
 import type { BaileysSocketLike, MessageStore } from '../store/types.js'
 import { MemoryMessageStore } from '../store/adapters/memory.js'
 import { adoptLogger } from '../utils/logger.js'
+import { configureMediaLoading, getMediaLoadingDefaults } from '../builder/media-loader.js'
+import { configureMediaLimits } from '../media/ffmpeg/core.js'
 import { sameUser } from '../utils/jid.js'
 import {
   attachInboundPipeline,
@@ -114,6 +116,7 @@ import type {
   BaileysSocket,
   ClientEventMap,
   ClientOptions,
+  MediaOptions,
   ConnectionAuthType,
   ConnectionEventMap,
   ConnectionState,
@@ -199,6 +202,28 @@ interface ConnectionUpdate {
  * request or a database row.
  */
 const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
+
+/**
+ * Pushes the client's media policy into the process-wide defaults, and always shields a file auth
+ * store's directory — otherwise a custom `basePath` left credentials readable as "media".
+ */
+const applyMediaOptions = (media: MediaOptions | undefined, auth: AuthStoreBundle): void => {
+  const denied = new Set<string>(getMediaLoadingDefaults().deniedDirs ?? [])
+  for (const dir of media?.deniedDirs ?? []) denied.add(dir)
+  if (auth instanceof FileAuthStore) denied.add(auth.directory)
+  configureMediaLoading({
+    ...(media?.maxBytes !== undefined ? { maxBytes: media.maxBytes } : {}),
+    ...(media?.allowLocalPaths !== undefined ? { allowLocalPaths: media.allowLocalPaths } : {}),
+    ...(media?.allowPrivateNetwork !== undefined ? { allowPrivateNetwork: media.allowPrivateNetwork } : {}),
+    deniedDirs: [...denied],
+  })
+  configureMediaLimits({
+    ...(media?.maxImagePixels !== undefined ? { maxImagePixels: media.maxImagePixels } : {}),
+    ...(media?.maxConcurrentFfmpeg !== undefined ? { maxConcurrent: media.maxConcurrentFfmpeg } : {}),
+    ...(media?.maxQueuedFfmpeg !== undefined ? { maxQueued: media.maxQueuedFfmpeg } : {}),
+    ...(media?.ffmpegQueueTimeoutMs !== undefined ? { queueTimeoutMs: media.ffmpegQueueTimeoutMs } : {}),
+  })
+}
 
 const assertSafeSessionId = (sessionId: string): string => {
   if (!SESSION_ID_PATTERN.test(sessionId)) {
@@ -294,6 +319,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.reconnectOptions = options.reconnect ?? {}
     this.baileysExtra = options.baileys ?? {}
     this.auth = options.auth ?? new FileAuthStore({ basePath: `./.zaileys/auth/${this.sessionId}` })
+    applyMediaOptions(options.media, this.auth)
     this.store = options.store ?? new MemoryMessageStore()
     this.reconnectStrategy = createReconnectStrategy(this.reconnectOptions)
     this.authGuard = createAuthGuard(options.authGuard)

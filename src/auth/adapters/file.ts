@@ -44,6 +44,10 @@ const syncDirectory = async (dir: string): Promise<void> => {
 
 export class FileAuthStore implements AuthStoreBundle {
   private readonly basePath: string
+  /** Where credentials live, so callers can keep that directory out of reach of media loading. */
+  get directory(): string {
+    return this.resolvedBase
+  }
   private readonly resolvedBase: string
   private closed = false
 

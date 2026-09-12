@@ -8,7 +8,7 @@ interface SharpInstance {
   png(options?: Record<string, unknown>): SharpInstance;
   webp(options?: Record<string, unknown>): SharpInstance;
   joinChannel(channel: Buffer): SharpInstance;
-  metadata(): Promise<{ format?: string }>;
+  metadata(): Promise<{ format?: string; width?: number; height?: number }>;
   toBuffer(): Promise<Buffer>;
 }
 
@@ -81,6 +81,66 @@ function buildShapeMask(size: number, shape: string): Uint8Array {
   return mask;
 }
 
+/**
+ * Guards against decompression bombs: a 42-byte PNG can declare 65535x65535 and make the decoder
+ * allocate ~17 GB, killing the process. One inbound message is enough, and the offline queue
+ * redelivers it on every restart.
+ */
+const MAX_IMAGE_PIXELS = 50_000_000
+const MAX_IMAGE_DIMENSION = 20_000
+
+const assertSaneDimensions = (width: unknown, height: unknown): void => {
+  const w = typeof width === 'number' && Number.isFinite(width) ? width : 0
+  const h = typeof height === 'number' && Number.isFinite(height) ? height : 0
+  if (w <= 0 || h <= 0) return
+  if (w > MAX_IMAGE_DIMENSION || h > MAX_IMAGE_DIMENSION || w * h > MAX_IMAGE_PIXELS) {
+    throw new Error(`Image too large to decode safely: ${w}x${h}`)
+  }
+}
+
+const assertSaneTarget = (width: number, height: number): void => {
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width <= 0 || height <= 0) {
+    throw new Error(`Invalid resize target: ${width}x${height}`)
+  }
+  assertSaneDimensions(width, height)
+}
+
+/**
+ * Reads the declared dimensions straight from the container header. Jimp allocates
+ * width*height*4 bytes the moment it decodes, so the check has to happen before that call.
+ * Returns undefined for formats we cannot cheaply parse; those fall through to the decoder.
+ */
+const headerDimensions = (buffer: Buffer): { width: number; height: number } | undefined => {
+  if (buffer.length >= 24 && buffer.readUInt32BE(0) === 0x89504e47) {
+    return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) }
+  }
+  if (buffer.length >= 10 && buffer.toString('ascii', 0, 3) === 'GIF') {
+    return { width: buffer.readUInt16LE(6), height: buffer.readUInt16LE(8) }
+  }
+  if (buffer.length >= 26 && buffer.toString('ascii', 0, 2) === 'BM') {
+    return { width: buffer.readInt32LE(18), height: Math.abs(buffer.readInt32LE(22)) }
+  }
+  if (buffer.length >= 30 && buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP') {
+    const chunk = buffer.toString('ascii', 12, 16)
+    if (chunk === 'VP8X') {
+      return {
+        width: 1 + (buffer.readUIntLE(24, 3) & 0xffffff),
+        height: 1 + (buffer.readUIntLE(27, 3) & 0xffffff),
+      }
+    }
+    if (chunk === 'VP8 ' && buffer.length >= 30) {
+      return { width: buffer.readUInt16LE(26) & 0x3fff, height: buffer.readUInt16LE(28) & 0x3fff }
+    }
+  }
+  return undefined
+}
+
+const assertDecodable = (buffer: Buffer): Buffer => {
+  const dims = headerDimensions(buffer)
+  if (dims !== undefined) assertSaneDimensions(dims.width, dims.height)
+  return buffer
+}
+
 class SharpImageProcessor {
   private sharp: SharpLike;
 
@@ -90,6 +150,7 @@ class SharpImageProcessor {
 
   async thumbnail(buffer: Buffer): Promise<string> {
     const sharp = this.sharp;
+    assertDecodable(buffer);
     let sharpImg = sharp(buffer).resize(FFMPEG_CONSTANTS.THUMBNAIL.SIZE, FFMPEG_CONSTANTS.THUMBNAIL.SIZE, { fit: 'cover' });
 
     const metadata = await sharpImg.metadata();
@@ -102,12 +163,16 @@ class SharpImageProcessor {
   }
 
   async resize(buffer: Buffer, width: number, height: number): Promise<Buffer> {
-    return this.sharp(buffer).resize(width, height, { fit: 'cover' }).png().toBuffer();
+    assertSaneTarget(width, height);
+    const img = this.sharp(assertDecodable(buffer));
+    const meta = await img.metadata();
+    assertSaneDimensions(meta.width, meta.height);
+    return img.resize(width, height, { fit: 'cover' }).png().toBuffer();
   }
 
   async toJpeg(input: MediaInput): Promise<Buffer> {
     const sharp = this.sharp;
-    const buffer = await BufferConverter.toBuffer(input);
+    const buffer = assertDecodable(await BufferConverter.toBuffer(input));
     const metadata = await sharp(buffer).metadata();
 
     if (!metadata.format) {
@@ -124,7 +189,7 @@ class SharpImageProcessor {
   async resizeForSticker(buffer: Buffer, quality: number, shape: string = 'default'): Promise<Buffer> {
     const sharp = this.sharp;
     const size = FFMPEG_CONSTANTS.STICKER.SIZE;
-    let img = sharp(buffer).resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } });
+    let img = sharp(assertDecodable(buffer)).resize(size, size, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } });
 
     if (shape !== 'default') {
       const mask = Buffer.from(buildShapeMask(size, shape));
@@ -139,7 +204,7 @@ class SharpImageProcessor {
 class JimpImageProcessor {
   async thumbnail(buffer: Buffer): Promise<string> {
     const size = FFMPEG_CONSTANTS.THUMBNAIL.SIZE;
-    const image = await Jimp.fromBuffer(buffer);
+    const image = await Jimp.fromBuffer(assertDecodable(buffer));
 
     image.cover({ w: size, h: size });
     const jpegBuffer = await image.getBuffer('image/jpeg', { quality: FFMPEG_CONSTANTS.THUMBNAIL.QUALITY });
@@ -147,7 +212,8 @@ class JimpImageProcessor {
   }
 
   async resize(buffer: Buffer, width: number, height: number): Promise<Buffer> {
-    const image = await Jimp.fromBuffer(buffer);
+    assertSaneTarget(width, height);
+    const image = await Jimp.fromBuffer(assertDecodable(buffer));
     image.cover({ w: width, h: height });
     const pngBuffer = await image.getBuffer('image/png');
     return Buffer.from(pngBuffer);
@@ -157,7 +223,7 @@ class JimpImageProcessor {
     const buffer = await BufferConverter.toBuffer(input);
 
     try {
-      const image = await Jimp.fromBuffer(buffer);
+      const image = await Jimp.fromBuffer(assertDecodable(buffer));
       const jpegBuffer = await image.getBuffer('image/jpeg');
       return Buffer.from(jpegBuffer);
     } catch {
@@ -167,7 +233,7 @@ class JimpImageProcessor {
 
   async resizeForSticker(buffer: Buffer, quality: number, shape: string = 'default'): Promise<Buffer> {
     const size = FFMPEG_CONSTANTS.STICKER.SIZE;
-    const image = await Jimp.fromBuffer(buffer);
+    const image = await Jimp.fromBuffer(assertDecodable(buffer));
 
     image.contain({ w: size, h: size });
 

@@ -42,8 +42,12 @@ WAJIB di-commit; review setiap perubahan transitive deps.
 AuthStore default adapter (Phase 2) menyimpan credentials sebagai JSON file.
 **Tidak terenkripsi.** Process yang punya akses ke working directory bisa
 hijack session. Untuk production: gunakan `SqliteAuthStore` atau `RedisAuthStore`
-plus filesystem-level encryption (e.g., LUKS, FileVault) di host. File permission
-default adapter wajib `0600` untuk creds.json dan `0700` untuk parent directory.
+plus filesystem-level encryption (e.g., LUKS, FileVault) di host.
+
+Sejak 4.15, `FileAuthStore` **menegakkan** permission ini sendiri: direktori dibuat `0700`,
+file credential dan signal ditulis `0600` (termasuk file sementara, jadi tidak ada jendela
+world-readable). Penulisan credential di-`fsync` sebelum rename, dan `creds.json` yang korup
+dipulihkan dari snapshot terbaru.
 
 ## TC Tokens
 
@@ -52,3 +56,57 @@ oleh baileys upstream. Zaileys TIDAK expose API untuk issuance/expiration/prunin
 lifecycle terkelola otomatis dengan 4-bucket 7-day rolling validity (~28 hari).
 Storage round-trip tetap berjalan via `AuthStore` key `tctoken` (legal kategori
 di `SignalDataTypeMap`); tidak ada method tctoken-specific di public Client API.
+
+
+## Session Lifecycle (4.15)
+
+Kredensial hanya dihapus oleh **logout eksplisit**. Kode disconnect lain — termasuk `bad-session`
+(500), `connection-replaced` (440), dan `forbidden` (403) — tidak lagi menghapus sesi. Alasannya:
+baileys memakai 500 sebagai nilai default untuk stream error dan WebSocket error yang tidak dikenal,
+jadi 500 bukan sinyal bahwa sesi rusak; sedangkan 440 justru berarti kredensialnya masih valid dan
+sedang dipakai koneksi lain.
+
+Perilaku lama bisa dikembalikan per-alasan:
+
+```ts
+new Client({ session: { clearAuthOn: ['logged-out', 'forbidden'] } })
+```
+
+Sebelum setiap penghapusan, kredensial di-*quarantine* lebih dulu lewat `backupCreds()` opsional di
+`AuthCredsStore` (`creds.revoked-<ISO>.json` pada adapter file, baris/key terpisah pada adapter DB),
+sehingga penghapusan yang keliru masih bisa dipulihkan.
+
+`connect()` memuat kredensial **sebelum** socket dibuat. Sebelumnya socket lahir dengan objek kosong,
+sehingga `routingInfo` selalu hilang dan store yang lambat bisa membuat client mendaftar sebagai
+device baru lalu menimpa sesi yang valid.
+
+**Isolasi store vs auth.** `RedisMessageStore.clear()` dan `ConvexMessageStore.clear()` kini terbatas
+pada key milik masing-masing. Keduanya sebelumnya memakai namespace default `zaileys` yang sama dengan
+auth store, jadi membersihkan riwayat chat ikut menghapus sesi.
+
+## Untrusted Input
+
+- **Quoted message tidak terautentikasi.** `MessageContext.verified` bernilai `false` bila konteks
+  dibangun ulang dari `contextInfo` milik pengirim. Untuk keputusan otorisasi, wajib cek `verified`
+  sebelum mempercayai `isFromMe`, `text`, atau `senderId` dari `msg.replied()`.
+- **Perbandingan identitas sadar namespace.** LID (`@lid`) tidak pernah cocok dengan nomor telepon
+  (`@s.whatsapp.net`) meski digitnya sama. Berlaku untuk `citation.banned`, `citation.authors`,
+  guard admin grup, dan allow list `autoRejectCall`.
+- **Media dari input user.** String biasa masih diperlakukan sebagai path lokal, tapi path yang
+  resolve ke dalam direktori auth ditolak — jadi bot yang meneruskan teks user tidak bisa dipaksa
+  mengirim `creds.json`-nya sendiri. Alamat privat/loopback/link-local diblokir, ada batas ukuran
+  dan timeout. Mode ketat: `media: { allowLocalPaths: false }`.
+- **Webhook Cloud API wajib bertanda tangan.** POST tanpa `appSecret` ditolak. Untuk development
+  lokal: `cloud: { allowUnsigned: true }`.
+- **`sessionId`** wajib cocok `/^[A-Za-z0-9_-]{1,64}$/` — ia diinterpolasi ke path yang dihapus
+  rekursif.
+
+## Yang Belum Ditutup
+
+- **Multi-tenant pada satu database.** Adapter Postgres dan SQLite menyimpan credential di baris
+  `id = 'default'` dan tabel store tidak punya kolom tenant. Dua `Client` yang berbagi satu database
+  akan saling menimpa. Sampai skema di-migrasi: gunakan database (atau `namespace`) terpisah per
+  sesi.
+- **`disconnect()` menutup store.** Setelah `disconnect()`, `connect()` berikutnya gagal karena
+  message store sudah ditutup. Untuk sekarang buat `Client` baru daripada memakai ulang instance
+  yang sudah di-disconnect.

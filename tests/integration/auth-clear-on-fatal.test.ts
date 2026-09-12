@@ -74,7 +74,8 @@ async function listAuthFiles(basePath: string): Promise<string[]> {
     for (const e of entries) {
       const full = path.join(dir, e.name)
       if (e.isDirectory()) await walk(full)
-      else out.push(full)
+      /** Quarantine snapshots survive an erase on purpose; they are not live auth material. */
+      else if (!e.name.startsWith('creds.revoked-')) out.push(full)
     }
   }
   await walk(basePath)
@@ -275,5 +276,20 @@ describe('integration: fatal disconnect clears FileAuthStore', () => {
     expect(cB.state).toBe('connected')
     await cA.disconnect()
     await cB.disconnect()
+  })
+})
+
+describe('integration: an erase leaves a recoverable snapshot', () => {
+  it('logout() quarantines the credentials before wiping', async () => {
+    const basePath = path.join(tmpRoot, 'session-quarantine')
+    await seedAuthDir(basePath)
+    const { c } = await bootWith(basePath)
+    await c.logout()
+    expect(await waitForEmpty(basePath)).toHaveLength(0)
+    const all = await fs.readdir(basePath)
+    const snapshots = all.filter((n) => n.startsWith('creds.revoked-'))
+    expect(snapshots.length).toBe(1)
+    const recovered = JSON.parse(await fs.readFile(path.join(basePath, snapshots[0]!), 'utf8'))
+    expect(recovered).toBeTruthy()
   })
 })

@@ -168,10 +168,28 @@ export class RedisAuthStore implements AuthStoreBundle {
       const client = await this.ensureReady()
       await this.runWrite(() => client.del(this.credsKey()))
     },
+    backupCreds: async (): Promise<void> => {
+      this.assertOpen()
+      const client = await this.ensureReady()
+      const raw = await this.runRead(() => client.get(this.credsKey()))
+      if (raw != null) await this.runWrite(() => client.set(this.credsBackupKey(), raw))
+    },
+    readBackupCreds: async (): Promise<AuthenticationCreds | undefined> => {
+      this.assertOpen()
+      const client = await this.ensureReady()
+      const raw = await this.runRead(() => client.get(this.credsBackupKey()))
+      if (raw == null) return undefined
+      return JSON.parse(raw, BufferJSON.reviver) as AuthenticationCreds
+    },
   }
 
   private credsKey(): string {
     return `${this.namespace}:auth:creds`
+  }
+
+  /** Quarantine key: keeps the last credentials recoverable after an erase. */
+  private credsBackupKey(): string {
+    return `${this.namespace}:auth:creds-backup`
   }
 
   private signalKey(type: AuthStoreKey, id: string): string {

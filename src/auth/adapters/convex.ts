@@ -6,6 +6,8 @@ import type { AuthCredsStore, AuthStore, AuthStoreBundle, AuthStoreKey, AuthStor
 export type ConvexAuthStoreOptions = ConvexKvOptions
 
 const CREDS_KEY = 'creds'
+/** Quarantine key: keeps the last credentials recoverable after an erase. */
+const CREDS_BACKUP_KEY = 'creds-backup'
 const SIGNAL_PREFIX = 'signal:'
 const signalKey = (type: string, id: string): string => `${SIGNAL_PREFIX}${type}:${id}`
 
@@ -29,6 +31,17 @@ export class ConvexAuthStore implements AuthStoreBundle {
       },
       async deleteCreds(): Promise<void> {
         await kv.del([CREDS_KEY])
+      },
+      async backupCreds(): Promise<void> {
+        const found = await kv.get([CREDS_KEY])
+        const raw = found.get(CREDS_KEY)
+        if (raw !== undefined) await kv.set([{ key: CREDS_BACKUP_KEY, value: raw }])
+      },
+      async readBackupCreds(): Promise<AuthenticationCreds | undefined> {
+        const found = await kv.get([CREDS_BACKUP_KEY])
+        const raw = found.get(CREDS_BACKUP_KEY)
+        if (raw === undefined) return undefined
+        return JSON.parse(raw, BufferJSON.reviver) as AuthenticationCreds
       },
     }
 

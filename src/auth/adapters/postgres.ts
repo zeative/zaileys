@@ -272,5 +272,30 @@ export class PostgresAuthStore implements AuthStoreBundle {
         throw new ZaileysStoreError('STORE_WRITE_FAILED', 'failed to delete creds', { cause: err })
       }
     },
+    backupCreds: async (): Promise<void> => {
+      const pool = await this.ensureReady()
+      try {
+        await pool.query(
+          "INSERT INTO zaileys_auth_creds(id, data) SELECT 'backup', data FROM zaileys_auth_creds WHERE id = 'default' ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data",
+        )
+      } catch (err) {
+        throw new ZaileysStoreError('STORE_WRITE_FAILED', 'failed to back up creds', { cause: err })
+      }
+    },
+    readBackupCreds: async (): Promise<AuthenticationCreds | undefined> => {
+      const pool = await this.ensureReady()
+      try {
+        const res = await pool.query<{ data: unknown }>(
+          "SELECT data FROM zaileys_auth_creds WHERE id = 'backup'",
+        )
+        const row = res.rows[0]
+        if (!row) return undefined
+        const raw = typeof row.data === 'string' ? row.data : JSON.stringify(row.data)
+        return JSON.parse(raw, BufferJSON.reviver) as AuthenticationCreds
+      } catch (err) {
+        if (err instanceof ZaileysStoreError) throw err
+        throw new ZaileysStoreError('STORE_READ_FAILED', 'failed to read backup creds', { cause: err })
+      }
+    },
   }
 }

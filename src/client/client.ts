@@ -729,6 +729,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         this.logger.warn(err, 'socket.logout failed')
       }
     }
+    await this.quarantineCreds()
     try {
       await this.auth.signal.clear()
     } catch (err) {
@@ -1427,6 +1428,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       )
     }
     if (shouldClearAuth(reason, this.clearAuthReasons) && !spuriousLogout) {
+      await this.quarantineCreds()
       try {
         await this.auth.signal.clear()
       } catch (err) {
@@ -1493,6 +1495,15 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         this.machine.transition('disconnected')
       }
       this.rejectPendingConnect(new Error(`connection closed (${reason})`))
+    }
+  }
+
+  /** Snapshot the credentials before any erase, so a wrong wipe stays recoverable. */
+  private async quarantineCreds(): Promise<void> {
+    try {
+      await this.auth.creds.backupCreds?.()
+    } catch (err) {
+      this.logger.warn(err, 'auth.creds.backupCreds failed; continuing with the erase')
     }
   }
 

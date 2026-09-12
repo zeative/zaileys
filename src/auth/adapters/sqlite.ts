@@ -51,6 +51,8 @@ const loadDriver = async (): Promise<RawDriverCtor> => {
 }
 
 const CREDS_ID = 'default'
+/** Quarantine row: keeps the last credentials recoverable after an erase. */
+const CREDS_BACKUP_ID = 'backup'
 const CHUNK = 500
 
 type PreparedSet = {
@@ -99,6 +101,17 @@ export class SqliteAuthStore implements AuthStoreBundle {
     deleteCreds: async (): Promise<void> => {
       const prep = await this.ensureReady()
       prep.deleteCreds.run(CREDS_ID)
+    },
+    backupCreds: async (): Promise<void> => {
+      const prep = await this.ensureReady()
+      const row = prep.readCreds.get(CREDS_ID) as { data: Buffer | Uint8Array } | undefined
+      if (row) prep.writeCreds.run(CREDS_BACKUP_ID, row.data)
+    },
+    readBackupCreds: async (): Promise<AuthenticationCreds | undefined> => {
+      const prep = await this.ensureReady()
+      const row = prep.readCreds.get(CREDS_BACKUP_ID) as { data: Buffer | Uint8Array } | undefined
+      if (!row) return undefined
+      return this.parseBlob<AuthenticationCreds>(row.data)
     },
   }
 

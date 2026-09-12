@@ -211,6 +211,22 @@ export const runAuthStoreContract = (
         await expect(bundle.creds.readCreds()).resolves.toBeUndefined()
       })
 
+      it('D4b: backupCreds() keeps the erased credentials recoverable', async () => {
+        const creds = sampleCreds()
+        await bundle.creds.writeCreds(creds)
+        await bundle.creds.backupCreds?.()
+        await bundle.creds.deleteCreds()
+        await expect(bundle.creds.readCreds()).resolves.toBeUndefined()
+        const recovered = await bundle.creds.readBackupCreds?.()
+        expect(recovered).toBeDefined()
+        expect(recovered?.registered).toBe(creds.registered)
+      })
+
+      it('D4c: backupCreds() on an empty store is a no-op', async () => {
+        await expect(bundle.creds.backupCreds?.()).resolves.toBeUndefined()
+        await expect(bundle.creds.readBackupCreds?.()).resolves.toBeUndefined()
+      })
+
       it('D5: store remains functional after clear', async () => {
         await bundle.signal.write({ session: { '1': Uint8Array.from([1]) } })
         await bundle.signal.clear()

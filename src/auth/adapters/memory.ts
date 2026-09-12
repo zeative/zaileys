@@ -10,6 +10,7 @@ import type {
 
 export class MemoryAuthStore implements AuthStoreBundle {
   private credsBlob: AuthenticationCreds | undefined
+  private credsBackup: AuthenticationCreds | undefined
   private readonly signalMap: Map<AuthStoreKey, Map<string, unknown>> = new Map()
   private closed = false
 
@@ -78,6 +79,14 @@ export class MemoryAuthStore implements AuthStoreBundle {
     deleteCreds: async (): Promise<void> => {
       this.assertOpen()
       this.credsBlob = undefined
+    },
+    backupCreds: async (): Promise<void> => {
+      this.assertOpen()
+      if (this.credsBlob !== undefined) this.credsBackup = structuredClone(this.credsBlob)
+    },
+    readBackupCreds: async (): Promise<AuthenticationCreds | undefined> => {
+      this.assertOpen()
+      return this.credsBackup
     },
   }
 

@@ -54,8 +54,8 @@ function queueSockets(n: number): IntegrationMockSocket[] {
 }
 
 async function tick(): Promise<void> {
-  await Promise.resolve()
-  await Promise.resolve()
+  /** Enough microtask turns to cover the async credential paths (read, quarantine, erase). */
+  for (let i = 0; i < 12; i += 1) await Promise.resolve()
 }
 
 describe('integration: reconnect storm — exponential backoff sequence', () => {

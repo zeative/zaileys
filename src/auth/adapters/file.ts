@@ -24,6 +24,24 @@ const encodeFilename = (id: string): string =>
 const isENOENT = (err: unknown): boolean =>
   typeof err === 'object' && err !== null && (err as { code?: string }).code === 'ENOENT'
 
+/** Credentials are full account access: owner-only, and never world-readable even briefly. */
+const FILE_MODE = 0o600
+const DIR_MODE = 0o700
+
+/** Best effort — some platforms reject opening a directory, and the rename already happened. */
+const syncDirectory = async (dir: string): Promise<void> => {
+  try {
+    const handle = await fs.open(dir, 'r')
+    try {
+      await handle.sync()
+    } finally {
+      await handle.close()
+    }
+  } catch {
+    return
+  }
+}
+
 export class FileAuthStore implements AuthStoreBundle {
   private readonly basePath: string
   private closed = false
@@ -60,7 +78,7 @@ export class FileAuthStore implements AuthStoreBundle {
         const entries = (data as Record<string, Record<string, unknown> | undefined>)[rawType]
         if (!entries) continue
         const dir = this.signalDir(rawType)
-        await fs.mkdir(dir, { recursive: true })
+        await fs.mkdir(dir, { recursive: true, mode: DIR_MODE })
         for (const id of Object.keys(entries)) {
           const value = entries[id]
           const target = this.signalPath(rawType, id)
@@ -100,7 +118,21 @@ export class FileAuthStore implements AuthStoreBundle {
     },
     clear: async (): Promise<void> => {
       this.assertOpen()
-      await fs.rm(this.basePath, { recursive: true, force: true })
+      /** Everything except the quarantined snapshots, so a wipe stays recoverable by hand. */
+      let names: string[]
+      try {
+        names = await fs.readdir(this.basePath)
+      } catch (err) {
+        if (isENOENT(err)) return
+        throw new ZaileysStoreError('STORE_WRITE_FAILED', `failed to read ${this.basePath}`, {
+          cause: err,
+        })
+      }
+      await Promise.all(
+        names
+          .filter((name) => !(name.startsWith('creds.revoked-') && name.endsWith('.json')))
+          .map((name) => fs.rm(path.join(this.basePath, name), { recursive: true, force: true })),
+      )
     },
     close: async (): Promise<void> => {
       this.closed = true
@@ -110,18 +142,43 @@ export class FileAuthStore implements AuthStoreBundle {
   readonly creds: AuthCredsStore = {
     readCreds: async (): Promise<AuthenticationCreds | undefined> => {
       this.assertOpen()
+      let raw: string
       try {
-        const raw = await fs.readFile(this.credsPath(), 'utf8')
-        return JSON.parse(raw, BufferJSON.reviver) as AuthenticationCreds
+        raw = await fs.readFile(this.credsPath(), 'utf8')
       } catch (err) {
         if (isENOENT(err)) return undefined
         throw new ZaileysStoreError('STORE_READ_FAILED', 'failed to read creds.json', { cause: err })
       }
+      try {
+        return JSON.parse(raw, BufferJSON.reviver) as AuthenticationCreds
+      } catch (err) {
+        /** A torn write leaves unparseable JSON; the newest snapshot beats reporting no session. */
+        const recovered = await this.newestBackup()
+        if (recovered !== undefined) return recovered
+        throw new ZaileysStoreError('STORE_READ_FAILED', 'creds.json is corrupt', { cause: err })
+      }
     },
     writeCreds: async (next: AuthenticationCreds): Promise<void> => {
       this.assertOpen()
-      await fs.mkdir(this.basePath, { recursive: true })
+      await fs.mkdir(this.basePath, { recursive: true, mode: DIR_MODE })
       await this.atomicWrite(this.credsPath(), JSON.stringify(next, BufferJSON.replacer))
+    },
+    backupCreds: async (): Promise<void> => {
+      this.assertOpen()
+      const stamp = new Date().toISOString().replace(/[:.]/g, '-')
+      try {
+        await fs.copyFile(this.credsPath(), path.join(this.basePath, `creds.revoked-${stamp}.json`))
+      } catch (err) {
+        if (!isENOENT(err)) {
+          throw new ZaileysStoreError('STORE_WRITE_FAILED', 'failed to back up creds.json', {
+            cause: err,
+          })
+        }
+      }
+    },
+    readBackupCreds: async (): Promise<AuthenticationCreds | undefined> => {
+      this.assertOpen()
+      return this.newestBackup()
     },
     deleteCreds: async (): Promise<void> => {
       this.assertOpen()
@@ -141,6 +198,26 @@ export class FileAuthStore implements AuthStoreBundle {
     return path.join(this.basePath, 'creds.json')
   }
 
+  /** Newest `creds.revoked-*.json`, or undefined when nothing was ever quarantined. */
+  private async newestBackup(): Promise<AuthenticationCreds | undefined> {
+    let names: string[]
+    try {
+      names = await fs.readdir(this.basePath)
+    } catch {
+      return undefined
+    }
+    const backups = names.filter((n) => n.startsWith('creds.revoked-') && n.endsWith('.json')).sort()
+    for (const name of backups.reverse()) {
+      try {
+        const raw = await fs.readFile(path.join(this.basePath, name), 'utf8')
+        return JSON.parse(raw, BufferJSON.reviver) as AuthenticationCreds
+      } catch {
+        continue
+      }
+    }
+    return undefined
+  }
+
   private signalDir(type: AuthStoreKey): string {
     return path.join(this.basePath, 'signal', String(type))
   }
@@ -149,11 +226,23 @@ export class FileAuthStore implements AuthStoreBundle {
     return path.join(this.signalDir(type), `${encodeFilename(id)}.json`)
   }
 
+  /**
+   * Durable replace: the bytes are flushed before the rename, so a crash mid-write leaves either the
+   * old file or the new one — never a truncated `creds.json`, which reads as a lost session.
+   */
   private async atomicWrite(target: string, content: string): Promise<void> {
-    const tmp = path.join(path.dirname(target), `tmp-${randomBytes(8).toString('hex')}`)
+    const dir = path.dirname(target)
+    const tmp = path.join(dir, `tmp-${randomBytes(8).toString('hex')}`)
     try {
-      await fs.writeFile(tmp, content, 'utf8')
+      const handle = await fs.open(tmp, 'w', FILE_MODE)
+      try {
+        await handle.writeFile(content, 'utf8')
+        await handle.sync()
+      } finally {
+        await handle.close()
+      }
       await fs.rename(tmp, target)
+      await syncDirectory(dir)
     } catch (err) {
       await fs.unlink(tmp).catch(() => undefined)
       throw new ZaileysStoreError('STORE_WRITE_FAILED', `failed to write ${target}`, { cause: err })

@@ -52,6 +52,14 @@ export interface ReconnectOptions {
   rateLimitedDelayMs?: number
 }
 
+export interface SessionSafetyOptions {
+  /**
+   * Disconnect reasons permitted to erase stored credentials. Defaults to `['logged-out']` only —
+   * see {@link DEFAULT_CLEAR_AUTH_REASONS}. Pass the wider set to restore pre-4.15 behaviour.
+   */
+  clearAuthOn?: readonly DisconnectReasonDomain[]
+}
+
 export interface ClientOptions {
   /** Message transport: baileys (WhatsApp Web, default) or the official Meta Cloud API. */
   provider?: ProviderKind
@@ -74,6 +82,8 @@ export interface ClientOptions {
   ignoreMe?: boolean
   /** Bounds QR/pairing regeneration to avoid spam restriction. ON by default; `{ enabled: false }` to opt out. */
   authGuard?: AuthGuardOptions
+  /** Guards the stored session. By default only an explicit logout may erase credentials. */
+  session?: SessionSafetyOptions
   /** Spaces out sensitive group/community/newsletter operations. ON by default; `{ enabled: false }` to opt out. */
   operationGuard?: OperationGuardOptions
   /** Drops duplicate presence (typing/recording/online) updates within a window. ON by default. */

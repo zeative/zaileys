@@ -6,6 +6,8 @@ import {
   mapDisconnectReason,
   shouldClearAuth,
   shouldReconnect,
+  DEFAULT_CLEAR_AUTH_REASONS,
+  type DisconnectReasonDomain,
 } from '../../src/connection/disconnect-reason.js'
 
 describe('mapDisconnectReason', () => {
@@ -117,16 +119,16 @@ describe('shouldClearAuth', () => {
     expect(shouldClearAuth('logged-out')).toBe(true)
   })
 
-  it('returns true for connection-replaced', () => {
-    expect(shouldClearAuth('connection-replaced')).toBe(true)
+  it('returns false for connection-replaced — the creds are valid and in use elsewhere', () => {
+    expect(shouldClearAuth('connection-replaced')).toBe(false)
   })
 
-  it('returns true for forbidden', () => {
-    expect(shouldClearAuth('forbidden')).toBe(true)
+  it('returns false for forbidden', () => {
+    expect(shouldClearAuth('forbidden')).toBe(false)
   })
 
-  it('returns true for bad-session', () => {
-    expect(shouldClearAuth('bad-session')).toBe(true)
+  it('returns false for bad-session — 500 is baileys\' catch-all, not a real signal', () => {
+    expect(shouldClearAuth('bad-session')).toBe(false)
   })
 
   it('returns false for unavailable-service', () => {
@@ -135,6 +137,20 @@ describe('shouldClearAuth', () => {
 
   it('returns false for restart-required', () => {
     expect(shouldClearAuth('restart-required')).toBe(false)
+  })
+
+  it('defaults to logged-out only', () => {
+    expect([...DEFAULT_CLEAR_AUTH_REASONS]).toEqual(['logged-out'])
+  })
+
+  it('honours an explicit allow-list so the old behaviour stays reachable', () => {
+    const legacy: DisconnectReasonDomain[] = ['logged-out', 'connection-replaced', 'forbidden', 'bad-session']
+    expect(shouldClearAuth('bad-session', legacy)).toBe(true)
+    expect(shouldClearAuth('connection-lost', legacy)).toBe(false)
+  })
+
+  it('an empty allow-list never clears', () => {
+    expect(shouldClearAuth('logged-out', [])).toBe(false)
   })
 })
 

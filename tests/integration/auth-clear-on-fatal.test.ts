@@ -107,10 +107,35 @@ describe('integration: fatal disconnect clears FileAuthStore', () => {
   it.each([
     [403, 'forbidden'],
     [440, 'connection-replaced'],
-  ] as const)('status %i wipes creds.json + signal files', async (code, _reason) => {
+  ] as const)('status %i preserves creds.json — the session is still valid', async (code, _reason) => {
     const basePath = path.join(tmpRoot, `session-${code}`)
     await seedAuthDir(basePath)
-    const { sock } = await bootWith(basePath)
+    const { sock, c } = await bootWith(basePath)
+    simulateBoomDisconnect(sock, code)
+    await new Promise((r) => setTimeout(r, 30))
+    await c.disconnect().catch(() => undefined)
+    const files = await listAuthFiles(basePath)
+    expect(files.some((f) => f.endsWith('creds.json'))).toBe(true)
+  })
+
+  it.each([
+    [403, 'forbidden'],
+    [440, 'connection-replaced'],
+  ] as const)('status %i still wipes when the caller opts in via session.clearAuthOn', async (code, reason) => {
+    const basePath = path.join(tmpRoot, `session-optin-${code}`)
+    await seedAuthDir(basePath)
+    const sock = makeIntegrationSocket({ user: { id: 'oi@s.whatsapp.net' } })
+    makeWASocketMock.mockReturnValue(sock)
+    const c = new Client({
+      auth: new FileAuthStore({ basePath }),
+      qrTerminal: false,
+      autoConnect: false,
+      reconnect: { enabled: false },
+      session: { clearAuthOn: ['logged-out', reason] },
+    })
+    const p = c.connect()
+    sock.triggerConnectionUpdate({ connection: 'open' })
+    await p
     simulateBoomDisconnect(sock, code)
     expect(await waitForEmpty(basePath)).toHaveLength(0)
   })
@@ -141,7 +166,7 @@ describe('integration: fatal disconnect clears FileAuthStore', () => {
     expect(files.some((f) => f.endsWith('creds.json'))).toBe(true)
   })
 
-  it('bad-session (500) clears auth AND reconnect scheduled', async () => {
+  it('bad-session (500) PRESERVES auth and still reconnects — 500 is baileys\' catch-all default', async () => {
     const basePath = path.join(tmpRoot, 'session-500')
     await seedAuthDir(basePath)
     const sock = makeIntegrationSocket({ user: { id: 'bs@s.whatsapp.net' } })
@@ -156,7 +181,9 @@ describe('integration: fatal disconnect clears FileAuthStore', () => {
     sock.triggerConnectionUpdate({ connection: 'open' })
     await p
     simulateBoomDisconnect(sock, 500)
-    expect(await waitForEmpty(basePath)).toHaveLength(0)
+    await new Promise((r) => setTimeout(r, 30))
+    const files = await listAuthFiles(basePath)
+    expect(files.some((f) => f.endsWith('creds.json'))).toBe(true)
     expect(reconnecting).toHaveBeenCalled()
     await c.disconnect().catch(() => undefined)
   })
@@ -210,7 +237,7 @@ describe('integration: fatal disconnect clears FileAuthStore', () => {
     const sockB = makeIntegrationSocket({ user: { id: 'b@x' } })
     let idx = 0
     makeWASocketMock.mockImplementation(() => (idx++ === 0 ? sockA : sockB))
-    const cA = new Client({ sessionId: 'a', auth: new FileAuthStore({ basePath: pathA }), qrTerminal: false, autoConnect: false })
+    const cA = new Client({ sessionId: 'a', auth: new FileAuthStore({ basePath: pathA }), qrTerminal: false, autoConnect: false, session: { clearAuthOn: ['connection-replaced'] } })
     const cB = new Client({ sessionId: 'b', auth: new FileAuthStore({ basePath: pathB }), qrTerminal: false, autoConnect: false })
     const pA = cA.connect()
     const pB = cB.connect()

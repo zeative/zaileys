@@ -89,6 +89,7 @@ import {
   isRateLimited,
   mapDisconnectReason,
   shouldClearAuth,
+  DEFAULT_CLEAR_AUTH_REASONS,
   type DisconnectReasonDomain,
 } from '../connection/disconnect-reason.js'
 import { createAuthGuard, type AuthGuard } from '../connection/auth-guard.js'
@@ -206,6 +207,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private readonly machine: ConnectionStateMachine = createConnectionStateMachine()
   private reconnectStrategy: ReconnectStrategy
   private readonly authGuard: AuthGuard
+  private readonly clearAuthReasons: readonly DisconnectReasonDomain[]
   private readonly operationGuard: OperationGuard
   private readonly presenceThrottle: PresenceThrottleOptions | undefined
   private readonly scheduleLimiter: RateLimiter | undefined
@@ -278,6 +280,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.store = options.store ?? new MemoryMessageStore()
     this.reconnectStrategy = createReconnectStrategy(this.reconnectOptions)
     this.authGuard = createAuthGuard(options.authGuard)
+    this.clearAuthReasons = options.session?.clearAuthOn ?? DEFAULT_CLEAR_AUTH_REASONS
     this.operationGuard = createOperationGuard(options.operationGuard)
     this.presenceThrottle = options.presence
     const schedulePerSec = options.scheduleRateLimitPerSec ?? 1
@@ -1391,7 +1394,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         'logged-out right after connect; treating as spurious and reconnecting instead of clearing session',
       )
     }
-    if (shouldClearAuth(reason) && !spuriousLogout) {
+    if (shouldClearAuth(reason, this.clearAuthReasons) && !spuriousLogout) {
       try {
         await this.auth.signal.clear()
       } catch (err) {

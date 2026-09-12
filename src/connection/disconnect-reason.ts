@@ -49,13 +49,21 @@ export function isRateLimited(reason: DisconnectReasonDomain): boolean {
   return reason === 'rate-limited'
 }
 
-export function shouldClearAuth(reason: DisconnectReasonDomain): boolean {
-  return (
-    reason === 'logged-out' ||
-    reason === 'connection-replaced' ||
-    reason === 'forbidden' ||
-    reason === 'bad-session'
-  )
+/**
+ * Reasons allowed to erase stored credentials. Deliberately just `logged-out`: baileys defaults an
+ * unknown stream error and an unrecognised WS error to 500 (`bad-session`), and 440
+ * (`connection-replaced`) means the creds are valid and in use elsewhere — erasing on either
+ * destroys a working session over ordinary network noise.
+ */
+export const DEFAULT_CLEAR_AUTH_REASONS: readonly DisconnectReasonDomain[] = Object.freeze([
+  'logged-out',
+])
+
+export function shouldClearAuth(
+  reason: DisconnectReasonDomain,
+  allowed: readonly DisconnectReasonDomain[] = DEFAULT_CLEAR_AUTH_REASONS,
+): boolean {
+  return allowed.includes(reason)
 }
 
 export function shouldReconnect(reason: DisconnectReasonDomain): boolean {

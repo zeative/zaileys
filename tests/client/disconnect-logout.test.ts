@@ -82,10 +82,10 @@ afterEach(() => {
   vi.useRealTimers()
 })
 
-async function connectAndOpen(auth: AuthStoreBundle) {
+async function connectAndOpen(auth: AuthStoreBundle, extra: Partial<ConstructorParameters<typeof Client>[0]> = {}) {
   const sock = createMockSocket({ user: { id: 'me' } })
   makeWASocketMock.mockReturnValue(sock)
-  const c = new Client({ auth, qrTerminal: false, reconnect: { initialDelayMs: 10, jitterFactor: 0 }, autoConnect: false })
+  const c = new Client({ auth, qrTerminal: false, reconnect: { initialDelayMs: 10, jitterFactor: 0 }, autoConnect: false, ...extra })
   const p = c.connect()
   sock.triggerConnectionUpdate({ connection: 'open' })
   await p
@@ -161,13 +161,26 @@ describe('Client — non-fatal disconnect schedules reconnect', () => {
   })
 })
 
-describe('Client — fatal disconnect wipes auth', () => {
+describe('Client — fatal disconnect preserves auth unless opted in', () => {
   it.each([
     [403, 'forbidden'],
     [440, 'connection-replaced'],
-  ] as const)('status %i -> reason %s, willReconnect false, auth cleared', async (code, _expected) => {
+    [500, 'bad-session'],
+  ] as const)('status %i -> reason %s, auth NOT cleared', async (code, _expected) => {
     const auth = memAuth()
     const { sock } = await connectAndOpen(auth)
+    sock.triggerConnectionUpdate({ connection: 'close', lastDisconnect: { error: boomErr(code) } })
+    await new Promise((r) => setTimeout(r, 5))
+    expect(auth.__wipeSignal).toBe(0)
+    expect(auth.__wipeCreds).toBe(0)
+  })
+
+  it.each([
+    [403, 'forbidden'],
+    [440, 'connection-replaced'],
+  ] as const)('status %i clears when session.clearAuthOn opts in', async (code, reason) => {
+    const auth = memAuth()
+    const { sock } = await connectAndOpen(auth, { session: { clearAuthOn: ['logged-out', reason] } })
     sock.triggerConnectionUpdate({ connection: 'close', lastDisconnect: { error: boomErr(code) } })
     await new Promise((r) => setTimeout(r, 5))
     expect(auth.__wipeSignal).toBeGreaterThanOrEqual(1)

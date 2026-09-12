@@ -11,6 +11,27 @@ export interface RedisMessageStoreOptions {
 }
 
 const DEFAULT_NAMESPACE = 'zaileys'
+
+/** Every key family this store owns. Anything outside this list is off-limits to `clear()`. */
+const MESSAGE_STORE_KEY_FAMILIES: readonly string[] = Object.freeze([
+  'msg:*',
+  'msg-data:*',
+  'presence:*',
+  'chats',
+  'chats-archived',
+  'contacts',
+])
+
+/** A glob metacharacter in the namespace would widen every SCAN pattern into a database-wide sweep. */
+const assertSafeNamespace = (namespace: string): string => {
+  if (!/^[A-Za-z0-9_.:-]+$/.test(namespace)) {
+    throw new ZaileysStoreError(
+      'STORE_CONNECTION_FAILED',
+      `invalid namespace ${JSON.stringify(namespace)}: use letters, digits, and _ . : - only`,
+    )
+  }
+  return namespace
+}
 const PRESENCE_TTL_SECONDS = 300
 const SCAN_BATCH = 1000
 
@@ -48,7 +69,7 @@ export class RedisMessageStore implements MessageStore {
         'RedisMessageStore requires either client or url',
       )
     }
-    this.namespace = options.namespace ?? DEFAULT_NAMESPACE
+    this.namespace = assertSafeNamespace(options.namespace ?? DEFAULT_NAMESPACE)
     this.externalClient = options.client
     this.url = options.url
   }
@@ -241,17 +262,24 @@ export class RedisMessageStore implements MessageStore {
   async clear(): Promise<void> {
     this.assertOpen()
     const client = await this.ensureReady()
-    const match = `${this.namespace}:*`
-    let cursor = 0
-    do {
-      const result = await this.runRead(() =>
-        client.scan(cursor, { MATCH: match, COUNT: SCAN_BATCH }),
-      )
-      cursor = Number(result.cursor)
-      if (result.keys.length > 0) {
-        await this.runWrite(() => client.del(result.keys))
-      }
-    } while (cursor !== 0)
+    /**
+     * Scoped to this store's own key families. A blanket `${namespace}:*` sweep would also match
+     * `${namespace}:auth:*`, so clearing chat history would delete the session credentials — the
+     * auth store defaults to the same namespace.
+     */
+    for (const family of MESSAGE_STORE_KEY_FAMILIES) {
+      const match = `${this.namespace}:${family}`
+      let cursor = 0
+      do {
+        const result = await this.runRead(() =>
+          client.scan(cursor, { MATCH: match, COUNT: SCAN_BATCH }),
+        )
+        cursor = Number(result.cursor)
+        if (result.keys.length > 0) {
+          await this.runWrite(() => client.del(result.keys))
+        }
+      } while (cursor !== 0)
+    }
   }
 
   async close(): Promise<void> {

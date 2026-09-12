@@ -14,6 +14,9 @@ const CONTACT = 'contact:'
 const PRESENCE = 'presence:'
 const JOB = 'job:'
 
+/** Every key prefix this store owns. Anything outside this list is off-limits to `clear()`. */
+const MESSAGE_STORE_PREFIXES: readonly string[] = Object.freeze([MSG, CHAT, CONTACT, PRESENCE, JOB])
+
 const member = (key: WAMessageKey): string => `${key.id ?? ''}|${key.fromMe ? 1 : 0}`
 const msgKey = (key: WAMessageKey): string => `${MSG}${key.remoteJid ?? ''}:${member(key)}`
 const encode = (value: unknown): string => JSON.stringify(value, BufferJSON.replacer)
@@ -193,7 +196,13 @@ export class ConvexMessageStore implements MessageStore {
 
   async clear(): Promise<void> {
     this.assertOpen()
-    await this.kv.clear()
+    /**
+     * Per prefix, never namespace-wide: the auth store shares this namespace, so an unscoped
+     * clear would delete `creds` and every `signal:*` row and log the bot out.
+     */
+    for (const prefix of MESSAGE_STORE_PREFIXES) {
+      await this.kv.clear(prefix)
+    }
   }
 
   async close(): Promise<void> {

@@ -18,6 +18,17 @@ export interface RedisAuthStoreOptions {
 
 const DEFAULT_NAMESPACE = 'zaileys'
 
+/** Mirrors the message store: a glob metacharacter here would widen every key sweep. */
+const assertSafeNamespace = (namespace: string): string => {
+  if (!/^[A-Za-z0-9_.:-]+$/.test(namespace)) {
+    throw new ZaileysStoreError(
+      'STORE_CONNECTION_FAILED',
+      `invalid namespace ${JSON.stringify(namespace)}: use letters, digits, and _ . : - only`,
+    )
+  }
+  return namespace
+}
+
 const SIGNAL_TYPES: readonly AuthStoreKey[] = [
   'pre-key',
   'session',
@@ -58,7 +69,7 @@ export class RedisAuthStore implements AuthStoreBundle {
         'RedisAuthStore requires either client or url',
       )
     }
-    this.namespace = options.namespace ?? DEFAULT_NAMESPACE
+    this.namespace = assertSafeNamespace(options.namespace ?? DEFAULT_NAMESPACE)
     this.externalClient = options.client
     this.url = options.url
   }

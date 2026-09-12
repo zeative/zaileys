@@ -421,6 +421,11 @@ Zaileys couldn't convert the file with ffmpeg (`MEDIA_LOAD_FAILED`). There are t
 
 - **ffmpeg is missing.** Zaileys bundles ffmpeg for Windows, macOS, and Linux. On Termux and other platforms, it uses the `ffmpeg` on your `PATH`. Without it, the message includes `spawn ffmpeg ENOENT` from Node.js. On Termux, run `pkg install ffmpeg`. See [Runtimes](/data/runtimes).
 - **The file is corrupted or not really audio or an image.** Check that it opens in a media player.
+- **It's an animated sticker on an Apple Silicon Mac.** The bundled ffmpeg for M-series Macs has no WebP encoder, so animated stickers always fail there. They work on Linux, Windows, and Intel Macs. See [Animated stickers on Apple Silicon Macs](/installation#animated-stickers-on-apple-silicon-macs).
+
+### `spawn …/ffprobe EACCES` {#spawn-ffprobe-eacces}
+
+You installed with pnpm 10 or newer, which skipped the install script that lets the bundled `ffprobe` run. Video thumbnails and video durations fail; everything else keeps working. Add the `@ffprobe-installer/…` package for **every** platform you install on — your machine and your server — to `pnpm.onlyBuiltDependencies`, then run `pnpm install`. See [pnpm 10: allow the ffprobe install script](/installation#pnpm-10-allow-the-ffprobe-install-script).
 
 ### `video() expects a video source, got mime image/gif`
 

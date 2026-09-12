@@ -247,11 +247,11 @@ for (const photo of ['./trip/day-1.jpg', './trip/day-2.jpg']) {
   <Accordion title="Can I send a .gif file?">
     Not with `video()` — it only accepts video files, and a `.gif` is an image. You have two options:
 
-    - **As a sticker:** `client.send(jid).sticker('./party.gif', { animated: true })` works as-is.
+    - **As a sticker:** `client.send(jid).sticker('./party.gif', { animated: true })` works as-is on Linux, Windows, and Intel Macs. It fails on Apple Silicon Macs — [here's why](/installation#animated-stickers-on-apple-silicon-macs).
     - **As a looping video:** convert it to MP4 first, for example with `ffmpeg -i party.gif -pix_fmt yuv420p party.mp4`, then send it with `{ gifPlayback: true }`.
   </Accordion>
   <Accordion title="Do I need to install ffmpeg?">
-    No. Zaileys ships its own ffmpeg binary for converting audio and stickers. Termux is the exception — see [Runtimes](/data/runtimes).
+    No. Zaileys ships its own ffmpeg binary for converting audio and stickers. Termux is the exception — see [Runtimes](/data/runtimes). If you install with pnpm 10, [allow the ffprobe install script](/installation#pnpm-10-allow-the-ffprobe-install-script) or video thumbnails fail.
   </Accordion>
   <Accordion title="Why does it say the file wasn't found when it's right there?">
     Relative paths start from the folder you ran the bot from. If you run `node dist/bot.js` from your project root, `./photo.jpg` means `<project root>/photo.jpg`. Use an absolute path when in doubt.

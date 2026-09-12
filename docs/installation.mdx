@@ -169,6 +169,59 @@ Images and stickers then use the bundled `jimp` path.
 
 Zaileys converts audio, video, and stickers with ffmpeg, and installs a matching ffmpeg and ffprobe binary for your platform. You don't need to install ffmpeg yourself. If no bundled binary is available for your platform, Zaileys falls back to the `ffmpeg` and `ffprobe` commands on your `PATH`.
 
+When a bundled binary exists, Zaileys always uses it — an ffmpeg you installed yourself doesn't replace it.
+
+### pnpm 10: allow the ffprobe install script
+
+<Warning>
+  **On pnpm 10 or newer, video thumbnails and video durations fail until you do this.** Audio, stickers, and video conversion still work, so it's easy to miss.
+</Warning>
+
+pnpm 10 skips install scripts from dependencies unless you approve them. The bundled `ffprobe` is published without permission to run, and relies on an install script to fix that. Skip the script and it can't run. `pnpm add zaileys` warns you:
+
+```text
+Ignored build scripts: @ffprobe-installer/linux-x64
+```
+
+and the first video thumbnail fails with:
+
+```text
+spawn …/@ffprobe-installer/linux-x64/ffprobe EACCES
+```
+
+The fix is to approve that package, but **approvals match one exact platform name**. Approving on your Mac allows `@ffprobe-installer/darwin-arm64` only, so your Linux server stays blocked — it works on your laptop and breaks after you deploy. Wildcards such as `@ffprobe-installer/*` don't work.
+
+List the package for every machine you install on, in `package.json`:
+
+```json package.json
+{
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@ffprobe-installer/darwin-arm64",
+      "@ffprobe-installer/linux-x64"
+    ]
+  }
+}
+```
+
+Then run `pnpm install` again. Pick the names you need:
+
+| Machine | Package |
+| --- | --- |
+| Mac with Apple Silicon (M1 or newer) | `@ffprobe-installer/darwin-arm64` |
+| Mac with Intel | `@ffprobe-installer/darwin-x64` |
+| Linux server, x86 | `@ffprobe-installer/linux-x64` |
+| Linux server, ARM (such as AWS Graviton or Oracle Ampere) | `@ffprobe-installer/linux-arm64` |
+| Windows | `@ffprobe-installer/win32-x64` |
+
+If you use SQLite, add `better-sqlite3` to the same list. npm, yarn, and bun run install scripts by default and don't need any of this.
+
+### Animated stickers on Apple Silicon Macs
+
+<Note>
+  The bundled ffmpeg for Apple Silicon Macs is built without the WebP encoder, so **animated stickers fail on an M-series Mac** with `MEDIA_LOAD_FAILED` and `sticker() conversion failed: …`. The Linux, Windows, and Intel Mac builds include the encoder, so the same code works once deployed. Test animated stickers on the machine you deploy to. Still stickers from images aren't affected.
+</Note>
+
 ## Check that it works
 
 This script loads Zaileys without connecting to WhatsApp:
@@ -193,7 +246,7 @@ Zaileys loaded. Provider: baileys, state: idle
 
 <AccordionGroup>
   <Accordion title="Do I need to install ffmpeg?">
-    No. Zaileys installs its own ffmpeg binary. It only uses a system ffmpeg when no bundled binary exists for your platform.
+    No. Zaileys installs its own ffmpeg binary. It only uses a system ffmpeg when no bundled binary exists for your platform. On pnpm 10, [allow the ffprobe install script](#pnpm-10-allow-the-ffprobe-install-script) or video thumbnails fail.
   </Accordion>
   <Accordion title="npm install fails while building sharp">
     Your platform has no prebuilt `sharp` binary. Install with `npm install zaileys --legacy-peer-deps` — Zaileys then processes images with the bundled `jimp` library.

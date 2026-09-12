@@ -67,6 +67,10 @@ const client = new Client({
 })
 ```
 
+<Warning>
+  **A per-chat cap doesn't cap total memory.** `maxPerChat` limits each chat, not the store, so the more chats your bot talks to, the more it keeps. A bot that receives messages from 3,000 different chats with `maxPerChat: 1000` can hold up to 3 million messages. If memory is what you're protecting — especially with the default in-memory store — keep `maxAgeMs` set, because only an age limit bounds the whole store.
+</Warning>
+
 ## Turn it off
 
 ```ts

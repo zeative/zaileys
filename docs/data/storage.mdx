@@ -40,7 +40,7 @@ The two are independent: pair any auth store with any message store. Zaileys rea
 
 | Your situation | Auth store | Message store |
 | --- | --- | --- |
-| One bot on your own machine or a VPS | `FileAuthStore` (default) | `MemoryMessageStore` (default), or SQLite to keep history |
+| One bot on your own machine or a VPS | `FileAuthStore` (default) | `MemoryMessageStore` (default), or SQLite to keep history and save memory |
 | Tests and throwaway scripts | `MemoryAuthStore` | `MemoryMessageStore` |
 | One server, history that survives restarts | `SqliteAuthStore` | `SqliteMessageStore` |
 | Containers or several servers sharing a database | `PostgresAuthStore` | `PostgresMessageStore` |
@@ -57,6 +57,10 @@ The two are independent: pair any auth store with any message store. Zaileys rea
 | Convex | `ConvexAuthStore` | `ConvexMessageStore` | `convex` 1.x |
 
 There is no file-based message store. The database packages are optional: Zaileys loads one the first time its store is used, so a missing package fails with `STORE_NOT_AVAILABLE` when the client connects — never at install time.
+
+<Note>
+  **On a small server, keep message history out of RAM.** The default `MemoryMessageStore` holds every stored message in the bot's own memory, for 30 days unless you change it — and a busy bot's history grows with every message it receives. `SqliteMessageStore` keeps the same history on disk: one extra package, no database server to run. If you stay on the memory store, shorten the window with [`autoDelete.maxAgeMs`](#prune-old-messages-automatically).
+</Note>
 
 ## Set up an adapter
 

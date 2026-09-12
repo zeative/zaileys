@@ -2,13 +2,25 @@ import type { Chat, Contact, PresenceData, WAMessage, WAMessageKey } from 'baile
 import { BufferJSON } from 'baileys'
 import type { PgPoolClientLike, PgPoolCtorLike, PgPoolLike } from '../../types/optional-clients.js'
 import { ZaileysStoreError } from '../../types/store-error.js'
+import { assertTablePrefix, prefixPgPool, tableRewriter } from '../../types/table-prefix.js'
 import type { BaileysSocketLike, MessageStore, MessageStoreListOptions, PruneOptions } from '../types.js'
 
 export interface PostgresMessageStoreOptions {
   pool?: PgPoolLike
   connectionString?: string
   max?: number
+  /** Prefix for this store's tables, so several sessions can share one database. Default none. */
+  tablePrefix?: string
 }
+
+const STORE_TABLES = [
+  'zaileys_messages',
+  'zaileys_chats',
+  'zaileys_contacts',
+  'zaileys_presence',
+  'zaileys_chats_archived_idx',
+  'zaileys_messages_jid_ts_idx',
+] as const
 
 type PgModule = { Pool?: PgPoolCtorLike; default?: { Pool?: PgPoolCtorLike } }
 type Listener = (...args: unknown[]) => void
@@ -55,6 +67,8 @@ export class PostgresMessageStore implements MessageStore {
   private readonly listeners: Map<string, Listener> = new Map()
   private closed = false
 
+  private readonly rewrite: (sql: string) => string
+
   constructor(options: PostgresMessageStoreOptions) {
     const hasPool = options.pool !== undefined
     const hasConn = options.connectionString !== undefined
@@ -73,6 +87,7 @@ export class PostgresMessageStore implements MessageStore {
     this.externalPool = options.pool
     this.connectionString = options.connectionString
     this.poolMax = options.max
+    this.rewrite = tableRewriter(assertTablePrefix(options.tablePrefix), STORE_TABLES)
   }
 
   private assertOpen(): void {
@@ -98,6 +113,7 @@ export class PostgresMessageStore implements MessageStore {
           pool = new PoolCtor({ connectionString: this.connectionString, max: this.poolMax })
           this.ownedPool = pool
         }
+        pool = prefixPgPool(pool, this.rewrite)
         try {
           for (const stmt of MIGRATIONS) {
             await pool.query(stmt)

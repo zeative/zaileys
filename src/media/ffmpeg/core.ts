@@ -77,6 +77,8 @@ const FFMPEG_TIMEOUT_MS = 120_000;
 const FFPROBE_TIMEOUT_MS = 30_000;
 const FFPROBE_MAX_STDOUT = 64 * 1024;
 const MAX_CONCURRENT_FFMPEG = 4;
+const URL_FETCH_TIMEOUT_MS = 30_000;
+const URL_FETCH_MAX_BYTES = 64 * 1024 * 1024;
 
 let activeFfmpeg = 0;
 const ffmpegWaiters: Array<() => void> = [];
@@ -158,15 +160,24 @@ export class BufferConverter {
   }
 
   private static async fromUrl(url: string): Promise<Buffer> {
+    /** Without this a slow-loris URL parks the caller forever; the builder loader already had one. */
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), URL_FETCH_TIMEOUT_MS);
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, { signal: controller.signal });
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
       const arrayBuffer = await response.arrayBuffer();
-      return Buffer.from(arrayBuffer);
+      const buffer = Buffer.from(arrayBuffer);
+      if (buffer.byteLength > URL_FETCH_MAX_BYTES) {
+        throw new Error(`Fetched body exceeds ${URL_FETCH_MAX_BYTES} bytes`);
+      }
+      return buffer;
     } catch (error: unknown) {
       throw new Error(`Failed to fetch URL: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      clearTimeout(timer);
     }
   }
 

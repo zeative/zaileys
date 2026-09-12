@@ -47,6 +47,7 @@
     "docs:dev": "cd docs && npx -y mint@latest dev",
     "docs:links": "cd docs && npx -y mint@latest broken-links",
     "docs:check": "node docs/scripts/check-snippets.mjs",
+    "docs:static": "node docs/scripts/build-static.mjs docs-dist",
     "skill:sync": "node scripts/sync-skill.mjs",
     "changeset": "changeset",
     "release:version": "changeset version && pnpm install",

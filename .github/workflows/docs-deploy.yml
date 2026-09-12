@@ -1,0 +1,46 @@
+# Builds the static docs (Mintlify export + Pagefind search + 404) and ships them to Vercel.
+# Needs three repository secrets: VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID.
+# Without them the build still runs and the deploy step is skipped, so CI never fails on a fork.
+name: Deploy Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - '.github/workflows/docs-deploy.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: docs-deploy
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build the static site
+        run: node docs/scripts/build-static.mjs docs-dist
+
+      - name: Check the build looks right
+        run: |
+          pages=$(find docs-dist -name '*.html' | wc -l)
+          echo "pages: $pages"
+          test "$pages" -ge 70
+          test -f docs-dist/404.html
+          test -f docs-dist/zaileys-search.js
+          test -d docs-dist/_pagefind
+
+      - name: Deploy to Vercel
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        if: ${{ env.VERCEL_TOKEN != '' }}
+        run: npx -y vercel@latest deploy docs-dist --prod --yes --token "$VERCEL_TOKEN"

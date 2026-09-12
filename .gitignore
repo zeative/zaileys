@@ -50,3 +50,6 @@ docs/superpowers/
 /tasks/
 
 .learnings/
+
+# Static docs build (self-hosted deploy)
+docs-dist/

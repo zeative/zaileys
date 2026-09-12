@@ -68,6 +68,26 @@ export type AIRichOptions = {
 type InlineEntity = { key: string; metadata: Record<string, unknown> }
 type ExtractedIE = { text: string; ie: Array<{ type: string; ie: Record<string, string> }> }
 
+/**
+ * Matching close index for every unescaped `open` in one pass. The inline scan this replaces
+ * restarted from scratch on every unterminated `](`, so a message of repeated `[`/`](` was
+ * quadratic — ~60 KB of it blocked the event loop for seconds.
+ */
+const matchingCloses = (input: string, open: string, close: string): Int32Array => {
+  const match = new Int32Array(input.length).fill(-1)
+  const pending: number[] = []
+  for (let k = 0; k < input.length; k += 1) {
+    if (input[k - 1] === '\\') continue
+    const ch = input[k]
+    if (ch === open) pending.push(k)
+    else if (ch === close) {
+      const start = pending.pop()
+      if (start !== undefined) match[start] = k
+    }
+  }
+  return match
+}
+
 const extractIE = (input: string): ExtractedIE => {
   const ie: ExtractedIE['ie'] = []
   let result = ''
@@ -76,6 +96,8 @@ const extractIE = (input: string): ExtractedIE => {
   let hyperlinkIndex = 0
   let latexIndex = 0
   const stack: number[] = []
+  const parenMatch = matchingCloses(input, '(', ')')
+  const angleMatch = matchingCloses(input, '<', '>')
   for (let i = 0; i < input.length; i++) {
     if (input[i] === '[' && input[i - 1] !== '\\') {
       stack.push(i)
@@ -83,16 +105,10 @@ const extractIE = (input: string): ExtractedIE => {
       const start = stack.pop()
       if (start == null) continue
       const open = input[i + 1]
-      const close = open === '(' ? ')' : '>'
       const isLatex = open === '<'
-      let end = i + 2
-      let depth = 1
-      while (end < input.length && depth > 0) {
-        if (input[end] === open && input[end - 1] !== '\\') depth++
-        else if (input[end] === close && input[end - 1] !== '\\') depth--
-        end++
-      }
-      if (depth > 0) continue
+      const closeIdx = (isLatex ? angleMatch : parenMatch)[i + 1] ?? -1
+      if (closeIdx < 0) continue
+      const end = closeIdx + 1
       const raw = input.slice(start + 1, i).trim()
       const url = input.slice(i + 2, end - 1).trim()
       let key: string
@@ -157,12 +173,28 @@ const toInlineEntities = (extracted: ExtractedIE): InlineEntity[] =>
     }
   })
 
+/** Padding every row to the widest one turns a small message into a huge allocation without caps. */
+const MAX_TABLE_ROWS = 5_000
+const MAX_TABLE_COLUMNS = 200
+const MAX_TABLE_CELLS = 100_000
+
 const toTableRows = (table: string[][]): Array<{ is_header: boolean; cells: string[] }> => {
   if (!Array.isArray(table) || table.length === 0 || !table.every((r) => Array.isArray(r))) {
     throw new ZaileysBuilderError('INVALID_OPTIONS', 'table must be a non-empty array of string rows')
   }
   const [header, ...rows] = table as [string[], ...string[][]]
-  const maxLen = Math.max(header.length, ...rows.map((r) => r.length))
+  if (table.length > MAX_TABLE_ROWS) {
+    throw new ZaileysBuilderError('INVALID_OPTIONS', `table exceeds ${MAX_TABLE_ROWS} rows`)
+  }
+  /** Reduce, not spread: `Math.max(...rows)` blows the call stack past ~65k arguments. */
+  let maxLen = header.length
+  for (const row of rows) if (row.length > maxLen) maxLen = row.length
+  if (maxLen > MAX_TABLE_COLUMNS) {
+    throw new ZaileysBuilderError('INVALID_OPTIONS', `table exceeds ${MAX_TABLE_COLUMNS} columns`)
+  }
+  if (maxLen * table.length > MAX_TABLE_CELLS) {
+    throw new ZaileysBuilderError('INVALID_OPTIONS', `table exceeds ${MAX_TABLE_CELLS} cells`)
+  }
   const normalize = (r: string[]): string[] => [...r, ...Array(maxLen - r.length).fill('')]
   return [
     { is_header: true, cells: normalize(header) },

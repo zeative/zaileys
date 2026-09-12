@@ -341,10 +341,20 @@ export interface BuildContextInput {
   media?: ContextMedia
 }
 
+const TRAILING_PUNCTUATION = new Set(['.', ',', ';', ':', '!', '?'])
+
+/** Linear trailing trim. The obvious `/[.,;:!?]+$/` backtracks quadratically: a 60 KB run of dots
+ *  in one whitespace-free "URL" froze the event loop for ~6.7s, and this runs 2-3x per message. */
+const trimTrailingPunctuation = (url: string): string => {
+  let end = url.length
+  while (end > 0 && TRAILING_PUNCTUATION.has(url[end - 1] as string)) end -= 1
+  return end === url.length ? url : url.slice(0, end)
+}
+
 export const extractLinks = (text: string): string[] => {
   const matches = text.match(/(https?:\/\/[^\s]+)/g)
   if (!matches) return []
-  return matches.map((url) => url.replace(/[.,;:!?]+$/, ''))
+  return matches.map(trimTrailingPunctuation)
 }
 
 const fnv1a = (input: string, seed = 0x811c9dc5): number => {

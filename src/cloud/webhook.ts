@@ -5,7 +5,20 @@ export type WebhookHandler = (req: Request) => Promise<Response>
 export interface WebhookHandlerOptions {
   verifyToken?: string
   appSecret?: string
+  /**
+   * Accept POSTs without an `appSecret` to verify them. Off by default: an unverified endpoint lets
+   * anyone who learns the URL inject inbound messages. Only for local development.
+   */
+  allowUnsigned?: boolean
   onPayload: (payload: unknown) => void
+}
+
+/** Constant-time even though the token is low-value, so no comparison here leaks by timing. */
+const tokensMatch = (a: string, b: string): boolean => {
+  const left = Buffer.from(a, 'utf8')
+  const right = Buffer.from(b, 'utf8')
+  if (left.length !== right.length) return false
+  return timingSafeEqual(left, right)
 }
 
 const verifySignature = (appSecret: string, rawBody: string, header: string | null): boolean => {
@@ -27,7 +40,12 @@ export function createWebhookHandler(options: WebhookHandlerOptions): WebhookHan
       const mode = url.searchParams.get('hub.mode')
       const token = url.searchParams.get('hub.verify_token')
       const challenge = url.searchParams.get('hub.challenge') ?? ''
-      if (mode === 'subscribe' && options.verifyToken !== undefined && token === options.verifyToken) {
+      if (
+        mode === 'subscribe' &&
+        options.verifyToken !== undefined &&
+        token !== null &&
+        tokensMatch(token, options.verifyToken)
+      ) {
         return new Response(challenge, { status: 200 })
       }
       return new Response('forbidden', { status: 403 })
@@ -39,6 +57,10 @@ export function createWebhookHandler(options: WebhookHandlerOptions): WebhookHan
     if (options.appSecret !== undefined) {
       const ok = verifySignature(options.appSecret, rawBody, req.headers.get('x-hub-signature-256'))
       if (!ok) return new Response('invalid signature', { status: 401 })
+    } else if (options.allowUnsigned !== true) {
+      return new Response('webhook requires appSecret (or allowUnsigned for local dev)', {
+        status: 401,
+      })
     }
     let payload: unknown
     try {

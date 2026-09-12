@@ -660,6 +660,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     return createWebhookHandler({
       ...(cloud.verifyToken !== undefined ? { verifyToken: cloud.verifyToken } : {}),
       ...(cloud.appSecret !== undefined ? { appSecret: cloud.appSecret } : {}),
+      ...(cloud.allowUnsigned === true ? { allowUnsigned: true } : {}),
       onPayload: (payload) => {
         this.ensureCloudRuntime().ingest(payload)
       },

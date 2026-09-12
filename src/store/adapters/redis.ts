@@ -10,6 +10,19 @@ export interface RedisMessageStoreOptions {
   namespace?: string
 }
 
+/** Never echo the connection string verbatim — it carries the password into logs and Sentry. */
+const redactRedisUrl = (url: string | undefined): string => {
+  if (url === undefined) return '(no url)'
+  try {
+    const parsed = new URL(url)
+    if (parsed.password !== '') parsed.password = '***'
+    if (parsed.username !== '') parsed.username = '***'
+    return parsed.toString()
+  } catch {
+    return '(redacted redis url)'
+  }
+}
+
 const DEFAULT_NAMESPACE = 'zaileys'
 
 /** Every key family this store owns. Anything outside this list is off-limits to `clear()`. */
@@ -427,7 +440,7 @@ export class RedisMessageStore implements MessageStore {
     } catch (err) {
       throw new ZaileysStoreError(
         'STORE_CONNECTION_FAILED',
-        `failed to connect to redis at ${this.url}`,
+        `failed to connect to redis at ${redactRedisUrl(this.url)}`,
         { cause: err },
       )
     }

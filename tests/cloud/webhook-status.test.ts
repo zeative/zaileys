@@ -52,7 +52,7 @@ describe('cloud message-status events', () => {
     fetchMock.mockResolvedValueOnce(ok({ id: '555' }))
     const c = new Client({
       provider: 'cloud',
-      cloud: { accessToken: 'tok', phoneNumberId: '555' },
+      cloud: { accessToken: 'tok', phoneNumberId: '555', allowUnsigned: true },
       autoConnect: false,
       statusLog: false,
     })

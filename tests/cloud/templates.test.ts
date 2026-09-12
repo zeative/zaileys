@@ -17,7 +17,7 @@ const ok = (body: unknown) => new Response(JSON.stringify(body), { status: 200 }
 function cloudClient() {
   return new Client({
     provider: 'cloud',
-    cloud: { accessToken: 'tok', phoneNumberId: '555', wabaId: 'WABA1', apiVersion: 'v23.0' },
+    cloud: { accessToken: 'tok', phoneNumberId: '555', wabaId: 'WABA1', apiVersion: 'v23.0', allowUnsigned: true },
     autoConnect: false,
     statusLog: false,
   })

@@ -29,9 +29,38 @@ function resolveLevel(explicit?: LoggerLevel): LoggerLevel {
   return 'silent'
 }
 
+/**
+ * This logger is handed to baileys, which logs the whole creds object at trace. Without redaction
+ * `ZAILEYS_DEBUG=trace` writes the account's private keys straight into the log stream.
+ */
+const REDACTED_PATHS: readonly string[] = [
+  'creds',
+  '*.creds',
+  'noiseKey',
+  '*.noiseKey',
+  'signedIdentityKey',
+  '*.signedIdentityKey',
+  'signedPreKey',
+  '*.signedPreKey',
+  'pairingEphemeralKeyPair',
+  '*.pairingEphemeralKeyPair',
+  'accessToken',
+  '*.accessToken',
+  'appSecret',
+  '*.appSecret',
+  'verifyToken',
+  '*.verifyToken',
+  'password',
+  '*.password',
+  'authorization',
+  '*.authorization',
+  'headers.authorization',
+  'headers.Authorization',
+]
+
 export function createLogger(options: CreateLoggerOptions = {}): ZaileysLogger {
   const level = resolveLevel(options.level)
-  const base = pino({ level })
+  const base = pino({ level, redact: { paths: [...REDACTED_PATHS], censor: '[redacted]' } })
   if (options.sessionId !== undefined) {
     return base.child({ sessionId: options.sessionId })
   }

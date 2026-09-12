@@ -22,6 +22,38 @@ export interface CloudMe {
   name?: string
 }
 
+const MEDIA_DOWNLOAD_TIMEOUT_MS = 60_000
+const MEDIA_DOWNLOAD_MAX_BYTES = 128 * 1024 * 1024
+
+/** Meta serves media from these origins; anything else must not receive the access token. */
+const ALLOWED_MEDIA_HOST_SUFFIXES: readonly string[] = [
+  '.fbcdn.net',
+  '.fbsbx.com',
+  '.facebook.com',
+  '.whatsapp.com',
+  '.whatsapp.net',
+  '.cdninstagram.com',
+]
+
+export const assertMetaMediaHost = (raw: string): void => {
+  let parsed: URL
+  try {
+    parsed = new URL(raw)
+  } catch {
+    throw new ZaileysCloudError('REQUEST_FAILED', 'media url is not a valid url')
+  }
+  if (parsed.protocol !== 'https:') {
+    throw new ZaileysCloudError('REQUEST_FAILED', `refusing a non-https media url: ${parsed.protocol}`)
+  }
+  const host = parsed.hostname.toLowerCase()
+  const allowed = ALLOWED_MEDIA_HOST_SUFFIXES.some(
+    (suffix) => host === suffix.slice(1) || host.endsWith(suffix),
+  )
+  if (!allowed) {
+    throw new ZaileysCloudError('REQUEST_FAILED', `refusing to send credentials to ${host}`)
+  }
+}
+
 export class CloudTransport implements Transport {
   readonly ev = new EventEmitter()
   readonly user: { id: string }
@@ -164,14 +196,35 @@ export class CloudTransport implements Transport {
   async downloadMedia(mediaId: string): Promise<{ buffer: Buffer; mime: string; size: number } | null> {
     const meta = await this.graph.get<{ url?: string; mime_type?: string }>(mediaId)
     if (!meta.url) return null
+    /**
+     * The url comes back inside a remote JSON body and the bearer token rides on the request, so a
+     * hostile or misconfigured response could redirect the token to an attacker. Only Meta's own
+     * download origins are allowed to see it.
+     */
+    assertMetaMediaHost(meta.url)
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), MEDIA_DOWNLOAD_TIMEOUT_MS)
     let res: Response
     try {
-      res = await fetch(meta.url, { headers: { Authorization: `Bearer ${this.options.accessToken}` } })
+      res = await fetch(meta.url, {
+        headers: { Authorization: `Bearer ${this.options.accessToken}` },
+        redirect: 'error',
+        signal: controller.signal,
+      })
     } catch (err) {
       throw new ZaileysCloudError('REQUEST_FAILED', 'media download failed', { cause: err })
+    } finally {
+      clearTimeout(timer)
     }
     if (!res.ok) throw new ZaileysCloudError('REQUEST_FAILED', `media download failed (${res.status})`)
+    const declared = Number(res.headers?.get?.('content-length') ?? '0')
+    if (Number.isFinite(declared) && declared > MEDIA_DOWNLOAD_MAX_BYTES) {
+      throw new ZaileysCloudError('REQUEST_FAILED', `media exceeds ${MEDIA_DOWNLOAD_MAX_BYTES} bytes`)
+    }
     const buffer = Buffer.from(await res.arrayBuffer())
+    if (buffer.byteLength > MEDIA_DOWNLOAD_MAX_BYTES) {
+      throw new ZaileysCloudError('REQUEST_FAILED', `media exceeds ${MEDIA_DOWNLOAD_MAX_BYTES} bytes`)
+    }
     const mime = meta.mime_type ?? (await detectMimeFromBuffer(buffer))
     return { buffer, mime, size: buffer.byteLength }
   }

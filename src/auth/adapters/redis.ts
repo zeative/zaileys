@@ -16,6 +16,19 @@ export interface RedisAuthStoreOptions {
   namespace?: string
 }
 
+/** Never echo the connection string verbatim — it carries the password into logs and Sentry. */
+const redactRedisUrl = (url: string | undefined): string => {
+  if (url === undefined) return '(no url)'
+  try {
+    const parsed = new URL(url)
+    if (parsed.password !== '') parsed.password = '***'
+    if (parsed.username !== '') parsed.username = '***'
+    return parsed.toString()
+  } catch {
+    return '(redacted redis url)'
+  }
+}
+
 const DEFAULT_NAMESPACE = 'zaileys'
 
 /** Mirrors the message store: a glob metacharacter here would widen every key sweep. */
@@ -240,7 +253,7 @@ export class RedisAuthStore implements AuthStoreBundle {
     } catch (err) {
       throw new ZaileysStoreError(
         'STORE_CONNECTION_FAILED',
-        `failed to connect to redis at ${this.url}`,
+        `failed to connect to redis at ${redactRedisUrl(this.url)}`,
         { cause: err },
       )
     }

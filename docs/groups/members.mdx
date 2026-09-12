@@ -182,7 +182,7 @@ client.on('connect', () => {
 
 `request.action` is `'created'` for a new request, and `'revoked'` or `'rejected'` when one is withdrawn or turned down. This event comes straight from the WhatsApp Web library, not from Zaileys, so its shape can change when that library updates.
 
-## Set the bot's member label
+## Set the bot's member label {#set-the-bots-member-label}
 
 WhatsApp lets each member set a short label that shows next to their name in a group. `tagMember()` sets **the bot's own** label:
 

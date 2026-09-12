@@ -114,7 +114,7 @@ await client.community.unlinkGroup('120363055512345678@g.us', '12036304123456789
 
 The group isn't deleted — it carries on as a standalone group with the same members.
 
-## List a community's groups
+## List a community's groups {#list-a-communitys-groups}
 
 ```ts
 const groups = await client.community.subGroups('120363055512345678@g.us')
@@ -142,7 +142,7 @@ You can pass the ID of any group inside the community instead — Zaileys looks 
   When the group was created, in Unix seconds.
 </ResponseField>
 
-## Read a community's details
+## Read a community's details {#read-a-communitys-details}
 
 ```ts
 const info = await client.community.metadata('120363055512345678@g.us')

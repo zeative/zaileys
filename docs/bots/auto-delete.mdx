@@ -15,7 +15,7 @@ Auto-delete regularly removes old messages from the bot's own message store, so 
   This only touches the copy Zaileys keeps in its [store](/data/storage). Messages stay on WhatsApp and on everyone's phones. To delete a message in the chat, see [Edit, delete & react](/messaging/edit-delete-react). To make messages vanish for everyone after a while, use disappearing messages — see [Text & replies](/messaging/text).
 </Note>
 
-## It's on by default
+## It's on by default {#its-on-by-default}
 
 ```ts bot.ts
 import { Client } from 'zaileys'
@@ -136,7 +136,7 @@ Cleanup never keeps your process running on its own, and it skips a run if the p
   </Accordion>
 </AccordionGroup>
 
-## If cleanup isn't running
+## If cleanup isn't running {#if-cleanup-isnt-running}
 
 Cleanup never throws into your code. When something's wrong, it logs one of these at warning level. The built-in logger is silent, so set `ZAILEYS_DEBUG=warn` to see them:
 

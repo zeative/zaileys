@@ -16,11 +16,11 @@ This page lists every type, method, and event of the command framework. For a wa
 
 | API | Signature |
 | --- | --- |
-| [`client.command()`](#clientcommand) | `(spec: string \| CommandSpec, handler: CommandHandler) => Client` |
-| [`client.unregisterCommand()`](#clientunregistercommand) | `(spec: string \| CommandSpec) => Client` |
-| [`client.commands()`](#clientcommands) | `() => RegisteredCommand[]` |
-| [`client.use()`](#clientuse) | `(middleware: Middleware) => Client` |
-| [`client.unuse()`](#clientunuse) | `(middleware: Middleware) => Client` |
+| [`client.command()`](#client-command) | `(spec: string \| CommandSpec, handler: CommandHandler) => Client` |
+| [`client.unregisterCommand()`](#client-unregistercommand) | `(spec: string \| CommandSpec) => Client` |
+| [`client.commands()`](#client-commands) | `() => RegisteredCommand[]` |
+| [`client.use()`](#client-use) | `(middleware: Middleware) => Client` |
+| [`client.unuse()`](#client-unuse) | `(middleware: Middleware) => Client` |
 | [`parseCommand()`](#parsecommand) | `(text: string, prefixes: string[]) => ParsedArgs` |
 | [`CommandHandler`](#commandhandler) | `(ctx: CommandContext) => Promise<void> \| void` |
 | [`Middleware`](#middleware) | `(ctx: CommandContext, next: () => Promise<void>) => Promise<void> \| void` |

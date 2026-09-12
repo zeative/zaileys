@@ -1,10 +1,12 @@
 // Builds docs/search-index.json from the .mdx sources using BM25F weights.
 // Field-length normalisation is precomputed here so the browser only sums numbers.
-import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs'
+import { readFileSync, writeFileSync, readdirSync, statSync, existsSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const DOCS = join(dirname(fileURLToPath(import.meta.url)), '..')
+// Optional: the built site. Given it, every section anchor is taken from the rendered heading.
+const HTML = process.argv[2] ? join(DOCS, '..', process.argv[2]) : null
 const SNIPPET = 200
 
 // Two signals, kept apart on purpose: "this page is ABOUT the term" (title/keywords/heading)
@@ -110,8 +112,9 @@ for (const file of walk(DOCS).sort()) {
     const h = /^(#{2,3})\s+(.*)$/.exec(line)
     if (h) {
       if (cur) secs.push(cur)
-      const text = h[2].replace(/[`*]/g, '').trim()
-      cur = { t: text, a: slugify(text), lines: [] }
+      const explicit = /\s*\{#([\w-]+)\}\s*$/.exec(h[2])
+      const text = h[2].replace(/\s*\{#[\w-]+\}\s*$/, '').replace(/[`*]/g, '').trim()
+      cur = { t: text, a: explicit ? explicit[1] : slugify(text), lines: [] }
     } else if (cur) cur.lines.push(line)
   }
   if (cur) secs.push(cur)
@@ -153,6 +156,45 @@ for (const file of walk(DOCS).sort()) {
     tf,
     len,
   })
+}
+
+// Mintlify's slugs keep some punctuation and curl apostrophes ("won't" → "won’t", "client.use()" →
+// "client-use"), so a local slugify can't predict them and search deep links would land at the page
+// top. With the built site at hand, take each anchor from the heading Mintlify actually rendered.
+if (HTML) {
+  const entities = { amp: '&', lt: '<', gt: '>', quot: '"', '#x27': "'", '#39': "'" }
+  const decode = (t) => t.replace(/&(amp|lt|gt|quot|#x27|#39);/g, (_, e) => entities[e])
+  const norm = (t) =>
+    decode(t).replace(/\u200b/g, '').replace(/[’‘]/g, "'").replace(/[“”]/g, '"').replace(/[`*]/g, '')
+      .replace(/\s+/g, ' ').trim().toLowerCase()
+  const unresolved = []
+  for (const doc of raw) {
+    const page = doc.meta.u === '/' ? 'index' : doc.meta.u.slice(1)
+    const file = [join(HTML, page, 'index.html'), join(HTML, `${page}.html`)].find((f) => existsSync(f))
+    if (!file) {
+      unresolved.push(`${doc.meta.u} — page not in the built site`)
+      continue
+    }
+    const byText = new Map()
+    for (const m of readFileSync(file, 'utf8').matchAll(/<h([2-6])\b[^>]*\bid="([^"]+)"[^>]*>([\s\S]*?)<\/h\1>/g)) {
+      if (m[2].startsWith('_R_')) continue // Mintlify's own UI headings: "On this page", card titles
+      const key = norm(m[3].replace(/<[^>]+>/g, ''))
+      byText.set(key, [...(byText.get(key) ?? []), decode(m[2])])
+    }
+    const seen = new Map()
+    for (const sec of doc.meta.secs) {
+      const key = norm(sec.t)
+      const nth = seen.get(key) ?? 0
+      seen.set(key, nth + 1)
+      const id = byText.get(key)?.[nth]
+      if (id) sec.a = id
+      else unresolved.push(`${doc.meta.u} — "${sec.t}"`)
+    }
+  }
+  if (unresolved.length) {
+    for (const u of unresolved) console.error(`✗ no rendered heading for ${u}`)
+    process.exit(1)
+  }
 }
 
 // Average field lengths drive BM25F normalisation.

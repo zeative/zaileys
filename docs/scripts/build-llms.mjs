@@ -49,7 +49,12 @@ for (const { page, tab, group } of order) {
 
   full.push(`\n\n---\n\n# ${title}`, `URL: ${url}`, `Section: ${tab} › ${group}`, '')
   // Strip MDX imports; the prose and code are what a model needs.
-  const prose = body.replace(/^import .*$/gm, '').replace(/\n{3,}/g, '\n\n').trim()
+  const prose = body
+    .replace(/^import .*$/gm, '')
+    // {#id} only pins the HTML anchor; it's noise in Markdown a model reads.
+    .replace(/^(#{2,6} .*?)\s*\{#[\w-]+\}\s*$/gm, '$1')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
   full.push(prose)
 
   const md = [`# ${title}`]

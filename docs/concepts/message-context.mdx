@@ -27,7 +27,7 @@ client.on('text', async (msg) => {
 
 You get `msg` from `message`, `text`, `image`, `video`, `audio`, `document`, `sticker`, `mention`, and `mention-all`. Other events, such as `reaction` and `button-click`, have smaller payloads of their own ([Events](/concepts/events)).
 
-## The fields you'll use most
+## The fields you'll use most {#the-fields-youll-use-most}
 
 | Field | Example | What it is |
 | --- | --- | --- |
@@ -162,7 +162,7 @@ client.on('text', async (msg) => {
 })
 ```
 
-## Check who's allowed
+## Check who's allowed {#check-whos-allowed}
 
 `msg.citation.authors()` and `msg.citation.banned()` tell you whether the sender is on the owner or blocked list you set with the `citation` option. Both resolve to `false` when you haven't set one:
 

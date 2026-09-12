@@ -138,7 +138,7 @@ interface MessageContext {
   The message's text, `''` when there's none. Which text depends on the event: `message` and `mention` give the body, the tapped button or list row, or the file's caption (for a document without a caption, its file name); `text` gives the body; the media events give the caption. @mentions of LIDs are rewritten to phone numbers when the mapping is known.
 </ResponseField>
 <ResponseField name="media" type="ContextMedia | undefined">
-  The attachment, or the details of a poll, location, contact, or other structured message. `undefined` for plain text. See [msg.media](#msgmedia).
+  The attachment, or the details of a poll, location, contact, or other structured message. `undefined` for plain text. See [msg.media](#msg-media).
 </ResponseField>
 <ResponseField name="mentions" type="string[]">
   Everyone @mentioned, normalized, with LIDs turned into phone JIDs where WhatsApp shares the mapping.

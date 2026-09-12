@@ -1,10 +1,10 @@
-// Builds the self-hosted static site: search index + Mintlify export + a real 404 page.
+// Builds the self-hosted static site: Mintlify export + search index + AI files + a real 404 page.
 // The hosted plan's search and 404 don't ship in an export, so we bring our own.
 // Usage: node docs/scripts/build-static.mjs [outDir]   (default: docs-dist/)
 import { execFileSync } from 'node:child_process'
 import { mkdtempSync, rmSync, mkdirSync, readdirSync, statSync, readFileSync, writeFileSync, copyFileSync, existsSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join, dirname } from 'node:path'
+import { join, dirname, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..')
@@ -20,11 +20,9 @@ const walk = (dir) =>
     return statSync(path).isDirectory() ? walk(path) : [path]
   })
 
-// ------------------------------------------------------------ 1. search index
-// Built from the .mdx sources before exporting, so it ships inside the bundle.
-step('Building the search index')
-run('node', [join(DOCS, 'scripts', 'build-search-index.mjs')], ROOT)
-run('node', [join(DOCS, 'scripts', 'check-search.mjs')], ROOT)
+// ------------------------------------------------------------ 1. source checks
+// Checks that only need the .mdx and src/ run first, so they fail before the slow export.
+step('Checking sources')
 run('node', [join(DOCS, 'scripts', 'check-error-codes.mjs')], ROOT)
 
 // ---------------------------------------------------------------- 2. export
@@ -48,14 +46,22 @@ if (savedLink) {
 run('unzip', ['-q', zip, '-d', OUT])
 rmSync(tmp, { recursive: true, force: true })
 
+// ------------------------------------------------------- 3. search & anchors
+// Built after the export on purpose: section anchors come from the headings Mintlify rendered,
+// since its slugs can't be predicted from the heading text alone.
+step('Building the search index and checking anchors')
+run('node', [join(DOCS, 'scripts', 'build-search-index.mjs'), relative(ROOT, OUT)], ROOT)
+run('node', [join(DOCS, 'scripts', 'check-search.mjs')], ROOT)
+run('node', [join(DOCS, 'scripts', 'check-anchors.mjs'), relative(ROOT, OUT)], ROOT)
+
 // Mintlify's export copies .js but skips .json, so the index has to be placed by hand.
 copyFileSync(join(DOCS, 'search-index.json'), join(OUT, 'search-index.json'))
 
-// --------------------------------------------------------------- 3. llms.txt
+// --------------------------------------------------------------- 4. llms.txt
 step('Writing llms.txt and llms-full.txt')
 run('node', [join(DOCS, 'scripts', 'build-llms.mjs'), OUT.split('/').pop()], ROOT)
 
-// ------------------------------------------------------------- 4. 404 page
+// ------------------------------------------------------------- 5. 404 page
 // The export ships no 404, so a missing URL would return a bare server error.
 step('Writing 404.html')
 const NOT_FOUND = `<!doctype html>
@@ -94,7 +100,7 @@ const NOT_FOUND = `<!doctype html>
 `
 writeFileSync(join(OUT, '404.html'), NOT_FOUND)
 
-// ---------------------------------------------------------- 5. host config
+// ---------------------------------------------------------- 6. host config
 // Ships inside the output because the deployed artifact is this folder itself.
 step('Writing vercel.json')
 // docs.json redirects are a hosted-plan feature; a static export ships none, so mirror them here.

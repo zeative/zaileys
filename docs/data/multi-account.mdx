@@ -62,7 +62,7 @@ Every client is independent: its own connection, <Term id="session" />, reconnec
   Never start two clients on the same login — the same `sessionId` with the default store, or the same storage location. Both connect as the same linked device, WhatsApp closes one with `connection-replaced`, and Zaileys treats that as a logout: it clears the login, and you have to link the number again.
 </Warning>
 
-## Keep each account's storage separate
+## Keep each account's storage separate {#keep-each-accounts-storage-separate}
 
 `sessionId` only changes the default login folder. As soon as you pass your own `auth` or `store`, keeping accounts apart is up to you:
 

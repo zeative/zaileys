@@ -14,7 +14,7 @@ This recipe builds a bot that takes a restaurant order entirely by taps — cust
 
 <ProviderSupport web={true} cloud={true} note="It only uses a list and up to 3 reply buttons, which both providers support." />
 
-## What you'll build
+## What you'll build {#what-youll-build}
 
 ```text
 Budi: hi
@@ -325,7 +325,7 @@ client.on('button-click', async (tap) => {
 
 A tap tells you which button was pressed, not what the message said. So the quantity buttons carry everything the next step needs: `qty:kopi-susu:2` means "2 of Kopi Susu". The bot keeps no state until the customer picks a quantity.
 
-### Keep the order until it's confirmed
+### Keep the order until it's confirmed {#keep-the-order-until-its-confirmed}
 
 ```ts
 type Order = { id: number; chat: string; customer: string; item: { name: string; price: number }; qty: number }

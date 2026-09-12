@@ -99,7 +99,7 @@ Everyone sees the default avatar again. Pass a group JID to remove that group's 
   The bot's own JID, or a group JID.
 </ParamField>
 
-## Get someone's profile picture
+## Get someone's profile picture {#get-someones-profile-picture}
 
 This bot sends people their own profile picture when they type `my photo`:
 
@@ -125,7 +125,7 @@ The call resolves to a link to the image on WhatsApp's servers. It **rejects** w
   `true` returns the full-size picture. `false` returns a small preview.
 </ParamField>
 
-## Read someone's about text
+## Read someone's about text {#read-someones-about-text}
 
 ```ts
 type StatusEntry = { id: string; status?: { status: string | null; setAt: Date } }

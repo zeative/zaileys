@@ -279,7 +279,7 @@ An occasional one is harmless, and later messages from that person usually decry
 
 ## Handlers
 
-### The bot doesn't reply
+### The bot doesn't reply {#the-bot-doesnt-reply}
 
 Go through these in order:
 
@@ -506,7 +506,7 @@ A file in your plugins folder couldn't be loaded as a plugin: importing it threw
 
 ## Cloud API
 
-### `provider 'cloud' requires cloud.accessToken`
+### `provider 'cloud' requires cloud.accessToken` {#provider-cloud-requires-cloud-accesstoken}
 
 `new Client()` throws this `ZaileysCloudError` (code `CONFIG`) when `accessToken` is missing or empty. The same happens with `provider 'cloud' requires cloud.phoneNumberId`. It usually means an environment variable isn't set in the shell or on the host that runs the bot. `process.env.WA_TOKEN!` compiles fine, but it's `undefined` at runtime. Set the variables before starting — see [Setup](/cloud/setup).
 
@@ -547,7 +547,7 @@ export async function notifyShipped(to: string) {
 
 See [Avoid a cold-start race on serverless](/cloud/webhook#avoid-a-cold-start-race-on-serverless).
 
-### Meta can't verify the webhook
+### Meta can't verify the webhook {#meta-cant-verify-the-webhook}
 
 When you click **Verify and save**, Meta calls your webhook and expects the challenge back. Zaileys answers `403 forbidden` unless the verify token Meta sends equals `cloud.verifyToken`. Check that:
 
@@ -666,7 +666,7 @@ Meta kept answering `429 Too Many Requests`. Zaileys tries each Graph request up
 
 Account-level calls on `client.cloud`, such as managing templates, need your <Term id="waba" /> ID. Add `wabaId` to the `cloud` options — see [Setup](/cloud/setup).
 
-### Commands, broadcasts, and plugins don't work on the Cloud API
+### Commands, broadcasts, and plugins don't work on the Cloud API {#commands-broadcasts-and-plugins-dont-work-on-the-cloud-api}
 
 These features need a WhatsApp Web connection, so they don't run on the Official provider:
 
@@ -684,7 +684,7 @@ client.on('text', async (msg) => {
 
 ## Installation & storage
 
-### A database driver isn't installed (`STORE_NOT_AVAILABLE`)
+### A database driver isn't installed (`STORE_NOT_AVAILABLE`) {#a-database-driver-isnt-installed-store_not_available}
 
 Database stores load their driver only when you use them, and throw a `ZaileysStoreError` with code `STORE_NOT_AVAILABLE` when it's missing:
 

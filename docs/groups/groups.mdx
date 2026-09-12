@@ -80,7 +80,7 @@ It resolves to the new group's details — the same shape as [`metadata()`](#rea
   Creating groups quickly is a common reason WhatsApp restricts accounts, so Zaileys spaces `create()` calls at least 60 seconds apart. A second `create()` right after the first waits before it runs. [Why some calls take longer](#why-some-calls-take-longer)
 </Note>
 
-## Read a group's details
+## Read a group's details {#read-a-groups-details}
 
 ```ts
 const info = await client.group.metadata('120363041234567890@g.us')

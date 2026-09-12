@@ -109,14 +109,12 @@ A coordinate out of range throws `INVALID_OPTIONS` — for example, `location() 
 A contact card is a vCard — the standard text format phones use for contacts. Build it as a string:
 
 ```ts
-const vcard = [
-  'BEGIN:VCARD',
-  'VERSION:3.0',
-  'FN:Sari Wulandari',
-  'ORG:Toko Sari',
-  'TEL;type=CELL;waid=6281234567890:+62 812-3456-7890',
-  'END:VCARD',
-].join('\n')
+const vcard = `BEGIN:VCARD
+VERSION:3.0
+FN:Sari Wulandari
+ORG:Toko Sari
+TEL;type=CELL;waid=6281234567890:+62 812-3456-7890
+END:VCARD`
 
 await client.send(jid).contact(vcard)
 ```

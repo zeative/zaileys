@@ -33,14 +33,12 @@ Write markdown, add `rich: true`, and Zaileys sends it as a rich message — the
 Pass `rich: true` to the same `text()` you already use:
 
 ```ts
-const md = [
-  '*Deploy finished* in 42 s',
-  '',
-  '| Service | Status |',
-  '| --- | --- |',
-  '| api | healthy |',
-  '| worker | healthy |',
-].join('\n')
+const md = `*Deploy finished* in 42 s
+
+| Service | Status |
+| --- | --- |
+| api | healthy |
+| worker | healthy |`
 
 await client.send(jid).text(md)                 // plain text
 await client.send(jid).text(md, { rich: true }) // rich message
@@ -56,10 +54,14 @@ To answer a message, pass the same options to `msg.reply()`. The answer quotes t
 ```ts
 client.on('text', async (msg) => {
   if (msg.text !== '/status') return
-  await msg.reply(
-    ['*All systems normal*', '', ':::suggest', 'Show incidents | Show uptime', ':::'].join('\n'),
-    { rich: true, title: 'Status Bot' },
-  )
+
+  const answer = `*All systems normal*
+
+:::suggest
+Show incidents | Show uptime
+:::`
+
+  await msg.reply(answer, { rich: true, title: 'Status Bot' })
 })
 ```
 
@@ -99,10 +101,8 @@ Every line that isn't a code block, table, image, or directive becomes text. Con
 
 ```ts
 await client.send(jid).text(
-  [
-    'Your invoice is ready: [Invoice 0042](https://example.com/invoices/0042).',
-    'Prices follow the official rate card. [](https://example.com/rates)',
-  ].join('\n'),
+  `Your invoice is ready: [Invoice 0042](https://example.com/invoices/0042).
+Prices follow the official rate card. [](https://example.com/rates)`,
   { rich: true },
 )
 ```
@@ -143,20 +143,11 @@ The recipient sees the rendered formula inline in the sentence. Zaileys doesn't 
 Open a fence with three backticks and a language, close it with three backticks, each on its own line:
 
 ```ts
-await client.send(jid).text(
-  [
-    'Install it with:',
-    '```bash',
-    'npm install zaileys',
-    '```',
-    '',
-    'Then reply to every message:',
-    '```ts',
-    "client.on('text', (msg) => msg.reply('hi'))",
-    '```',
-  ].join('\n'),
-  { rich: true },
-)
+// The message itself contains backticks, so write it as a plain string with \n line breaks.
+const install = "Install it with:\n```bash\nnpm install zaileys\n```"
+const usage = "Then reply to every message:\n```ts\nclient.on('text', (msg) => msg.reply('hi'))\n```"
+
+await client.send(jid).text(install + '\n\n' + usage, { rich: true })
 ```
 
 The recipient sees two code blocks. Strings, numbers, `//` comments, and function calls are highlighted in every language, and `js`, `javascript`, `ts`, and `typescript` also get keyword highlighting. Without a language, the block is labeled `plaintext`.
@@ -167,12 +158,10 @@ A table is a row with `|` between cells, followed by a separator row of dashes:
 
 ```ts
 await client.send(jid).text(
-  [
-    '| Plan | Messages / month | Price |',
-    '| --- | --- | --- |',
-    '| Starter | 1,000 | Free |',
-    '| Pro | 50,000 | Rp150.000 |',
-  ].join('\n'),
+  `| Plan | Messages / month | Price |
+| --- | --- | --- |
+| Starter | 1,000 | Free |
+| Pro | 50,000 | Rp150.000 |`,
   { rich: true, title: 'Pricing' },
 )
 ```
@@ -185,11 +174,9 @@ Put `![alt](url)` on a line of its own. Images on consecutive lines become one g
 
 ```ts
 await client.send(jid).text(
-  [
-    'New arrivals this week:',
-    '![Blue sneakers](https://example.com/shop/sneakers-blue.jpg)',
-    '![White sneakers](https://example.com/shop/sneakers-white.jpg)',
-  ].join('\n'),
+  `New arrivals this week:
+![Blue sneakers](https://example.com/shop/sneakers-blue.jpg)
+![White sneakers](https://example.com/shop/sneakers-white.jpg)`,
   { rich: true },
 )
 ```
@@ -200,7 +187,10 @@ The `:::image` directive does the same, with one URL per line:
 
 ```ts
 await client.send(jid).text(
-  [':::image', 'https://example.com/shop/sneakers-blue.jpg', 'https://example.com/shop/sneakers-white.jpg', ':::'].join('\n'),
+  `:::image
+https://example.com/shop/sneakers-blue.jpg
+https://example.com/shop/sneakers-white.jpg
+:::`,
   { rich: true },
 )
 ```
@@ -227,7 +217,12 @@ Directives add blocks that markdown has no syntax for. Each one starts with `:::
 
 ```ts
 await client.send(jid).text(
-  ['Anything else I can help with?', '', ':::suggest', 'Track my order | Talk to a human', 'See opening hours', ':::'].join('\n'),
+  `Anything else I can help with?
+
+:::suggest
+Track my order | Talk to a human
+See opening hours
+:::`,
   { rich: true },
 )
 ```
@@ -240,7 +235,11 @@ The recipient sees three pills under the question. Zaileys has no event for pill
 
 ```ts
 await client.send(jid).text(
-  ['Your order is confirmed.', '', ':::tip', 'Tap a product photo to see it full size.', ':::'].join('\n'),
+  `Your order is confirmed.
+
+:::tip
+Tap a product photo to see it full size.
+:::`,
   { rich: true },
 )
 ```
@@ -251,7 +250,11 @@ await client.send(jid).text(
 
 ```ts
 await client.send(jid).text(
-  ['Watch the unboxing:', '', ':::video', 'https://example.com/clips/unboxing.mp4 | 15', ':::'].join('\n'),
+  `Watch the unboxing:
+
+:::video
+https://example.com/clips/unboxing.mp4 | 15
+:::`,
   { rich: true },
 )
 ```
@@ -264,14 +267,12 @@ The length is read from the first line and used for every clip in the block. It 
 
 ```ts
 await client.send(jid).text(
-  [
-    'Picked for you:',
-    '',
-    ':::product',
-    '- title: Sneakers Blue | price: Rp450.000 | sale: Rp399.000 | brand: Kicks | image: https://example.com/shop/sneakers-blue.jpg | url: https://example.com/shop/sneakers-blue',
-    '- title: Sneakers White | price: Rp450.000 | brand: Kicks | image: https://example.com/shop/sneakers-white.jpg | url: https://example.com/shop/sneakers-white',
-    ':::',
-  ].join('\n'),
+  `Picked for you:
+
+:::product
+- title: Sneakers Blue | price: Rp450.000 | sale: Rp399.000 | brand: Kicks | image: https://example.com/shop/sneakers-blue.jpg | url: https://example.com/shop/sneakers-blue
+- title: Sneakers White | price: Rp450.000 | brand: Kicks | image: https://example.com/shop/sneakers-white.jpg | url: https://example.com/shop/sneakers-white
+:::`,
   { rich: true, title: 'Kicks Store' },
 )
 ```
@@ -292,14 +293,12 @@ await client.send(jid).text(
 
 ```ts
 await client.send(jid).text(
-  [
-    'Trending this week:',
-    '',
-    ':::reels',
-    '- user: kicksstore | title: Blue sneakers on court | url: https://example.com/clips/court.mp4 | thumb: https://example.com/clips/court.jpg | views: 12400 | likes: 980 | verified: true',
-    '- user: kicksstore | title: Care guide | url: https://example.com/clips/care.mp4 | thumb: https://example.com/clips/care.jpg | views: 8800 | likes: 740',
-    ':::',
-  ].join('\n'),
+  `Trending this week:
+
+:::reels
+- user: kicksstore | title: Blue sneakers on court | url: https://example.com/clips/court.mp4 | thumb: https://example.com/clips/court.jpg | views: 12400 | likes: 980 | verified: true
+- user: kicksstore | title: Care guide | url: https://example.com/clips/care.mp4 | thumb: https://example.com/clips/care.jpg | views: 8800 | likes: 740
+:::`,
   { rich: true },
 )
 ```
@@ -321,11 +320,9 @@ await client.send(jid).text(
 
 ```ts
 await client.send(jid).text(
-  [
-    ':::post',
-    '- user: kicksstore | title: Summer drop is live | caption: Five new colors, free shipping this week. | thumb: https://example.com/posts/summer.jpg | likes: 1500 | comments: 132 | verified: true | source: INSTAGRAM',
-    ':::',
-  ].join('\n'),
+  `:::post
+- user: kicksstore | title: Summer drop is live | caption: Five new colors, free shipping this week. | thumb: https://example.com/posts/summer.jpg | likes: 1500 | comments: 132 | verified: true | source: INSTAGRAM
+:::`,
   { rich: true, title: 'Kicks Store' },
 )
 ```
@@ -349,22 +346,20 @@ await client.send(jid).text(
 Blocks appear in the order you write them, and you can mix any of them in one message:
 
 ```ts
-const answer = [
-  '*Order #1042* is on its way.',
-  '',
-  '| Item | Qty | Price |',
-  '| --- | --- | --- |',
-  '| Sneakers Blue | 1 | Rp399.000 |',
-  '| Care kit | 1 | Rp45.000 |',
-  '',
-  ':::tip',
-  'Deliveries arrive between 09:00 and 17:00.',
-  ':::',
-  '',
-  ':::suggest',
-  'Track package | Change address | Talk to a human',
-  ':::',
-].join('\n')
+const answer = `*Order #1042* is on its way.
+
+| Item | Qty | Price |
+| --- | --- | --- |
+| Sneakers Blue | 1 | Rp399.000 |
+| Care kit | 1 | Rp45.000 |
+
+:::tip
+Deliveries arrive between 09:00 and 17:00.
+:::
+
+:::suggest
+Track package | Change address | Talk to a human
+:::`
 
 await client.send(jid).text(answer, { rich: true, title: 'Kicks Store', footer: 'Order placed 11 Sep 2026' })
 ```
@@ -382,7 +377,9 @@ AIRich rich responses (rich: true) are a WhatsApp-Web-only feature and are not s
 To run the same bot on both providers, turn `rich` on only for WhatsApp Web:
 
 ```ts
-const md = ['*Order #1042* is on its way.', '', 'Track it: https://example.com/track/JX-20931'].join('\n')
+const md = `*Order #1042* is on its way.
+
+Track it: https://example.com/track/JX-20931`
 
 await client.send(jid).text(md, { rich: client.provider !== 'cloud' })
 ```

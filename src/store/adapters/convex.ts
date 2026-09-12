@@ -20,6 +20,18 @@ const MESSAGE_STORE_PREFIXES: readonly string[] = Object.freeze([MSG, CHAT, CONT
 const member = (key: WAMessageKey): string => `${key.id ?? ''}|${key.fromMe ? 1 : 0}`
 const msgKey = (key: WAMessageKey): string => `${MSG}${key.remoteJid ?? ''}:${member(key)}`
 const encode = (value: unknown): string => JSON.stringify(value, BufferJSON.replacer)
+
+/**
+ * Inverse of msgKey. The chat jid ends at the last ':' before the `id|fromMe` member; splitting at
+ * the first ':' truncated device-suffixed jids, so chatFilter saw the wrong chat and maxPerChat
+ * pooled different chats together.
+ */
+const chatJidOfMessageKey = (key: string): string => {
+  const rest = key.slice(MSG.length)
+  const bar = rest.lastIndexOf('|')
+  const colon = rest.lastIndexOf(':', bar === -1 ? rest.length : bar)
+  return colon === -1 ? rest : rest.slice(0, colon)
+}
 const decode = <T>(raw: string): T => JSON.parse(raw, BufferJSON.reviver) as T
 
 export class ConvexMessageStore implements MessageStore {
@@ -137,8 +149,7 @@ export class ConvexMessageStore implements MessageStore {
     const rows = await this.kv.list(MSG, {})
     const byJid = new Map<string, Array<{ key: string; ts: number }>>()
     for (const r of rows) {
-      const rest = r.key.slice(MSG.length)
-      const jid = rest.slice(0, rest.indexOf(':'))
+      const jid = chatJidOfMessageKey(r.key)
       if (opts.chatFilter && !opts.chatFilter(jid)) continue
       const arr = byJid.get(jid) ?? []
       arr.push({ key: r.key, ts: r.sortKey ?? 0 })

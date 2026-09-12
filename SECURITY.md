@@ -101,17 +101,37 @@ auth store, jadi membersihkan riwayat chat ikut menghapus sesi.
 - **`sessionId`** wajib cocok `/^[A-Za-z0-9_-]{1,64}$/` — ia diinterpolasi ke path yang dihapus
   rekursif.
 
+## Beban & Deployment (4.15)
+
+- **Multi-tenant pada satu database.** Adapter Postgres dan SQLite menerima `tablePrefix`, sehingga
+  beberapa sesi bisa berbagi satu database tanpa saling menimpa. Tanpa prefix, nama tabel tetap sama
+  seperti sebelumnya, jadi data lama langsung terbaca tanpa migrasi. Prefix divalidasi ketat karena
+  masuk ke identifier SQL.
+- **Backpressure pesan masuk.** Pesan yang menunggu resolusi LID dibatasi (`maxPendingResolutions`,
+  default 256) dan antreannya dibatasi berdasarkan bobot (`maxQueuedResolutions`, default 20.000;
+  pesan biasa berbobot 1, mention dan teks panjang menambah bobot). Lookup LID yang sama dijalankan
+  sekali. Pesan yang masuk antrean hanya me-resolve pengirimnya. Kalau antrean penuh, pesan dibuang
+  dan dicatat — **tidak pernah** diproses dengan identitas yang belum ter-resolve, supaya banjir pesan
+  tidak bisa dipakai untuk melewati ban list.
+- **`connect()` setelah `disconnect()`.** `disconnect()` tetap menutup store (supaya proses bisa exit),
+  dan `connect()` berikutnya membuka kembali lewat `reopen()` opsional yang dimiliki semua adapter
+  bawaan. Adapter kustom tanpa `reopen()` mendapat pesan error yang menjelaskan.
+- **ffmpeg/ffprobe.** Binary bawaan yang tidak executable (postinstall diblokir pnpm 10/bun) diperbaiki
+  otomatis dengan `chmod u+x`, atau jatuh ke binary sistem di `PATH`. `FFMPEG_PATH`/`FFPROBE_PATH`
+  dihormati. Binary yang dipakai tidak lagi bergantung urutan job.
+- **Antrean ffmpeg dibatasi.** Maksimal 4 proses bersamaan, 64 job menunggu, 120 detik waktu tunggu;
+  job berlebih ditolak dengan pesan jelas. Bisa diatur lewat `media` di `ClientOptions`.
+- **Opsi media dari `Client`.** `media: { maxBytes, allowLocalPaths, allowPrivateNetwork, deniedDirs,
+  maxImagePixels, maxConcurrentFfmpeg, maxQueuedFfmpeg, ffmpegQueueTimeoutMs }`. Berlaku untuk seluruh
+  proses — kalau ada beberapa `Client`, yang terakhir dibuat yang berlaku. Folder `FileAuthStore`
+  (termasuk `basePath` kustom) selalu dilindungi dari pembacaan media.
+
 ## Yang Belum Ditutup
 
-- **Multi-tenant pada satu database.** Adapter Postgres dan SQLite menyimpan credential di baris
-  `id = 'default'` dan tabel store tidak punya kolom tenant. Dua `Client` yang berbagi satu database
-  akan saling menimpa. Sampai skema di-migrasi: gunakan database (atau `namespace`) terpisah per
-  sesi.
-- **Tidak ada backpressure di pipeline inbound.** Burst pesan yang tiba sekaligus ditahan di memori
-  sebanding dengan ukuran burst — 4.000 pesan dengan 2.000 mention memuncak ~1 GB sebelum turun lagi
-  ke baseline setelah selesai diproses. Tidak bocor (memori kembali), tapi tidak ada batas jumlah
-  pesan yang diproses bersamaan. Di produksi kedatangan pesan dibatasi jaringan, jadi ini catatan
-  ketahanan, bukan celah yang bisa dipicu langsung.
-- **`disconnect()` menutup store.** Setelah `disconnect()`, `connect()` berikutnya gagal karena
-  message store sudah ditutup. Untuk sekarang buat `Client` baru daripada memakai ulang instance
-  yang sudah di-disconnect.
+- **Stiker animasi dengan ffmpeg bawaan.** ffmpeg 4.4 dari `@ffmpeg-installer/ffmpeg` tidak punya
+  encoder `libwebp`, jadi stiker animasi selalu gagal. Pakai ffmpeg sistem yang menyertakan libwebp.
+- **Format key Convex.** Bagian `:` di key pesan tidak di-escape. Dengan JID yang valid tabrakan tidak
+  bisa terjadi (JID selalu berakhir di `@server`), jadi format tidak diubah demi menghindari migrasi
+  data. Parsing JID saat pruning sudah diperbaiki.
+- **`MemoryMessageStore` tumbuh mengikuti jumlah pesan.** Inheren untuk message store di memori;
+  batasi dengan `autoDelete.maxAgeMs` atau pakai store di disk.

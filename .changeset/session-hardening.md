@@ -64,3 +64,25 @@ erase stored credentials; all are closed.
   development, or configure `appSecret` (recommended).
 - Plugin hot-reload (`plugins.watch`) defaults off when `NODE_ENV === 'production'`.
 - `sessionId` must match `/^[A-Za-z0-9_-]{1,64}$/`.
+
+**Load, deployment and multi-tenancy**
+
+- `PostgresAuthStore`, `PostgresMessageStore`, `SqliteAuthStore` and `SqliteMessageStore` accept
+  `tablePrefix`, so several sessions can share one database. Without it the original table names are
+  used, so existing data needs no migration.
+- Inbound backpressure: messages waiting on LID resolution are bounded (`maxPendingResolutions`,
+  default 256) behind a weighted queue (`maxQueuedResolutions`, default 20000). In-flight lookups are
+  shared, queued messages resolve only their sender, and overflow is shed and logged — never delivered
+  with an unresolved identity. A 4k mention-bomb burst dropped from ~1 GB to ~190 MB peak heap; a slow
+  resolver case from 436 MB to 113 MB with every message still delivered.
+- `connect()` works again after `disconnect()`: stores closed by `disconnect()` are reopened through a new
+  optional `reopen()` implemented by every bundled adapter.
+- ffmpeg/ffprobe: a bundled binary left non-executable by a skipped postinstall (pnpm 10, bun) is
+  repaired or replaced by the one on `PATH`; `FFMPEG_PATH`/`FFPROBE_PATH` are honoured; ffprobe no longer
+  switches binaries depending on job order.
+- The ffmpeg job queue is bounded (64 waiting, 120 s wait) and hands slots over without overshooting the
+  concurrency limit. Worst-case video latency p95 fell from 366 s to 96 s.
+- New `media` client option: `maxBytes`, `allowLocalPaths`, `allowPrivateNetwork`, `deniedDirs`,
+  `maxImagePixels`, `maxConcurrentFfmpeg`, `maxQueuedFfmpeg`, `ffmpegQueueTimeoutMs`. A `FileAuthStore`
+  directory, including a custom `basePath`, is always protected from media reads.
+- Convex `pruneMessages` parses the full chat jid, so `chatFilter` and `maxPerChat` see the right chat.

@@ -59,3 +59,4 @@ docs/search-index.json
 .vercel
 .env*
 .stress-metrics.txt
+.vps-build/

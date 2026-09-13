@@ -43,7 +43,8 @@ vm.runInContext(patched, sandbox)
 const { search, setData } = sandbox.__zs
 setData(JSON.parse(readFileSync(join(DOCS, 'search-index.json'), 'utf8')))
 
-// [query, slug that must rank #1 — or a list when more than one answer is defensible]
+// [query, slug that must rank #1 — or a list when more than one answer is defensible,
+//  optional heading anchor the top result must deep-link to]
 const CASES = [
   ['quickstart', 'quickstart'],
   ['send image', 'messaging/media'],
@@ -70,10 +71,22 @@ const CASES = [
   ['feature matrix', 'feature-matrix'],
   ['kirim foto', 'messaging/media'],
   ['jadwal siaran', 'bots/broadcast-and-schedule'],
+  // Identifiers: typed exactly as they appear in code, and the section that explains them.
+  ['FFMPEG_PATH', 'installation', 'ffmpeg-comes-bundled'],
+  ['clearAuthOn', 'whatsapp-web', 'when-the-saved-session-is-deleted'],
+  ['tablePrefix', ['reference/storage', 'data/storage']],
+  ['maxConcurrentFfmpeg', ['data/server-sizing', 'reference/client-options']],
+  ['allowUnsigned', ['cloud/setup', 'cloud/webhook', 'reference/client-options']],
+  ['commandPrefix', 'bots/commands'],
+  ['QUEUE_FULL', 'reference/error-codes', 'queue_full'],
+  ['STORE_NOT_AVAILABLE', 'reference/error-codes', 'store_not_available'],
+  ['server sizing', 'data/server-sizing'],
+  ['how much ram', 'data/server-sizing'],
+  ['animated sticker', 'installation', 'animated-stickers'],
 ]
 
 let failed = 0
-for (const [query, expected] of CASES) {
+for (const [query, expected, anchor] of CASES) {
   const hits = search(query)
   const top = hits[0]?.doc?.u?.replace(/^\//, '') ?? '(no results)'
   const want = (Array.isArray(expected) ? expected : [expected]).map((e) => (e === 'index' ? '' : e))
@@ -81,6 +94,9 @@ for (const [query, expected] of CASES) {
     failed++
     const runners = hits.slice(0, 3).map((h) => h.doc.u).join(', ')
     console.error(`✗ "${query}" → ${top || '/'} (want ${expected}) — top 3: ${runners}`)
+  } else if (anchor && hits[0].section?.a !== anchor) {
+    failed++
+    console.error(`✗ "${query}" → ${top}#${hits[0].section?.a ?? '(page top)'} (want #${anchor})`)
   }
 }
 

@@ -35,11 +35,13 @@ const stem = (w) => {
 // "sendTemplate" also indexes as send + template, so two-word queries find it.
 const tokenize = (text) => {
   const out = []
-  for (const raw of String(text).split(/[^A-Za-z0-9_]+/)) {
+  for (const token of String(text).split(/[^A-Za-z0-9_]+/)) {
+    const raw = token.replace(/^_+|_+$/g, '')
     if (!raw) continue
     const lower = raw.toLowerCase()
     if (lower.length > 1 && !STOP.has(lower)) out.push(stem(lower))
-    const parts = raw.split(/(?<=[a-z0-9])(?=[A-Z])/)
+    // FFMPEG_PATH and clearAuthOn also index their parts, so "ffmpeg path" finds them too.
+    const parts = raw.split(/_+|(?<=[a-z0-9])(?=[A-Z])/)
     if (parts.length > 1) {
       for (const part of parts) {
         const p = part.toLowerCase()
@@ -93,10 +95,37 @@ const frontmatter = (raw) => {
   return [meta, raw.slice(m[0].length)]
 }
 
+// Option and field names live in JSX attributes (<ParamField body="media.maxBytes">), which clean()
+// strips with the tags — yet they're what people search for on a reference page.
+const fieldNames = (t) =>
+  [...t.matchAll(/<(?:ParamField|ResponseField)\b[^>]*?\b(?:body|name|path|query)="([^"]+)"/g)].map((m) => m[1])
+
+// Identifiers a section defines or mentions: field names and inline code that looks like a name.
+const identifiers = (t) => {
+  const fenced = [...t.matchAll(/```[\s\S]*?```/g)].map((m) => m[0])
+  const names = [
+    ...fieldNames(t),
+    ...[...t.replace(/```[\s\S]*?```/g, ' ').matchAll(/`([A-Za-z_][\w.]*(?:\(\))?)`/g)].map((m) => m[1]),
+    // Environment variables inside code blocks, such as FFMPEG_PATH=… in a shell example.
+    ...fenced.flatMap((block) => block.match(/\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b/g) ?? []),
+  ]
+  const out = new Set()
+  for (const name of names) {
+    const segments = name.replace(/\(\)$/, '').split('.')
+    segments.forEach((segment, i) => {
+      // Keep segments that are names in their own right; `session` in `session.clearAuthOn` is not.
+      const named = /[A-Z_]/.test(segment) || (i === segments.length - 1 && segments.length > 1)
+      const id = segment.replace(/^_+|_+$/g, '').toLowerCase()
+      if (named && id.length > 2) out.add(id)
+    })
+  }
+  return [...out].join(' ')
+}
+
 const clean = (t) =>
   t.replace(/```[\s\S]*?```/g, ' ').replace(/^import .*$/gm, ' ').replace(/<[^>]+>/g, ' ')
    .replace(/\{\/\*[\s\S]*?\*\/\}/g, ' ').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-   .replace(/[*_`#|>]+/g, ' ').replace(/\s+/g, ' ').trim()
+   .replace(/[*`#|>]+/g, ' ').replace(/\s+/g, ' ').trim()
 
 // Pass 1: collect raw term frequencies per field.
 const raw = []
@@ -125,7 +154,7 @@ for (const file of walk(DOCS).sort()) {
     keywords: (Array.isArray(meta.keywords) ? meta.keywords : []).join(' '),
     heading: secs.map((s) => s.t).join(' '),
     description: meta.description ?? '',
-    body: clean(body),
+    body: `${clean(body)} ${fieldNames(body).join(' ')}`,
   }
 
   const tf = {}
@@ -151,7 +180,11 @@ for (const file of walk(DOCS).sort()) {
       tab: place.tab,
       ti: place.tabIndex,
       g: place.group,
-      secs: secs.map((s) => ({ t: s.t, a: s.a, x: clean(s.lines.join('\n')).slice(0, SNIPPET) })),
+      secs: secs.map((s) => {
+        const raw = s.lines.join('\n')
+        const ids = identifiers(raw)
+        return { t: s.t, a: s.a, x: clean(raw).slice(0, SNIPPET), ...(ids ? { k: ids } : {}) }
+      }),
     },
     tf,
     len,

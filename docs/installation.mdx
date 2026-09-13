@@ -191,9 +191,16 @@ Animated stickers need ffmpeg's WebP encoder (`libwebp`), and not every build ha
 | --- | --- |
 | Linux (x86 or ARM), Windows, or an Intel Mac, with the bundled ffmpeg | Work |
 | A Mac with Apple Silicon (M1 or newer), with the bundled ffmpeg | Fail — this build has no WebP encoder |
-| Your own ffmpeg 9, through `FFMPEG_PATH` | Fail in Zaileys 4.15.0 with `FFmpeg exited with code 8`, even with the WebP encoder: ffmpeg 9 no longer accepts an option Zaileys passes |
+| Your own ffmpeg with the WebP encoder, through `FFMPEG_PATH` | Work in Zaileys 4.15.1 and newer |
 
-A failed conversion throws `MEDIA_LOAD_FAILED` with `sticker() conversion failed: …`. Stickers from photos don't use ffmpeg, so they work everywhere. Test animated stickers on the server you deploy to.
+On an Apple Silicon Mac, use your own ffmpeg. Homebrew's `ffmpeg-full` includes the WebP encoder; the plain `ffmpeg` formula doesn't:
+
+```bash
+brew install ffmpeg-full
+FFMPEG_PATH="$(brew --prefix ffmpeg-full)/bin/ffmpeg" FFPROBE_PATH="$(brew --prefix ffmpeg-full)/bin/ffprobe" node bot.js
+```
+
+A failed conversion throws `MEDIA_LOAD_FAILED` with `sticker() conversion failed: …`. Stickers from photos don't use ffmpeg, so they work everywhere. On Zaileys 4.15.0, your own ffmpeg failed too when it was a newer release such as ffmpeg 9 (`FFmpeg exited with code 8`) — upgrade to 4.15.1.
 
 ## Check that it works
 

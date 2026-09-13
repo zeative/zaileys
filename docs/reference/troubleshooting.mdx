@@ -427,7 +427,7 @@ Zaileys couldn't convert the file with ffmpeg (`MEDIA_LOAD_FAILED`). There are t
 
 - **ffmpeg is missing.** Zaileys bundles ffmpeg for Windows, macOS, and Linux. On Termux and other platforms, it uses the `ffmpeg` on your `PATH`. Without it, the message includes `spawn ffmpeg ENOENT` from Node.js. On Termux, run `pkg install ffmpeg`. See [Runtimes](/data/runtimes).
 - **The file is corrupted or not really audio or an image.** Check that it opens in a media player.
-- **It's an animated sticker on an Apple Silicon Mac, or with your own ffmpeg 9.** The bundled ffmpeg for M-series Macs has no WebP encoder, and ffmpeg 9 rejects an option Zaileys 4.15.0 passes (`FFmpeg exited with code 8`). Animated stickers work with the bundled ffmpeg on Linux, Windows, and Intel Macs. See [Animated stickers](/installation#animated-stickers).
+- **It's an animated sticker on an Apple Silicon Mac.** The bundled ffmpeg for M-series Macs has no WebP encoder, so point `FFMPEG_PATH` at one that has it. If your own ffmpeg fails with `FFmpeg exited with code 8`, you're on Zaileys 4.15.0 — upgrade to 4.15.1. See [Animated stickers](/installation#animated-stickers).
 
 ### `spawn …/ffprobe EACCES` or `spawn ffprobe ENOENT` {#spawn-ffprobe-eacces}
 

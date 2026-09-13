@@ -7,6 +7,12 @@ keywords: ["changelog", "release notes", "what's new", "versions", "breaking cha
 
 Every v4 release listed in the project's changelog, newest first. Releases without an entry aren't shown. Upgrading from v3? Start with [Migrating from v3](/releases/migration).
 
+<Update label="v4.15.1">
+  **Fixed**
+
+  - Animated stickers work with newer ffmpeg releases through `FFMPEG_PATH`. Zaileys passed `-vsync`, which releases such as ffmpeg 9 reject, so the conversion failed with `FFmpeg exited with code 8`. On an Apple Silicon Mac, this is how you get animated stickers. [Animated stickers](/installation#animated-stickers)
+</Update>
+
 <Update label="v4.15.0">
   **Check before upgrading**
 

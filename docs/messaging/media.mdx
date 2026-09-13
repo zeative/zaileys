@@ -247,7 +247,7 @@ for (const photo of ['./trip/day-1.jpg', './trip/day-2.jpg']) {
   <Accordion title="Can I send a .gif file?">
     Not with `video()` — it only accepts video files, and a `.gif` is an image. You have two options:
 
-    - **As a sticker:** `client.send(jid).sticker('./party.gif', { animated: true })` works as-is on Linux, Windows, and Intel Macs. It fails on Apple Silicon Macs — [here's why](/installation#animated-stickers).
+    - **As a sticker:** `client.send(jid).sticker('./party.gif', { animated: true })` works as-is on Linux, Windows, and Intel Macs. On an Apple Silicon Mac it needs [your own ffmpeg](/installation#animated-stickers).
     - **As a looping video:** convert it to MP4 first, for example with `ffmpeg -i party.gif -pix_fmt yuv420p party.mp4`, then send it with `{ gifPlayback: true }`.
   </Accordion>
   <Accordion title="Do I need to install ffmpeg?">

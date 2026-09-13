@@ -119,6 +119,10 @@ export class StickerProcessor {
         console.warn('Using default duration:', FFMPEG_CONSTANTS.STICKER.MAX_DURATION);
       }
       /**
+       * No frame-sync option: `-vsync` is gone from ffmpeg 7+ (exit 8) and `-fps_mode` is missing from
+       * the bundled 4.4. The `fps` filter already emits a constant 10 fps, and output was verified
+       * byte-identical without it on 4.x and 9.0 for constant and variable frame rate inputs.
+       *
        * One argv element per token. Combined `"-flag value"` strings reach ffmpeg as a single
        * option literally named `flag value` (so this path always exited 1), and that shape becomes
        * argument injection the moment an interpolated value comes from remote data.
@@ -134,7 +138,6 @@ export class StickerProcessor {
         '-loop', '0',
         '-preset', 'default',
         '-an',
-        '-vsync', '0',
         '-t', String(safeDuration),
         '-compression_level', String(FFMPEG_CONSTANTS.STICKER.COMPRESSION_LEVEL),
       ];

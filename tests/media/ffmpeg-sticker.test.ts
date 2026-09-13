@@ -115,3 +115,25 @@ describe('StickerProcessor.create', () => {
     expect(captured!.toString('utf8')).toContain('Me')
   })
 })
+
+describe('StickerProcessor animated ffmpeg arguments', () => {
+  it('passes no frame-sync option, so the same arguments run on ffmpeg 4.x and 9.x', async () => {
+    fileTypeMock.mockResolvedValue({ mime: 'image/gif', ext: 'gif' })
+    await StickerProcessor.create(Buffer.from('GIF'))
+    const options = (processMock.mock.calls.at(-1)?.[0] as unknown as { options: string[] }).options
+    /** `-vsync` was removed from ffmpeg 7+ (exit 8); `-fps_mode` does not exist in the bundled 4.4. */
+    expect(options).not.toContain('-vsync')
+    expect(options).not.toContain('-fps_mode')
+  })
+
+  it('passes every flag and value as its own argv element', async () => {
+    fileTypeMock.mockResolvedValue({ mime: 'video/mp4', ext: 'mp4' })
+    await StickerProcessor.create(Buffer.from('MP4'))
+    const options = (processMock.mock.calls.at(-1)?.[0] as unknown as { options: string[] }).options
+    for (const token of options) {
+      if (token.startsWith('-')) expect(token).not.toMatch(/\s/)
+    }
+    expect(options).toContain('-vcodec')
+    expect(options[options.indexOf('-vcodec') + 1]).toBe('libwebp')
+  })
+})

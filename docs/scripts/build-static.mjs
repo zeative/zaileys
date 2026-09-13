@@ -113,6 +113,9 @@ const VERCEL = {
     destination,
     permanent: permanent !== false,
   })),
+  // Mintlify's page menu builds the Markdown URL in the browser as path + '.md', which gives '/.md' on
+  // the home page; the export only has '/index.md'.
+  rewrites: [{ source: '/.md', destination: '/index.md' }],
   headers: [
     {
       // Next.js asset filenames carry a content hash, so they never go stale.

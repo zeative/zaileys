@@ -1,5 +1,11 @@
 # zaileys
 
+## 4.15.1
+
+### Patch Changes
+
+- drop -vsync from animated stickers so ffmpeg 7+ accepts the arguments
+
 ## 4.15.0
 
 ### Minor Changes

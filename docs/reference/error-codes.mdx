@@ -29,7 +29,7 @@ Each code belongs to an error class, and the class tells you where it came from.
 | `ZaileysProviderError` | [`UNSUPPORTED_ON_CLOUD`](#unsupported_on_cloud) |
 | `ZaileysCommandError` | [`DUPLICATE_COMMAND`](#duplicate_command) · [`HANDLER_ERROR`](#handler_error) · [`INVALID_COMMAND_NAME`](#invalid_command_name) · [`MIDDLEWARE_ERROR`](#middleware_error) · [`NOT_CONNECTED`](#not_connected) · [`NO_SENT_MESSAGE`](#no_sent_message) |
 | `ZaileysDomainError` | [`GROUP_NOT_FOUND`](#group_not_found) · [`INVALID_PARTICIPANT`](#invalid_participant) · [`NEWSLETTER_NOT_FOUND`](#newsletter_not_found) · [`NOT_CONNECTED`](#not_connected) · [`OPERATION_FAILED`](#operation_failed) |
-| `ZaileysAutomationError` | [`NOT_CONNECTED`](#not_connected) · [`PRESENCE_FAILED`](#presence_failed) · [`RATE_LIMIT_INVALID`](#rate_limit_invalid) · [`SCHEDULE_INVALID`](#schedule_invalid) · [`STORE_UNAVAILABLE`](#store_unavailable) · [`TASK_FAILED`](#task_failed) |
+| `ZaileysAutomationError` | [`NOT_CONNECTED`](#not_connected) · [`PRESENCE_FAILED`](#presence_failed) · [`QUEUE_FULL`](#queue_full) · [`QUEUE_TIMEOUT`](#queue_timeout) · [`RATE_LIMIT_INVALID`](#rate_limit_invalid) · [`SCHEDULE_INVALID`](#schedule_invalid) · [`STORE_UNAVAILABLE`](#store_unavailable) · [`TASK_FAILED`](#task_failed) |
 | `ZaileysStoreError` | [`STORE_CLOSED`](#store_closed) · [`STORE_CONNECTION_FAILED`](#store_connection_failed) · [`STORE_CORRUPTED`](#store_corrupted) · [`STORE_NOT_AVAILABLE`](#store_not_available) · [`STORE_READ_FAILED`](#store_read_failed) · [`STORE_WRITE_FAILED`](#store_write_failed) |
 
 ### AUTH
@@ -145,6 +145,18 @@ Each code belongs to an error class, and the class tells you where it came from.
 `ZaileysAutomationError`. A typing, recording, or online update didn't go through. The original is on `cause`.
 
 **Do this:** usually temporary, so retry. Presence is best-effort and never worth crashing over. [Presence](/chats/presence)
+
+### QUEUE_FULL
+
+`ZaileysAutomationError`. A `TaskQueue` already holds its `maxPending` tasks — 10,000 by default — so the new one is refused. Inside Zaileys, `client.broadcast()` uses a queue when you pass `retry`.
+
+**Do this:** add tasks more slowly, or raise `maxPending` when a large backlog is expected. [Broadcast & schedule](/bots/broadcast-and-schedule)
+
+### QUEUE_TIMEOUT
+
+`ZaileysAutomationError`. A task in a `TaskQueue` ran longer than `taskTimeoutMs` — 120 seconds by default. Usually a send stuck on a connection that stopped answering.
+
+**Do this:** check the connection first. Raise `taskTimeoutMs` only for tasks that are legitimately slow.
 
 ### RATE_LIMITED
 

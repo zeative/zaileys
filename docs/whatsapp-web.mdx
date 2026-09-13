@@ -223,7 +223,7 @@ When the connection drops, Zaileys reconnects on its own. You don't need to writ
 ```mermaid
 flowchart TD
   close["Connection closes"] --> fatal{"Logged out, replaced,<br/>or forbidden?"}
-  fatal -->|yes| stop["Delete the session<br/>and stop"]
+  fatal -->|yes| stop["Stop — only a logout<br/>deletes the session"]
   fatal -->|no| wait["Wait: 3s, 6s, 12s…<br/>up to 60s"]
   wait --> reconnect["Reconnect"]
 ```
@@ -289,14 +289,42 @@ The `reason` on `disconnect` and `reconnecting` is one of:
 
 | `reason` | WhatsApp code | What it means | What Zaileys does |
 | --- | --- | --- | --- |
-| `logged-out` | 401 | The device was removed from the phone, or logged out. | Deletes the session and stops. Right after connecting it first retries up to twice, because WhatsApp sometimes sends a false logout. |
-| `connection-replaced` | 440 | Another connection opened with the same session. | Deletes the session and stops. |
-| `forbidden` | 403 | WhatsApp refused access to the account. | Deletes the session and stops. |
-| `bad-session` | 500 | The saved session can't be used. | Deletes the session and reconnects, so you get a new QR code. |
+| `logged-out` | 401 | The device was removed from the phone, or logged out. | Backs up and deletes the session, then stops. Right after connecting it first retries up to twice, because WhatsApp sometimes sends a false logout. |
+| `connection-replaced` | 440 | Another connection opened with the same session. | Stops, and keeps the session — the next start reconnects without a new QR code. |
+| `forbidden` | 403 | WhatsApp refused access to the account. | Stops, and keeps the session. |
+| `bad-session` | 500 | WhatsApp closed the connection with a generic error. | Reconnects with the saved session. |
 | `restart-required` | 515 | WhatsApp wants a fresh connection. It's normal right after you link a device. | Reconnects. |
 | `rate-limited` | 429 | WhatsApp is throttling this account. | Waits `rateLimitedDelayMs` (5 minutes), then reconnects. |
 | `connection-closed`, `connection-lost`, `multi-device-mismatch`, `unavailable-service` | 428, 408, 411, 503 | A network or server problem. | Reconnects with the usual waits. |
 | `unknown` | — | Any other reason, including you calling `disconnect()`. | Reconnects, unless you closed the connection yourself. |
+
+### When the saved session is deleted
+
+Only a logout deletes the saved session. `connection-replaced` and `forbidden` stop the bot but keep the login, and `bad-session` retries with it. WhatsApp uses code `500` for many ordinary network errors, and `440` means the login is valid and being used somewhere else — deleting on either would throw away a working session.
+
+Before deleting anything, Zaileys backs up the credentials. The file store keeps the copy as `creds.revoked-<time>.json` in the session folder; the database stores keep a separate backup entry.
+
+To delete the session on more reasons, list them in `session.clearAuthOn`:
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client({
+  session: { clearAuthOn: ['logged-out', 'forbidden'] },
+})
+```
+
+<ParamField body="session.clearAuthOn" type="DisconnectReasonDomain[]" default="['logged-out']">
+  The disconnect reasons allowed to delete the saved session. Any reason from the table above is accepted.
+</ParamField>
+
+Zaileys also refuses to overwrite a working login. If WhatsApp asks to pair again while a linked session is saved, the bot stops and reports:
+
+```text
+WhatsApp asked to pair again while a registered session is stored; aborting to protect it
+```
+
+Restart the bot to reconnect with the saved session. If you really want to link again, call `client.logout()` first, or delete the session folder.
 
 ## Limit login attempts
 

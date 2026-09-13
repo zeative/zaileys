@@ -186,7 +186,8 @@ Here `debug`, `info`, and `fatal` become no-ops, so only warnings and errors are
 | `mapDisconnectReason` | `(code: number \| undefined) => DisconnectReasonDomain` | The reason for a WhatsApp status code, such as `401` → `'logged-out'`. The full list is in the [disconnect table](/reference/events#disconnect). |
 | `isFatalDisconnect` | `(reason) => boolean` | `true` for `'logged-out'`, `'connection-replaced'`, and `'forbidden'`. |
 | `shouldReconnect` | `(reason) => boolean` | The opposite of `isFatalDisconnect`. |
-| `shouldClearAuth` | `(reason) => boolean` | `true` for the fatal reasons and `'bad-session'`. |
+| `shouldClearAuth` | `(reason, allowed?) => boolean` | `true` when `reason` is in `allowed`, which defaults to `DEFAULT_CLEAR_AUTH_REASONS`. |
+| `DEFAULT_CLEAR_AUTH_REASONS` | `readonly DisconnectReasonDomain[]` | `['logged-out']` — the only reason that deletes the saved session by default. |
 | `isRateLimited` | `(reason) => boolean` | `true` for `'rate-limited'`. |
 | `normalizePhoneNumber` | `(raw: string) => string` | The number without spaces, dashes, parentheses, and `+`. |
 | `validateE164` | `(raw: string) => string` | The normalized number, or throws `phoneNumber must be E.164 with country code` unless it's 8–15 digits. |

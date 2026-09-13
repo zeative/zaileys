@@ -622,10 +622,10 @@ client.on('disconnect', ({ reason, willReconnect }) => {
 
 | `reason` | WhatsApp status code | Reconnects? | Clears the login? |
 | --- | --- | --- | --- |
-| `'logged-out'` | 401 | No | Yes |
-| `'forbidden'` | 403 | No | Yes |
-| `'connection-replaced'` | 440 | No | Yes |
-| `'bad-session'` | 500 | Yes, with a new QR code | Yes |
+| `'logged-out'` | 401 | No | Yes, after a backup |
+| `'forbidden'` | 403 | No | No |
+| `'connection-replaced'` | 440 | No | No |
+| `'bad-session'` | 500 | Yes | No |
 | `'connection-lost'` | 408 | Yes | No |
 | `'connection-closed'` | 428 | Yes | No |
 | `'multi-device-mismatch'` | 411 | Yes | No |

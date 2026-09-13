@@ -269,6 +269,7 @@ Use that URL plus your route's path as the callback URL. If the URL changes when
 | --- | --- | --- | --- |
 | `GET` | `hub.mode` is `subscribe` and `hub.verify_token` equals `verifyToken` | `200` | The `hub.challenge` value |
 | `GET` | Anything else, including when `verifyToken` isn't set | `403` | `forbidden` |
+| `POST` | `appSecret` isn't set, and `allowUnsigned` isn't `true` | `401` | `webhook requires appSecret (or allowUnsigned for local dev)` |
 | `POST` | `appSecret` is set and `X-Hub-Signature-256` is missing or wrong | `401` | `invalid signature` |
 | `POST` | The body isn't valid JSON | `400` | `malformed body` |
 | `POST` | Otherwise | `200` | `OK`, and the events are emitted |
@@ -344,7 +345,7 @@ export async function POST(req: Request): Promise<Response> {
 
 ## Keep the webhook secure
 
-- **Always set `appSecret` in production.** Without it, the handler accepts any `POST`, and anyone who finds the URL can send fake messages that your handlers treat as real.
+- **Set `appSecret`, and never deploy with `allowUnsigned`.** Without the secret the handler refuses every delivery. With `allowUnsigned: true` it accepts any `POST`, so anyone who finds the URL can send fake messages that your handlers treat as real.
 - **Use a long random verify token**, and keep it out of your code like the other secrets.
 - **Serve over HTTPS.** Meta only calls HTTPS callback URLs with a valid certificate.
 - **Don't let anything rewrite the body.** Body parsers, and proxies that re-encode JSON, break the signature. Don't put the route behind authentication that would reject Meta's requests either.
@@ -355,6 +356,7 @@ export async function POST(req: Request): Promise<Response> {
 | --- | --- | --- |
 | `webhook()` throws `CONFIG`: `webhook() is only available on the cloud provider` | The client uses WhatsApp Web | Add `provider: 'cloud'` and the `cloud` options. |
 | Meta can't verify the callback URL | The `GET` got `403` because `verifyToken` isn't set or doesn't match, or Meta couldn't reach the URL | Check that the server is running, the URL opens in a browser, the path is right, and both verify tokens match. Test with the `curl` command above. |
+| Every `POST` gets `401 webhook requires appSecret (or allowUnsigned for local dev)` | `appSecret` isn't set | Add `appSecret` from **App settings → Basic** — see [Setup](/cloud/setup). |
 | Every `POST` gets `401 invalid signature` | Wrong `appSecret`, for example from another app, or the body was parsed or re-encoded before reaching Zaileys | Copy the app secret from the same app that owns the webhook. On Express, use `express.raw()` [before other parsers](#why-express-needs-the-raw-body). |
 | `POST` requests get `400 malformed body` | The body that reached Zaileys isn't the JSON Meta sent | Pass the raw body through unchanged. |
 | Requests get `405 method not allowed` | Something sends methods other than `GET` and `POST`, such as a `HEAD` health check | Route only `GET` and `POST` to the handler. |

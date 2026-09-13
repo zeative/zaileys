@@ -83,7 +83,7 @@ support.on('connect', ({ sessionId, me }) => console.log(`${sessionId} is ready 
 ```
 
 <ParamField body="sessionId" type="string" default="'default'">
-  Names this session. It picks the default auth folder (`./.zaileys/auth/sales`), appears as `sessionId` on connection events, and as `msg.channelId` on messages. Two clients with the same `sessionId` share one folder and fight over the login.
+  Names this session. It picks the default auth folder (`./.zaileys/auth/sales`), appears as `sessionId` on connection events, and as `msg.channelId` on messages. Two clients with the same `sessionId` share one folder and fight over the login. Use 1–64 characters from `A–Z`, `a–z`, `0–9`, `_`, and `-`: the ID becomes part of a folder path, so anything else throws `invalid sessionId` when you create the client.
 </ParamField>
 
 More in [Multiple accounts](/data/multi-account).
@@ -238,13 +238,13 @@ client.on('text', async (msg) => {
 ```
 
 <ParamField body="citation.authors" type="string[] | (jid: string) => boolean | Promise<boolean>">
-  The owners. A list of full JIDs, or a function that decides — it can be `async`, for example to check a database.
+  The owners. A list of phone numbers or JIDs, or a function that decides — it can be `async`, for example to check a database.
 </ParamField>
 <ParamField body="citation.banned" type="string[] | (jid: string) => boolean | Promise<boolean>">
   The people to ignore, in the same form.
 </ParamField>
 
-Lists match the sender's JID exactly, so write the full `…@s.whatsapp.net` form, not a bare number.
+A list entry can be a phone number such as `'6281234567890'`, or a full JID. Device suffixes like `:12` are ignored. An entry never matches across address types: a phone number doesn't match a sender known only by a `@lid` address, and a `@lid` entry doesn't match a phone number. A function receives the same value as `msg.senderId`.
 
 ## Tune reconnects
 

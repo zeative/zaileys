@@ -136,8 +136,11 @@ There is no file-based message store. The database packages are optional: Zailey
     <ParamField body="readonly" type="boolean" default="false">
       Open the database read-only.
     </ParamField>
+    <ParamField body="tablePrefix" type="string">
+      Added to the front of every table name, so several sessions can share one database — `tablePrefix: 'sales_'` turns `messages` into `sales_messages`. Start with a letter, then use letters, digits, or `_`, up to 41 characters; anything else throws `STORE_CONNECTION_FAILED`. Leave it out to keep the original names, so an existing database reads as before.
+    </ParamField>
 
-    One SQLite file holds one login. Running several accounts? Give each its own file — see [Multiple accounts](/data/multi-account).
+    Running several accounts? Give each its own file, or one shared file with a different `tablePrefix` per account — see [Multiple accounts](/data/multi-account).
 
   </Tab>
   <Tab title="Postgres">
@@ -183,6 +186,9 @@ There is no file-based message store. The database packages are optional: Zailey
     </ParamField>
     <ParamField body="max" type="number">
       Maximum connections in the pool the store creates. Only used with `connectionString`; `pg`'s own default applies otherwise.
+    </ParamField>
+    <ParamField body="tablePrefix" type="string">
+      Added to the front of every table name, so several sessions can share one database — `tablePrefix: 'sales_'` turns `zaileys_messages` into `sales_zaileys_messages`. Start with a letter, then use letters, digits, or `_`, up to 41 characters; anything else throws `STORE_CONNECTION_FAILED`. Leave it out to keep the original names, so an existing database reads as before.
     </ParamField>
 
     Pass exactly one of `connectionString` and `pool`. Passing both, or neither, throws `STORE_CONNECTION_FAILED` right away.
@@ -443,7 +449,7 @@ To keep the existing login instead, copy it with a one-off script:
 - Read database URLs and passwords from environment variables, and give the bot a database user that can only reach its own tables.
 - Turn on disk or database encryption if your host offers it.
 - To end a session for good, call `await client.logout()`. It logs the device out and clears the auth store.
-- Zaileys also clears the auth store on its own when WhatsApp reports `logged-out`, `connection-replaced`, `forbidden`, or `bad-session`.
+- Zaileys also clears the auth store on its own when WhatsApp reports `logged-out`, after backing up the credentials. Other disconnects keep the login — see [When the saved session is deleted](/whatsapp-web#when-the-saved-session-is-deleted).
 
 ## Common questions
 

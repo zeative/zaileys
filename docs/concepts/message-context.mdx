@@ -177,6 +177,22 @@ client.on('text', async (msg) => {
 
 Set up the lists in [Configuration](/concepts/configuration#mark-owners-and-banned-users).
 
+<Warning>
+  **Don't trust a quote you didn't store.** When the original message isn't in your message store, `msg.replied()` rebuilds it from the quote inside the reply — and the person replying controls that quote, including who it claims to be from. Check `verified` before acting on it:
+
+  ```ts
+  client.on('text', async (msg) => {
+    if (msg.text !== '/confirm') return
+    const quoted = await msg.replied()
+    if (!quoted?.verified || !quoted.isFromMe) {
+      await msg.reply('Reply /confirm to the order summary I sent you.')
+      return
+    }
+    await msg.reply(`Confirmed: ${quoted.text}`)
+  })
+  ```
+</Warning>
+
 ## Tell messages and conversations apart
 
 - **`uniqueId`** is different for every message. Use it to skip a message you've already handled, or to name a saved file.

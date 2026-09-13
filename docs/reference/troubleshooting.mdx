@@ -139,11 +139,11 @@ The word in parentheses tells you why it closed:
 | `unavailable-service` | Yes | Kept | WhatsApp's servers were briefly unavailable. |
 | `multi-device-mismatch` | Yes | Kept | The linked-device list was out of sync. |
 | `rate-limited` | Yes, after 5 minutes | Kept | WhatsApp answered HTTP 429. See [Your account is restricted right now](#your-account-is-restricted-right-now). |
-| `bad-session` | Yes | Deleted | WhatsApp rejected the saved session. You link again. |
+| `bad-session` | Yes | Kept | WhatsApp closed the connection with a generic error. If it never logs in, see [The saved session looks invalid or corrupted](#the-saved-session-looks-invalid-or-corrupted). |
 | `unknown` | Yes | Kept | A close code Zaileys doesn't recognize. |
-| `logged-out` | No | Deleted | The bot was unlinked. See [Disconnected (logged-out).](#disconnected-logged-out) |
-| `connection-replaced` | No | Deleted | Another connection took over. See [Disconnected (connection-replaced).](#disconnected-connection-replaced) |
-| `forbidden` | No | Deleted | WhatsApp blocked the number from connecting. |
+| `logged-out` | No | Deleted, after a backup | The bot was unlinked. See [Disconnected (logged-out).](#disconnected-logged-out) |
+| `connection-replaced` | No | Kept | Another connection took over. See [Disconnected (connection-replaced).](#disconnected-connection-replaced) |
+| `forbidden` | No | Kept | WhatsApp blocked the number from connecting. |
 
 When Zaileys stops retrying, it prints `[zaileys] Disconnected (<reason>).` and emits `disconnect` with `willReconnect: false`. Tune the retries with `reconnect`:
 
@@ -212,7 +212,7 @@ If you set `sessionId`, the folder is `./.zaileys/auth/<sessionId>`. If you keep
 [zaileys] Disconnected (logged-out).
 ```
 
-The bot is no longer a linked device — someone removed it under **Linked devices** on the phone, or your code called `client.logout()`. Zaileys deletes the saved session, so the next start shows a new QR code. Start the bot and link it again.
+The bot is no longer a linked device — someone removed it under **Linked devices** on the phone, or your code called `client.logout()`. Zaileys backs up the credentials and deletes the saved session, so the next start shows a new QR code. Start the bot and link it again.
 
 WhatsApp sometimes reports `logged-out` right after a successful connect when nothing is wrong. Zaileys reconnects up to twice to check before it deletes anything. The debug log shows `logged-out right after connect; treating as spurious and reconnecting instead of clearing session`.
 
@@ -228,11 +228,17 @@ A second connection opened with the same session, and WhatsApp closed this one. 
 - A deploy that starts the new version before stopping the old one.
 - Two servers sharing the same auth folder or database.
 
-Zaileys deletes the saved session on this disconnect, so the bot has to link again. Run exactly one process per session. To run several bots, give each its own `sessionId` — see [Multiple accounts](/data/multi-account).
+Zaileys keeps the saved session, so once only one process runs, starting the bot reconnects without linking again. Run exactly one process per session. To run several bots, give each its own `sessionId` — see [Multiple accounts](/data/multi-account).
 
 ### Disconnected (forbidden).
 
-WhatsApp refused to let this number connect, usually because it's banned. Zaileys deletes the saved session. Open WhatsApp on the bot's phone to see the account's status — this can't be fixed from code.
+WhatsApp refused to let this number connect, usually because it's banned. Zaileys stops but keeps the saved session. Open WhatsApp on the bot's phone to see the account's status — this can't be fixed from code.
+
+### `WhatsApp asked to pair again while a registered session is stored; aborting to protect it` {#whatsapp-asked-to-pair-again}
+
+WhatsApp started a new pairing even though a linked session is saved. Pairing would overwrite that working login, so Zaileys stops instead, logs this message, and emits it on `error` if you listen for it.
+
+Start the bot again — it reconnects with the saved session. If you actually want to link the number again, call `client.logout()` first, or delete the session folder.
 
 ### The bot asks for a new QR code after every restart
 
@@ -242,7 +248,7 @@ The session isn't being saved where the next run looks for it. Check each of the
 - **The container or server resets its disk.** Docker containers and many hosting platforms start with a clean filesystem. Mount a volume, or keep sessions in a database store.
 - **The `sessionId` changes between runs.** Each ID is a separate session.
 - **You use `MemoryAuthStore`.** It keeps the session in memory only.
-- **The last run ended with `logged-out`, `connection-replaced`, `forbidden`, or `bad-session`.** Zaileys deletes the session on purpose after those.
+- **The last run ended with `logged-out`.** Zaileys deletes the session on purpose after a logout. On versions before 4.15, `connection-replaced`, `forbidden`, and `bad-session` deleted it too.
 
 To pin the folder no matter where you start the bot, pass your own file store with an absolute path:
 
@@ -421,11 +427,13 @@ Zaileys couldn't convert the file with ffmpeg (`MEDIA_LOAD_FAILED`). There are t
 
 - **ffmpeg is missing.** Zaileys bundles ffmpeg for Windows, macOS, and Linux. On Termux and other platforms, it uses the `ffmpeg` on your `PATH`. Without it, the message includes `spawn ffmpeg ENOENT` from Node.js. On Termux, run `pkg install ffmpeg`. See [Runtimes](/data/runtimes).
 - **The file is corrupted or not really audio or an image.** Check that it opens in a media player.
-- **It's an animated sticker on an Apple Silicon Mac.** The bundled ffmpeg for M-series Macs has no WebP encoder, so animated stickers always fail there. They work on Linux, Windows, and Intel Macs. See [Animated stickers on Apple Silicon Macs](/installation#animated-stickers-on-apple-silicon-macs).
+- **It's an animated sticker on an Apple Silicon Mac, or with your own ffmpeg 9.** The bundled ffmpeg for M-series Macs has no WebP encoder, and ffmpeg 9 rejects an option Zaileys 4.15.0 passes (`FFmpeg exited with code 8`). Animated stickers work with the bundled ffmpeg on Linux, Windows, and Intel Macs. See [Animated stickers](/installation#animated-stickers).
 
-### `spawn …/ffprobe EACCES` {#spawn-ffprobe-eacces}
+### `spawn …/ffprobe EACCES` or `spawn ffprobe ENOENT` {#spawn-ffprobe-eacces}
 
-You installed with pnpm 10 or newer, which skipped the install script that lets the bundled `ffprobe` run. Video thumbnails and video durations fail; everything else keeps working. Add the `@ffprobe-installer/…` package for **every** platform you install on — your machine and your server — to `pnpm.onlyBuiltDependencies`, then run `pnpm install`. See [pnpm 10: allow the ffprobe install script](/installation#pnpm-10-allow-the-ffprobe-install-script).
+**`EACCES`** comes from Zaileys 4.14.1 and earlier installed with pnpm 10 or bun: those skip the install script that lets the bundled `ffprobe` run. Upgrade to 4.15 or newer, which grants the permission itself.
+
+**`ENOENT`** means Zaileys couldn't make the bundled binary runnable — for example, `node_modules` is read-only or owned by another user — and fell back to `ffprobe` on your `PATH`, which isn't installed. Install ffmpeg on the system, or point `FFPROBE_PATH` and `FFMPEG_PATH` at binaries that run. Video thumbnails and durations fail until then; other media keeps working. See [ffmpeg comes bundled](/installation#ffmpeg-comes-bundled).
 
 ### `video() expects a video source, got mime image/gif`
 

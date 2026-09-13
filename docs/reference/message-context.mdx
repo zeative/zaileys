@@ -204,6 +204,9 @@ Every flag is a `boolean`.
 <ResponseField name="isFromMe" type="boolean">
   The bot's own account sent it. Only reaches your handlers with `ignoreMe: false`.
 </ResponseField>
+<ResponseField name="verified" type="boolean">
+  `true` when Zaileys received the message or found it in the message store. `false` for a quoted message that [`replied()`](#replied) rebuilt from the quote inside a reply — its `text`, sender, and `isFromMe` are what the replier claims, not proof.
+</ResponseField>
 <ResponseField name="isGroup" type="boolean">
   The chat is a group.
 </ResponseField>
@@ -293,7 +296,7 @@ const original = await msg.replied()
 if (original) console.log(`${original.senderName ?? 'Someone'} said: ${original.text}`)
 ```
 
-Resolves to the message this one replies to, as its own `MessageContext`, or `null` when it isn't a reply. Zaileys first looks the original up in the message store; if it isn't there, it rebuilds it from the quote WhatsApp embeds in the reply.
+Resolves to the message this one replies to, as its own `MessageContext`, or `null` when it isn't a reply. Zaileys first looks the original up in the message store; if it isn't there, it rebuilds it from the quote WhatsApp embeds in the reply. A rebuilt quote has `verified: false`: anyone can send a reply whose quote claims to be from the bot, so check `verified` before trusting a quote for anything that grants access.
 
 ### message()
 

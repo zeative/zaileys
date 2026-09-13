@@ -20,7 +20,7 @@ A plugin is a file that holds one command or feature. Point Zaileys at a folder 
 | React to events | [`image`, `groupJoin`, and other methods](#listen-for-events-in-a-plugin) | Your method runs for every matching event |
 | Do more in one file | [`setup(ctx)`](#do-more-with-setup) | Several commands, middleware, timers, cleanup |
 | Group plugins | [Subfolders](#organize-plugins-in-folders) | The folder name becomes the commands' category |
-| Change code without restarting | [`watch: true`, the default](#reload-plugins-while-the-bot-runs) | A saved file reloads in place |
+| Change code without restarting | [`watch`, on outside production](#reload-plugins-while-the-bot-runs) | A saved file reloads in place |
 
 ## Load plugins from a folder
 
@@ -260,7 +260,7 @@ Subfolders are scanned too. The first folder under `dir` becomes the `category` 
 
 ## Reload plugins while the bot runs
 
-With `watch` on (the default), saving a plugin file:
+With `watch` on — the default, unless `NODE_ENV` is `production` — saving a plugin file:
 
 1. Unloads the old version: runs the cleanup function `setup` returned, removes its commands, middleware, and listeners, then calls `onUnload`.
 2. Imports the file again and loads it.
@@ -269,7 +269,7 @@ Deleting a file unloads its plugin, and adding a file loads it. Saves that land 
 
 - **Only the plugin file reloads.** Modules it imports, such as `_helpers.ts`, stay cached until you restart, and saving a `_` file doesn't trigger a reload.
 - **State at the top of the file starts over.** After a reload, a `Map` like `notes` above is empty.
-- **Turn watching off in production** with `watch: false`.
+- **Watching is off in production.** When `NODE_ENV` is `production`, `watch` defaults to `false`: anyone who can write to the plugin folder could run code in your bot, and every reload keeps the old module in memory. Turn it on there anyway and Zaileys logs a warning.
 - If the system can't watch the folder, Zaileys logs `plugin: watch unavailable; hot-reload disabled` and keeps the plugins it already loaded.
 
 ## Options
@@ -282,7 +282,6 @@ const client = new Client({
   plugins: {
     dir: './dist/plugins',
     pattern: /\.js$/,
-    watch: process.env.NODE_ENV !== 'production',
     onError: (error, file) => console.error(`Could not load ${file}:`, error),
   },
 })
@@ -291,7 +290,7 @@ const client = new Client({
 <ParamField body="dir" type="string" default="'./plugins'">
   The folder to load plugins from, including subfolders.
 </ParamField>
-<ParamField body="watch" type="boolean" default="true">
+<ParamField body="watch" type="boolean" default="true, or false when NODE_ENV is 'production'">
   Reload plugins when their files change.
 </ParamField>
 <ParamField body="pattern" type="RegExp" default="/\.(ts|js|mjs|cjs)$/">

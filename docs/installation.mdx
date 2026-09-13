@@ -167,60 +167,33 @@ Images and stickers then use the bundled `jimp` path.
 
 ## ffmpeg comes bundled
 
-Zaileys converts audio, video, and stickers with ffmpeg, and installs a matching ffmpeg and ffprobe binary for your platform. You don't need to install ffmpeg yourself. If no bundled binary is available for your platform, Zaileys falls back to the `ffmpeg` and `ffprobe` commands on your `PATH`.
+Zaileys converts audio, video, and stickers with ffmpeg, and installs a matching ffmpeg and ffprobe binary for your platform. You don't need to install ffmpeg yourself.
 
-When a bundled binary exists, Zaileys always uses it — an ffmpeg you installed yourself doesn't replace it.
+For each binary, Zaileys uses the first of these that works:
 
-### pnpm 10: allow the ffprobe install script
+1. **`FFMPEG_PATH` or `FFPROBE_PATH`**, when you set them.
+2. **The bundled binary.** pnpm 10 and bun skip install scripts from dependencies by default, which leaves the bundled binary without permission to run — Zaileys grants that permission itself, so there's nothing to approve.
+3. **`ffmpeg` or `ffprobe` on your `PATH`**, when your platform has no bundled binary, or Zaileys can't make it runnable — for example, when `node_modules` is read-only.
 
-<Warning>
-  **On pnpm 10 or newer, video thumbnails and video durations fail until you do this.** Audio, stickers, and video conversion still work, so it's easy to miss.
-</Warning>
+### Use your own ffmpeg
 
-pnpm 10 skips install scripts from dependencies unless you approve them. The bundled `ffprobe` is published without permission to run, and relies on an install script to fix that. Skip the script and it can't run. `pnpm add zaileys` warns you:
-
-```text
-Ignored build scripts: @ffprobe-installer/linux-x64
+```bash
+FFMPEG_PATH=/usr/bin/ffmpeg FFPROBE_PATH=/usr/bin/ffprobe node bot.js
 ```
 
-and the first video thumbnail fails with:
+Set both when you want a specific build, such as one with extra codecs. Zaileys uses the paths as they are, so a wrong path makes every conversion fail.
 
-```text
-spawn …/@ffprobe-installer/linux-x64/ffprobe EACCES
-```
+### Animated stickers
 
-The fix is to approve that package, but **approvals match one exact platform name**. Approving on your Mac allows `@ffprobe-installer/darwin-arm64` only, so your Linux server stays blocked — it works on your laptop and breaks after you deploy. Wildcards such as `@ffprobe-installer/*` don't work.
+Animated stickers need ffmpeg's WebP encoder (`libwebp`), and not every build has it:
 
-List the package for every machine you install on, in `package.json`:
-
-```json package.json
-{
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@ffprobe-installer/darwin-arm64",
-      "@ffprobe-installer/linux-x64"
-    ]
-  }
-}
-```
-
-Then run `pnpm install` again. Pick the names you need:
-
-| Machine | Package |
+| Where the bot runs | Animated stickers |
 | --- | --- |
-| Mac with Apple Silicon (M1 or newer) | `@ffprobe-installer/darwin-arm64` |
-| Mac with Intel | `@ffprobe-installer/darwin-x64` |
-| Linux server, x86 | `@ffprobe-installer/linux-x64` |
-| Linux server, ARM (such as AWS Graviton or Oracle Ampere) | `@ffprobe-installer/linux-arm64` |
-| Windows | `@ffprobe-installer/win32-x64` |
+| Linux (x86 or ARM), Windows, or an Intel Mac, with the bundled ffmpeg | Work |
+| A Mac with Apple Silicon (M1 or newer), with the bundled ffmpeg | Fail — this build has no WebP encoder |
+| Your own ffmpeg 9, through `FFMPEG_PATH` | Fail in Zaileys 4.15.0 with `FFmpeg exited with code 8`, even with the WebP encoder: ffmpeg 9 no longer accepts an option Zaileys passes |
 
-If you use SQLite, add `better-sqlite3` to the same list. npm, yarn, and bun run install scripts by default and don't need any of this.
-
-### Animated stickers on Apple Silicon Macs
-
-<Note>
-  The bundled ffmpeg for Apple Silicon Macs is built without the WebP encoder, so **animated stickers fail on an M-series Mac** with `MEDIA_LOAD_FAILED` and `sticker() conversion failed: …`. The Linux, Windows, and Intel Mac builds include the encoder, so the same code works once deployed. Test animated stickers on the machine you deploy to. Still stickers from images aren't affected.
-</Note>
+A failed conversion throws `MEDIA_LOAD_FAILED` with `sticker() conversion failed: …`. Stickers from photos don't use ffmpeg, so they work everywhere. Test animated stickers on the server you deploy to.
 
 ## Check that it works
 
@@ -246,7 +219,7 @@ Zaileys loaded. Provider: baileys, state: idle
 
 <AccordionGroup>
   <Accordion title="Do I need to install ffmpeg?">
-    No. Zaileys installs its own ffmpeg binary. It only uses a system ffmpeg when no bundled binary exists for your platform. On pnpm 10, [allow the ffprobe install script](#pnpm-10-allow-the-ffprobe-install-script) or video thumbnails fail.
+    No. Zaileys installs its own ffmpeg binary, including on pnpm 10 and bun. It only uses a system ffmpeg when you set `FFMPEG_PATH`, or when the bundled binary is missing or can't run. [How Zaileys picks ffmpeg](#ffmpeg-comes-bundled)
   </Accordion>
   <Accordion title="npm install fails while building sharp">
     Your platform has no prebuilt `sharp` binary. Install with `npm install zaileys --legacy-peer-deps` — Zaileys then processes images with the bundled `jimp` library.

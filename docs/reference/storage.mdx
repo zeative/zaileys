@@ -89,6 +89,9 @@ Tables `auth_creds` and `auth_signal`, created on first use, in WAL mode. Needs 
 <ParamField body="readonly" type="boolean" default="false">
   Open the database read-only.
 </ParamField>
+<ParamField body="tablePrefix" type="string">
+  Added to the front of every table name, so several sessions can share one database — `tablePrefix: 'sales_'` turns `auth_creds` into `sales_auth_creds`. Start with a letter, then use letters, digits, or `_`, up to 41 characters; anything else throws `STORE_CONNECTION_FAILED`. Leave it out to keep the original names, so an existing database reads as before.
+</ParamField>
 
 ### PostgresAuthStore
 
@@ -108,6 +111,9 @@ Tables `zaileys_auth_creds` and `zaileys_auth_signal`, created on first use. Nee
 </ParamField>
 <ParamField body="max" type="number">
   Pool size for the pool the store creates. Ignored with `pool`.
+</ParamField>
+<ParamField body="tablePrefix" type="string">
+  Added to the front of every table name, so several sessions can share one database — `tablePrefix: 'sales_'` turns `zaileys_auth_creds` into `sales_zaileys_auth_creds`. Start with a letter, then use letters, digits, or `_`, up to 41 characters; anything else throws `STORE_CONNECTION_FAILED`. Leave it out to keep the original names, so an existing database reads as before.
 </ParamField>
 
 Pass exactly one of `connectionString` and `pool`. Both or neither throws `STORE_CONNECTION_FAILED` from the constructor.
@@ -175,7 +181,7 @@ Each message store implements [`MessageStore`](#messagestore). All five support 
 | `MemoryMessageStore` | Everything | No | Emptied on restart |
 | `SqliteMessageStore` | 100 | No | Tables `messages`, `chats`, `contacts`, `presence` |
 | `PostgresMessageStore` | 100 | No | Tables `zaileys_messages`, `zaileys_chats`, `zaileys_contacts`, `zaileys_presence` |
-| `RedisMessageStore` | 100 | No | Presence expires after 5 minutes; `clear()` deletes `<namespace>:*` |
+| `RedisMessageStore` | 100 | No | Presence expires after 5 minutes; `clear()` deletes only message-store keys |
 | `ConvexMessageStore` | Everything | Yes | Shares the `zaileys_kv` table with the auth store |
 
 ### MemoryMessageStore
@@ -202,6 +208,9 @@ const store = new SqliteMessageStore({ database: './whatsapp.db' })
 <ParamField body="readonly" type="boolean" default="false">
   Open the database read-only.
 </ParamField>
+<ParamField body="tablePrefix" type="string">
+  Added to the front of every table name, so several sessions can share one database — `tablePrefix: 'sales_'` turns `messages` into `sales_messages`. Start with a letter, then use letters, digits, or `_`, up to 41 characters; anything else throws `STORE_CONNECTION_FAILED`. Leave it out to keep the original names, so an existing database reads as before.
+</ParamField>
 
 ### PostgresMessageStore
 
@@ -220,6 +229,9 @@ const store = new PostgresMessageStore({ connectionString: process.env.DATABASE_
 <ParamField body="max" type="number">
   Pool size, with `connectionString` only.
 </ParamField>
+<ParamField body="tablePrefix" type="string">
+  Added to the front of every table name, so several sessions can share one database — `tablePrefix: 'sales_'` turns `zaileys_messages` into `sales_zaileys_messages`. Start with a letter, then use letters, digits, or `_`, up to 41 characters; anything else throws `STORE_CONNECTION_FAILED`. Leave it out to keep the original names, so an existing database reads as before.
+</ParamField>
 
 ### RedisMessageStore
 
@@ -236,7 +248,7 @@ const store = new RedisMessageStore({ url: 'redis://localhost:6379', namespace: 
   A connected `redis` client you own.
 </ParamField>
 <ParamField body="namespace" type="string" default="'zaileys'">
-  Key prefix. Don't let the auth store's namespace start with this one — `clear()` deletes every key under it.
+  Key prefix. It can be the same as the auth store's: `clear()` deletes only this store's own keys, never the login.
 </ParamField>
 
 ### ConvexMessageStore
@@ -275,6 +287,12 @@ The login credentials, one object per session.
 <ResponseField name="deleteCreds()" type="() => Promise<void>">
   Remove the credentials. Called by `client.logout()`.
 </ResponseField>
+<ResponseField name="backupCreds()" type="() => Promise<void>">
+  Optional. Save a copy of the current credentials before they're erased, so a mistaken erase can be recovered. Zaileys calls it before every delete; without it, the copy is skipped.
+</ResponseField>
+<ResponseField name="readBackupCreds()" type="() => Promise<AuthenticationCreds | undefined>">
+  Optional. The newest copy saved by `backupCreds()`.
+</ResponseField>
 
 ### AuthStore
 
@@ -290,10 +308,13 @@ The encryption keys, grouped by type (`AuthStoreKey`: `'pre-key'`, `'session'`, 
   Remove these IDs.
 </ResponseField>
 <ResponseField name="clear()" type="() => Promise<void>">
-  Remove every key — and, in the built-in stores, the credentials too. Called on `client.logout()` and when WhatsApp ends the session for good.
+  Remove every key — and, in the built-in stores, the credentials too. Called on `client.logout()`, and on the disconnect reasons in [`session.clearAuthOn`](/reference/client-options#session) — by default only `logged-out`.
 </ResponseField>
 <ResponseField name="close()" type="() => Promise<void>">
   Release connections. Called on `client.disconnect()`.
+</ResponseField>
+<ResponseField name="reopen()" type="() => Promise<void>">
+  Optional. Undo `close()`, so `client.connect()` works again after `client.disconnect()`. Without it, connecting again fails with an error telling you to create a new `Client`.
 </ResponseField>
 
 Values contain `Buffer`s. Serialize them with `BufferJSON.replacer` and read them back with `BufferJSON.reviver` from `baileys`, as every built-in store does — plain `JSON.stringify` turns them into objects that no longer decrypt.
@@ -321,6 +342,7 @@ Optional methods — leave them out and the feature that needs them turns off:
 | --- | --- | --- |
 | `pruneMessages` | `(opts: PruneOptions) => Promise<number>` | Auto-delete. Returns how many messages it removed. |
 | `deleteMessage` | `(key: WAMessageKey) => Promise<void>` | Auto-delete without `pruneMessages`: Zaileys walks your chats with `listChats()` and deletes one by one. |
+| `reopen` | `() => Promise<void>` | `client.connect()` after `client.disconnect()`, which closed the store. |
 | `saveScheduledJob`, `listScheduledJobs`, `deleteScheduledJob` | `(job: ScheduledJobRecord) => Promise<void>`, `() => Promise<ScheduledJobRecord[]>`, `(id: string) => Promise<void>` | Scheduled messages that survive a restart. |
 
 With neither `pruneMessages` nor `deleteMessage`, auto-delete logs a warning and stays off.

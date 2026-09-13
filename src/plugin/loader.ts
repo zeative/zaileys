@@ -69,14 +69,27 @@ export class PluginLoader {
     this.dir = path.resolve(deps.options.dir ?? './plugins')
     this.pattern = deps.options.pattern ?? DEFAULT_PATTERN
     this.ignore = deps.options.ignore ?? DEFAULT_IGNORE
-    this.watchEnabled = deps.options.watch !== false
+    /**
+     * Off in production unless asked for: with watch on, anything that can write to the plugins
+     * directory gets code execution, and each reload leaks the previous module graph.
+     */
+    const watchDefault = process.env['NODE_ENV'] !== 'production'
+    this.watchEnabled = deps.options.watch ?? watchDefault
     this.onError = deps.options.onError
   }
 
   async start(): Promise<void> {
     const files = await scanPluginFiles(this.dir, this.pattern, this.ignore)
     for (const file of files) await this.loadFile(file)
-    if (this.watchEnabled) this.startWatch()
+    if (this.watchEnabled) {
+      if (process.env['NODE_ENV'] === 'production') {
+        this.logger?.warn(
+          { dir: this.dir },
+          'plugin watch is enabled in production: writes to this directory execute code, and each reload leaks the previous module',
+        )
+      }
+      this.startWatch()
+    }
   }
 
   async stop(): Promise<void> {

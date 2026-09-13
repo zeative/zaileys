@@ -140,6 +140,8 @@ When WhatsApp itself rejects a module call — for example, adding a member who 
 | `SCHEDULE_INVALID` | `scheduleAt()` got a bad date or message | `scheduleAt requires a valid Date`, `scheduled builder produced no content`, `scheduled builder evaluation failed` (original on `cause`), `scheduling multi-part messages (e.g. album) is not supported; schedule a single message`, `scheduling interactive/relayed content is not supported; schedule a text or media message` | Pass a `Date` and build one text or media message. |
 | `RATE_LIMIT_INVALID` | A rate limit of 0 or less | `perSec must be greater than zero`, `perJidPerSec must be greater than zero`, `burst must be greater than zero` | Use positive numbers. |
 | `PRESENCE_FAILED` | A typing, recording, or online update failed | `presence update '<type>' failed` — original on `cause` | Usually temporary; retry. |
+| `QUEUE_FULL` | A `TaskQueue` already holds its `maxPending` tasks (default 10,000) — including `client.broadcast()` with `retry` | `task queue is full (<n> pending)` | Add tasks more slowly, or raise `maxPending` if the backlog is expected. |
+| `QUEUE_TIMEOUT` | A task in a `TaskQueue` ran longer than `taskTimeoutMs` (default 120 s) | `task exceeded <ms>ms` | Look for a send stuck on a dead connection; raise `taskTimeoutMs` only for tasks that are legitimately slow. |
 | `TASK_FAILED`, `STORE_UNAVAILABLE` | Declared, not thrown by the current release | — | — |
 
 ## ZaileysStoreError

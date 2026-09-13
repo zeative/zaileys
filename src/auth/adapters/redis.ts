@@ -16,7 +16,31 @@ export interface RedisAuthStoreOptions {
   namespace?: string
 }
 
+/** Never echo the connection string verbatim — it carries the password into logs and Sentry. */
+const redactRedisUrl = (url: string | undefined): string => {
+  if (url === undefined) return '(no url)'
+  try {
+    const parsed = new URL(url)
+    if (parsed.password !== '') parsed.password = '***'
+    if (parsed.username !== '') parsed.username = '***'
+    return parsed.toString()
+  } catch {
+    return '(redacted redis url)'
+  }
+}
+
 const DEFAULT_NAMESPACE = 'zaileys'
+
+/** Mirrors the message store: a glob metacharacter here would widen every key sweep. */
+const assertSafeNamespace = (namespace: string): string => {
+  if (!/^[A-Za-z0-9_.:-]+$/.test(namespace)) {
+    throw new ZaileysStoreError(
+      'STORE_CONNECTION_FAILED',
+      `invalid namespace ${JSON.stringify(namespace)}: use letters, digits, and _ . : - only`,
+    )
+  }
+  return namespace
+}
 
 const SIGNAL_TYPES: readonly AuthStoreKey[] = [
   'pre-key',
@@ -58,7 +82,7 @@ export class RedisAuthStore implements AuthStoreBundle {
         'RedisAuthStore requires either client or url',
       )
     }
-    this.namespace = options.namespace ?? DEFAULT_NAMESPACE
+    this.namespace = assertSafeNamespace(options.namespace ?? DEFAULT_NAMESPACE)
     this.externalClient = options.client
     this.url = options.url
   }
@@ -135,6 +159,9 @@ export class RedisAuthStore implements AuthStoreBundle {
     close: async (): Promise<void> => {
       await this.shutdown()
     },
+    reopen: async (): Promise<void> => {
+      this.closed = false
+    },
   }
 
   readonly creds: AuthCredsStore = {
@@ -157,10 +184,28 @@ export class RedisAuthStore implements AuthStoreBundle {
       const client = await this.ensureReady()
       await this.runWrite(() => client.del(this.credsKey()))
     },
+    backupCreds: async (): Promise<void> => {
+      this.assertOpen()
+      const client = await this.ensureReady()
+      const raw = await this.runRead(() => client.get(this.credsKey()))
+      if (raw != null) await this.runWrite(() => client.set(this.credsBackupKey(), raw))
+    },
+    readBackupCreds: async (): Promise<AuthenticationCreds | undefined> => {
+      this.assertOpen()
+      const client = await this.ensureReady()
+      const raw = await this.runRead(() => client.get(this.credsBackupKey()))
+      if (raw == null) return undefined
+      return JSON.parse(raw, BufferJSON.reviver) as AuthenticationCreds
+    },
   }
 
   private credsKey(): string {
     return `${this.namespace}:auth:creds`
+  }
+
+  /** Quarantine key: keeps the last credentials recoverable after an erase. */
+  private credsBackupKey(): string {
+    return `${this.namespace}:auth:creds-backup`
   }
 
   private signalKey(type: AuthStoreKey, id: string): string {
@@ -211,7 +256,7 @@ export class RedisAuthStore implements AuthStoreBundle {
     } catch (err) {
       throw new ZaileysStoreError(
         'STORE_CONNECTION_FAILED',
-        `failed to connect to redis at ${this.url}`,
+        `failed to connect to redis at ${redactRedisUrl(this.url)}`,
         { cause: err },
       )
     }

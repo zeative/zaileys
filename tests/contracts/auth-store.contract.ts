@@ -211,6 +211,22 @@ export const runAuthStoreContract = (
         await expect(bundle.creds.readCreds()).resolves.toBeUndefined()
       })
 
+      it('D4b: backupCreds() keeps the erased credentials recoverable', async () => {
+        const creds = sampleCreds()
+        await bundle.creds.writeCreds(creds)
+        await bundle.creds.backupCreds?.()
+        await bundle.creds.deleteCreds()
+        await expect(bundle.creds.readCreds()).resolves.toBeUndefined()
+        const recovered = await bundle.creds.readBackupCreds?.()
+        expect(recovered).toBeDefined()
+        expect(recovered?.registered).toBe(creds.registered)
+      })
+
+      it('D4c: backupCreds() on an empty store is a no-op', async () => {
+        await expect(bundle.creds.backupCreds?.()).resolves.toBeUndefined()
+        await expect(bundle.creds.readBackupCreds?.()).resolves.toBeUndefined()
+      })
+
       it('D5: store remains functional after clear', async () => {
         await bundle.signal.write({ session: { '1': Uint8Array.from([1]) } })
         await bundle.signal.clear()
@@ -266,6 +282,19 @@ export const runAuthStoreContract = (
         await expectStoreClosed(bundle.signal.write({ session: { '1': Uint8Array.from([1]) } }))
         await expectStoreClosed(bundle.creds.readCreds())
         await expectStoreClosed(bundle.creds.writeCreds(sampleCreds()))
+      })
+
+      it('F1b: reopen after close restores operation', async () => {
+        await bundle.creds.writeCreds(sampleCreds())
+        expect(typeof bundle.signal.reopen).toBe('function')
+        await bundle.signal.close()
+        await bundle.signal.reopen?.()
+        await bundle.signal.write({ session: { r: Uint8Array.from([7]) } })
+        const read = await bundle.signal.read('session', ['r'])
+        expect(read['r']).toBeDefined()
+        /** Functional only: an in-memory SQLite database legitimately loses its rows on close. */
+        await bundle.creds.writeCreds(sampleCreds())
+        await expect(bundle.creds.readCreds()).resolves.toBeDefined()
       })
 
       it('F2: close is idempotent', async () => {

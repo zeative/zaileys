@@ -52,6 +52,33 @@ export interface ReconnectOptions {
   rateLimitedDelayMs?: number
 }
 
+export interface SessionSafetyOptions {
+  /**
+   * Disconnect reasons permitted to erase stored credentials. Defaults to `['logged-out']` only —
+   * see {@link DEFAULT_CLEAR_AUTH_REASONS}. Pass the wider set to restore pre-4.15 behaviour.
+   */
+  clearAuthOn?: readonly DisconnectReasonDomain[]
+}
+
+export interface MediaOptions {
+  /** Byte ceiling for media read from a URL or file. Default 64 MB. */
+  maxBytes?: number
+  /** Treat plain strings as filesystem paths. Default `true`; `false` = URLs, Buffers and `file:` URLs only. */
+  allowLocalPaths?: boolean
+  /** Allow fetching loopback, RFC1918 and link-local addresses. Default `false`. */
+  allowPrivateNetwork?: boolean
+  /** Extra directories media may never be read from. The auth directory is always protected. */
+  deniedDirs?: readonly string[]
+  /** Largest image the decoders accept, in pixels. Default 50 MP; lower it on small servers. */
+  maxImagePixels?: number
+  /** ffmpeg processes at once. Each 1080p re-encode holds ~235 MB. Default 4. */
+  maxConcurrentFfmpeg?: number
+  /** ffmpeg jobs allowed to wait for a slot before new ones are rejected. Default 64. */
+  maxQueuedFfmpeg?: number
+  /** Longest an ffmpeg job may wait for a slot. Default 120000. */
+  ffmpegQueueTimeoutMs?: number
+}
+
 export interface ClientOptions {
   /** Message transport: baileys (WhatsApp Web, default) or the official Meta Cloud API. */
   provider?: ProviderKind
@@ -74,6 +101,13 @@ export interface ClientOptions {
   ignoreMe?: boolean
   /** Bounds QR/pairing regeneration to avoid spam restriction. ON by default; `{ enabled: false }` to opt out. */
   authGuard?: AuthGuardOptions
+  /** Guards the stored session. By default only an explicit logout may erase credentials. */
+  session?: SessionSafetyOptions
+  /**
+   * Media loading and processing limits. Process-wide: they govern shared CPU, RAM and ffmpeg
+   * children, so with several clients in one process the last one constructed wins.
+   */
+  media?: MediaOptions
   /** Spaces out sensitive group/community/newsletter operations. ON by default; `{ enabled: false }` to opt out. */
   operationGuard?: OperationGuardOptions
   /** Drops duplicate presence (typing/recording/online) updates within a window. ON by default. */

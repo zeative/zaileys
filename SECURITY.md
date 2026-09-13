@@ -42,8 +42,12 @@ WAJIB di-commit; review setiap perubahan transitive deps.
 AuthStore default adapter (Phase 2) menyimpan credentials sebagai JSON file.
 **Tidak terenkripsi.** Process yang punya akses ke working directory bisa
 hijack session. Untuk production: gunakan `SqliteAuthStore` atau `RedisAuthStore`
-plus filesystem-level encryption (e.g., LUKS, FileVault) di host. File permission
-default adapter wajib `0600` untuk creds.json dan `0700` untuk parent directory.
+plus filesystem-level encryption (e.g., LUKS, FileVault) di host.
+
+Sejak 4.15, `FileAuthStore` **menegakkan** permission ini sendiri: direktori dibuat `0700`,
+file credential dan signal ditulis `0600` (termasuk file sementara, jadi tidak ada jendela
+world-readable). Penulisan credential di-`fsync` sebelum rename, dan `creds.json` yang korup
+dipulihkan dari snapshot terbaru.
 
 ## TC Tokens
 
@@ -52,3 +56,82 @@ oleh baileys upstream. Zaileys TIDAK expose API untuk issuance/expiration/prunin
 lifecycle terkelola otomatis dengan 4-bucket 7-day rolling validity (~28 hari).
 Storage round-trip tetap berjalan via `AuthStore` key `tctoken` (legal kategori
 di `SignalDataTypeMap`); tidak ada method tctoken-specific di public Client API.
+
+
+## Session Lifecycle (4.15)
+
+Kredensial hanya dihapus oleh **logout eksplisit**. Kode disconnect lain — termasuk `bad-session`
+(500), `connection-replaced` (440), dan `forbidden` (403) — tidak lagi menghapus sesi. Alasannya:
+baileys memakai 500 sebagai nilai default untuk stream error dan WebSocket error yang tidak dikenal,
+jadi 500 bukan sinyal bahwa sesi rusak; sedangkan 440 justru berarti kredensialnya masih valid dan
+sedang dipakai koneksi lain.
+
+Perilaku lama bisa dikembalikan per-alasan:
+
+```ts
+new Client({ session: { clearAuthOn: ['logged-out', 'forbidden'] } })
+```
+
+Sebelum setiap penghapusan, kredensial di-*quarantine* lebih dulu lewat `backupCreds()` opsional di
+`AuthCredsStore` (`creds.revoked-<ISO>.json` pada adapter file, baris/key terpisah pada adapter DB),
+sehingga penghapusan yang keliru masih bisa dipulihkan.
+
+`connect()` memuat kredensial **sebelum** socket dibuat. Sebelumnya socket lahir dengan objek kosong,
+sehingga `routingInfo` selalu hilang dan store yang lambat bisa membuat client mendaftar sebagai
+device baru lalu menimpa sesi yang valid.
+
+**Isolasi store vs auth.** `RedisMessageStore.clear()` dan `ConvexMessageStore.clear()` kini terbatas
+pada key milik masing-masing. Keduanya sebelumnya memakai namespace default `zaileys` yang sama dengan
+auth store, jadi membersihkan riwayat chat ikut menghapus sesi.
+
+## Untrusted Input
+
+- **Quoted message tidak terautentikasi.** `MessageContext.verified` bernilai `false` bila konteks
+  dibangun ulang dari `contextInfo` milik pengirim. Untuk keputusan otorisasi, wajib cek `verified`
+  sebelum mempercayai `isFromMe`, `text`, atau `senderId` dari `msg.replied()`.
+- **Perbandingan identitas sadar namespace.** LID (`@lid`) tidak pernah cocok dengan nomor telepon
+  (`@s.whatsapp.net`) meski digitnya sama. Berlaku untuk `citation.banned`, `citation.authors`,
+  guard admin grup, dan allow list `autoRejectCall`.
+- **Media dari input user.** String biasa masih diperlakukan sebagai path lokal, tapi path yang
+  resolve ke dalam direktori auth ditolak — jadi bot yang meneruskan teks user tidak bisa dipaksa
+  mengirim `creds.json`-nya sendiri. Alamat privat/loopback/link-local diblokir, ada batas ukuran
+  dan timeout. Mode ketat: `loadMedia(src, { allowLocalPaths: false })` — belum tersedia sebagai opsi `Client`.
+- **Webhook Cloud API wajib bertanda tangan.** POST tanpa `appSecret` ditolak. Untuk development
+  lokal: `cloud: { allowUnsigned: true }`.
+- **`sessionId`** wajib cocok `/^[A-Za-z0-9_-]{1,64}$/` — ia diinterpolasi ke path yang dihapus
+  rekursif.
+
+## Beban & Deployment (4.15)
+
+- **Multi-tenant pada satu database.** Adapter Postgres dan SQLite menerima `tablePrefix`, sehingga
+  beberapa sesi bisa berbagi satu database tanpa saling menimpa. Tanpa prefix, nama tabel tetap sama
+  seperti sebelumnya, jadi data lama langsung terbaca tanpa migrasi. Prefix divalidasi ketat karena
+  masuk ke identifier SQL.
+- **Backpressure pesan masuk.** Pesan yang menunggu resolusi LID dibatasi (`maxPendingResolutions`,
+  default 256) dan antreannya dibatasi berdasarkan bobot (`maxQueuedResolutions`, default 20.000;
+  pesan biasa berbobot 1, mention dan teks panjang menambah bobot). Lookup LID yang sama dijalankan
+  sekali. Pesan yang masuk antrean hanya me-resolve pengirimnya. Kalau antrean penuh, pesan dibuang
+  dan dicatat — **tidak pernah** diproses dengan identitas yang belum ter-resolve, supaya banjir pesan
+  tidak bisa dipakai untuk melewati ban list.
+- **`connect()` setelah `disconnect()`.** `disconnect()` tetap menutup store (supaya proses bisa exit),
+  dan `connect()` berikutnya membuka kembali lewat `reopen()` opsional yang dimiliki semua adapter
+  bawaan. Adapter kustom tanpa `reopen()` mendapat pesan error yang menjelaskan.
+- **ffmpeg/ffprobe.** Binary bawaan yang tidak executable (postinstall diblokir pnpm 10/bun) diperbaiki
+  otomatis dengan `chmod u+x`, atau jatuh ke binary sistem di `PATH`. `FFMPEG_PATH`/`FFPROBE_PATH`
+  dihormati. Binary yang dipakai tidak lagi bergantung urutan job.
+- **Antrean ffmpeg dibatasi.** Maksimal 4 proses bersamaan, 64 job menunggu, 120 detik waktu tunggu;
+  job berlebih ditolak dengan pesan jelas. Bisa diatur lewat `media` di `ClientOptions`.
+- **Opsi media dari `Client`.** `media: { maxBytes, allowLocalPaths, allowPrivateNetwork, deniedDirs,
+  maxImagePixels, maxConcurrentFfmpeg, maxQueuedFfmpeg, ffmpegQueueTimeoutMs }`. Berlaku untuk seluruh
+  proses — kalau ada beberapa `Client`, yang terakhir dibuat yang berlaku. Folder `FileAuthStore`
+  (termasuk `basePath` kustom) selalu dilindungi dari pembacaan media.
+
+## Yang Belum Ditutup
+
+- **Stiker animasi dengan ffmpeg bawaan.** ffmpeg 4.4 dari `@ffmpeg-installer/ffmpeg` tidak punya
+  encoder `libwebp`, jadi stiker animasi selalu gagal. Pakai ffmpeg sistem yang menyertakan libwebp.
+- **Format key Convex.** Bagian `:` di key pesan tidak di-escape. Dengan JID yang valid tabrakan tidak
+  bisa terjadi (JID selalu berakhir di `@server`), jadi format tidak diubah demi menghindari migrasi
+  data. Parsing JID saat pruning sudah diperbaiki.
+- **`MemoryMessageStore` tumbuh mengikuti jumlah pesan.** Inheren untuk message store di memori;
+  batasi dengan `autoDelete.maxAgeMs` atau pakai store di disk.

@@ -13,12 +13,24 @@ export interface AuthStore {
   delete<K extends AuthStoreKey>(type: K, ids: readonly string[]): Promise<void>
   clear(): Promise<void>
   close(): Promise<void>
+  /**
+   * Undo `close()` so a disconnected client can connect again. Optional: without it the client
+   * reports that the adapter cannot be reused and a new Client must be built.
+   */
+  reopen?(): Promise<void>
 }
 
 export interface AuthCredsStore {
   readCreds(): Promise<AuthenticationCreds | undefined>
   writeCreds(creds: AuthenticationCreds): Promise<void>
   deleteCreds(): Promise<void>
+  /**
+   * Move the current credentials aside so an erase stays recoverable. Optional: a third-party
+   * adapter without it simply skips the snapshot. Called before every destructive path.
+   */
+  backupCreds?(): Promise<void>
+  /** Read back the newest snapshot written by {@link backupCreds}. */
+  readBackupCreds?(): Promise<AuthenticationCreds | undefined>
 }
 
 export interface AuthStoreBundle {

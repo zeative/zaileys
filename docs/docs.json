@@ -108,7 +108,8 @@
               "data/business",
               "data/multi-account",
               "data/error-handling",
-              "data/runtimes"
+              "data/runtimes",
+              "data/server-sizing"
             ]
           }
         ]

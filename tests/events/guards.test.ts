@@ -28,11 +28,17 @@ describe('dropSpoofedSelfOnly', () => {
     expect(out.messages).toHaveLength(1)
   })
 
-  it('G4: drops a message whose stub parameters smuggle a requestId marker', () => {
-    const spoofed = msg({ messageStubParameters: ['requestId:abc'] })
+  it('G4: drops our own message carrying a requestId stub marker', () => {
+    const ours = msg({ key: { id: 'own', fromMe: true }, messageStubParameters: ['requestId:abc'] })
     const clean = msg({ messageStubParameters: ['someOther:value'] })
-    const out = dropSpoofedSelfOnly(payload([spoofed, clean]))
+    const out = dropSpoofedSelfOnly(payload([ours, clean]))
     expect(out.messages).toEqual([clean])
+  })
+
+  it('G4b: a remote sender cannot suppress their own delivery with that marker', () => {
+    const remote = msg({ key: { id: 'remote', fromMe: false }, messageStubParameters: ['requestId:abc'] })
+    const out = dropSpoofedSelfOnly(payload([remote]))
+    expect(out.messages).toEqual([remote])
   })
 
   it('G5: keeps a message when stubParameters is not an array', () => {

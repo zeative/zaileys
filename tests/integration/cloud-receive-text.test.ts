@@ -22,7 +22,7 @@ async function connectedClient() {
   fetchMock.mockResolvedValueOnce(ok({ id: '555' }))
   const c = new Client({
     provider: 'cloud',
-    cloud: { accessToken: 'tok', phoneNumberId: '555', verifyToken: 'verify-me' },
+    cloud: { accessToken: 'tok', phoneNumberId: '555', verifyToken: 'verify-me', allowUnsigned: true },
     autoConnect: false,
     statusLog: false,
   })
@@ -94,7 +94,7 @@ describe('integration: cloud webhook without connect()', () => {
     // no health-check fetch — construct only, never connect
     const c = new Client({
       provider: 'cloud',
-      cloud: { accessToken: 'tok', phoneNumberId: '555', verifyToken: 'verify-me' },
+      cloud: { accessToken: 'tok', phoneNumberId: '555', verifyToken: 'verify-me', allowUnsigned: true },
       autoConnect: false,
       statusLog: false,
     })

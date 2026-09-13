@@ -89,6 +89,7 @@ import {
   isRateLimited,
   mapDisconnectReason,
   shouldClearAuth,
+  DEFAULT_CLEAR_AUTH_REASONS,
   type DisconnectReasonDomain,
 } from '../connection/disconnect-reason.js'
 import { createAuthGuard, type AuthGuard } from '../connection/auth-guard.js'
@@ -102,6 +103,9 @@ import {
 import type { BaileysSocketLike, MessageStore } from '../store/types.js'
 import { MemoryMessageStore } from '../store/adapters/memory.js'
 import { adoptLogger } from '../utils/logger.js'
+import { configureMediaLoading, getMediaLoadingDefaults } from '../builder/media-loader.js'
+import { configureMediaLimits } from '../media/ffmpeg/core.js'
+import { sameUser } from '../utils/jid.js'
 import {
   attachInboundPipeline,
   type InboundPipelineHandle,
@@ -112,6 +116,7 @@ import type {
   BaileysSocket,
   ClientEventMap,
   ClientOptions,
+  MediaOptions,
   ConnectionAuthType,
   ConnectionEventMap,
   ConnectionState,
@@ -191,6 +196,44 @@ interface ConnectionUpdate {
   isNewLogin?: boolean
 }
 
+/**
+ * The default auth store interpolates this straight into a path it later removes recursively, so a
+ * value like `../../..` would delete arbitrary directories — reachable wherever the id comes from a
+ * request or a database row.
+ */
+const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
+
+/**
+ * Pushes the client's media policy into the process-wide defaults, and always shields a file auth
+ * store's directory — otherwise a custom `basePath` left credentials readable as "media".
+ */
+const applyMediaOptions = (media: MediaOptions | undefined, auth: AuthStoreBundle): void => {
+  const denied = new Set<string>(getMediaLoadingDefaults().deniedDirs ?? [])
+  for (const dir of media?.deniedDirs ?? []) denied.add(dir)
+  if (auth instanceof FileAuthStore) denied.add(auth.directory)
+  configureMediaLoading({
+    ...(media?.maxBytes !== undefined ? { maxBytes: media.maxBytes } : {}),
+    ...(media?.allowLocalPaths !== undefined ? { allowLocalPaths: media.allowLocalPaths } : {}),
+    ...(media?.allowPrivateNetwork !== undefined ? { allowPrivateNetwork: media.allowPrivateNetwork } : {}),
+    deniedDirs: [...denied],
+  })
+  configureMediaLimits({
+    ...(media?.maxImagePixels !== undefined ? { maxImagePixels: media.maxImagePixels } : {}),
+    ...(media?.maxConcurrentFfmpeg !== undefined ? { maxConcurrent: media.maxConcurrentFfmpeg } : {}),
+    ...(media?.maxQueuedFfmpeg !== undefined ? { maxQueued: media.maxQueuedFfmpeg } : {}),
+    ...(media?.ffmpegQueueTimeoutMs !== undefined ? { queueTimeoutMs: media.ffmpegQueueTimeoutMs } : {}),
+  })
+}
+
+const assertSafeSessionId = (sessionId: string): string => {
+  if (!SESSION_ID_PATTERN.test(sessionId)) {
+    throw new Error(
+      `invalid sessionId ${JSON.stringify(sessionId)}: use 1-64 characters from A-Z a-z 0-9 _ -`,
+    )
+  }
+  return sessionId
+}
+
 export class Client extends TypedEventEmitter<ClientEventMap> {
   readonly sessionId: string
   auth: AuthStoreBundle
@@ -206,10 +249,12 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private readonly machine: ConnectionStateMachine = createConnectionStateMachine()
   private reconnectStrategy: ReconnectStrategy
   private readonly authGuard: AuthGuard
+  private readonly clearAuthReasons: readonly DisconnectReasonDomain[]
   private readonly operationGuard: OperationGuard
   private readonly presenceThrottle: PresenceThrottleOptions | undefined
   private readonly scheduleLimiter: RateLimiter | undefined
   private authExhausted = false
+  private storesClosedByDisconnect = false
   /** Each chat's disappearing timer, learned from inbound messages so outbound sends can inherit it. */
   private readonly chatExpiration = new Map<string, number>()
   private _socket: BaileysSocket | undefined
@@ -263,7 +308,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     super({ logger: adoptLogger(options.logger) })
     this._provider = options.provider ?? 'baileys'
     this.cloudOptions = this._provider === 'cloud' ? validateCloudOptions(options.cloud) : undefined
-    this.sessionId = options.sessionId ?? DEFAULT_SESSION_ID
+    this.sessionId = assertSafeSessionId(options.sessionId ?? DEFAULT_SESSION_ID)
     this.logger = adoptLogger(options.logger)
     this.authType = options.authType ?? DEFAULT_AUTH_TYPE
     this.phoneNumber = options.phoneNumber
@@ -275,9 +320,11 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.reconnectOptions = options.reconnect ?? {}
     this.baileysExtra = options.baileys ?? {}
     this.auth = options.auth ?? new FileAuthStore({ basePath: `./.zaileys/auth/${this.sessionId}` })
+    applyMediaOptions(options.media, this.auth)
     this.store = options.store ?? new MemoryMessageStore()
     this.reconnectStrategy = createReconnectStrategy(this.reconnectOptions)
     this.authGuard = createAuthGuard(options.authGuard)
+    this.clearAuthReasons = options.session?.clearAuthOn ?? DEFAULT_CLEAR_AUTH_REASONS
     this.operationGuard = createOperationGuard(options.operationGuard)
     this.presenceThrottle = options.presence
     const schedulePerSec = options.scheduleRateLimitPerSec ?? 1
@@ -500,26 +547,27 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     await socket.sendMessage(snapshot.recipient, snapshot.content, snapshot.options)
   }
 
-  connect(): Promise<void> {
+  async connect(): Promise<void> {
     if (this._provider === 'cloud') return this.connectCloud()
     if (this.authType === 'pairing' && !this.phoneNumber) {
-      return Promise.reject(new Error('phoneNumber is required when authType is "pairing"'))
+      throw new Error('phoneNumber is required when authType is "pairing"')
     }
     if (this.machine.state === 'connecting' || this.machine.state === 'connected') {
-      return Promise.resolve()
+      return
     }
     if (
       this.machine.state !== 'idle' &&
       this.machine.state !== 'disconnected' &&
       this.machine.state !== 'reconnecting'
     ) {
-      return Promise.resolve()
+      return
     }
     if (this._socket) {
       for (const c of this.listenerCleanup) c.off()
       this.listenerCleanup = []
       this._socket = undefined
     }
+    if (this.storesClosedByDisconnect) await this.reopenStores()
     const fromReconnect = this.machine.state === 'reconnecting'
     if (!fromReconnect) {
       this.authGuard.reset()
@@ -535,7 +583,22 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       this.cachedSignalWrap = true
     }
     void this.warmVersion()
-    const creds = {} as AuthenticationCreds
+    /**
+     * Load before the socket exists. Baileys reads `creds.routingInfo` synchronously and decides
+     * register-vs-login from `creds.me` on open, so a socket built on an empty object loses the
+     * routing hint and can re-register the device — silently replacing a valid session.
+     */
+    let loaded: AuthenticationCreds | undefined
+    try {
+      loaded = await this.auth.creds.readCreds()
+    } catch (err) {
+      const error = err instanceof Error ? err : new Error(String(err))
+      if (this.machine.canTransition('disconnected')) this.machine.transition('disconnected')
+      this.logger.error(error, 'failed to read stored credentials; aborting connect to protect the session')
+      throw error
+    }
+    this.credsLoadedAtConnect = Boolean(loaded)
+    const creds = Object.assign({} as AuthenticationCreds, loaded ?? initAuthCreds())
     this.creds = creds
     const keys = signalKeyStoreFromAuthStore(this.auth.signal, this.logger)
     const config: UserFacingSocketConfig = {
@@ -549,10 +612,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       getMessage: (key) => this.resolveMessageForResend(key),
       patchMessageBeforeSending: this.patchOutgoing as never,
     }
-    const socket = makeWASocket(config)
-    this._socket = socket
-    this.store.bind(socket as unknown as BaileysSocketLike)
-    this.wireSocket(socket)
+    /** Armed before the socket so an immediate close cannot land with no rejection handler. */
     const promise = new Promise<void>((resolve, reject) => {
       const prevResolve = this.connectResolve
       const prevReject = this.connectReject
@@ -565,15 +625,10 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         reject(err)
       }
     })
-    void this.auth.creds
-      .readCreds()
-      .then((loaded) => {
-        this.credsLoadedAtConnect = Boolean(loaded)
-        Object.assign(creds, loaded ?? initAuthCreds())
-      })
-      .catch((err) => {
-        this.rejectPendingConnect(err instanceof Error ? err : new Error(String(err)))
-      })
+    const socket = makeWASocket(config)
+    this._socket = socket
+    this.store.bind(socket as unknown as BaileysSocketLike)
+    this.wireSocket(socket)
     return promise
   }
 
@@ -649,6 +704,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     return createWebhookHandler({
       ...(cloud.verifyToken !== undefined ? { verifyToken: cloud.verifyToken } : {}),
       ...(cloud.appSecret !== undefined ? { appSecret: cloud.appSecret } : {}),
+      ...(cloud.allowUnsigned === true ? { allowUnsigned: true } : {}),
       onPayload: (payload) => {
         this.ensureCloudRuntime().ingest(payload)
       },
@@ -680,6 +736,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.pluginLoader = undefined
     this.pluginRegistry = undefined
     this._scheduler?.dispose()
+    this._presence?.dispose()
     for (const c of this.listenerCleanup) c.off()
     this.listenerCleanup = []
     if (this._socket) {
@@ -700,6 +757,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     } catch (err) {
       this.logger.warn(err, 'store.close failed')
     }
+    this.storesClosedByDisconnect = true
     this.machine.transition('disconnected')
     if (this.disconnectEmittedFor !== this.connectAttemptSeq) {
       const reason: DisconnectReasonDomain = this.pendingDisconnectReason ?? 'unknown'
@@ -719,6 +777,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         this.logger.warn(err, 'socket.logout failed')
       }
     }
+    await this.quarantineCreds()
     try {
       await this.auth.signal.clear()
     } catch (err) {
@@ -830,14 +889,13 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private async isGroupAdmin(groupJid: string, senderJid: string): Promise<boolean> {
     try {
       const meta = await this.group.metadata(groupJid)
-      const bare = (jid: string): string => jid.split('@')[0]?.split(':')[0] ?? jid
-      const target = bare(senderJid)
+      /** Namespace-aware: a LID must never satisfy an admin entry stored as a phone number. */
       return (meta.participants ?? []).some((p) => {
         const entry = p as unknown as Record<string, unknown>
         const ids = [p.id, entry['phoneNumber'], entry['jid']].filter(
           (v): v is string => typeof v === 'string',
         )
-        return ids.some((id) => bare(id) === target) && p.admin != null
+        return ids.some((id) => sameUser(id, senderJid)) && p.admin != null
       })
     } catch {
       return false
@@ -1039,6 +1097,18 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       void this.handleConnectionUpdate(update)
     }
     const onCreds = (update: Partial<AuthenticationCreds>): void => {
+      /** Never let an update walk a registered identity back to unpaired — that is session loss. */
+      if (this.creds?.registered === true) {
+        const dropsRegistration = 'registered' in update && update.registered !== true
+        const dropsIdentity = 'me' in update && update.me == null
+        if (dropsRegistration || dropsIdentity) {
+          this.logger.error(
+            { sessionId: this.sessionId },
+            'refusing a creds update that would de-register the stored session',
+          )
+          return
+        }
+      }
       const merged = this.creds ? Object.assign(this.creds, update) : (update as AuthenticationCreds)
       this.creds = merged
       void this.auth.creds.writeCreds(merged).catch((err) => {
@@ -1083,6 +1153,19 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
 
   private async handleQrUpdate(qr: string): Promise<void> {
     if (this.authExhausted) return
+    /**
+     * A QR for an already-registered identity means the socket took the registration path — pairing
+     * again would overwrite a working session. Stop instead, and keep the stored creds intact.
+     */
+    if (this.creds?.registered === true) {
+      const error = new Error(
+        'WhatsApp asked to pair again while a registered session is stored; aborting to protect it',
+      )
+      this.logger.error({ sessionId: this.sessionId }, error.message)
+      if (this.listenerCount('error') > 0) this.emit('error', { sessionId: this.sessionId, error })
+      void this.disconnect()
+      return
+    }
     if (this.authType === 'pairing' && this.phoneNumber) {
       if (this.pairingRequested) return
       const now = Date.now()
@@ -1391,7 +1474,8 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         'logged-out right after connect; treating as spurious and reconnecting instead of clearing session',
       )
     }
-    if (shouldClearAuth(reason) && !spuriousLogout) {
+    if (shouldClearAuth(reason, this.clearAuthReasons) && !spuriousLogout) {
+      await this.quarantineCreds()
       try {
         await this.auth.signal.clear()
       } catch (err) {
@@ -1458,6 +1542,32 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         this.machine.transition('disconnected')
       }
       this.rejectPendingConnect(new Error(`connection closed (${reason})`))
+    }
+  }
+
+  /**
+   * disconnect() still releases connections, so a script that disconnects can exit. Reconnecting
+   * re-opens what it closed; before this, connect() after disconnect() failed with STORE_CLOSED.
+   */
+  private async reopenStores(): Promise<void> {
+    const signalReopen = this.auth.signal.reopen
+    const storeReopen = this.store.reopen
+    if (typeof signalReopen !== 'function' || typeof storeReopen !== 'function') {
+      throw new Error(
+        'this auth or message store adapter cannot be reopened after disconnect(); implement reopen() or create a new Client',
+      )
+    }
+    await signalReopen.call(this.auth.signal)
+    await storeReopen.call(this.store)
+    this.storesClosedByDisconnect = false
+  }
+
+  /** Snapshot the credentials before any erase, so a wrong wipe stays recoverable. */
+  private async quarantineCreds(): Promise<void> {
+    try {
+      await this.auth.creds.backupCreds?.()
+    } catch (err) {
+      this.logger.warn(err, 'auth.creds.backupCreds failed; continuing with the erase')
     }
   }
 

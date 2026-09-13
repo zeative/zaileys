@@ -68,8 +68,42 @@ export interface MockSocket {
   setUser(user: MockSocketUser): void
 }
 
+/**
+ * connect() now awaits readCreds before wiring the socket, so a test that triggers an event
+ * immediately after calling connect() would emit into the void. Buffer anything emitted before the
+ * FIRST listener for that event attaches, then replay. Once wired, behave like a plain emitter so
+ * detach() semantics are unchanged.
+ */
+class PreWireBufferedEmitter extends EventEmitter {
+  private readonly pending = new Map<string, unknown[][]>()
+  private readonly wired = new Set<string>()
+
+  override emit(event: string | symbol, ...args: unknown[]): boolean {
+    const key = String(event)
+    if (!this.wired.has(key)) {
+      const queue = this.pending.get(key) ?? []
+      queue.push(args)
+      this.pending.set(key, queue)
+      return false
+    }
+    return super.emit(event, ...args)
+  }
+
+  override on(event: string | symbol, listener: (...args: never[]) => void): this {
+    const key = String(event)
+    super.on(event, listener as (...args: unknown[]) => void)
+    if (!this.wired.has(key)) {
+      this.wired.add(key)
+      const queue = this.pending.get(key)
+      this.pending.delete(key)
+      for (const args of queue ?? []) super.emit(event, ...args)
+    }
+    return this
+  }
+}
+
 export function createMockSocket(initial?: { user?: MockSocketUser }): MockSocket {
-  const ev = new EventEmitter()
+  const ev = new PreWireBufferedEmitter()
   ev.setMaxListeners(0)
   const socket: MockSocket = {
     ev,

@@ -22,7 +22,7 @@ async function connectedClient() {
   fetchMock.mockResolvedValueOnce(ok({ id: '555' }))
   const c = new Client({
     provider: 'cloud',
-    cloud: { accessToken: 'tok', phoneNumberId: '555', apiVersion: 'v23.0' },
+    cloud: { accessToken: 'tok', phoneNumberId: '555', apiVersion: 'v23.0', allowUnsigned: true },
     autoConnect: false,
     statusLog: false,
   })

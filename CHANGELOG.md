@@ -1,5 +1,39 @@
 # zaileys
 
+## 4.15.0
+
+### Minor Changes
+
+- add tablePrefix so several sessions can share one sql database
+- expose media loading and processing limits and always protect the auth directory
+- flag quoted context rebuilt from unauthenticated contextInfo
+- quarantine credentials before any erase so a wipe stays recoverable
+- add htmlApp content with android inline HTML and webview fallback
+
+### Patch Changes
+
+- parse the full chat jid when pruning convex messages
+- reopen stores closed by disconnect so connect can run again
+- add weighted backpressure for messages waiting on lid resolution
+- bound the ffmpeg job queue and hand slots over without overshooting
+- repair non-executable bundled ffmpeg binaries and resolve ffprobe consistently
+- clamp long timers, stop endless retries, and fix redis range direction
+- bound every remote-keyed cache and cancel presence timers on disconnect
+- validate sessionId so it cannot escape the auth directory
+- require signed webhooks, pin the media host, and redact secrets from logs
+- deny media reads inside the auth directory and block private-network fetches
+- time out and kill ffmpeg children, bound concurrency, validate ffprobe input
+- reject decompression bombs and cap bytes read from urls and files
+- bound mention fan-out with a cap, batching and an LRU
+- remove quadratic text scans reachable from one inbound message
+- drop self-only protocol messages spoofed by a remote sender
+- compare identities within their namespace so ban lists cannot be bypassed
+- refuse to re-pair or de-register a stored session
+- stop handing baileys a clear() that erases credentials
+- scope clear() to store keys so it cannot delete the session
+- load credentials before the socket exists
+- only an explicit logout may erase stored credentials
+
 ## 4.14.1
 
 ### Patch Changes

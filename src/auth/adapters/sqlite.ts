@@ -1,6 +1,7 @@
 import { BufferJSON } from 'baileys'
 import type { AuthenticationCreds, SignalDataSet } from 'baileys'
 import { ZaileysStoreError } from '../../types/store-error.js'
+import { assertTablePrefix, prefixSqliteDb, tableRewriter } from '../../types/table-prefix.js'
 import type {
   AuthCredsStore,
   AuthStore,
@@ -31,7 +32,11 @@ type RawDriverCtor = new (
 export interface SqliteAuthStoreOptions {
   database: string | Buffer
   readonly?: boolean
+  /** Prefix for this store's tables, so several sessions can share one database file. Default none. */
+  tablePrefix?: string
 }
+
+const AUTH_TABLES = ['auth_creds', 'auth_signal'] as const
 
 let cachedDriver: RawDriverCtor | null = null
 
@@ -51,6 +56,8 @@ const loadDriver = async (): Promise<RawDriverCtor> => {
 }
 
 const CREDS_ID = 'default'
+/** Quarantine row: keeps the last credentials recoverable after an erase. */
+const CREDS_BACKUP_ID = 'backup'
 const CHUNK = 500
 
 type PreparedSet = {
@@ -80,8 +87,11 @@ export class SqliteAuthStore implements AuthStoreBundle {
   private readyPromise: Promise<void> | null = null
   private closed = false
 
+  private readonly rewrite: (sql: string) => string
+
   constructor(options: SqliteAuthStoreOptions) {
     this.options = options
+    this.rewrite = tableRewriter(assertTablePrefix(options.tablePrefix), AUTH_TABLES)
   }
 
   readonly creds: AuthCredsStore = {
@@ -99,6 +109,17 @@ export class SqliteAuthStore implements AuthStoreBundle {
     deleteCreds: async (): Promise<void> => {
       const prep = await this.ensureReady()
       prep.deleteCreds.run(CREDS_ID)
+    },
+    backupCreds: async (): Promise<void> => {
+      const prep = await this.ensureReady()
+      const row = prep.readCreds.get(CREDS_ID) as { data: Buffer | Uint8Array } | undefined
+      if (row) prep.writeCreds.run(CREDS_BACKUP_ID, row.data)
+    },
+    readBackupCreds: async (): Promise<AuthenticationCreds | undefined> => {
+      const prep = await this.ensureReady()
+      const row = prep.readCreds.get(CREDS_BACKUP_ID) as { data: Buffer | Uint8Array } | undefined
+      if (!row) return undefined
+      return this.parseBlob<AuthenticationCreds>(row.data)
     },
   }
 
@@ -182,6 +203,13 @@ export class SqliteAuthStore implements AuthStoreBundle {
         this.prepared = null
       }
     },
+    /** close() drops the handle and prepared statements; the ready promise must go with them. */
+    reopen: async (): Promise<void> => {
+      this.closed = false
+      this.db = null
+      this.prepared = null
+      this.readyPromise = null
+    },
   }
 
   private async ensureReady(): Promise<PreparedSet> {
@@ -203,7 +231,10 @@ export class SqliteAuthStore implements AuthStoreBundle {
     const Driver = await loadDriver()
     let db: DatabaseInstance
     try {
-      db = new Driver(this.options.database as string, { readonly: this.options.readonly ?? false })
+      db = prefixSqliteDb(
+        new Driver(this.options.database as string, { readonly: this.options.readonly ?? false }),
+        this.rewrite,
+      )
     } catch (err) {
       throw new ZaileysStoreError(
         'STORE_CONNECTION_FAILED',

@@ -10,6 +10,10 @@ export type RetryPolicy = {
 }
 
 export type TaskQueueOptions = {
+  /** Reject new work past this backlog instead of growing without bound. Default 10000. */
+  maxPending?: number
+  /** Per-task deadline; a hung task otherwise parks its concurrency slot forever. Default 120000. */
+  taskTimeoutMs?: number
   concurrency?: number
   retry?: RetryPolicy
 }

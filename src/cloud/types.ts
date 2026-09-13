@@ -11,6 +11,11 @@ export interface CloudOptions {
   verifyToken?: string
   /** Meta app secret; enables X-Hub-Signature-256 verification of webhook POSTs. */
   appSecret?: string
+  /**
+   * Accept webhook POSTs that carry no verified signature. Off by default — without `appSecret`
+   * anyone who learns the endpoint URL can inject inbound events. Local development only.
+   */
+  allowUnsigned?: boolean
   /** Graph API version, e.g. 'v23.0'. Defaults to the pinned stable version. */
   apiVersion?: string
   /** Override the Graph API origin (tests / proxies). */

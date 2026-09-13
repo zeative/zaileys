@@ -3,6 +3,7 @@ import { Readable } from 'node:stream'
 import { asRecord, GROUP_STATUS_FIELDS, isGroupJid, wrapperChainHas } from './decoders/_shared.js'
 import type { SenderInfo } from './types.js'
 import type { TextOptions } from '../builder/builder.js'
+import { matchesUser } from '../utils/jid.js'
 
 export type ChatType =
   | 'text'
@@ -251,6 +252,12 @@ export interface MessageContext {
   mentions: string[]
   links: string[]
   isFromMe: boolean
+  /**
+   * Whether this context came from a message we actually stored. `false` means it was rebuilt from
+   * the sender's own `contextInfo` — the text, the author and `isFromMe` are the sender's claim, not
+   * proof. Require `verified` before trusting a quote for an authorization decision.
+   */
+  verified: boolean
   isGroup: boolean
   isNewsletter: boolean
   isBroadcast: boolean
@@ -300,6 +307,8 @@ export interface MentionAllContext extends MessageContext {
 }
 
 export interface BuildContextInput {
+  /** Defaults to true; set false when the context was rebuilt from unauthenticated `contextInfo`. */
+  verified?: boolean
   message: WAMessage
   key: WAMessageKey
   channelId: string
@@ -332,10 +341,20 @@ export interface BuildContextInput {
   media?: ContextMedia
 }
 
+const TRAILING_PUNCTUATION = new Set(['.', ',', ';', ':', '!', '?'])
+
+/** Linear trailing trim. The obvious `/[.,;:!?]+$/` backtracks quadratically: a 60 KB run of dots
+ *  in one whitespace-free "URL" froze the event loop for ~6.7s, and this runs 2-3x per message. */
+const trimTrailingPunctuation = (url: string): string => {
+  let end = url.length
+  while (end > 0 && TRAILING_PUNCTUATION.has(url[end - 1] as string)) end -= 1
+  return end === url.length ? url : url.slice(0, end)
+}
+
 export const extractLinks = (text: string): string[] => {
   const matches = text.match(/(https?:\/\/[^\s]+)/g)
   if (!matches) return []
-  return matches.map((url) => url.replace(/[.,;:!?]+$/, ''))
+  return matches.map(trimTrailingPunctuation)
 }
 
 const fnv1a = (input: string, seed = 0x811c9dc5): number => {
@@ -414,7 +433,10 @@ export const makeCitation = (
     field: string[] | ((jid: string) => boolean | Promise<boolean>) | undefined,
   ): Promise<boolean> => {
     if (field === undefined) return false
-    if (Array.isArray(field)) return field.includes(senderJid)
+    /** Device-suffix and format tolerant, but never across the LID/phone-number namespaces. */
+    if (Array.isArray(field)) {
+      return field.some((entry) => matchesUser(entry, senderJid))
+    }
     return field(senderJid)
   }
   return {
@@ -492,6 +514,7 @@ export const buildMessageContext = (input: BuildContextInput): MessageContext =>
     mentions: input.mentions,
     links: extractLinks(input.text),
     isFromMe: input.key.fromMe === true,
+    verified: input.verified !== false,
     isGroup,
     isNewsletter: input.isNewsletter,
     isBroadcast: input.isBroadcast,
@@ -520,7 +543,7 @@ export const buildMessageContext = (input: BuildContextInput): MessageContext =>
     ...(input.ad !== undefined ? { ad: input.ad } : {}),
     ...(input.business !== undefined ? { business: input.business } : {}),
     ...(input.media !== undefined ? { media: input.media } : {}),
-    citation: makeCitation(input.citationConfig, input.sender.pn ?? input.sender.jid),
+    citation: makeCitation(input.citationConfig, senderId),
     roomName: input.resolveRoomName,
     receiverName: input.resolveReceiverName,
     replied: input.resolveReplied,

@@ -1,6 +1,7 @@
 import { BufferJSON } from 'baileys'
 import type { Chat, Contact, PresenceData, WAMessage, WAMessageKey } from 'baileys'
 import { ZaileysStoreError } from '../../types/store-error.js'
+import { assertTablePrefix, prefixSqliteDb, tableRewriter } from '../../types/table-prefix.js'
 import type { BaileysSocketLike, MessageStore, MessageStoreListOptions, PruneOptions } from '../types.js'
 
 type RunResult = { changes: number }
@@ -27,7 +28,11 @@ type RawDriverCtor = new (
 export interface SqliteMessageStoreOptions {
   database: string | Buffer
   readonly?: boolean
+  /** Prefix for this store's tables, so several sessions can share one database file. Default none. */
+  tablePrefix?: string
 }
+
+const STORE_TABLES = ['messages', 'chats', 'contacts', 'presence', 'messages_by_jid_ts'] as const
 
 let cachedDriver: RawDriverCtor | null = null
 
@@ -98,8 +103,11 @@ export class SqliteMessageStore implements MessageStore {
   private boundSocket: BaileysSocketLike | undefined
   private readonly listeners: Map<string, Listener> = new Map()
 
+  private readonly rewrite: (sql: string) => string
+
   constructor(options: SqliteMessageStoreOptions) {
     this.options = options
+    this.rewrite = tableRewriter(assertTablePrefix(options.tablePrefix), STORE_TABLES)
   }
 
   async saveMessage(message: WAMessage): Promise<void> {
@@ -289,6 +297,14 @@ export class SqliteMessageStore implements MessageStore {
     }
   }
 
+  /** close() drops the handle and prepared statements; the ready promise must go with them. */
+  async reopen(): Promise<void> {
+    this.closed = false
+    this.db = null
+    this.prepared = null
+    this.readyPromise = null
+  }
+
   private async ensureReady(): Promise<PreparedSet> {
     if (this.closed) {
       throw new ZaileysStoreError('STORE_CLOSED', 'SqliteMessageStore is closed')
@@ -308,7 +324,10 @@ export class SqliteMessageStore implements MessageStore {
     const Driver = await loadDriver()
     let db: DatabaseInstance
     try {
-      db = new Driver(this.options.database as string, { readonly: this.options.readonly ?? false })
+      db = prefixSqliteDb(
+        new Driver(this.options.database as string, { readonly: this.options.readonly ?? false }),
+        this.rewrite,
+      )
     } catch (err) {
       throw new ZaileysStoreError(
         'STORE_CONNECTION_FAILED',

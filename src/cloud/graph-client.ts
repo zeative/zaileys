@@ -31,7 +31,17 @@ export function createGraphClient(options: CloudOptions, deps?: GraphClientDeps)
   const apiVersion = options.apiVersion ?? DEFAULT_GRAPH_VERSION
   const delay = deps?.delay ?? sleep
 
-  const url = (path: string): string => `${baseUrl}/${apiVersion}/${path}`
+  /**
+   * Path segments come from remote data (media ids, phone-number ids). Encoding each one stops a
+   * value like `../../v1.0/x` from re-pointing an authenticated request at a different node.
+   */
+  const encodePath = (path: string): string =>
+    path
+      .split('?')[0] === path
+      ? path.split('/').map((segment) => encodeURIComponent(segment)).join('/')
+      : `${(path.split('?')[0] ?? '').split('/').map((segment) => encodeURIComponent(segment)).join('/')}?${path.slice(path.indexOf('?') + 1)}`
+
+  const url = (path: string): string => `${baseUrl}/${apiVersion}/${encodePath(path)}`
 
   const request = async <T>(path: string, init: RequestInit): Promise<T> => {
     let lastError: ZaileysCloudError | undefined

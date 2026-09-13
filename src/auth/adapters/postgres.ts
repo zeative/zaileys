@@ -2,6 +2,7 @@ import { BufferJSON } from 'baileys'
 import type { AuthenticationCreds, SignalDataSet } from 'baileys'
 import type { PgPoolClientLike, PgPoolCtorLike, PgPoolLike } from '../../types/optional-clients.js'
 import { ZaileysStoreError } from '../../types/store-error.js'
+import { assertTablePrefix, prefixPgPool, tableRewriter } from '../../types/table-prefix.js'
 import type {
   AuthCredsStore,
   AuthStore,
@@ -14,7 +15,11 @@ export interface PostgresAuthStoreOptions {
   pool?: PgPoolLike
   connectionString?: string
   max?: number
+  /** Prefix for this store's tables, so several sessions can share one database. Default none. */
+  tablePrefix?: string
 }
+
+const AUTH_TABLES = ['zaileys_auth_creds', 'zaileys_auth_signal'] as const
 
 type PgModule = { Pool?: PgPoolCtorLike; default?: { Pool?: PgPoolCtorLike } }
 
@@ -48,6 +53,7 @@ export class PostgresAuthStore implements AuthStoreBundle {
   private resolvedPool: PgPoolLike | undefined
   private readyPromise: Promise<PgPoolLike> | undefined
   private closed = false
+  private readonly rewrite: (sql: string) => string
 
   constructor(options: PostgresAuthStoreOptions) {
     const hasPool = options.pool !== undefined
@@ -67,6 +73,7 @@ export class PostgresAuthStore implements AuthStoreBundle {
     this.externalPool = options.pool
     this.connectionString = options.connectionString
     this.poolMax = options.max
+    this.rewrite = tableRewriter(assertTablePrefix(options.tablePrefix), AUTH_TABLES)
   }
 
   private async ensureReady(): Promise<PgPoolLike> {
@@ -88,6 +95,7 @@ export class PostgresAuthStore implements AuthStoreBundle {
           pool = new PoolCtor({ connectionString: this.connectionString, max: this.poolMax })
           this.ownedPool = pool
         }
+        pool = prefixPgPool(pool, this.rewrite)
         try {
           await pool.query(CREATE_CREDS_SQL)
           await pool.query(CREATE_SIGNAL_SQL)
@@ -234,6 +242,10 @@ export class PostgresAuthStore implements AuthStoreBundle {
         }
       }
     },
+    /** close() already released the pool it owned; it is re-established lazily. */
+    reopen: async (): Promise<void> => {
+      this.closed = false
+    },
   }
 
   readonly creds: AuthCredsStore = {
@@ -270,6 +282,31 @@ export class PostgresAuthStore implements AuthStoreBundle {
         await pool.query("DELETE FROM zaileys_auth_creds WHERE id = 'default'")
       } catch (err) {
         throw new ZaileysStoreError('STORE_WRITE_FAILED', 'failed to delete creds', { cause: err })
+      }
+    },
+    backupCreds: async (): Promise<void> => {
+      const pool = await this.ensureReady()
+      try {
+        await pool.query(
+          "INSERT INTO zaileys_auth_creds(id, data) SELECT 'backup', data FROM zaileys_auth_creds WHERE id = 'default' ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data",
+        )
+      } catch (err) {
+        throw new ZaileysStoreError('STORE_WRITE_FAILED', 'failed to back up creds', { cause: err })
+      }
+    },
+    readBackupCreds: async (): Promise<AuthenticationCreds | undefined> => {
+      const pool = await this.ensureReady()
+      try {
+        const res = await pool.query<{ data: unknown }>(
+          "SELECT data FROM zaileys_auth_creds WHERE id = 'backup'",
+        )
+        const row = res.rows[0]
+        if (!row) return undefined
+        const raw = typeof row.data === 'string' ? row.data : JSON.stringify(row.data)
+        return JSON.parse(raw, BufferJSON.reviver) as AuthenticationCreds
+      } catch (err) {
+        if (err instanceof ZaileysStoreError) throw err
+        throw new ZaileysStoreError('STORE_READ_FAILED', 'failed to read backup creds', { cause: err })
       }
     },
   }

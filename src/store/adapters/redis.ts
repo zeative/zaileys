@@ -10,7 +10,41 @@ export interface RedisMessageStoreOptions {
   namespace?: string
 }
 
+/** Never echo the connection string verbatim — it carries the password into logs and Sentry. */
+const redactRedisUrl = (url: string | undefined): string => {
+  if (url === undefined) return '(no url)'
+  try {
+    const parsed = new URL(url)
+    if (parsed.password !== '') parsed.password = '***'
+    if (parsed.username !== '') parsed.username = '***'
+    return parsed.toString()
+  } catch {
+    return '(redacted redis url)'
+  }
+}
+
 const DEFAULT_NAMESPACE = 'zaileys'
+
+/** Every key family this store owns. Anything outside this list is off-limits to `clear()`. */
+const MESSAGE_STORE_KEY_FAMILIES: readonly string[] = Object.freeze([
+  'msg:*',
+  'msg-data:*',
+  'presence:*',
+  'chats',
+  'chats-archived',
+  'contacts',
+])
+
+/** A glob metacharacter in the namespace would widen every SCAN pattern into a database-wide sweep. */
+const assertSafeNamespace = (namespace: string): string => {
+  if (!/^[A-Za-z0-9_.:-]+$/.test(namespace)) {
+    throw new ZaileysStoreError(
+      'STORE_CONNECTION_FAILED',
+      `invalid namespace ${JSON.stringify(namespace)}: use letters, digits, and _ . : - only`,
+    )
+  }
+  return namespace
+}
 const PRESENCE_TTL_SECONDS = 300
 const SCAN_BATCH = 1000
 
@@ -48,7 +82,7 @@ export class RedisMessageStore implements MessageStore {
         'RedisMessageStore requires either client or url',
       )
     }
-    this.namespace = options.namespace ?? DEFAULT_NAMESPACE
+    this.namespace = assertSafeNamespace(options.namespace ?? DEFAULT_NAMESPACE)
     this.externalClient = options.client
     this.url = options.url
   }
@@ -80,14 +114,36 @@ export class RedisMessageStore implements MessageStore {
     const client = await this.ensureReady()
     const limit = options?.limit ?? 100
     const max = typeof options?.before === 'number' ? `(${options.before}` : '+inf'
-    const members = await this.runRead(() =>
-      client.zRangeByScore(this.msgIndexKey(jid), '-inf', max, {
-        LIMIT: { offset: 0, count: limit + 1024 },
-      }),
-    )
+    /**
+     * Newest first. `zRangeByScore` is ascending, so limiting there took the OLDEST `limit` entries
+     * and reversed them — past a thousand or so messages a chat never returned a recent one, and
+     * quoted-message resolution silently always missed.
+     */
+    const key = this.msgIndexKey(jid)
+    type RevRange = (
+      key: string,
+      start: string | number,
+      stop: string | number,
+      options: { BY: 'SCORE'; REV: true; LIMIT: { offset: number; count: number } },
+    ) => Promise<string[]>
+    const zRange = (client as unknown as { zRange?: RevRange }).zRange
+    const members = await this.runRead(async () => {
+      if (typeof zRange === 'function') {
+        try {
+          return await zRange.call(client, key, max, '-inf', {
+            BY: 'SCORE',
+            REV: true,
+            LIMIT: { offset: 0, count: limit },
+          })
+        } catch {
+          /** Older clients reject the options form; fall through to the portable path. */
+        }
+      }
+      const all = await client.zRangeByScore(key, '-inf', max)
+      return [...all].reverse().slice(0, limit)
+    })
     if (members.length === 0) return []
-    const ordered = [...members].reverse()
-    const sliced = ordered.slice(0, limit)
+    const sliced = members.slice(0, limit)
     const raws = await this.runRead(() => client.hmGet(this.msgDataKey(jid), sliced))
     const out: WAMessage[] = []
     for (const raw of raws) {
@@ -241,17 +297,29 @@ export class RedisMessageStore implements MessageStore {
   async clear(): Promise<void> {
     this.assertOpen()
     const client = await this.ensureReady()
-    const match = `${this.namespace}:*`
-    let cursor = 0
-    do {
-      const result = await this.runRead(() =>
-        client.scan(cursor, { MATCH: match, COUNT: SCAN_BATCH }),
-      )
-      cursor = Number(result.cursor)
-      if (result.keys.length > 0) {
-        await this.runWrite(() => client.del(result.keys))
-      }
-    } while (cursor !== 0)
+    /**
+     * Scoped to this store's own key families. A blanket `${namespace}:*` sweep would also match
+     * `${namespace}:auth:*`, so clearing chat history would delete the session credentials — the
+     * auth store defaults to the same namespace.
+     */
+    for (const family of MESSAGE_STORE_KEY_FAMILIES) {
+      const match = `${this.namespace}:${family}`
+      let cursor = 0
+      do {
+        const result = await this.runRead(() =>
+          client.scan(cursor, { MATCH: match, COUNT: SCAN_BATCH }),
+        )
+        cursor = Number(result.cursor)
+        if (result.keys.length > 0) {
+          await this.runWrite(() => client.del(result.keys))
+        }
+      } while (cursor !== 0)
+    }
+  }
+
+  /** close() already released the connection it owned; it is re-established lazily. */
+  async reopen(): Promise<void> {
+    this.closed = false
   }
 
   async close(): Promise<void> {
@@ -399,7 +467,7 @@ export class RedisMessageStore implements MessageStore {
     } catch (err) {
       throw new ZaileysStoreError(
         'STORE_CONNECTION_FAILED',
-        `failed to connect to redis at ${this.url}`,
+        `failed to connect to redis at ${redactRedisUrl(this.url)}`,
         { cause: err },
       )
     }

@@ -35,12 +35,11 @@ function createFakeAuthStore(): AuthStore & {
 }
 
 describe('signalKeyStoreFromAuthStore — shape adapter', () => {
-  it('exposes get/set/clear matching baileys SignalKeyStore shape', () => {
+  it('exposes get/set matching baileys SignalKeyStore shape', () => {
     const store = createFakeAuthStore()
     const adapter = signalKeyStoreFromAuthStore(store)
     expect(typeof adapter.get).toBe('function')
     expect(typeof adapter.set).toBe('function')
-    expect(typeof adapter.clear).toBe('function')
   })
 
   it('get() proxies to authStore.read with same type + ids', async () => {
@@ -59,11 +58,12 @@ describe('signalKeyStoreFromAuthStore — shape adapter', () => {
     expect(store.writes).toEqual([data])
   })
 
-  it('clear() proxies to authStore.clear', async () => {
+  it('does not proxy clear() — that would erase credentials, not just signal keys', async () => {
     const store = createFakeAuthStore()
     const adapter = signalKeyStoreFromAuthStore(store)
+    expect(adapter.clear).toBeUndefined()
     await adapter.clear?.()
-    expect(store.cleared).toBe(1)
+    expect(store.cleared).toBe(0)
   })
 
   it('multiple gets are routed independently per type', async () => {
@@ -91,5 +91,27 @@ describe('signalKeyStoreFromAuthStore — shape adapter', () => {
     const adapter = signalKeyStoreFromAuthStore(store, logger)
     await adapter.get('pre-key', ['k'])
     expect(store.reads.length).toBe(1)
+  })
+})
+
+describe('signalKeyStoreFromAuthStore — credential safety', () => {
+  it('does not expose a clear() that would erase credentials', () => {
+    const cleared: string[] = []
+    const store = {
+      read: async () => ({}),
+      write: async () => undefined,
+      delete: async () => undefined,
+      clear: async () => {
+        cleared.push('nuked')
+      },
+      close: async () => undefined,
+    }
+    const keys = signalKeyStoreFromAuthStore(store as never)
+    /**
+     * Every adapter's signal.clear() also erases creds (AUTH-07). baileys types clear as optional,
+     * so handing it over is a session-loss risk one dependency bump away.
+     */
+    expect(keys.clear).toBeUndefined()
+    expect(cleared).toEqual([])
   })
 })

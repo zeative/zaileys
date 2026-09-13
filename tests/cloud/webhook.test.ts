@@ -7,10 +7,18 @@ const fixture = readFileSync(new URL('../_fixtures/cloud/text-message.json', imp
 
 const sign = (secret: string, body: string): string => `sha256=${createHmac('sha256', secret).update(body).digest('hex')}`
 
-const handler = (over: { verifyToken?: string; appSecret?: string; onPayload?: (p: unknown) => void } = {}) =>
+const handler = (
+  over: {
+    verifyToken?: string
+    appSecret?: string
+    allowUnsigned?: boolean
+    onPayload?: (p: unknown) => void
+  } = {},
+) =>
   createWebhookHandler({
     verifyToken: over.verifyToken ?? 'verify-me',
     ...(over.appSecret !== undefined ? { appSecret: over.appSecret } : {}),
+    ...(over.allowUnsigned === true ? { allowUnsigned: true } : {}),
     onPayload: over.onPayload ?? ((): void => undefined),
   })
 
@@ -69,9 +77,17 @@ describe('cloud webhook handler', () => {
     expect(onPayload).not.toHaveBeenCalled()
   })
 
-  it('POST without appSecret configured skips signature check', async () => {
+  it('POST without appSecret is refused — an unsigned endpoint accepts injected events', async () => {
     const onPayload = vi.fn()
     const h = handler({ onPayload })
+    const res = await h(new Request('https://x.test/wh', { method: 'POST', body: fixture }))
+    expect(res.status).toBe(401)
+    expect(onPayload).not.toHaveBeenCalled()
+  })
+
+  it('POST without appSecret is accepted only when allowUnsigned is set', async () => {
+    const onPayload = vi.fn()
+    const h = handler({ onPayload, allowUnsigned: true })
     const res = await h(new Request('https://x.test/wh', { method: 'POST', body: fixture }))
     expect(res.status).toBe(200)
     expect(onPayload).toHaveBeenCalledTimes(1)
@@ -79,7 +95,7 @@ describe('cloud webhook handler', () => {
 
   it('POST with malformed JSON -> 400, no dispatch', async () => {
     const onPayload = vi.fn()
-    const h = handler({ onPayload })
+    const h = handler({ onPayload, allowUnsigned: true })
     const res = await h(new Request('https://x.test/wh', { method: 'POST', body: 'not-json{' }))
     expect(res.status).toBe(400)
     expect(onPayload).not.toHaveBeenCalled()
@@ -93,6 +109,7 @@ describe('cloud webhook handler', () => {
 
   it('onPayload throwing still returns 200 (webhook must ack)', async () => {
     const h = handler({
+      allowUnsigned: true,
       onPayload: () => {
         throw new Error('handler exploded')
       },

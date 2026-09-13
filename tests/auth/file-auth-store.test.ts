@@ -76,12 +76,17 @@ describe('FileAuthStore — adapter specifics', () => {
     expect(remaining.filter((f) => f.startsWith('tmp-')).length).toBe(0)
   })
 
-  it('F5: clear() removes basePath entirely', async () => {
+  it('F5: clear() removes creds and signal data but keeps quarantined snapshots', async () => {
     const store = new FileAuthStore({ basePath })
     await store.creds.writeCreds(sampleCreds())
     await store.signal.write({ session: { '1': Uint8Array.from([1]) } })
+    await store.creds.backupCreds?.()
     await store.signal.clear()
-    await expect(fs.access(basePath)).rejects.toMatchObject({ code: 'ENOENT' })
+    await expect(store.creds.readCreds()).resolves.toBeUndefined()
+    await expect(store.signal.read('session', ['1'])).resolves.toEqual({})
+    const left = await fs.readdir(basePath)
+    expect(left.every((n) => n.startsWith('creds.revoked-'))).toBe(true)
+    expect(left.length).toBe(1)
   })
 
   it('F6: 50 parallel writes to same id leave a readable JSON (no torn writes)', async () => {
@@ -98,5 +103,58 @@ describe('FileAuthStore — adapter specifics', () => {
   it('default basePath is ./.zaileys/auth when not provided', () => {
     const store = new FileAuthStore()
     expect(store).toBeInstanceOf(FileAuthStore)
+  })
+})
+
+describe('FileAuthStore — credential confidentiality and durability', () => {
+  let basePath: string
+
+  beforeEach(() => {
+    basePath = freshBase()
+  })
+
+  afterEach(async () => {
+    await fs.rm(basePath, { recursive: true, force: true }).catch(() => undefined)
+  })
+
+  it('writes credentials owner-only (0600) inside an owner-only directory (0700)', async () => {
+    if (process.platform === 'win32') return
+    const store = new FileAuthStore({ basePath })
+    await store.creds.writeCreds(sampleCreds())
+    const fileMode = (await fs.stat(path.join(basePath, 'creds.json'))).mode & 0o777
+    const dirMode = (await fs.stat(basePath)).mode & 0o777
+    expect(fileMode).toBe(0o600)
+    expect(dirMode).toBe(0o700)
+  })
+
+  it('writes signal key files owner-only too', async () => {
+    if (process.platform === 'win32') return
+    const store = new FileAuthStore({ basePath })
+    await store.signal.write({ session: { '1': Uint8Array.from([1]) } })
+    const file = path.join(basePath, 'signal', 'session', '1.json')
+    expect((await fs.stat(file)).mode & 0o777).toBe(0o600)
+  })
+
+  it('leaves no temporary file behind after a write', async () => {
+    const store = new FileAuthStore({ basePath })
+    await store.creds.writeCreds(sampleCreds())
+    const names = await fs.readdir(basePath)
+    expect(names.filter((n) => n.startsWith('tmp-'))).toEqual([])
+  })
+
+  it('recovers from a corrupt creds.json using the newest snapshot', async () => {
+    const store = new FileAuthStore({ basePath })
+    const creds = sampleCreds()
+    await store.creds.writeCreds(creds)
+    await store.creds.backupCreds?.()
+    await fs.writeFile(path.join(basePath, 'creds.json'), '{ this is not json', 'utf8')
+    const recovered = await store.creds.readCreds()
+    expect(recovered).toBeDefined()
+    expect(recovered?.registered).toBe(creds.registered)
+  })
+
+  it('reports no session when creds.json is simply absent', async () => {
+    const store = new FileAuthStore({ basePath })
+    await expect(store.creds.readCreds()).resolves.toBeUndefined()
   })
 })

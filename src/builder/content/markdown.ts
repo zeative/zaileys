@@ -4,7 +4,10 @@ const DIRECTIVE_OPEN = /^:::([a-zA-Z]+)\s*$/
 const DIRECTIVE_CLOSE = /^:::\s*$/
 const CODE_FENCE = /^```(\w*)\s*$/
 const IMAGE_LINE = /^!\[[^\]]*\]\(([^)]+)\)\s*$/
-const TABLE_SEP = /^\s*\|?\s*:?-{2,}[\s|:-]*$/
+/** One flat character class (linear) plus a substring check. Any `-{2,}` followed by an
+ *  overlapping class backtracks quadratically — 50k dashes took ~4s. */
+const TABLE_SEP_CHARS = /^[\s|:-]*$/
+const isTableSeparator = (line: string): boolean => TABLE_SEP_CHARS.test(line) && line.includes('--')
 
 const splitPipes = (line: string): string[] => line.split('|').map((s) => s.trim())
 
@@ -175,7 +178,7 @@ export const parseRichMarkdown = (md: string): AIRichPart[] => {
     }
 
     const next = lines[i + 1]
-    if (line.includes('|') && next !== undefined && next.includes('|') && TABLE_SEP.test(next)) {
+    if (line.includes('|') && next !== undefined && next.includes('|') && isTableSeparator(next)) {
       flushText()
       const rows: string[][] = [splitRow(line)]
       i += 2

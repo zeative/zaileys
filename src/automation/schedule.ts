@@ -5,6 +5,11 @@ import type { MessageStore, ScheduledJobRecord } from '../store/types.js'
 import type { Logger } from '../client/types.js'
 import { ZaileysAutomationError } from './errors.js'
 
+/** Node clamps anything above this to 1ms, firing the job immediately. */
+const MAX_TIMER_DELAY_MS = 2_147_483_000
+const MAX_SEND_ATTEMPTS = 5
+const RETRY_BACKOFF_MS = 30_000
+
 export type ScheduledContentSnapshot = {
   recipient: string
   content: AnyMessageContent
@@ -50,6 +55,7 @@ export class Scheduler {
   private readonly acquire: (() => Promise<void>) | undefined
   private readonly memory: Map<string, ScheduledJobRecord> = new Map()
   private readonly timers: Map<string, unknown> = new Map()
+  private readonly failures: Map<string, number> = new Map()
 
   constructor(deps: SchedulerDeps) {
     this.store = deps.store
@@ -113,8 +119,21 @@ export class Scheduler {
     void this.remove(id)
   }
 
+  /**
+   * Node clamps a setTimeout delay above 2^31-1 ms (~24.8 days) to 1, so a job scheduled months out
+   * would fire almost immediately — for a broadcast, an instant mass-send. Long waits are re-armed
+   * in chunks instead.
+   */
   private arm(record: ScheduledJobRecord): void {
     const delay = Math.max(0, record.fireAt - this.now())
+    if (delay > MAX_TIMER_DELAY_MS) {
+      const handle = this.timer.set(() => {
+        this.timers.delete(record.id)
+        this.arm(record)
+      }, MAX_TIMER_DELAY_MS)
+      this.timers.set(record.id, handle)
+      return
+    }
     const handle = this.timer.set(() => {
       void this.fire(record)
     }, delay)
@@ -128,9 +147,25 @@ export class Scheduler {
         if (this.acquire) await this.acquire()
         await this.sendSnapshot(record.payload)
       } catch (err) {
-        this.logger?.warn(err, 'scheduled send failed; retaining job for retry')
+        const attempts = (this.failures.get(record.id) ?? 0) + 1
+        this.failures.set(record.id, attempts)
+        if (attempts >= MAX_SEND_ATTEMPTS) {
+          /** Otherwise a permanently-failing job re-fires on every reconnect, forever. */
+          this.logger?.error(
+            { id: record.id, attempts },
+            'scheduled send failed repeatedly; dropping the job',
+          )
+          this.failures.delete(record.id)
+          this.memory.delete(record.id)
+          await this.remove(record.id)
+          return
+        }
+        this.logger?.warn(err, 'scheduled send failed; re-arming for retry')
+        record.fireAt = this.now() + RETRY_BACKOFF_MS * attempts
+        this.arm(record)
         return
       }
+      this.failures.delete(record.id)
     }
     this.memory.delete(record.id)
     await this.remove(record.id)

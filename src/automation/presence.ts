@@ -1,4 +1,5 @@
 import { ZaileysAutomationError } from './errors.js'
+import { LRUCache } from 'lru-cache'
 
 export type WAPresence = 'unavailable' | 'available' | 'composing' | 'recording' | 'paused'
 
@@ -16,11 +17,19 @@ export type PresenceClock = { now?: () => number }
 
 const DEFAULT_MIN_INTERVAL_MS = 1000
 
+const PRESENCE_CACHE_MAX = 2000
+const PRESENCE_CACHE_TTL_MS = 10 * 60 * 1000
+
 export class PresenceModule {
   private readonly throttleEnabled: boolean
   private readonly minIntervalMs: number
   private readonly now: () => number
-  private readonly lastSent = new Map<string, number>()
+  /** Bounded: one entry per chat ever messaged would otherwise live for the process's lifetime. */
+  private readonly lastSent = new LRUCache<string, number>({
+    max: PRESENCE_CACHE_MAX,
+    ttl: PRESENCE_CACHE_TTL_MS,
+  })
+  private readonly pendingClears = new Set<ReturnType<typeof setTimeout>>()
 
   constructor(
     private readonly getSocket: () => AutomationSocketLike | undefined,
@@ -62,13 +71,31 @@ export class PresenceModule {
     }
   }
 
+  /**
+   * Resolves the socket when the timer fires rather than capturing it, so a reconnect does not get
+   * a burst of presence updates aimed at a dead socket. Handles are tracked so dispose() can cancel.
+   */
   private scheduleClear(jid: string, ms: number): void {
-    const socket = this.getSocket()
-    if (!socket) return
+    if (this.getSocket() === undefined) return
     const timer = setTimeout(() => {
-      void socket.sendPresenceUpdate('paused', jid).catch(() => undefined)
+      this.pendingClears.delete(timer)
+      try {
+        const socket = this.getSocket()
+        if (socket === undefined) return
+        void Promise.resolve(socket.sendPresenceUpdate('paused', jid)).catch(() => undefined)
+      } catch {
+        return
+      }
     }, ms)
     if (typeof timer.unref === 'function') timer.unref()
+    this.pendingClears.add(timer)
+  }
+
+  /** Cancels every outstanding auto-clear. Called on disconnect. */
+  dispose(): void {
+    for (const timer of this.pendingClears) clearTimeout(timer)
+    this.pendingClears.clear()
+    this.lastSent.clear()
   }
 
   async online(): Promise<void> {

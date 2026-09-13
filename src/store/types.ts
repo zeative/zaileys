@@ -43,6 +43,8 @@ export interface MessageStore {
   bind(socket: BaileysSocketLike): void
   clear(): Promise<void>
   close(): Promise<void>
+  /** Undo `close()` so a disconnected client can connect again. Optional. */
+  reopen?(): Promise<void>
   saveScheduledJob?(job: ScheduledJobRecord): Promise<void>
   listScheduledJobs?(): Promise<ScheduledJobRecord[]>
   deleteScheduledJob?(id: string): Promise<void>

@@ -94,6 +94,11 @@ export class ConvexKv {
     this.client = undefined
   }
 
+  /** The client is recreated lazily on the next call. */
+  reopen(): void {
+    this.closed = false
+  }
+
   private async ensureClient(): Promise<ConvexClientLike> {
     if (this.externalClient) return this.externalClient
     if (this.client) return this.client

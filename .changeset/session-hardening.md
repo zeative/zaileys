@@ -86,3 +86,7 @@ erase stored credentials; all are closed.
   `maxImagePixels`, `maxConcurrentFfmpeg`, `maxQueuedFfmpeg`, `ffmpegQueueTimeoutMs`. A `FileAuthStore`
   directory, including a custom `basePath`, is always protected from media reads.
 - Convex `pruneMessages` parses the full chat jid, so `chatFilter` and `maxPerChat` see the right chat.
+- Animated stickers work on ffmpeg 7+ again: the pipeline no longer passes `-vsync`, which those versions
+  reject (exit 8). `-fps_mode` was not a replacement because the bundled ffmpeg 4.4 lacks it; the `fps`
+  filter already fixes the rate, and output was verified byte-identical without the option on ffmpeg
+  4.x and 9.0 for constant and variable frame rate inputs.

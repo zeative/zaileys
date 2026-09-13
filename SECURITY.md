@@ -128,8 +128,9 @@ auth store, jadi membersihkan riwayat chat ikut menghapus sesi.
 
 ## Yang Belum Ditutup
 
-- **Stiker animasi dengan ffmpeg bawaan.** ffmpeg 4.4 dari `@ffmpeg-installer/ffmpeg` tidak punya
-  encoder `libwebp`, jadi stiker animasi selalu gagal. Pakai ffmpeg sistem yang menyertakan libwebp.
+- **Stiker animasi di Apple Silicon dengan ffmpeg bawaan.** Build darwin-arm64 dari
+  `@ffmpeg-installer/ffmpeg` tidak punya encoder `libwebp`. Pakai ffmpeg sendiri yang menyertakan
+  libwebp lewat `FFMPEG_PATH`. (ffmpeg 7+ sebelumnya juga gagal karena `-vsync` — sudah diperbaiki.)
 - **Format key Convex.** Bagian `:` di key pesan tidak di-escape. Dengan JID yang valid tabrakan tidak
   bisa terjadi (JID selalu berakhir di `@server`), jadi format tidak diubah demi menghindari migrasi
   data. Parsing JID saat pruning sudah diperbaiki.

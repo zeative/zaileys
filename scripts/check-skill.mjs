@@ -1,6 +1,7 @@
-// Guards the zaileys Agent Skill: spec-only frontmatter, context budgets, one-level links, portable wording, and
-// a repo root that is the plugin. Runs in CI via `pnpm skill:check`; exits 1 with one line per problem.
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
+// Guards the zaileys Agent Skill: spec-only frontmatter, context budgets, one-level links, portable wording, a repo
+// root that is the plugin, and accuracy against src/ and docs/ (snippets compile, error codes covered, links resolve). Runs in CI via `pnpm skill:check`; exits 1 with one line per problem.
+import { spawnSync } from 'node:child_process'
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -145,6 +146,152 @@ export function checkSkill(skillDir) {
   return issues
 }
 
+const REPO = join(dirname(fileURLToPath(import.meta.url)), '..')
+const SNIPPET_LANGS = new Set(['ts', 'typescript'])
+const SKIP_MARKER = /<!--\s*snippet-check:\s*skip\b(.*?)-->/
+
+// Every ```ts block and every template .ts file compiles against src/, so the skill can't teach an API that doesn't exist.
+export function checkSnippets(skillDir) {
+  const issues = []
+  const units = []
+  for (const file of walk(skillDir)) {
+    if (file.endsWith('.md')) {
+      const lines = readFileSync(join(skillDir, file), 'utf8').split('\n')
+      for (let i = 0; i < lines.length; i++) {
+        const open = lines[i].match(/^(\s*)```(\w+)/)
+        if (!open) continue
+        let end = i + 1
+        while (end < lines.length && !/^\s*```\s*$/.test(lines[end])) end++
+        if (SNIPPET_LANGS.has(open[2])) {
+          const prev = lines.slice(0, i).reverse().find((l) => l.trim())
+          const skip = prev?.match(SKIP_MARKER)
+          if (skip && !skip[1].replace(/^[\s—–:-]+/, '').trim()) {
+            issues.push(issue('snippet-skip', file, 'skip marker needs a reason', lines.indexOf(prev) + 1))
+          } else if (!skip) {
+            const indent = open[1].length
+            const code = lines.slice(i + 1, end).map((l) => l.slice(Math.min(indent, l.search(/\S|$/))))
+            units.push({ out: `snippets/s${units.length}.ts`, file, offset: i, code: `export {}\n${code.join('\n')}\n` })
+          }
+        }
+        i = end
+      }
+    } else if (file.startsWith('assets/templates/') && /\.(ts|mts)$/.test(file) && !file.endsWith('.d.ts')) {
+      units.push({ out: `templates/${file}`, file, offset: 0, code: readFileSync(join(skillDir, file), 'utf8') })
+    }
+  }
+  if (!units.length) return issues
+
+  const out = join(REPO, 'node_modules', '.cache', `skill-snippets-${process.pid}-${Date.now()}`)
+  rmSync(out, { recursive: true, force: true })
+  try {
+    for (const unit of units) {
+      mkdirSync(dirname(join(out, unit.out)), { recursive: true })
+      writeFileSync(join(out, unit.out), unit.code)
+    }
+    writeFileSync(join(out, 'package.json'), '{ "type": "module" }\n')
+    const tsconfig = {
+      compilerOptions: {
+        target: 'ES2022',
+        lib: ['ES2023'],
+        module: 'NodeNext',
+        moduleResolution: 'NodeNext',
+        // Plain `strict` mirrors a typical user project, not zaileys' stricter internal config.
+        strict: true,
+        noEmit: true,
+        skipLibCheck: true,
+        esModuleInterop: true,
+        types: ['node'],
+        typeRoots: [join(REPO, 'node_modules', '@types')],
+        paths: { zaileys: [join(REPO, 'src', 'index.ts')], '~/*': [join(REPO, 'src', '*')] },
+      },
+      include: ['**/*.ts', join(REPO, 'docs', 'scripts', 'prelude.d.ts'), join(REPO, 'src', '**', '*.d.ts')],
+    }
+    writeFileSync(join(out, 'tsconfig.json'), JSON.stringify(tsconfig, null, 2))
+    const tsc = spawnSync(join(REPO, 'node_modules', '.bin', 'tsc'), ['-p', 'tsconfig.json', '--pretty', 'false'], {
+      cwd: out,
+      encoding: 'utf8',
+    })
+    const byOut = new Map(units.map((u) => [u.out, u]))
+    let mapped = 0
+    for (const line of `${tsc.stdout}\n${tsc.stderr}`.split('\n')) {
+      const m = line.match(/^(.*?)\((\d+),\d+\): error (TS\d+): (.*)$/)
+      if (!m) continue
+      const unit = byOut.get(relative(out, resolve(out, m[1])).split(sep).join('/'))
+      if (!unit) {
+        issues.push(issue('snippet-foreign', m[1], `${m[3]} ${m[4]}`))
+        continue
+      }
+      mapped++
+      issues.push(issue('snippet', unit.file, `${m[3]} ${m[4]}`, unit.offset + Number(m[2])))
+    }
+    if (tsc.status !== 0 && !mapped && !issues.some((i) => i.rule === 'snippet-foreign')) {
+      issues.push(issue('snippet-foreign', 'tsc', `tsc exited ${tsc.status}: ${tsc.stderr.trim()}`))
+    }
+  } finally {
+    rmSync(out, { recursive: true, force: true })
+  }
+  return issues
+}
+
+const errorCodesIn = (srcDir) => {
+  const codes = []
+  for (const file of walk(srcDir).sort().filter((f) => f.endsWith('.ts') && !f.endsWith('.test.ts'))) {
+    const text = readFileSync(join(srcDir, file), 'utf8')
+    for (const m of text.matchAll(/export type \w*ErrorCode\s*=([\s\S]*?)(?:\n\s*\n|\n(?=\S)|$)/g)) {
+      for (const literal of m[1].matchAll(/'([A-Z][A-Z0-9_]*)'/g)) codes.push(literal[1])
+    }
+    for (const m of text.matchAll(/readonly code\s*=\s*'([A-Z][A-Z0-9_]*)'/g)) codes.push(m[1])
+  }
+  return [...new Set(codes)]
+}
+
+// An error the skill can't explain is exactly when a user needs it most.
+export function checkErrorCodes(skillDir, srcDir = join(REPO, 'src')) {
+  const file = 'references/errors.md'
+  const path = join(skillDir, file)
+  if (!existsSync(path)) return [issue('error-codes', file, 'references/errors.md is missing')]
+  const text = readFileSync(path, 'utf8')
+  return errorCodesIn(srcDir)
+    .filter((code) => !new RegExp(`(?<![A-Z0-9_])${code}(?![A-Z0-9_])`).test(text))
+    .map((code) => issue('error-codes', file, `error code ${code} from src/ is not covered`))
+}
+
+// Same slug rule as the docs search index, which matches Mintlify's heading anchors.
+const slugify = (t) => t.toLowerCase().replace(/`/g, '').replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-')
+const DOCS_URL = /https?:\/\/zaileys\.kejaa\.id(\/[^\s)>\]"'`]*)?/g
+const GENERATED_DOCS = new Set(['/llms.txt', '/llms-full.txt'])
+
+const headingAnchors = (mdx) => {
+  const anchors = new Set()
+  let fenced = false
+  for (const line of mdx.split('\n')) {
+    if (/^\s*(```|~~~)/.test(line)) fenced = !fenced
+    const heading = !fenced && line.match(/^#{1,6}\s+(.*?)\s*#*\s*$/)
+    if (heading) anchors.add(slugify(heading[1]))
+  }
+  return anchors
+}
+
+export function checkDocsLinks(skillDir, docsDir = join(REPO, 'docs')) {
+  const issues = []
+  for (const file of walk(skillDir).filter((f) => TEXT_FILE.test(f))) {
+    readFileSync(join(skillDir, file), 'utf8').split('\n').forEach((text, index) => {
+      for (const m of text.matchAll(DOCS_URL)) {
+        const [pathPart, anchor] = (m[1] ?? '/').replace(/[.,;:!?]+$/, '').split('#')
+        const page = pathPart.replace(/\/+$/, '').replace(/\.md$/, '') || '/index'
+        if (GENERATED_DOCS.has(pathPart)) continue
+        const mdx = [join(docsDir, `${page}.mdx`), join(docsDir, page, 'index.mdx')].find((p) => existsSync(p))
+        if (!mdx) {
+          issues.push(issue('docs-page', file, `${m[0]} has no page in docs/`, index + 1))
+        } else if (anchor && !headingAnchors(readFileSync(mdx, 'utf8')).has(anchor)) {
+          issues.push(issue('docs-anchor', file, `${m[0]} — no heading with anchor #${anchor}`, index + 1))
+        }
+      }
+    })
+  }
+  return issues
+}
+
 const readJson = (path) => {
   try {
     return JSON.parse(readFileSync(path, 'utf8'))
@@ -192,6 +339,14 @@ export function checkRepo(root) {
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const root = resolve(process.argv[2] ?? join(dirname(fileURLToPath(import.meta.url)), '..'))
   const issues = checkRepo(root)
+  const skillsDir = join(root, 'skills')
+  for (const name of existsSync(skillsDir) ? readdirSync(skillsDir) : []) {
+    const dir = join(skillsDir, name)
+    if (!statSync(dir).isDirectory()) continue
+    for (const found of [...checkSnippets(dir), ...checkErrorCodes(dir), ...checkDocsLinks(dir)]) {
+      issues.push({ ...found, file: found.rule === 'snippet-foreign' ? found.file : `skills/${name}/${found.file}` })
+    }
+  }
   for (const i of issues) console.log(`${i.file}${i.line ? `:${i.line}` : ''}  [${i.rule}] ${i.message}`)
   console.log(issues.length ? `\n✗ ${issues.length} skill problem(s)` : '✓ skill checks passed')
   process.exit(issues.length ? 1 : 0)

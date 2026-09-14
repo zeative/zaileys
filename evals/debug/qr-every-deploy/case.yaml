@@ -16,7 +16,7 @@ graders:
   - name: session-volume
     type: regex
     target: { source: file, path: docker-compose.yml }
-    pattern: "volumes:[\\s\\S]*(\\.zaileys|/app/)"
+    pattern: "volumes:\\s*\\n\\s*-\\s*[^\\s:]+:/\\S+"
   - name: guard-kept
     type: regex
     target: { source: file, path: src/bot.ts }

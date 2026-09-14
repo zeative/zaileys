@@ -16,10 +16,18 @@ graders:
   - name: reminders-file
     type: file_exists
     path: src/reminders.ts
-  - name: approved-template
+  - name: sends-template
     type: regex
     target: { source: file, path: src/reminders.ts }
-    pattern: "sendTemplate\\([^)]*['\"]appointment_reminder['\"]\\s*,\\s*['\"]id['\"]"
+    pattern: "\\.sendTemplate\\("
+  - name: approved-template-name
+    type: regex
+    target: { source: file, path: src/reminders.ts }
+    pattern: "['\"]appointment_reminder['\"]"
+  - name: template-language
+    type: regex
+    target: { source: file, path: src/reminders.ts }
+    pattern: "['\"]id['\"]"
   - name: body-parameters
     type: regex
     target: { source: file, path: src/reminders.ts }

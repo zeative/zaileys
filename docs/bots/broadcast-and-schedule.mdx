@@ -226,7 +226,7 @@ A custom store can support this by implementing `saveScheduledJob()`, `listSched
 
 ## On the Cloud API
 
-In the current release, both features need a WhatsApp Web connection. With `provider: 'cloud'`, `broadcast()` rejects with `client not connected`, and scheduled jobs are kept but never sent. Until that changes:
+In the current release, both features need a WhatsApp Web connection. With `provider: 'cloud'`, `broadcast()` rejects with `client not connected`, and a scheduled job fails when it's due, is retried, and is dropped after the fifth failed attempt. Until that changes:
 
 - To send to a list, use the [`RateLimiter` loop](#send-different-text-to-each-person) with `client.send()`.
 - To send later, use your own timer or job runner and call `client.send()` when it fires.
@@ -274,7 +274,7 @@ try {
 
 This prints `Could not schedule: scheduleAt requires a valid Date`.
 
-A scheduled send that fails when its time comes doesn't throw anywhere you can catch. It's logged as `scheduled send failed; retaining job for retry` and tried again on the next connection. Set `ZAILEYS_DEBUG=warn` to see it, since the built-in logger is silent by default. More in [Error handling](/data/error-handling).
+A scheduled send that fails when its time comes doesn't throw anywhere you can catch. It's logged as `scheduled send failed; re-arming for retry` and tried again after 30 seconds, then 60, 90, and 120 — each wait 30 seconds longer. After the fifth failure the job is dropped and logged as `scheduled send failed repeatedly; dropping the job`, so a job whose send keeps failing for longer than about five minutes, such as during an outage, is lost. Set `ZAILEYS_DEBUG=warn` to see it, since the built-in logger is silent by default. More in [Error handling](/data/error-handling).
 
 ## Next steps
 

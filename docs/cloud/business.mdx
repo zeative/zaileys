@@ -229,7 +229,7 @@ await client.cloud.commerce.sendProductList('6281234567890', {
   Small text under the body.
 </ParamField>
 
-The `.product()` send builder is WhatsApp Web only — on the Cloud API it rejects with `NOT_IMPLEMENTED`. Use these two methods instead.
+The `.product()` send builder is WhatsApp Web only — on the Cloud API it rejects with `SEND_FAILED`, with `NOT_IMPLEMENTED` on `error.cause`. Use these two methods instead.
 
 ## Take orders
 

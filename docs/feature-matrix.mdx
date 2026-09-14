@@ -31,7 +31,7 @@ Not sure which provider you're on? It's WhatsApp Web unless you created the clie
 | Reply to a message (quote) | ✓ Yes | ✓ Yes | | [Guide](/messaging/text) |
 | Mention people | ✓ Yes | ✗ No | Ignored on the Cloud API — the text arrives without mentions. | [Guide](/messaging/text) |
 | Disappearing messages | ✓ Yes | ✗ No | `setDisappearing()` throws. `.disappearing()` on a send is ignored. | [Guide](/messaging/text) |
-| Rich responses (`rich: true`) | ✓ Yes | ✗ No | Rejects with `NOT_IMPLEMENTED`. | [Guide](/messaging/rich-responses) |
+| Rich responses (`rich: true`) | ✓ Yes | ✗ No | Rejects with `SEND_FAILED`, cause `NOT_IMPLEMENTED`. | [Guide](/messaging/rich-responses) |
 | React with an emoji | ✓ Yes | ✓ Yes | | [Guide](/messaging/edit-delete-react) |
 | Edit a sent message | ✓ Yes | ✗ No | | [Guide](/messaging/edit-delete-react) |
 | Delete a message | ✓ Yes | ✗ No | | [Guide](/messaging/edit-delete-react) |
@@ -39,7 +39,7 @@ Not sure which provider you're on? It's WhatsApp Web unless you created the clie
 | Forward a message | ✓ Yes | ✗ No | Needs the WhatsApp Web connection. | [Guide](/messaging/edit-delete-react) |
 | Location | ✓ Yes | ✓ Yes | | [Guide](/messaging/polls-and-more) |
 | Contact card | ✓ Yes | ✓ Yes | | [Guide](/messaging/polls-and-more) |
-| Poll | ✓ Yes | ✗ No | Rejects with `NOT_IMPLEMENTED`. | [Guide](/messaging/polls-and-more) |
+| Poll | ✓ Yes | ✗ No | Rejects with `SEND_FAILED`, cause `NOT_IMPLEMENTED`. | [Guide](/messaging/polls-and-more) |
 | Event invitation | ✓ Yes | ✗ No | Shows up in groups only. | [Guide](/messaging/polls-and-more) |
 | Group invite message | ✓ Yes | ✗ No | | [Guide](/messaging/polls-and-more) |
 | Request or share a phone number | ✓ Yes | ✗ No | | [Guide](/messaging/polls-and-more) |
@@ -65,7 +65,7 @@ Not sure which provider you're on? It's WhatsApp Web unless you created the clie
 
 | Feature | WhatsApp Web | Cloud API | Notes | Guide |
 | --- | --- | --- | --- | --- |
-| Reply buttons | ✓ Yes | ◐ Partial | Up to 10 on Web, 3 on the Cloud API. More rejects with `NOT_IMPLEMENTED`. | [Guide](/messaging/interactive) |
+| Reply buttons | ✓ Yes | ◐ Partial | Up to 10 on Web, 3 on the Cloud API. More rejects with `SEND_FAILED`, cause `NOT_IMPLEMENTED`. | [Guide](/messaging/interactive) |
 | URL button | ✓ Yes | ◐ Partial | Cloud: only as the only button in the message. | [Guide](/messaging/interactive) |
 | Copy-code, call, and other button types | ✓ Yes | ✗ No | | [Guide](/messaging/interactive) |
 | Photo or video header on buttons | ✓ Yes | ✗ No | | [Guide](/messaging/interactive) |
@@ -141,7 +141,7 @@ Zaileys fails straight away with a typed error, so you never wait on a send that
 | Error | Code | Thrown when |
 | --- | --- | --- |
 | `ZaileysProviderError` | `UNSUPPORTED_ON_CLOUD` | You use a WhatsApp Web–only module or method on the Cloud API, such as `client.group` or `edit()`. |
-| `ZaileysCloudError` | `NOT_IMPLEMENTED` | You send content the Cloud API can't carry, such as a poll or a carousel. |
+| `ZaileysBuilderError` | `SEND_FAILED`, with a `ZaileysCloudError` `NOT_IMPLEMENTED` on `error.cause` | You send content the Cloud API can't carry, such as a poll or a carousel. |
 | `ZaileysCloudError` | `CONFIG` | You use a Cloud-only call — `webhook()`, `sendTemplate()`, `markRead()`, `client.cloud` — on WhatsApp Web. |
 
 When one codebase serves both providers, check `client.provider` before a provider-specific call:

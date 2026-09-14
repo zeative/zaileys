@@ -92,7 +92,7 @@ export const webhook = client.webhook()
 | **Logging in** | QR code or pairing code, saved as a session | An access token. `connect()` only checks that it's valid. [Setup](/cloud/setup) |
 | **Receiving messages** | Over a connection Zaileys keeps open | Meta calls your webhook, which needs a public HTTPS URL. [Webhook](/cloud/webhook) |
 | **Messaging someone first** | Anyone with WhatsApp | Free-form messages only inside the <Term id="service-window" />. Outside it, an approved template. [Templates](/cloud/templates) |
-| **What you can send** | Every message type | Text, media, locations, contacts, reactions, up to 3 reply buttons, and lists. Anything else rejects with `NOT_IMPLEMENTED`. [Messaging](/cloud/messaging) |
+| **What you can send** | Every message type | Text, media, locations, contacts, reactions, up to 3 reply buttons, and lists. Anything else rejects with `SEND_FAILED`, with `NOT_IMPLEMENTED` on `error.cause`. [Messaging](/cloud/messaging) |
 | **Groups, channels, chats, profile, presence** | Available | `client.group`, `client.chat`, and the other WhatsApp Web modules throw `UNSUPPORTED_ON_CLOUD` |
 | **Delivery and read receipts** | Not available | The `message-status` event. [Cloud events](/cloud/events) |
 | **Sending limits** | WhatsApp's anti-spam rules | Meta's messaging limits and your number's quality rating. [Limits](/cloud/limits) |

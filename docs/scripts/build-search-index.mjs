@@ -1,10 +1,12 @@
 // Builds docs/search-index.json from the .mdx sources using BM25F weights.
 // Field-length normalisation is precomputed here so the browser only sums numbers.
-import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs'
+import { readFileSync, writeFileSync, readdirSync, statSync, existsSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const DOCS = join(dirname(fileURLToPath(import.meta.url)), '..')
+// Optional: the built site. Given it, every section anchor is taken from the rendered heading.
+const HTML = process.argv[2] ? join(DOCS, '..', process.argv[2]) : null
 const SNIPPET = 200
 
 // Two signals, kept apart on purpose: "this page is ABOUT the term" (title/keywords/heading)
@@ -33,11 +35,13 @@ const stem = (w) => {
 // "sendTemplate" also indexes as send + template, so two-word queries find it.
 const tokenize = (text) => {
   const out = []
-  for (const raw of String(text).split(/[^A-Za-z0-9_]+/)) {
+  for (const token of String(text).split(/[^A-Za-z0-9_]+/)) {
+    const raw = token.replace(/^_+|_+$/g, '')
     if (!raw) continue
     const lower = raw.toLowerCase()
     if (lower.length > 1 && !STOP.has(lower)) out.push(stem(lower))
-    const parts = raw.split(/(?<=[a-z0-9])(?=[A-Z])/)
+    // FFMPEG_PATH and clearAuthOn also index their parts, so "ffmpeg path" finds them too.
+    const parts = raw.split(/_+|(?<=[a-z0-9])(?=[A-Z])/)
     if (parts.length > 1) {
       for (const part of parts) {
         const p = part.toLowerCase()
@@ -91,10 +95,37 @@ const frontmatter = (raw) => {
   return [meta, raw.slice(m[0].length)]
 }
 
+// Option and field names live in JSX attributes (<ParamField body="media.maxBytes">), which clean()
+// strips with the tags — yet they're what people search for on a reference page.
+const fieldNames = (t) =>
+  [...t.matchAll(/<(?:ParamField|ResponseField)\b[^>]*?\b(?:body|name|path|query)="([^"]+)"/g)].map((m) => m[1])
+
+// Identifiers a section defines or mentions: field names and inline code that looks like a name.
+const identifiers = (t) => {
+  const fenced = [...t.matchAll(/```[\s\S]*?```/g)].map((m) => m[0])
+  const names = [
+    ...fieldNames(t),
+    ...[...t.replace(/```[\s\S]*?```/g, ' ').matchAll(/`([A-Za-z_][\w.]*(?:\(\))?)`/g)].map((m) => m[1]),
+    // Environment variables inside code blocks, such as FFMPEG_PATH=… in a shell example.
+    ...fenced.flatMap((block) => block.match(/\b[A-Z][A-Z0-9]*_[A-Z0-9_]+\b/g) ?? []),
+  ]
+  const out = new Set()
+  for (const name of names) {
+    const segments = name.replace(/\(\)$/, '').split('.')
+    segments.forEach((segment, i) => {
+      // Keep segments that are names in their own right; `session` in `session.clearAuthOn` is not.
+      const named = /[A-Z_]/.test(segment) || (i === segments.length - 1 && segments.length > 1)
+      const id = segment.replace(/^_+|_+$/g, '').toLowerCase()
+      if (named && id.length > 2) out.add(id)
+    })
+  }
+  return [...out].join(' ')
+}
+
 const clean = (t) =>
   t.replace(/```[\s\S]*?```/g, ' ').replace(/^import .*$/gm, ' ').replace(/<[^>]+>/g, ' ')
    .replace(/\{\/\*[\s\S]*?\*\/\}/g, ' ').replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
-   .replace(/[*_`#|>]+/g, ' ').replace(/\s+/g, ' ').trim()
+   .replace(/[*`#|>]+/g, ' ').replace(/\s+/g, ' ').trim()
 
 // Pass 1: collect raw term frequencies per field.
 const raw = []
@@ -110,8 +141,9 @@ for (const file of walk(DOCS).sort()) {
     const h = /^(#{2,3})\s+(.*)$/.exec(line)
     if (h) {
       if (cur) secs.push(cur)
-      const text = h[2].replace(/[`*]/g, '').trim()
-      cur = { t: text, a: slugify(text), lines: [] }
+      const explicit = /\s*\{#([\w-]+)\}\s*$/.exec(h[2])
+      const text = h[2].replace(/\s*\{#[\w-]+\}\s*$/, '').replace(/[`*]/g, '').trim()
+      cur = { t: text, a: explicit ? explicit[1] : slugify(text), lines: [] }
     } else if (cur) cur.lines.push(line)
   }
   if (cur) secs.push(cur)
@@ -122,7 +154,7 @@ for (const file of walk(DOCS).sort()) {
     keywords: (Array.isArray(meta.keywords) ? meta.keywords : []).join(' '),
     heading: secs.map((s) => s.t).join(' '),
     description: meta.description ?? '',
-    body: clean(body),
+    body: `${clean(body)} ${fieldNames(body).join(' ')}`,
   }
 
   const tf = {}
@@ -148,11 +180,54 @@ for (const file of walk(DOCS).sort()) {
       tab: place.tab,
       ti: place.tabIndex,
       g: place.group,
-      secs: secs.map((s) => ({ t: s.t, a: s.a, x: clean(s.lines.join('\n')).slice(0, SNIPPET) })),
+      secs: secs.map((s) => {
+        const raw = s.lines.join('\n')
+        const ids = identifiers(raw)
+        return { t: s.t, a: s.a, x: clean(raw).slice(0, SNIPPET), ...(ids ? { k: ids } : {}) }
+      }),
     },
     tf,
     len,
   })
+}
+
+// Mintlify's slugs keep some punctuation and curl apostrophes ("won't" → "won’t", "client.use()" →
+// "client-use"), so a local slugify can't predict them and search deep links would land at the page
+// top. With the built site at hand, take each anchor from the heading Mintlify actually rendered.
+if (HTML) {
+  const entities = { amp: '&', lt: '<', gt: '>', quot: '"', '#x27': "'", '#39': "'" }
+  const decode = (t) => t.replace(/&(amp|lt|gt|quot|#x27|#39);/g, (_, e) => entities[e])
+  const norm = (t) =>
+    decode(t).replace(/\u200b/g, '').replace(/[’‘]/g, "'").replace(/[“”]/g, '"').replace(/[`*]/g, '')
+      .replace(/\s+/g, ' ').trim().toLowerCase()
+  const unresolved = []
+  for (const doc of raw) {
+    const page = doc.meta.u === '/' ? 'index' : doc.meta.u.slice(1)
+    const file = [join(HTML, page, 'index.html'), join(HTML, `${page}.html`)].find((f) => existsSync(f))
+    if (!file) {
+      unresolved.push(`${doc.meta.u} — page not in the built site`)
+      continue
+    }
+    const byText = new Map()
+    for (const m of readFileSync(file, 'utf8').matchAll(/<h([2-6])\b[^>]*\bid="([^"]+)"[^>]*>([\s\S]*?)<\/h\1>/g)) {
+      if (m[2].startsWith('_R_')) continue // Mintlify's own UI headings: "On this page", card titles
+      const key = norm(m[3].replace(/<[^>]+>/g, ''))
+      byText.set(key, [...(byText.get(key) ?? []), decode(m[2])])
+    }
+    const seen = new Map()
+    for (const sec of doc.meta.secs) {
+      const key = norm(sec.t)
+      const nth = seen.get(key) ?? 0
+      seen.set(key, nth + 1)
+      const id = byText.get(key)?.[nth]
+      if (id) sec.a = id
+      else unresolved.push(`${doc.meta.u} — "${sec.t}"`)
+    }
+  }
+  if (unresolved.length) {
+    for (const u of unresolved) console.error(`✗ no rendered heading for ${u}`)
+    process.exit(1)
+  }
 }
 
 // Average field lengths drive BM25F normalisation.

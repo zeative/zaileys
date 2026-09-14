@@ -100,6 +100,7 @@ Every field is optional. `new Client()` on its own connects to WhatsApp Web with
 | [`autoConnect`](#connection-and-login) | `boolean` | `true` | Both |
 | [`qrTerminal`](#connection-and-login) | `boolean` | `true` | WhatsApp Web |
 | [`reconnect`](#reconnectoptions) | `ReconnectOptions` | `{}` — retries forever | WhatsApp Web |
+| [`session`](#session) | `SessionSafetyOptions` | only a logout deletes the session | WhatsApp Web |
 | [`auth`](#storage) | `AuthStoreBundle` | files in `./.zaileys/auth/<sessionId>` | WhatsApp Web |
 | [`store`](#storage) | `MessageStore` | `MemoryMessageStore` | Both |
 | [`cacheSignal`](#storage) | `boolean` | `true` | WhatsApp Web |
@@ -112,6 +113,7 @@ Every field is optional. `new Client()` on its own connects to WhatsApp Web with
 | [`presence`](#presencethrottleoptions) | `PresenceThrottleOptions` | on, 1 s window | WhatsApp Web |
 | [`scheduleRateLimitPerSec`](#guards-and-rate-limits) | `number` | `1` | WhatsApp Web |
 | [`sticker`](#stickermetadatatype) | `StickerMetadataType` | — | Both |
+| [`media`](#mediaoptions) | `MediaOptions` | 64 MB files, 4 ffmpeg jobs, 50 MP images | Both |
 | [`autoRejectCall`](#autorejectcalloptions) | `boolean \| AutoRejectCallOptions` | `false` | WhatsApp Web |
 | [`autoDelete`](#autodeleteoptions) | `AutoDeleteOptions \| false` | on, 30 days | WhatsApp Web |
 | [`logger`](#logging) | `Logger` | silent Pino logger | Both |
@@ -143,7 +145,10 @@ Every field is optional. `new Client()` on its own connects to WhatsApp Web with
   Any secret string you choose. `client.webhook()` answers Meta's verification request only when the token Meta sends matches this value, and responds `403` otherwise — so without it, verification always fails. [Webhook](/cloud/webhook)
 </ParamField>
 <ParamField body="cloud.appSecret" type="string">
-  Your Meta app secret. When set, `client.webhook()` checks the `X-Hub-Signature-256` header of every delivery and answers `401` to any that don't match. Without it, signatures aren't checked.
+  Your Meta app secret. `client.webhook()` checks the `X-Hub-Signature-256` header of every delivery and answers `401` to any that don't match. Without it, every delivery gets `401` unless `allowUnsigned` is `true`.
+</ParamField>
+<ParamField body="cloud.allowUnsigned" type="boolean" default="false">
+  Accept webhook deliveries without checking their signature, when there's no `appSecret`. For local testing only — anyone who learns the URL can send fake events. [Webhook](/cloud/webhook)
 </ParamField>
 <ParamField body="cloud.apiVersion" type="string" default="'v23.0'">
   Graph API version used in every request URL.
@@ -155,7 +160,7 @@ Every field is optional. `new Client()` on its own connects to WhatsApp Web with
 ## Connection and login
 
 <ParamField body="sessionId" type="string" default="'default'">
-  A name for this login. It names the default auth folder (`./.zaileys/auth/<sessionId>`), appears in the status line `[zaileys] Connecting to WhatsApp (session: default)...`, and is included as `sessionId` in connection events such as `connect` and `disconnect`. Give every client in one process its own. Both providers. [Multiple accounts](/data/multi-account)
+  A name for this login. It names the default auth folder (`./.zaileys/auth/<sessionId>`), appears in the status line `[zaileys] Connecting to WhatsApp (session: default)...`, and is included as `sessionId` in connection events such as `connect` and `disconnect`. Give every client in one process its own. Both providers. [Multiple accounts](/data/multi-account) Use 1–64 characters from `A–Z`, `a–z`, `0–9`, `_`, and `-`: the ID becomes part of a folder path, so anything else throws `invalid sessionId` when you create the client.
 </ParamField>
 
 <ParamField body="authType" type="'qr' | 'pairing'" default="'qr'">
@@ -176,6 +181,12 @@ Every field is optional. `new Client()` on its own connects to WhatsApp Web with
 
 <ParamField body="reconnect" type="ReconnectOptions" default="{}">
   How the client reconnects after the connection drops. The defaults retry forever with a growing delay. Fields are listed in [ReconnectOptions](#reconnectoptions). WhatsApp Web only — the Cloud API has no connection to lose. [Tune reconnects](/concepts/configuration#tune-reconnects)
+</ParamField>
+
+### Session
+
+<ParamField body="session.clearAuthOn" type="DisconnectReasonDomain[]" default="['logged-out']">
+  Disconnect reasons allowed to delete the saved session. By default only a logout does — Zaileys backs up the credentials first. Add `'forbidden'` or `'connection-replaced'` to delete on those too. [When the saved session is deleted](/whatsapp-web#when-the-saved-session-is-deleted)
 </ParamField>
 
 ### ReconnectOptions
@@ -288,8 +299,8 @@ client.on('text', async (msg) => {
 <ParamField body="plugins.dir" type="string" default="'./plugins'">
   Folder to load plugins from, relative to the folder you start the bot from. Subfolders are scanned too.
 </ParamField>
-<ParamField body="plugins.watch" type="boolean" default="true">
-  Reload a plugin when its file changes. Anything except `false` turns it on.
+<ParamField body="plugins.watch" type="boolean" default="true, or false when NODE_ENV is 'production'">
+  Reload a plugin when its file changes. Off by default in production, where a writable plugin folder would let anyone run code in your bot. [Reload plugins](/bots/plugins#reload-plugins-while-the-bot-runs)
 </ParamField>
 <ParamField body="plugins.pattern" type="RegExp" default="/\.(ts|js|mjs|cjs)$/">
   Which files to load, matched against each file name.
@@ -391,6 +402,35 @@ const client = new Client({
 
 <ParamField body="sticker" type="StickerMetadataType">
   Default pack and author names for every sticker you send, so you don't repeat them in each `.sticker()` call. Both providers. [Set sticker defaults](/concepts/configuration#set-sticker-defaults)
+</ParamField>
+
+### MediaOptions
+
+Limits for loading and converting media. They apply to the **whole process**: with several clients in one process, the last one created wins. See [Server sizing](/data/server-sizing) for choosing values.
+
+<ParamField body="media.maxBytes" type="number" default="67108864 (64 MB)">
+  The largest file Zaileys reads from a URL or a path. Larger ones fail with `MEDIA_LOAD_FAILED` and `<source> exceeds <maxBytes> bytes`.
+</ParamField>
+<ParamField body="media.allowLocalPaths" type="boolean" default="true">
+  Treat plain strings as file paths. Set `false` when media sources can come from user input: then only URLs, `Buffer`s, and `file:` URLs are accepted.
+</ParamField>
+<ParamField body="media.allowPrivateNetwork" type="boolean" default="false">
+  Allow fetching from loopback, private (RFC 1918), and link-local addresses, such as `http://localhost` or `http://192.168.1.10`. Off by default, so a URL from a user can't reach services inside your network. Refused fetches fail with `refusing to fetch a private address: <host>`.
+</ParamField>
+<ParamField body="media.deniedDirs" type="string[]">
+  Extra folders media may never be read from. The `.zaileys` folder and a `FileAuthStore` folder, including a custom `basePath`, are always protected, so a bot can't be tricked into sending its own login files.
+</ParamField>
+<ParamField body="media.maxImagePixels" type="number" default="50000000">
+  The largest image, in pixels, Zaileys decodes. Larger ones fail with `Image too large to decode safely: <width>x<height>`.
+</ParamField>
+<ParamField body="media.maxConcurrentFfmpeg" type="number" default="4">
+  ffmpeg jobs running at once. Each 1080p re-encode holds about 235 MB.
+</ParamField>
+<ParamField body="media.maxQueuedFfmpeg" type="number" default="64">
+  ffmpeg jobs allowed to wait for a free slot. New jobs past this fail right away.
+</ParamField>
+<ParamField body="media.ffmpegQueueTimeoutMs" type="number" default="120000">
+  The longest an ffmpeg job waits for a slot before it fails.
 </ParamField>
 
 ### StickerMetadataType

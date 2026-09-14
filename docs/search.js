@@ -79,14 +79,26 @@
     return w
   }
 
+  // Parts of each typed identifier (clearAuthOn → clear, auth), kept as variants of the whole word.
+  // Counting them as words of their own made "clear" and "auth" mandatory, so any page about clearing
+  // an auth store outranked the one that defines clearAuthOn.
+  let queryParts = new Map()
+
   const tokenizeQuery = (text) => {
     const out = []
-    for (const raw of String(text).split(/[^A-Za-z0-9_]+/)) {
+    queryParts = new Map()
+    for (const token of String(text).split(/[^A-Za-z0-9_]+/)) {
+      const raw = token.replace(/^_+|_+$/g, '')
       if (!raw) continue
       const lower = raw.toLowerCase()
-      if (lower.length > 1 && !STOP.has(lower)) out.push(lower)
-      const parts = raw.split(/(?<=[a-z0-9])(?=[A-Z])/)
-      if (parts.length > 1) for (const p of parts) { const s = p.toLowerCase(); if (s.length > 1) out.push(s) }
+      const parts = raw.split(/_+|(?<=[a-z0-9])(?=[A-Z])/).map((p) => p.toLowerCase())
+        .filter((p) => p.length > 1 && !STOP.has(p))
+      if (lower.length > 1 && !STOP.has(lower)) {
+        out.push(lower)
+        if (parts.length > 1) queryParts.set(lower, parts)
+      } else if (parts.length > 1) {
+        out.push(...parts)
+      }
     }
     return out
   }
@@ -117,6 +129,11 @@
     add(word, 1)
     add(stem(word), 0.98)
     for (const syn of SYNONYMS[word] ?? []) { add(syn, 0.85); add(stem(syn), 0.84) }
+    // Parts are a fallback: when the docs contain the identifier itself, it's the exact target, and
+    // matching "prefix" out of tablePrefix would favour every page about command prefixes.
+    if (!data.df[word] && !data.df[stem(word)]) {
+      for (const part of queryParts.get(word) ?? []) { add(part, 0.5); add(stem(part), 0.49) }
+    }
 
     // Prefix-expand only the word still being typed; doing it to every word makes
     // "send" drag in "sender" and hijack the ranking.
@@ -149,6 +166,8 @@
     const scores = new Map()
     const coverage = new Map()
     const expanded = new Set() // every variant we actually searched, for heading selection
+    // A heading that names part of the identifier ("Use your own ffmpeg" for FFMPEG_PATH) is a good landing spot.
+    for (const parts of queryParts.values()) for (const part of parts) expanded.add(part)
 
     const idfOf = (term) => Math.log(1 + (data.N - data.df[term] + 0.5) / (data.df[term] + 0.5))
 
@@ -221,11 +240,14 @@
     for (const sec of doc.secs) {
       const heading = sec.t.toLowerCase()
       const snippet = (sec.x || '').toLowerCase()
+      const ids = sec.k ? ` ${sec.k} ` : ''
       let score = 0
       if (heading === phrase) score += 40
       else if (heading.includes(phrase)) score += 22
       for (const word of words) {
         const s = stem(word)
+        // The section that defines or names the identifier someone typed is where the answer is.
+        if (ids.includes(` ${word} `)) score += 12
         if (heading.includes(word) || heading.includes(s)) score += 10
         else if (snippet.includes(word) || snippet.includes(s)) score += 2
       }

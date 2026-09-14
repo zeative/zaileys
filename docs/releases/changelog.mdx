@@ -7,6 +7,51 @@ keywords: ["changelog", "release notes", "what's new", "versions", "breaking cha
 
 Every v4 release listed in the project's changelog, newest first. Releases without an entry aren't shown. Upgrading from v3? Start with [Migrating from v3](/releases/migration).
 
+<Update label="v4.15.1">
+  **Fixed**
+
+  - Animated stickers work with newer ffmpeg releases through `FFMPEG_PATH`. Zaileys passed `-vsync`, which releases such as ffmpeg 9 reject, so the conversion failed with `FFmpeg exited with code 8`. On an Apple Silicon Mac, this is how you get animated stickers. [Animated stickers](/installation#animated-stickers)
+</Update>
+
+<Update label="v4.15.0">
+  **Check before upgrading**
+
+  - Cloud API webhooks refuse unsigned deliveries. Without `appSecret`, every `POST` gets `401` — set `appSecret`, or `cloud.allowUnsigned: true` for local testing only. [Webhook](/cloud/webhook)
+  - `sessionId` must be 1–64 characters from `A–Z`, `a–z`, `0–9`, `_`, and `-`. Anything else throws when you create the client. [Configuration](/concepts/configuration#run-several-numbers)
+  - Plugin hot-reload is off by default when `NODE_ENV` is `production`. [Plugins](/bots/plugins#reload-plugins-while-the-bot-runs)
+  - Media loading refuses private-network URLs, files over 64 MB, and paths inside the auth folder. Change the limits with the `media` option. [Client options](/reference/client-options#mediaoptions)
+  - `citation` lists compare within one address type, so a phone-number entry never matches a sender known only by `@lid`. Bare phone numbers now work as entries. [Configuration](/concepts/configuration#mark-owners-and-banned-users)
+
+  **Changed**
+
+  - Only a logout deletes the saved session. `connection-replaced`, `forbidden`, and `bad-session` keep it, and credentials are backed up before any delete. Bring back the old behavior with `session.clearAuthOn`. [When the saved session is deleted](/whatsapp-web#when-the-saved-session-is-deleted)
+  - If WhatsApp asks to pair again while a linked session is saved, Zaileys stops instead of overwriting it. [Troubleshooting](/reference/troubleshooting#whatsapp-asked-to-pair-again)
+
+  **Added**
+
+  - The `media` client option: file size, private-network and local-path rules, the largest image, and ffmpeg concurrency and queue limits. [Server sizing](/data/server-sizing)
+  - `tablePrefix` on the SQLite and Postgres stores, so several sessions can share one database. [Storage adapters](/reference/storage)
+  - `msg.verified`, which is `false` for a quote rebuilt from a reply, so you can tell stored messages from claimed ones. [Message context](/reference/message-context)
+  - `FFMPEG_PATH` and `FFPROBE_PATH` to use your own ffmpeg. [Installation](/installation#use-your-own-ffmpeg)
+  - `send().htmlApp()`, an inline HTML card on Android with a fallback link for other devices.
+  - Optional `reopen()`, `backupCreds()`, and `readBackupCreds()` for custom stores. [Write your own adapter](/reference/storage#write-your-own-adapter)
+
+  **Fixed**
+
+  - Animated stickers from GIFs and videos: ffmpeg options were passed as combined arguments, so the conversion always failed. [Animated stickers](/installation#animated-stickers)
+  - `connect()` works again after `disconnect()`.
+  - A slow auth store could make the bot register as a new device and overwrite a valid session. Credentials now load before the connection starts.
+  - `RedisMessageStore.clear()` and `ConvexMessageStore.clear()` no longer delete the login when the auth store shares their namespace.
+  - Bundled ffmpeg binaries left without permission to run by pnpm 10 or bun are repaired, and `ffprobe` no longer switches binaries depending on job order.
+  - Convex pruning reads the full chat ID, so `maxPerChat` and chat filters apply to the right chat.
+
+  **Security**
+
+  - A single crafted message can no longer freeze the bot: quadratic text scans are gone, mentions are capped and batched, oversized images are rejected before decoding, and ffmpeg jobs time out and wait in a bounded queue.
+  - Self-only protocol messages sent by someone else are dropped.
+  - Credential files are created readable by the owner only, and secrets are redacted from logs.
+</Update>
+
 <Update label="v4.14.1">
   **Fixed**
 

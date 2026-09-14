@@ -31,7 +31,7 @@ Each limit is marked with where it comes from:
 | Error `133010` | [The number isn't registered](#error-133010-the-number-isnt-registered) | Meta policy |
 | Duplicate webhook deliveries, `invalid signature` | [Webhook](#webhook-deliveries-repeat-or-fail-the-signature-check) | Both |
 
-## How Zaileys reports Meta's errors
+## How Zaileys reports Meta's errors {#how-zaileys-reports-metas-errors}
 
 **Enforced by Zaileys.** Every request to Meta goes through one client that reacts to Meta's HTTP answer like this:
 
@@ -101,7 +101,7 @@ client.on('message-status', (status) => {
 })
 ```
 
-## Error 132000 or 132001: the template won't send
+## Error 132000 or 132001: the template won't send {#error-132000-or-132001-the-template-wont-send}
 
 `client.sendTemplate()` throws `REQUEST_FAILED` with `(code 132000)` or `(code 132001)`.
 
@@ -304,7 +304,7 @@ Meta rejects a message because a value is missing or has the wrong format.
 
 **Fix.** Read Meta's message for the field it names. For contacts, give each vCard an `FN` and a `TEL` line.
 
-## A feature isn't available on the Cloud API
+## A feature isn't available on the Cloud API {#a-feature-isnt-available-on-the-cloud-api}
 
 A call throws `UNSUPPORTED_ON_CLOUD`, or a send rejects with `NOT_IMPLEMENTED`.
 
@@ -324,7 +324,7 @@ Messages from Meta's test number never arrive on your phone.
 
 **Fix.** In the Meta dashboard, open **WhatsApp → API Setup**, choose **Manage phone number list** under the **To** field, and add your phone. WhatsApp sends it a confirmation code to enter.
 
-## Error 133010: the number isn't registered
+## Error 133010: the number isn't registered {#error-133010-the-number-isnt-registered}
 
 Every send fails with `133010`.
 

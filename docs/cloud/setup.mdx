@@ -9,7 +9,7 @@ import { Term } from "/snippets/glossary.jsx"
 
 This page takes you through the Meta dashboard, collects every value the `cloud` option needs, and checks them with one call.
 
-## What you'll collect
+## What you'll collect {#what-youll-collect}
 
 | Value | `cloud` option | Where it comes from | Required |
 | --- | --- | --- | --- |
@@ -17,7 +17,7 @@ This page takes you through the Meta dashboard, collects every value the `cloud`
 | <Term id="phone-number-id" /> | `phoneNumberId` | WhatsApp → API Setup | Yes |
 | <Term id="waba" /> ID | `wabaId` | WhatsApp → API Setup | Only for [account-level calls](#which-calls-need-wabaid) |
 | Verify token | `verifyToken` | You make it up | To register the webhook |
-| App secret | `appSecret` | App settings → Basic | Strongly recommended |
+| App secret | `appSecret` | App settings → Basic | Required to receive messages |
 
 <Note>
   Meta renames and moves dashboard pages from time to time. If a menu below doesn't match what you see, search the dashboard for the same term.
@@ -156,7 +156,10 @@ Every field of the `cloud` option on `new Client()`:
   The string Meta must send back when it verifies your webhook. Without it, every verification request gets `403`.
 </ParamField>
 <ParamField body="appSecret" type="string">
-  Your Meta app secret, used to check the `X-Hub-Signature-256` header on every webhook `POST`. Without it, the webhook accepts `POST` requests without checking who sent them.
+  Your Meta app secret, used to check the `X-Hub-Signature-256` header on every webhook `POST`. Without it, the webhook refuses every `POST` with `401`, so no messages reach your bot — unless you set `allowUnsigned`.
+</ParamField>
+<ParamField body="allowUnsigned" type="boolean" default="false">
+  Accept webhook `POST` requests without checking their signature. Use it only for local testing without an app secret: anyone who learns the URL can then send your bot fake messages.
 </ParamField>
 <ParamField body="apiVersion" type="string" default="'v23.0'">
   Graph API version used in every request URL. Set it to move to a newer version, such as `'v24.0'`.
@@ -206,7 +209,7 @@ client.on('error', ({ error }) => {
 })
 ```
 
-## Test with Meta's test number
+## Test with Meta's test number {#test-with-metas-test-number}
 
 Meta's test number only delivers to phone numbers you've added as recipients. On the **API Setup** page, add your own number and confirm it with the code WhatsApp sends you. Messages to any other number fail.
 
@@ -222,7 +225,7 @@ When you reply from your phone, the <Term id="service-window" /> opens and the b
 
 - **Swap the temporary token** for a system user token, so the bot doesn't stop after 24 hours.
 - **Add your own business number** in the Meta dashboard and register it for the Cloud API. `client.cloud.phone` can request the verification code and register the number — see [Business tools](/cloud/business).
-- **Set `appSecret`**, so nobody can post fake messages to your webhook.
+- **Set `appSecret` and remove `allowUnsigned`**, if you used it while testing. The webhook refuses unsigned deliveries without the secret, and accepts fake ones with `allowUnsigned`.
 
 ## When setup fails
 
@@ -265,7 +268,7 @@ More in [Error handling](/data/error-handling).
     No. `client.sendTemplate()` only needs the phone number ID. You need `wabaId` to list, create, or delete templates — see [Which calls need wabaId](#which-calls-need-wabaid).
   </Accordion>
   <Accordion title="Can I leave out appSecret?">
-    The bot still works, but the webhook then accepts any `POST`, so anyone who finds the URL can feed your bot fake messages. Leave it out only while testing locally.
+    Not if you want to receive messages. Without it, the webhook answers every delivery with `401 webhook requires appSecret (or allowUnsigned for local dev)`, and your handlers never run. Sending still works. For a quick local test you can set `allowUnsigned: true` instead — then anyone who finds the URL can feed your bot fake messages, so never deploy with it.
   </Accordion>
   <Accordion title="Which Graph API version does Zaileys use?">
     `v23.0` unless you set `apiVersion`. Meta retires old Graph API versions over time, so read Meta's changelog before you change it.

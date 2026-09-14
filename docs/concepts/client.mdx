@@ -83,7 +83,7 @@ client.on('error', ({ error }) => {
 })
 ```
 
-### When you're ready
+### When you're ready {#when-youre-ready}
 
 Set `autoConnect: false` to finish your own setup first — read a config file, open a database — and connect when you choose. `connect()` resolves once the client is connected:
 
@@ -122,18 +122,17 @@ If the saved session loads but the connection keeps closing before login, the se
 [zaileys] The saved session looks invalid or corrupted (connection keeps closing before it authenticates). Delete the auth folder (default: ./.zaileys) and run again to scan a fresh QR / request a new pairing code.
 ```
 
-### Disconnects that need a new login
+### Disconnects that stop the client
 
-A few reasons mean the saved login no longer works. The client deletes it, so the next start shows a QR code or pairing code again:
+Three reasons stop the client instead of retrying. Only a logout deletes the saved login — the other two keep it, so the next start connects without a new QR code:
 
-| Reason | What happened | Retried? |
-| --- | --- | --- |
-| `logged-out` | The device was removed in **WhatsApp → Linked devices**, or you called `logout()`. | No |
-| `connection-replaced` | Another connection using the same session took over. | No |
-| `forbidden` | WhatsApp refused the account. | No |
-| `bad-session` | The saved session is corrupted. | Yes, with a fresh login |
+| Reason | What happened | Retried? | Saved login |
+| --- | --- | --- | --- |
+| `logged-out` | The device was removed in **WhatsApp → Linked devices**, or you called `logout()`. | No | Deleted, after a backup |
+| `connection-replaced` | Another connection using the same session took over. | No | Kept |
+| `forbidden` | WhatsApp refused the account. | No | Kept |
 
-WhatsApp sometimes reports `logged-out` by mistake right after a successful connection, so the client retries that case up to two times, 3 seconds apart, before it deletes anything. Every other reason is retried. The [events reference](/reference/events) lists them all.
+WhatsApp sometimes reports `logged-out` by mistake right after a successful connection, so the client retries that case up to two times, 3 seconds apart, before it deletes anything. Every other reason is retried with the saved login, including `bad-session`. To delete the login on more reasons, see [When the saved session is deleted](/whatsapp-web#when-the-saved-session-is-deleted). The [events reference](/reference/events) lists them all.
 
 ### Endless login loops are stopped
 

@@ -1,0 +1,368 @@
+---
+title: "Error code lookup"
+description: "Every error code Zaileys and the Cloud API can hand you, one entry each: what it means, what to do, and where the full explanation lives."
+icon: "text-search"
+keywords: ["error code", "error codes", "lookup", "SEND_FAILED", "STORE_NOT_AVAILABLE", "UNSUPPORTED_ON_CLOUD", "MEDIA_LOAD_FAILED", "INVALID_OPTIONS", "EMPTY_CONTENT", "NOT_CONNECTED", "NOT_IMPLEMENTED", "RATE_LIMITED", "REQUEST_FAILED", "HANDLER_ERROR", "MIDDLEWARE_ERROR", "SCHEDULE_INVALID", "STORE_CONNECTION_FAILED", "131047", "132000", "133010", "130429", "131056", "190", "graph error", "meta error code", "what does this error mean"]
+---
+
+You have a code and you want the answer, not a tour. Every code is its own entry below, so you can link straight to one.
+
+Codes reach you two ways:
+
+| Where you see it | Looks like | Section |
+| --- | --- | --- |
+| `error.code` on a thrown Zaileys error | `SEND_FAILED`, `STORE_NOT_AVAILABLE` | [Zaileys codes](#zaileys-codes) |
+| A number inside a Cloud API error message | `graph request failed: … (code 131047)` | [Meta Cloud API codes](#meta-cloud-api-codes) |
+
+<Tip>
+  Want the whole picture instead — which class throws what, the exact messages, how `cause` chains work? That's the [Errors reference](/reference/errors). For symptoms rather than codes, try [Troubleshooting](/reference/troubleshooting).
+</Tip>
+
+## Zaileys codes
+
+Each code belongs to an error class, and the class tells you where it came from. Check the class with `instanceof` before trusting `code` — the same name is used by more than one class.
+
+| Class | Codes |
+| --- | --- |
+| `ZaileysBuilderError` | [`EMPTY_CONTENT`](#empty_content) · [`INVALID_OPTIONS`](#invalid_options) · [`INVALID_RECIPIENT`](#invalid_recipient) · [`MEDIA_LOAD_FAILED`](#media_load_failed) · [`MESSAGE_NOT_FOUND`](#message_not_found) · [`SEND_FAILED`](#send_failed) · [`USERNAME_NOT_FOUND`](#username_not_found) |
+| `ZaileysCloudError` | [`AUTH`](#auth) · [`CONFIG`](#config) · [`NOT_IMPLEMENTED`](#not_implemented) · [`RATE_LIMITED`](#rate_limited) · [`REQUEST_FAILED`](#request_failed) |
+| `ZaileysProviderError` | [`UNSUPPORTED_ON_CLOUD`](#unsupported_on_cloud) |
+| `ZaileysCommandError` | [`DUPLICATE_COMMAND`](#duplicate_command) · [`HANDLER_ERROR`](#handler_error) · [`INVALID_COMMAND_NAME`](#invalid_command_name) · [`MIDDLEWARE_ERROR`](#middleware_error) · [`NOT_CONNECTED`](#not_connected) · [`NO_SENT_MESSAGE`](#no_sent_message) |
+| `ZaileysDomainError` | [`GROUP_NOT_FOUND`](#group_not_found) · [`INVALID_PARTICIPANT`](#invalid_participant) · [`NEWSLETTER_NOT_FOUND`](#newsletter_not_found) · [`NOT_CONNECTED`](#not_connected) · [`OPERATION_FAILED`](#operation_failed) |
+| `ZaileysAutomationError` | [`NOT_CONNECTED`](#not_connected) · [`PRESENCE_FAILED`](#presence_failed) · [`QUEUE_FULL`](#queue_full) · [`QUEUE_TIMEOUT`](#queue_timeout) · [`RATE_LIMIT_INVALID`](#rate_limit_invalid) · [`SCHEDULE_INVALID`](#schedule_invalid) · [`STORE_UNAVAILABLE`](#store_unavailable) · [`TASK_FAILED`](#task_failed) |
+| `ZaileysStoreError` | [`STORE_CLOSED`](#store_closed) · [`STORE_CONNECTION_FAILED`](#store_connection_failed) · [`STORE_CORRUPTED`](#store_corrupted) · [`STORE_NOT_AVAILABLE`](#store_not_available) · [`STORE_READ_FAILED`](#store_read_failed) · [`STORE_WRITE_FAILED`](#store_write_failed) |
+
+### AUTH
+
+`ZaileysCloudError`. Meta rejected your access token or phone number ID with HTTP 401 or 403. Meta's own code for an expired token is usually [`190`](#190).
+
+**Do this:** generate a fresh access token and check the phone number ID in [Cloud API setup](/cloud/setup). A System User token doesn't expire. [Full entry](/reference/errors#zaileysclouderror)
+
+### CONFIG
+
+`ZaileysCloudError`. Either a required Cloud option is missing (`cloud.accessToken`, `cloud.phoneNumberId`, `cloud.wabaId`), or you called a Cloud-only API — `webhook()`, `client.cloud`, `sendTemplate()`, `markRead()` — on the Unofficial provider.
+
+**Do this:** the message names exactly what's missing. Add that option, or switch to `provider: 'cloud'`. [Full entry](/reference/errors#zaileysclouderror)
+
+### DUPLICATE_COMMAND
+
+`ZaileysCommandError`. `client.command()` was given a name or alias that's already registered.
+
+**Do this:** rename it, or call `unregisterCommand()` on the old one first. [Commands](/bots/commands)
+
+### EMPTY_CONTENT
+
+`ZaileysBuilderError`. The message had nothing in it — no content method was called before `await`, or the text was an empty string.
+
+**Do this:** check the value isn't empty before you send it, and make sure a content method runs before the `await`. [Text & replies](/messaging/text)
+
+### GROUP_NOT_FOUND
+
+`ZaileysDomainError`. Declared in the type, but the current release never throws it — when WhatsApp can't find a group, you get Baileys' own error instead.
+
+**Do this:** catch broadly around `client.group` calls rather than matching this code. [Groups](/groups/groups)
+
+### HANDLER_ERROR
+
+`ZaileysCommandError`. Your own command handler threw. The original error is on `cause`.
+
+**Do this:** read `error.cause` — the bug is in the handler. These arrive on the [`command-error`](/reference/events) event, not as a rejected promise. [Commands](/bots/commands)
+
+### INVALID_COMMAND_NAME
+
+`ZaileysCommandError`. A command spec was empty, or one segment of a `name|alias` spec was.
+
+**Do this:** give every name and alias at least one character, and don't leave `||` in the spec. [Commands](/bots/commands)
+
+### INVALID_OPTIONS
+
+`ZaileysBuilderError`. The broadest builder code, covering three different situations: the client isn't connected yet, an option failed validation (`poll()` option count, `location()` latitude range, `buttons()` limit, a malformed JID), or a status was sent to `status@broadcast` without `audience([...])`.
+
+**Do this:** read the message — it names the method and the rule it broke. If it says `client not connected`, send from inside a handler or after the `connect` event. [Full entry](/reference/errors#zaileysbuildererror)
+
+### INVALID_PARTICIPANT
+
+`ZaileysDomainError`. Declared in the type, but the current release never throws it. WhatsApp's own rejection comes through as Baileys' error.
+
+**Do this:** catch broadly around member operations. [Group members](/groups/members)
+
+### INVALID_RECIPIENT
+
+`ZaileysBuilderError`. The content doesn't match the address: `audience()` on something other than `status@broadcast`, or group-only content sent to an address that isn't `@g.us`.
+
+**Do this:** send it to the right kind of address. [JIDs explained](/concepts/jids)
+
+### MEDIA_LOAD_FAILED
+
+`ZaileysBuilderError`. A file couldn't be fetched, read, or converted — a bad URL, an HTTP error, the 30-second fetch timeout, a missing path, or a failed audio or sticker transcode.
+
+**Do this:** check the URL or path. Paths are relative to the folder you started the bot from, not the file the code lives in. [When a send fails](/messaging/media#when-a-send-fails)
+
+### MESSAGE_NOT_FOUND
+
+`ZaileysBuilderError`. `forward()` needs the original message from your store, and it wasn't there.
+
+**Do this:** use a database-backed [store](/data/storage) instead of `memory`, and forward soon after the message arrives.
+
+### MIDDLEWARE_ERROR
+
+`ZaileysCommandError`. A middleware threw, or it called `next()` more than once.
+
+**Do this:** call `next()` exactly once on every path, including inside `catch`. The original error is on `cause`. [Middleware](/bots/middleware)
+
+### NEWSLETTER_NOT_FOUND
+
+`ZaileysDomainError`. A channel lookup returned nothing — `newsletter <jid> not found`.
+
+**Do this:** check the channel JID. Channel addresses end in `@newsletter`, not `@g.us`. [Newsletters](/groups/newsletters)
+
+### NOT_CONNECTED
+
+`ZaileysCommandError`, `ZaileysDomainError`, and `ZaileysAutomationError` all use this code. Something ran before the socket was open — a module call, a presence update, or a call rejection. `client.rejectCall(callId)` also throws it when you leave out the caller JID.
+
+**Do this:** run it from inside a handler, or after the `connect` event fires. For `rejectCall`, pass the whole `call-incoming` payload. [Client lifecycle](/concepts/client)
+
+### NOT_IMPLEMENTED
+
+`ZaileysCloudError`. The content you're sending has no Cloud API equivalent — an unsupported type, an interactive layout Meta doesn't accept, a media header, too many reply buttons, or an AIRich response, which is Web-only.
+
+**Do this:** send a supported type instead. Check the [feature matrix](/feature-matrix) before you build around it. [Send on the Cloud API](/cloud/messaging)
+
+### NO_SENT_MESSAGE
+
+`ZaileysCommandError`. `ctx.edit()` ran without a `ctx.reply()` before it, so there's no message to edit.
+
+**Do this:** reply first, then edit that reply. [Commands](/bots/commands)
+
+### OPERATION_FAILED
+
+`ZaileysDomainError`. WhatsApp returned no invite code, refused an invite, or was handed a message key with no chat address.
+
+**Do this:** check the bot is an admin — invite codes need it — and that the invite hasn't expired. [Group invites](/groups/invites)
+
+### PRESENCE_FAILED
+
+`ZaileysAutomationError`. A typing, recording, or online update didn't go through. The original is on `cause`.
+
+**Do this:** usually temporary, so retry. Presence is best-effort and never worth crashing over. [Presence](/chats/presence)
+
+### QUEUE_FULL
+
+`ZaileysAutomationError`. A `TaskQueue` already holds its `maxPending` tasks — 10,000 by default — so the new one is refused. Inside Zaileys, `client.broadcast()` uses a queue when you pass `retry`.
+
+**Do this:** add tasks more slowly, or raise `maxPending` when a large backlog is expected. [Broadcast & schedule](/bots/broadcast-and-schedule)
+
+### QUEUE_TIMEOUT
+
+`ZaileysAutomationError`. A task in a `TaskQueue` ran longer than `taskTimeoutMs` — 120 seconds by default. Usually a send stuck on a connection that stopped answering.
+
+**Do this:** check the connection first. Raise `taskTimeoutMs` only for tasks that are legitimately slow.
+
+### RATE_LIMITED
+
+`ZaileysCloudError`. Meta answered `429` on all three attempts, so Zaileys gave up.
+
+**Do this:** slow down. A [`RateLimiter`](/reference/utilities) in front of your sends is the fix, not a retry loop. [Limits](/cloud/limits)
+
+### RATE_LIMIT_INVALID
+
+`ZaileysAutomationError`. A rate limiter was configured with zero or a negative number for `perSec`, `perJidPerSec`, or `burst`.
+
+**Do this:** use positive numbers. [Utilities](/reference/utilities)
+
+### REQUEST_FAILED
+
+`ZaileysCloudError`. A Graph API request failed outright: a network error, a status Meta doesn't retry, three failed attempts on a 5xx, or a response with no ID. The health check on `connect()` uses the same code.
+
+**Do this:** read the Meta code in the message and look it up under [Meta Cloud API codes](#meta-cloud-api-codes). Network failures keep the original on `cause`. [Full entry](/reference/errors#zaileysclouderror)
+
+### SCHEDULE_INVALID
+
+`ZaileysAutomationError`. `scheduleAt()` got something it can't schedule: an invalid `Date`, a builder that produced nothing, or a multi-part message such as an album or interactive content.
+
+**Do this:** pass a real `Date` and schedule a single text or media message. [Broadcast & schedule](/bots/broadcast-and-schedule)
+
+### SEND_FAILED
+
+`ZaileysBuilderError`. WhatsApp — or the Cloud API — refused the message, or accepted it and returned no key. This is the code you'll meet most often, and on its own it doesn't tell you why.
+
+**Do this:** read `error.cause`. On the Cloud API it holds a `ZaileysCloudError` with the real code; on WhatsApp Web it holds Baileys' error, and a single retry often succeeds. [Cause chains](/reference/errors#cause-chains)
+
+### STORE_CLOSED
+
+`ZaileysStoreError`. A store was used after the client closed it, such as `SqliteAuthStore is closed`.
+
+**Do this:** build a new `Client` with fresh store instances rather than reusing closed ones. [Storage](/data/storage)
+
+### STORE_CONNECTION_FAILED
+
+`ZaileysStoreError`. Either the constructor got conflicting options — `client` and `url` together, or `pool` and `connectionString` together — or the database couldn't be opened, reached, or migrated.
+
+**Do this:** pass exactly one of each pair. If it's a connection problem, check the path, URL, credentials, and network; the driver's error is on `cause`. [Storage](/data/storage)
+
+### STORE_CORRUPTED
+
+`ZaileysStoreError`. A SQLite row couldn't be parsed.
+
+**Do this:** delete the damaged database file and link the device again. [Storage](/data/storage)
+
+### STORE_NOT_AVAILABLE
+
+`ZaileysStoreError`. The database driver for the store you chose isn't installed. Drivers are optional peer dependencies, so this surfaces when the client connects — not at install time.
+
+**Do this:** install the package the message names — `better-sqlite3@11`, `pg`, `redis@4`, or `convex`. [Storage adapters](/reference/storage#at-a-glance)
+
+### STORE_READ_FAILED
+
+`ZaileysStoreError`. A read from the store failed. The driver's error is on `cause`.
+
+**Do this:** check the database is reachable and the credentials still work. [Storage](/data/storage)
+
+### STORE_UNAVAILABLE
+
+`ZaileysAutomationError`. Declared in the type, but the current release never throws it. Not to be confused with [`STORE_NOT_AVAILABLE`](#store_not_available), which is a real `ZaileysStoreError`.
+
+**Do this:** match on `STORE_NOT_AVAILABLE` instead.
+
+### STORE_WRITE_FAILED
+
+`ZaileysStoreError`. A write to the store failed. The driver's error is on `cause`.
+
+**Do this:** check disk space and permissions first — those are the usual causes. [Storage](/data/storage)
+
+### TASK_FAILED
+
+`ZaileysAutomationError`. Declared in the type, but the current release never throws it.
+
+**Do this:** nothing to handle today. [Broadcast & schedule](/bots/broadcast-and-schedule)
+
+### UNSUPPORTED_ON_CLOUD
+
+`ZaileysProviderError`, and its only code. You called a WhatsApp Web-only feature on a client running `provider: 'cloud'`. It throws immediately, before any network call, and `error.feature` names what you called: `group`, `privacy`, `newsletter`, `community`, `profile`, `chat`, `contact`, `business`, `presence`, `edit`, `delete`, `rejectCall`, `pin`, `unpin`, or `setDisappearing`.
+
+**Do this:** check `client.provider` before calling Web-only features, or run that part of your bot on the Unofficial provider. [Feature matrix](/feature-matrix)
+
+### USERNAME_NOT_FOUND
+
+`ZaileysBuilderError`. An `@username` recipient doesn't exist.
+
+**Do this:** check the spelling, or address the person by phone JID instead. [JIDs explained](/concepts/jids)
+
+## Meta Cloud API codes
+
+These are Meta's numbers, not Zaileys codes. They arrive inside the message of a `ZaileysCloudError` — `graph request failed: <Meta's reason> (code 131047)` — and on the `error` field of a `failed` [message status](/cloud/events).
+
+When the send came from `client.send()` or `msg.reply()`, that `ZaileysCloudError` sits on `error.cause` of a `ZaileysBuilderError` with code [`SEND_FAILED`](#send_failed).
+
+### 100
+
+An invalid parameter in the request.
+
+**Do this:** check the value Meta names in the message. [Webhook events](/cloud/events)
+
+### 130429
+
+You sent faster than your number's throughput allows.
+
+**Do this:** put a [`RateLimiter`](/reference/utilities) in front of your sends. [Too many messages per second](/cloud/limits#error-130429-too-many-messages-per-second)
+
+### 131009
+
+A parameter value is invalid — a contact card with no first name, for example.
+
+**Do this:** check the content you sent. [A parameter is invalid](/cloud/limits#error-131009-a-parameter-is-invalid)
+
+### 131026
+
+Meta couldn't deliver the message: the number isn't on WhatsApp, or can't receive it.
+
+**Do this:** check the number, and don't retry the same message in a loop. [Graph errors 131026 and 131056](/reference/troubleshooting#graph-errors-131026-and-131056)
+
+### 131030
+
+You're sending from Meta's test number to a phone that isn't on its allowed recipient list.
+
+**Do this:** add the phone under **WhatsApp → API Setup** in the Meta dashboard. [Graph error 131030](/reference/troubleshooting#graph-error-131030)
+
+### 131047
+
+More than 24 hours have passed since the customer last messaged you, so free-form messages are blocked.
+
+**Do this:** send an approved [template](/cloud/templates). Free-form works again as soon as they reply. [The 24-hour window is closed](/cloud/limits#error-131047-the-24-hour-window-is-closed)
+
+### 131048
+
+Your number's quality rating dropped, so Meta is restricting it.
+
+**Do this:** stop sending anything people report as spam, and let the rating recover. [Quality rating restrictions](/cloud/limits#error-131048-quality-rating-restrictions)
+
+### 131049
+
+A marketing message wasn't delivered — Meta caps how many of these a user receives.
+
+**Do this:** treat it as expected, not as a bug to retry. [Marketing message not delivered](/cloud/limits#error-131049-marketing-message-not-delivered)
+
+### 131053
+
+Media upload failed: the file is too large, or the format isn't accepted.
+
+**Do this:** check the size and MIME type against Meta's limits. [Media rejected](/cloud/limits#media-rejected-file-size-and-format)
+
+### 131056
+
+Too many messages to the same person in a short time.
+
+**Do this:** slow down per recipient — a `RateLimiter` with `perJidPerSec`. [Too many messages to one person](/cloud/limits#error-131056-too-many-messages-to-one-person)
+
+### 132000
+
+The number of template parameters doesn't match the template's placeholders.
+
+**Do this:** count the `{{n}}` placeholders with `client.cloud.templates.get()` and pass exactly one parameter each. [The template won't send](/cloud/limits#error-132000-or-132001-the-template-wont-send)
+
+### 132001
+
+The template doesn't exist, or isn't approved in the language you asked for.
+
+**Do this:** check the name and language code against `client.cloud.templates.list()`. [The template won't send](/cloud/limits#error-132000-or-132001-the-template-wont-send)
+
+### 133010
+
+The phone number isn't registered with the Cloud API.
+
+**Do this:** register it before sending. [The number isn't registered](/cloud/limits#error-133010-the-number-isnt-registered)
+
+### 133016
+
+Too many registration attempts — Meta allows 10 per number per 72 hours.
+
+**Do this:** wait out the window rather than retrying. [Register a phone number](/cloud/business#register-a-phone-number)
+
+### 139101
+
+The blocklist is full. Meta caps it at 64,000 users, and 1,000 per request.
+
+**Do this:** remove entries you no longer need, and batch under 1,000. [Block a user](/cloud/business#block-a-user)
+
+### 190
+
+The access token is invalid or expired.
+
+**Do this:** generate a new one. A System User token doesn't expire. [The access token expired](/cloud/limits#error-190-the-access-token-expired)
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Errors reference" icon="octagon-alert" href="/reference/errors">
+    Every class, the exact messages, and how `cause` chains work.
+  </Card>
+  <Card title="Error handling" icon="triangle-alert" href="/data/error-handling">
+    Catch by code, listen for background errors, retry sends.
+  </Card>
+  <Card title="Troubleshooting" icon="life-buoy" href="/reference/troubleshooting">
+    Start from the symptom instead of the code.
+  </Card>
+  <Card title="Limits & pricing" icon="gauge" href="/cloud/limits">
+    The Cloud API rules behind most Meta codes.
+  </Card>
+</CardGroup>

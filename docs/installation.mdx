@@ -167,7 +167,40 @@ Images and stickers then use the bundled `jimp` path.
 
 ## ffmpeg comes bundled
 
-Zaileys converts audio, video, and stickers with ffmpeg, and installs a matching ffmpeg and ffprobe binary for your platform. You don't need to install ffmpeg yourself. If no bundled binary is available for your platform, Zaileys falls back to the `ffmpeg` and `ffprobe` commands on your `PATH`.
+Zaileys converts audio, video, and stickers with ffmpeg, and installs a matching ffmpeg and ffprobe binary for your platform. You don't need to install ffmpeg yourself.
+
+For each binary, Zaileys uses the first of these that works:
+
+1. **`FFMPEG_PATH` or `FFPROBE_PATH`**, when you set them.
+2. **The bundled binary.** pnpm 10 and bun skip install scripts from dependencies by default, which leaves the bundled binary without permission to run — Zaileys grants that permission itself, so there's nothing to approve.
+3. **`ffmpeg` or `ffprobe` on your `PATH`**, when your platform has no bundled binary, or Zaileys can't make it runnable — for example, when `node_modules` is read-only.
+
+### Use your own ffmpeg
+
+```bash
+FFMPEG_PATH=/usr/bin/ffmpeg FFPROBE_PATH=/usr/bin/ffprobe node bot.js
+```
+
+Set both when you want a specific build, such as one with extra codecs. Zaileys uses the paths as they are, so a wrong path makes every conversion fail.
+
+### Animated stickers
+
+Animated stickers need ffmpeg's WebP encoder (`libwebp`), and not every build has it:
+
+| Where the bot runs | Animated stickers |
+| --- | --- |
+| Linux (x86 or ARM), Windows, or an Intel Mac, with the bundled ffmpeg | Work |
+| A Mac with Apple Silicon (M1 or newer), with the bundled ffmpeg | Fail — this build has no WebP encoder |
+| Your own ffmpeg with the WebP encoder, through `FFMPEG_PATH` | Work in Zaileys 4.15.1 and newer |
+
+On an Apple Silicon Mac, use your own ffmpeg. Homebrew's `ffmpeg-full` includes the WebP encoder; the plain `ffmpeg` formula doesn't:
+
+```bash
+brew install ffmpeg-full
+FFMPEG_PATH="$(brew --prefix ffmpeg-full)/bin/ffmpeg" FFPROBE_PATH="$(brew --prefix ffmpeg-full)/bin/ffprobe" node bot.js
+```
+
+A failed conversion throws `MEDIA_LOAD_FAILED` with `sticker() conversion failed: …`. Stickers from photos don't use ffmpeg, so they work everywhere. On Zaileys 4.15.0, your own ffmpeg failed too when it was a newer release such as ffmpeg 9 (`FFmpeg exited with code 8`) — upgrade to 4.15.1.
 
 ## Check that it works
 
@@ -193,7 +226,7 @@ Zaileys loaded. Provider: baileys, state: idle
 
 <AccordionGroup>
   <Accordion title="Do I need to install ffmpeg?">
-    No. Zaileys installs its own ffmpeg binary. It only uses a system ffmpeg when no bundled binary exists for your platform.
+    No. Zaileys installs its own ffmpeg binary, including on pnpm 10 and bun. It only uses a system ffmpeg when you set `FFMPEG_PATH`, or when the bundled binary is missing or can't run. [How Zaileys picks ffmpeg](#ffmpeg-comes-bundled)
   </Accordion>
   <Accordion title="npm install fails while building sharp">
     Your platform has no prebuilt `sharp` binary. Install with `npm install zaileys --legacy-peer-deps` — Zaileys then processes images with the bundled `jimp` library.

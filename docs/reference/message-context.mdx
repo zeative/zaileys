@@ -138,7 +138,7 @@ interface MessageContext {
   The message's text, `''` when there's none. Which text depends on the event: `message` and `mention` give the body, the tapped button or list row, or the file's caption (for a document without a caption, its file name); `text` gives the body; the media events give the caption. @mentions of LIDs are rewritten to phone numbers when the mapping is known.
 </ResponseField>
 <ResponseField name="media" type="ContextMedia | undefined">
-  The attachment, or the details of a poll, location, contact, or other structured message. `undefined` for plain text. See [msg.media](#msgmedia).
+  The attachment, or the details of a poll, location, contact, or other structured message. `undefined` for plain text. See [msg.media](#msg-media).
 </ResponseField>
 <ResponseField name="mentions" type="string[]">
   Everyone @mentioned, normalized, with LIDs turned into phone JIDs where WhatsApp shares the mapping.
@@ -203,6 +203,9 @@ Every flag is a `boolean`.
 
 <ResponseField name="isFromMe" type="boolean">
   The bot's own account sent it. Only reaches your handlers with `ignoreMe: false`.
+</ResponseField>
+<ResponseField name="verified" type="boolean">
+  `true` when Zaileys received the message or found it in the message store. `false` for a quoted message that [`replied()`](#replied) rebuilt from the quote inside a reply — its `text`, sender, and `isFromMe` are what the replier claims, not proof.
 </ResponseField>
 <ResponseField name="isGroup" type="boolean">
   The chat is a group.
@@ -293,7 +296,7 @@ const original = await msg.replied()
 if (original) console.log(`${original.senderName ?? 'Someone'} said: ${original.text}`)
 ```
 
-Resolves to the message this one replies to, as its own `MessageContext`, or `null` when it isn't a reply. Zaileys first looks the original up in the message store; if it isn't there, it rebuilds it from the quote WhatsApp embeds in the reply.
+Resolves to the message this one replies to, as its own `MessageContext`, or `null` when it isn't a reply. Zaileys first looks the original up in the message store; if it isn't there, it rebuilds it from the quote WhatsApp embeds in the reply. A rebuilt quote has `verified: false`: anyone can send a reply whose quote claims to be from the bot, so check `verified` before trusting a quote for anything that grants access.
 
 ### message()
 

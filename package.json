@@ -55,6 +55,8 @@
     "docs:check": "node docs/scripts/check-snippets.mjs",
     "docs:search": "node docs/scripts/build-search-index.mjs",
     "docs:search:check": "node docs/scripts/check-search.mjs",
+    "docs:errors:check": "node docs/scripts/check-error-codes.mjs",
+    "docs:anchors:check": "node docs/scripts/check-anchors.mjs",
     "docs:static": "node docs/scripts/build-static.mjs docs-dist",
     "skill:check": "node scripts/check-skill.mjs",
     "changeset": "changeset",

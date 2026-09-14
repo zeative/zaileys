@@ -71,7 +71,7 @@ await client.send('120363198765432109@newsletter').text('Tangkuban Perahu trail 
 
 Followers see the post in the channel. Only the channel's owner and admins can post. More ways to send text are in [Text & replies](/messaging/text).
 
-## Read a channel's details
+## Read a channel's details {#read-a-channels-details}
 
 ```ts
 const info = await client.newsletter.metadata('120363198765432109@newsletter')
@@ -161,7 +161,7 @@ await client.newsletter.removePicture(channelId)
 | `updatePicture(channelId, picture)` | The new picture as a `Buffer`. |
 | `removePicture(channelId)` | Nothing else — removes the picture. |
 
-## Read a channel's posts
+## Read a channel's posts {#read-a-channels-posts}
 
 ```ts
 const posts = await client.newsletter.messages('120363198765432109@newsletter', 20)

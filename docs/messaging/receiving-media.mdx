@@ -345,7 +345,7 @@ Without a pack or author, stickers use the `sticker` option on `new Client()`, o
 
 <Accordion title="Do I need to install ffmpeg or sharp?">
 
-  No. Zaileys ships its own ffmpeg for audio, video, and animated stickers ([Termux is the exception](/data/runtimes)). Image work runs on `sharp` when it's installed, and falls back to a slower built-in library when it isn't. The first image operation without `sharp` prints:
+  No. Zaileys ships its own ffmpeg for audio, video, and animated stickers ([Termux is the exception](/data/runtimes)). Animated stickers are the exception on Apple Silicon Macs, where they need [your own ffmpeg](/installation#animated-stickers). Image work runs on `sharp` when it's installed, and falls back to a slower built-in library when it isn't. The first image operation without `sharp` prints:
 
   ```text
   [media-process] Jimp is slow. For faster performance, run: npm install sharp

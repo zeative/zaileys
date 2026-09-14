@@ -62,7 +62,7 @@ Every client is independent: its own connection, <Term id="session" />, reconnec
   Never start two clients on the same login — the same `sessionId` with the default store, or the same storage location. Both connect as the same linked device, WhatsApp closes one with `connection-replaced`, and Zaileys treats that as a logout: it clears the login, and you have to link the number again.
 </Warning>
 
-## Keep each account's storage separate
+## Keep each account's storage separate {#keep-each-accounts-storage-separate}
 
 `sessionId` only changes the default login folder. As soon as you pass your own `auth` or `store`, keeping accounts apart is up to you:
 
@@ -70,8 +70,8 @@ Every client is independent: its own connection, <Term id="session" />, reconnec
 | --- | --- |
 | File (default auth) | Automatic — the folder includes the `sessionId`. With your own `FileAuthStore`, give each account its own `basePath`. |
 | Memory (default messages) | Automatic — every `Client` creates its own. |
-| SQLite | One database file per account. A file holds a single login. |
-| Postgres | One database or schema per account. The table names and the login row are fixed, so two accounts in one schema overwrite each other. |
+| SQLite | One database file per account, or one shared file with a different `tablePrefix` per account. |
+| Postgres | A different `tablePrefix` per account, or one database or schema each. Without a prefix, two accounts in one schema overwrite each other's login. |
 | Redis | A different `namespace` per account. The default, `'zaileys'`, is the same for everyone. |
 | Convex | A different `namespace` per account. |
 

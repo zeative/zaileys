@@ -9,7 +9,7 @@ Zaileys ships as a single npm package, `zaileys`, on one release line at a time.
 
 ## Reading a version number
 
-A version looks like `4.14.1` — major, minor, patch. Releases are cut from the commits since the last release, and the commit type decides the bump.
+A version looks like `4.15.1` — major, minor, patch. Releases are cut from the commits since the last release, and the commit type decides the bump.
 
 | Bump | Example | Triggered by | What it means for your bot |
 | --- | --- | --- | --- |
@@ -20,7 +20,7 @@ A version looks like `4.14.1` — major, minor, patch. Releases are cut from the
 Commits that only touch docs, tooling, or tests (`chore:`, `docs:`) don't produce a release at all.
 
 <Warning>
-**One minor release has carried a breaking change.** In `4.12.0`, the plugin command handler was renamed from `command` to `message` — a rename that belonged in a major bump. If you skipped that release, read its [changelog entry](/releases/changelog) before upgrading. Every release labelled **Breaking** in the changelog is one to read, whatever the number says.
+**Two minor releases have carried changes that can break a working bot.** `4.12.0` renamed the plugin command handler from `command` to `message`. `4.15.0` refuses unsigned Cloud API webhooks and invalid `sessionId`s, and turns plugin hot-reload off in production. If you skipped either, read its [changelog entry](/releases/changelog) before upgrading — look for **Breaking** and **Check before upgrading**, whatever the version number says.
 </Warning>
 
 ## Which versions get fixes
@@ -31,8 +31,8 @@ Fixes land on the newest v4 release only. There is no maintenance branch for old
 
 | Line | Status | What to do |
 | --- | --- | --- |
-| **v4** — current, `4.14.1` | Actively developed. Fixes and features land here. | Stay on it. |
-| **v4**, older patches | No backports. A fix released in `4.14.1` is not published for `4.13.x`. | Upgrade to the newest v4 to pick up a fix. |
+| **v4** — current, `4.15.1` | Actively developed. Fixes and features land here. | Stay on it. |
+| **v4**, older releases | No backports. A fix released in `4.15.1` is not published for `4.14.x`. | Upgrade to the newest v4 to pick up a fix. |
 | **v3** | Ended. v4 was a rewrite with no compatibility layer, so v3 gets no fixes. | [Migrate to v4](/releases/migration) — the page maps every renamed option and API. |
 
 Older releases stay installable on npm forever, so pinning to `4.10.0` keeps working. It just won't receive fixes.
@@ -92,19 +92,19 @@ A fresh install writes a caret range into your `package.json`:
 ```json package.json
 {
   "dependencies": {
-    "zaileys": "^4.14.1"
+    "zaileys": "^4.15.1"
   }
 }
 ```
 
-`^4.14.1` accepts anything from `4.14.1` up to (but not including) `5.0.0`, so a fresh `npm install` on a new machine can pull a newer minor than the one you tested. Your lockfile prevents that for existing installs — commit it.
+`^4.15.1` accepts anything from `4.15.1` up to (but not including) `5.0.0`, so a fresh `npm install` on a new machine can pull a newer minor than the one you tested. Your lockfile prevents that for existing installs — commit it.
 
 If you want the version fixed no matter what, drop the caret:
 
 ```json package.json
 {
   "dependencies": {
-    "zaileys": "4.14.1"
+    "zaileys": "4.15.1"
   }
 }
 ```

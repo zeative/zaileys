@@ -1,6 +1,7 @@
-// Writes llms.txt (index) and llms-full.txt (every page) into the built site.
-// Mintlify generates these on its hosted plan, but a static export ships neither.
-import { readFileSync, writeFileSync, readdirSync, statSync } from 'node:fs'
+// Writes llms.txt, llms-full.txt and a <page>.md next to every page in the built site.
+// Mintlify generates all three on its hosted plan; a static export ships none, which 404s the
+// "View as Markdown" link and every contextual AI option already baked into the HTML.
+import { readFileSync, writeFileSync, readdirSync, statSync, mkdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -31,6 +32,7 @@ const frontmatter = (raw) => {
 const index = ['# Zaileys documentation', '', 'A type-safe WhatsApp framework for Node.js and TypeScript.', '']
 const full = ['# Zaileys documentation — full text', '', `Source: ${SITE}`, '']
 let lastTab = null
+let pages = 0
 
 for (const { page, tab, group } of order) {
   const file = join(DOCS, `${page}.mdx`)
@@ -47,10 +49,24 @@ for (const { page, tab, group } of order) {
 
   full.push(`\n\n---\n\n# ${title}`, `URL: ${url}`, `Section: ${tab} › ${group}`, '')
   // Strip MDX imports; the prose and code are what a model needs.
-  full.push(body.replace(/^import .*$/gm, '').replace(/\n{3,}/g, '\n\n').trim())
+  const prose = body
+    .replace(/^import .*$/gm, '')
+    // {#id} only pins the HTML anchor; it's noise in Markdown a model reads.
+    .replace(/^(#{2,6} .*?)\s*\{#[\w-]+\}\s*$/gm, '$1')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim()
+  full.push(prose)
+
+  const md = [`# ${title}`]
+  if (meta.description) md.push('', `> ${meta.description}`)
+  md.push('', `URL: ${url}`, `Section: ${tab} › ${group}`, '', prose)
+  const mdPath = join(OUT, `${page}.md`)
+  mkdirSync(dirname(mdPath), { recursive: true })
+  writeFileSync(mdPath, `${md.join('\n')}\n`)
+  pages++
 }
 
 writeFileSync(join(OUT, 'llms.txt'), `${index.join('\n')}\n`)
 writeFileSync(join(OUT, 'llms-full.txt'), `${full.join('\n')}\n`)
 const kb = (f) => Math.round(readFileSync(join(OUT, f)).length / 1024)
-console.log(`  llms.txt (${kb('llms.txt')} KB), llms-full.txt (${kb('llms-full.txt')} KB)`)
+console.log(`  llms.txt (${kb('llms.txt')} KB), llms-full.txt (${kb('llms-full.txt')} KB), ${pages} per-page .md`)

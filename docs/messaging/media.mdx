@@ -247,7 +247,7 @@ for (const photo of ['./trip/day-1.jpg', './trip/day-2.jpg']) {
   <Accordion title="Can I send a .gif file?">
     Not with `video()` — it only accepts video files, and a `.gif` is an image. You have two options:
 
-    - **As a sticker:** `client.send(jid).sticker('./party.gif', { animated: true })` works as-is.
+    - **As a sticker:** `client.send(jid).sticker('./party.gif', { animated: true })` works as-is on Linux, Windows, and Intel Macs. On an Apple Silicon Mac it needs [your own ffmpeg](/installation#animated-stickers).
     - **As a looping video:** convert it to MP4 first, for example with `ffmpeg -i party.gif -pix_fmt yuv420p party.mp4`, then send it with `{ gifPlayback: true }`.
   </Accordion>
   <Accordion title="Do I need to install ffmpeg?">
@@ -266,6 +266,9 @@ for (const photo of ['./trip/day-1.jpg', './trip/day-2.jpg']) {
 | Error code | What went wrong | How to fix it |
 | --- | --- | --- |
 | `MEDIA_LOAD_FAILED` | The URL didn't answer within 30 seconds or returned an error, the file doesn't exist, or conversion failed. | Open the URL in a browser, check the path from the folder you started the bot in, and make sure the file isn't corrupted. |
+| `MEDIA_LOAD_FAILED` with `exceeds <n> bytes` | The file is larger than [`media.maxBytes`](/reference/client-options#mediaoptions), 64 MB by default. | Send a smaller file, or raise `maxBytes`. |
+| `MEDIA_LOAD_FAILED` with `refusing to fetch a private address` | The URL points at `localhost` or another address inside a private network, which Zaileys blocks by default. | Use a public URL, pass the file as a `Buffer`, or set `media.allowPrivateNetwork: true` if the source is yours. |
+| `MEDIA_LOAD_FAILED` with `resolves inside the protected directory` | The path points into the `.zaileys` folder or your auth folder, where the login files live. | Keep media somewhere else. This protects the bot from being tricked into sending its own login. |
 | `INVALID_OPTIONS` | A non-video passed to `video()`, a document without `fileName`, or an album outside 2–30 items. | Match the method to the file type, add `fileName`, or split the album. |
 | `SEND_FAILED` | WhatsApp refused the message — for example, an album on the Cloud API. | Check [Differences on the Cloud API](#differences-on-the-cloud-api). The original reason is on `error.cause`. |
 

@@ -87,6 +87,11 @@ const tsc = snippets.length
       encoding: 'utf8',
     })
   : { stdout: '', stderr: '', status: 0 }
+// spawnSync reports a missing binary through `error` and leaves stdout/stderr null.
+if (tsc.error) {
+  console.error(`✗ could not run tsc (${tsc.error.code ?? tsc.error.message}) — install dependencies with \`pnpm install\` first`)
+  process.exit(1)
+}
 const foreign = []
 for (const line of `${tsc.stdout}\n${tsc.stderr}`.split('\n')) {
   const m = line.match(/[\\/]s(\d+)\.ts\((\d+),(\d+)\): error (TS\d+): (.*)/)

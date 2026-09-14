@@ -199,9 +199,10 @@ The connection rows apply to WhatsApp Web; a Cloud API client has no connection 
 | --- | --- | --- |
 | The connection drops — network loss, a restart request from WhatsApp, the service being unavailable | Yes, with no limit by default | Waits about 3 seconds, doubling each time up to 60 seconds, give or take 20%. |
 | WhatsApp rate-limits the connection (HTTP 429) | Yes | Waits 5 minutes before reconnecting. |
-| `bad-session` | Yes | Clears the login and reconnects, so you get a new QR code. |
+| `bad-session` | Yes | Reconnects with the saved login. |
 | `logged-out` right after connecting | Yes, up to 2 times | Zaileys first assumes it was spurious and reconnects. A real logout clears the login on the next close. |
-| `logged-out`, `connection-replaced`, `forbidden` | No | Clears the login and stops. Link the number again. |
+| `logged-out` | No | Backs up and clears the login, then stops. Link the number again. |
+| `connection-replaced`, `forbidden` | No | Stops and keeps the login. Stop the other process using the session, or check the account on the phone, then start again. |
 | Nobody scans the QR or enters the pairing code | Stops after 5 QR codes or 3 pairing codes | Emits `auth-exhausted`. Call `connect()` to try again. |
 | A Cloud API request gets `429` or a `5xx` answer | Yes, up to 3 attempts | Waits 0.5 s, then 1 s. Then throws `RATE_LIMITED` or `REQUEST_FAILED`. |
 | A send fails (`SEND_FAILED`, `MEDIA_LOAD_FAILED`) | No | Retry yourself — see below. |

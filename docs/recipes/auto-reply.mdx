@@ -13,7 +13,7 @@ This recipe builds a customer-service bot for a small restaurant that answers th
 
 <ProviderSupport web={true} cloud={true} note="The bot logic is identical on both providers. Only the client setup differs." />
 
-## What you'll build
+## What you'll build {#what-youll-build}
 
 A customer messages the restaurant's number:
 
@@ -283,7 +283,7 @@ client.on('text', async (msg) => {
 
 `getHours()` uses the server's time zone. If your server runs in another zone than your shop, start the bot with the zone set, for example `TZ=Asia/Makassar npx tsx bot.ts`.
 
-### React to show you've seen the message
+### React to show you've seen the message {#react-to-show-youve-seen-the-message}
 
 ```ts
 client.on('text', async (msg) => {

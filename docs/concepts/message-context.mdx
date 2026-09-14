@@ -27,7 +27,7 @@ client.on('text', async (msg) => {
 
 You get `msg` from `message`, `text`, `image`, `video`, `audio`, `document`, `sticker`, `mention`, and `mention-all`. Other events, such as `reaction` and `button-click`, have smaller payloads of their own ([Events](/concepts/events)).
 
-## The fields you'll use most
+## The fields you'll use most {#the-fields-youll-use-most}
 
 | Field | Example | What it is |
 | --- | --- | --- |
@@ -162,7 +162,7 @@ client.on('text', async (msg) => {
 })
 ```
 
-## Check who's allowed
+## Check who's allowed {#check-whos-allowed}
 
 `msg.citation.authors()` and `msg.citation.banned()` tell you whether the sender is on the owner or blocked list you set with the `citation` option. Both resolve to `false` when you haven't set one:
 
@@ -176,6 +176,22 @@ client.on('text', async (msg) => {
 ```
 
 Set up the lists in [Configuration](/concepts/configuration#mark-owners-and-banned-users).
+
+<Warning>
+  **Don't trust a quote you didn't store.** When the original message isn't in your message store, `msg.replied()` rebuilds it from the quote inside the reply — and the person replying controls that quote, including who it claims to be from. Check `verified` before acting on it:
+
+  ```ts
+  client.on('text', async (msg) => {
+    if (msg.text !== '/confirm') return
+    const quoted = await msg.replied()
+    if (!quoted?.verified || !quoted.isFromMe) {
+      await msg.reply('Reply /confirm to the order summary I sent you.')
+      return
+    }
+    await msg.reply(`Confirmed: ${quoted.text}`)
+  })
+  ```
+</Warning>
 
 ## Tell messages and conversations apart
 

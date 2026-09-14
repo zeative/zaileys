@@ -1,0 +1,32 @@
+schema_version: "1.1"
+name: upgrade-web-4-11
+description: "Upgrades a 4.11 WhatsApp Web bot to the current release: renamed plugin handler and the stricter sessionId, without losing the linked session."
+tags: [outcome, upgrade]
+context:
+  scaffold_script: setup.sh
+execution:
+  max_turns: 30
+  timeout_seconds: 600
+  allowed_tools: [Read, Glob, Grep, Skill, Write, Edit]
+  prompt: |
+    Bot ini masih pakai zaileys 4.11.2. Tolong upgrade ke 4.15.1 (sudah terpasang di node_modules, tinggal update package.json) dan sesuaikan kodenya supaya tetap jalan. Bot ini sudah login di nomor toko, jadi usahakan nggak perlu scan QR ulang.
+graders:
+  - name: version-bumped
+    type: regex
+    target: { source: file, path: package.json }
+    pattern: "\"zaileys\":\\s*\"[\\^~]?4\\.15\\.1\""
+  - name: plugin-message-menu
+    type: regex
+    target: { source: file, path: plugins/menu.ts }
+    pattern: "message:\\s*async"
+  - name: plugin-message-jam
+    type: regex
+    target: { source: file, path: plugins/jam.ts }
+    pattern: "message:\\s*async"
+  - name: valid-session-id
+    type: regex
+    target: { source: file, path: src/bot.ts }
+    pattern: "sessionId:\\s*['\"][A-Za-z0-9_-]{1,64}['\"]"
+  - name: keeps-linked-session
+    type: llm
+    criteria: "PASS if the answer notices that 'toko.utama' is no longer a valid sessionId (only letters, digits, _ and -), and, because the session lives in ./.zaileys/auth/<sessionId>, tells the user to rename or move the existing folder to the new id (or does it), so the bot stays linked. FAIL if it misses the sessionId change, or changes it without addressing the existing session folder."

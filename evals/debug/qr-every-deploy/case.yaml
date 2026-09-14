@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: debug-qr-every-deploy
+description: "A Dockerized WhatsApp Web bot asks for a QR on every redeploy because the session folder has no volume."
+tags: [outcome, debug]
+context:
+  scaffold_script: setup.sh
+execution:
+  max_turns: 30
+  timeout_seconds: 600
+  allowed_tools: [Read, Glob, Grep, Skill, Write, Edit]
+  prompt: |
+    Bot WhatsApp saya (zaileys) jalan di Docker pakai docker compose. Masalahnya tiap `docker compose up -d --build` habis update kode, bot minta scan QR lagi dari awal. Kalau cuma restart container kadang aman. Udah beberapa kali scan ulang, takut nomornya kena banned.
+
+    Tolong cek dan perbaiki konfigurasinya di project ini.
+graders:
+  - name: session-volume
+    type: regex
+    target: { source: file, path: docker-compose.yml }
+    pattern: "volumes:[\\s\\S]*(\\.zaileys|/app/)"
+  - name: guard-kept
+    type: regex
+    target: { source: file, path: src/bot.ts }
+    pattern: "authGuard[\\s\\S]{0,40}enabled:\\s*false"
+    match: not_contains
+  - name: sessionid-stable
+    type: regex
+    target: { source: file, path: src/bot.ts }
+    pattern: "sessionId:\\s*['\"]toko['\"]"
+  - name: explains-cause
+    type: llm
+    criteria: "PASS if the answer says the session is stored in ./.zaileys inside the container (or in the configured auth store) and is lost when the container is rebuilt, so it must live on a mounted volume or in a database store. FAIL if the main fix is only turning off the QR code, switching to pairing code, or changing sessionId."

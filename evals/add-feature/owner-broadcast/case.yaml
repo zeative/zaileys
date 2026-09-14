@@ -1,0 +1,39 @@
+schema_version: "1.1"
+name: add-feature-owner-broadcast
+description: "Adds an owner-only broadcast command to a WhatsApp Web bot that registers commands per file; must pace sends."
+tags: [outcome, add-feature]
+context:
+  scaffold_script: setup.sh
+execution:
+  max_turns: 30
+  timeout_seconds: 600
+  allowed_tools: [Read, Glob, Grep, Skill, Write, Edit]
+  prompt: |
+    Tambahin command `!promo <pesan>` di bot ini: cuma owner (config.owners) yang boleh pakai, dan isinya dikirim ke semua pelanggan di config.customersFile. Pelanggannya bisa ratusan, jangan sampai nomor toko kena banned. Setelah selesai, owner dapat balasan berapa yang terkirim dan gagal. Ikutin struktur yang udah ada (satu file per command di src/commands).
+
+    Dependency sudah terpasang.
+graders:
+  - name: command-file
+    type: file_exists
+    path: src/commands/promo.ts
+  - name: registered
+    type: regex
+    target: { source: file, path: src/commands/index.ts }
+    pattern: "register(?!Menu)\\w*\\(\\s*client\\s*\\)"
+  - name: paced-broadcast
+    type: regex
+    target: { source: file, path: src/commands/promo.ts }
+    pattern: "\\.broadcast\\("
+  - name: no-send-loop
+    type: regex
+    target: { source: file, path: src/commands/promo.ts }
+    pattern: "for\\s*\\([^)]*\\)\\s*\\{?[^}]*client\\.send\\("
+    match: not_contains
+  - name: owner-check
+    type: regex
+    target: { source: file, path: src/commands/promo.ts }
+    pattern: "owners"
+  - name: reports-result
+    type: regex
+    target: { source: file, path: src/commands/promo.ts }
+    pattern: "\\.(sent|failed)\\b"

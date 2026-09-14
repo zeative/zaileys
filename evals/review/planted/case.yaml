@@ -1,0 +1,28 @@
+schema_version: "1.1"
+name: review-planted
+description: "Pre-production review of a WhatsApp Web bot with five planted zaileys-specific issues."
+tags: [outcome, review]
+context:
+  scaffold_script: setup.sh
+execution:
+  max_turns: 30
+  timeout_seconds: 600
+  allowed_tools: [Read, Glob, Grep, Skill]
+  prompt: |
+    Tolong review bot zaileys ini sebelum kami jalankan di nomor WhatsApp utama toko. Fokus ke hal yang bisa bikin bot error, pesan nyasar, atau nomor kena restrict. Sebutkan file dan barisnya untuk tiap temuan, urutkan dari yang paling parah. Jangan ubah kodenya.
+graders:
+  - name: chatid-destination
+    type: regex
+    pattern: "chatId"
+  - name: guard-disabled
+    type: regex
+    pattern: "authGuard"
+  - name: manual-reconnect
+    type: llm
+    criteria: "PASS if the review flags that the 'disconnect' handler calling client.connect() duplicates the client's built-in reconnect and can cause login loops or reconnecting after logout. FAIL if this is not mentioned."
+  - name: unhandled-rejection
+    type: llm
+    criteria: "PASS if the review flags that the async 'text' handler in src/handlers/order.ts has no try/catch, so a failed findOrder or send becomes an unhandled promise rejection that can crash the process. FAIL if not mentioned."
+  - name: bulk-send
+    type: regex
+    pattern: "broadcast"

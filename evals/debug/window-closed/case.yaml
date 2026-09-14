@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: debug-window-closed
+description: "Shipping notices fail with SEND_FAILED (code 131047) days after checkout; the fix is an approved template."
+tags: [outcome, debug]
+context:
+  scaffold_script: setup.sh
+execution:
+  max_turns: 30
+  timeout_seconds: 600
+  allowed_tools: [Read, Glob, Grep, Skill, Write, Edit]
+  prompt: |
+    Notifikasi "pesanan sudah dikirim" dari bot kami (zaileys, Cloud API) kadang gagal. Pas checkout, konfirmasi order selalu masuk, tapi notif pengiriman beberapa hari kemudian sering error begini:
+
+    ```
+    ZaileysBuilderError: socket sendMessage rejected   (code: SEND_FAILED)
+      [cause] ZaileysCloudError: graph request failed: Re-engagement message (code 131047)   (code: REQUEST_FAILED)
+        at notifyShipped (src/shipping.ts:12)
+    ```
+
+    Kenapa, dan tolong perbaiki src/shipping.ts. Template `order_shipped` (bahasa `id`, body berisi 3 variabel: nama, nomor order, resi) sudah disetujui Meta. Dependency sudah terpasang.
+graders:
+  - name: uses-approved-template
+    type: regex
+    target: { source: file, path: src/shipping.ts }
+    pattern: "sendTemplate\\(\\s*order\\.phone\\s*,\\s*['\"]order_shipped['\"]\\s*,\\s*['\"]id['\"]"
+  - name: not-builder-template
+    type: regex
+    target: { source: file, path: src/shipping.ts }
+    pattern: "\\)\\s*\\.template\\("
+    match: not_contains
+  - name: explains-window
+    type: llm
+    criteria: "PASS if the answer explains that free-form messages only reach a customer within 24 hours of their last message, so notices sent days later need an approved template. FAIL if it blames rate limits, the access token, the phone number format, or suggests retrying."

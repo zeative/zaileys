@@ -1,0 +1,33 @@
+schema_version: "1.1"
+name: deploy-small-vps
+description: "Prepares a video-sticker bot for a 512 MB VPS with Docker: session volume, bounded ffmpeg, history off the heap."
+tags: [outcome, deploy]
+context:
+  scaffold_script: setup.sh
+execution:
+  max_turns: 30
+  timeout_seconds: 600
+  allowed_tools: [Read, Glob, Grep, Skill, Write, Edit]
+  prompt: |
+    Bot stiker ini mau saya deploy ke VPS murah: 1 vCPU, RAM 512 MB, Ubuntu, pakai Docker Compose. Grup-grup yang pakai bot ini lumayan rame kirim video buat dijadiin stiker. Tolong siapkan Dockerfile, docker-compose.yml, dan sesuaikan src/bot.ts supaya aman jalan lama di server sekecil itu tanpa sering OOM atau minta scan QR ulang.
+graders:
+  - name: compose-file
+    type: file_exists
+    path: docker-compose.yml
+  - name: session-volume
+    type: regex
+    target: { source: file, path: docker-compose.yml }
+    pattern: "volumes:[\\s\\S]*(\\.zaileys|/app/|/data)"
+  - name: bounded-ffmpeg
+    type: regex
+    target: { source: file, path: src/bot.ts }
+    pattern: "maxConcurrentFfmpeg"
+  - name: history-off-heap
+    type: regex
+    target: { source: file, path: src/bot.ts }
+    pattern: "SqliteMessageStore|autoDelete"
+  - name: no-system-ffmpeg
+    type: regex
+    target: { source: file, path: Dockerfile }
+    pattern: "(apt-get|apt|apk)\\s+(-\\S+\\s+)*(install|add)[^\\n]*ffmpeg"
+    match: not_contains

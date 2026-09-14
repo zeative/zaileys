@@ -1,0 +1,31 @@
+schema_version: "1.1"
+name: debug-webhook-signature
+description: "Cloud API webhook answers 401 invalid signature because Express parses the body before zaileys checks it."
+tags: [outcome, debug]
+context:
+  scaffold_script: setup.sh
+execution:
+  max_turns: 30
+  timeout_seconds: 600
+  allowed_tools: [Read, Glob, Grep, Skill, Write, Edit]
+  prompt: |
+    Bot zaileys Cloud API saya nggak pernah bales. Di log Express tiap ada pesan masuk muncul `POST /webhook 401` dengan body `invalid signature`. App secret udah saya copy ulang dari dashboard Meta, tetap sama. Verifikasi webhook (GET) jalan normal.
+
+    Tolong cari penyebabnya dan perbaiki langsung di src/server.ts. Dependency sudah terpasang.
+graders:
+  - name: raw-body
+    type: regex
+    target: { source: file, path: src/server.ts }
+    pattern: "express\\.raw\\("
+  - name: no-reserialized-body
+    type: regex
+    target: { source: file, path: src/server.ts }
+    pattern: "JSON\\.stringify\\(\\s*req\\.body"
+    match: not_contains
+  - name: signature-check-kept
+    type: regex
+    target: { source: file, path: src/server.ts }
+    pattern: "appSecret"
+  - name: explains-cause
+    type: llm
+    criteria: "PASS if the answer says the signature is computed over the exact raw request body and that parsing it as JSON (express.json or re-serializing req.body) changes those bytes. FAIL if it blames the app secret, suggests removing appSecret, or disables signature verification."

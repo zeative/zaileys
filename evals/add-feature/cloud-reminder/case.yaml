@@ -1,0 +1,40 @@
+schema_version: "1.1"
+name: add-feature-cloud-reminder
+description: "Adds day-before appointment reminders to a Cloud API clinic bot; patients rarely wrote in the last 24 hours, so it needs an approved template."
+tags: [outcome, add-feature]
+context:
+  scaffold_script: setup.sh
+execution:
+  max_turns: 30
+  timeout_seconds: 600
+  allowed_tools: [Read, Glob, Grep, Skill, Write, Edit]
+  prompt: |
+    Bot klinik ini pakai zaileys Cloud API. Tambahin fitur pengingat: fungsi `sendReminders()` di src/reminders.ts yang ngirim WhatsApp ke semua pasien dari `appointmentsTomorrow()` sehari sebelum jadwal (nanti dipanggil cron jam 9 pagi). Isinya nama pasien, nama dokter, dan jam janji. Template `appointment_reminder` (bahasa `id`, body 3 variabel: nama, dokter, jam) sudah di-approve Meta. Kalau satu pasien gagal, yang lain tetap dikirim dan gagalnya di-log.
+
+    Dependency sudah terpasang.
+graders:
+  - name: reminders-file
+    type: file_exists
+    path: src/reminders.ts
+  - name: approved-template
+    type: regex
+    target: { source: file, path: src/reminders.ts }
+    pattern: "sendTemplate\\([^)]*['\"]appointment_reminder['\"]\\s*,\\s*['\"]id['\"]"
+  - name: body-parameters
+    type: regex
+    target: { source: file, path: src/reminders.ts }
+    pattern: "type:\\s*['\"]body['\"][\\s\\S]*parameters"
+  - name: no-free-form
+    type: regex
+    target: { source: file, path: src/reminders.ts }
+    pattern: "client\\s*\\.send\\("
+    match: not_contains
+  - name: no-web-broadcast
+    type: regex
+    target: { source: file, path: src/reminders.ts }
+    pattern: "\\.broadcast\\("
+    match: not_contains
+  - name: per-patient-errors
+    type: regex
+    target: { source: file, path: src/reminders.ts }
+    pattern: "catch|allSettled"

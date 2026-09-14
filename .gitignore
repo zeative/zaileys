@@ -60,3 +60,6 @@ docs/search-index.json
 .env*
 .stress-metrics.txt
 .vps-build/
+
+# claude plugin eval run output
+/evals/results/

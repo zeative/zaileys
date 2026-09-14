@@ -34,8 +34,9 @@ jobs:
           echo "pages: $pages"
           test "$pages" -ge 70
           test -f docs-dist/404.html
-          test -f docs-dist/zaileys-search.js
-          test -d docs-dist/_pagefind
+          test -f docs-dist/search-index.json
+          test -f docs-dist/llms-full.txt
+          test -f docs-dist/vercel.json
 
       - name: Deploy to Vercel
         env:

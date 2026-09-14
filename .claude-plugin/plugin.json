@@ -1,0 +1,12 @@
+{
+  "name": "zaileys-official",
+  "description": "The zaileys skill: build, extend, debug, review, upgrade, and deploy WhatsApp bots with zaileys on WhatsApp Web or the Cloud API.",
+  "author": {
+    "name": "zeative",
+    "email": "zaadevofc@gmail.com"
+  },
+  "homepage": "https://zaileys.kejaa.id/ai",
+  "repository": "https://github.com/zeative/zaileys",
+  "license": "MIT",
+  "keywords": ["whatsapp", "bot", "zaileys", "whatsapp-cloud-api", "baileys", "typescript", "nodejs"]
+}

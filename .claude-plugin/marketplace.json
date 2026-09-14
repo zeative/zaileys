@@ -9,19 +9,23 @@
   "plugins": [
     {
       "name": "zaileys-official",
-      "source": {
-        "source": "git-subdir",
-        "url": "https://github.com/zeative/zaileys.git",
-        "path": "plugins/zaileys-official",
-        "ref": "main"
+      "source": "./",
+      "description": "The zaileys skill: build, extend, debug, review, upgrade, and deploy WhatsApp bots with zaileys on WhatsApp Web or the Cloud API.",
+      "author": {
+        "name": "zeative"
       },
-      "description": "Official zaileys skill suite — an orchestrator (zaileys-assist) plus focused zaileys-scaffold, zaileys-debug, and zaileys-review skills for building WhatsApp bots with best practices.",
-      "version": "4.2.0",
-      "author": { "name": "zeative" },
-      "homepage": "https://zaileys.kejaa.id",
+      "homepage": "https://zaileys.kejaa.id/ai",
       "repository": "https://github.com/zeative/zaileys",
       "license": "MIT",
-      "keywords": ["whatsapp", "bot", "baileys", "zaileys", "typescript", "nodejs", "whatsapp-api"]
+      "keywords": [
+        "whatsapp",
+        "bot",
+        "baileys",
+        "zaileys",
+        "typescript",
+        "nodejs",
+        "whatsapp-api"
+      ]
     }
   ]
 }

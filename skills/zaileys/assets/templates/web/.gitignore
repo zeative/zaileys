@@ -1,0 +1,7 @@
+node_modules/
+.env
+# WhatsApp session credentials: anyone with these files controls the linked account.
+.zaileys/
+*.db
+*.db-wal
+*.db-shm

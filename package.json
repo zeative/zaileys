@@ -56,7 +56,6 @@
     "docs:search": "node docs/scripts/build-search-index.mjs",
     "docs:search:check": "node docs/scripts/check-search.mjs",
     "docs:static": "node docs/scripts/build-static.mjs docs-dist",
-    "skill:sync": "node scripts/sync-skill.mjs",
     "skill:check": "node scripts/check-skill.mjs",
     "changeset": "changeset",
     "release:version": "changeset version && pnpm install",

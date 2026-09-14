@@ -1,0 +1,44 @@
+name: Skill
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+
+concurrency:
+  group: skill-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  guard:
+    name: Skill guard
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PNPM
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # Structure, portability, snippet and template type-check against src/, error-code coverage, docs links.
+      - name: Check the skill
+        run: pnpm skill:check
+
+      - name: Guard and doctor tests
+        run: pnpm exec vitest run tests/skills

@@ -11,11 +11,6 @@ execution:
   prompt: |
     Tolong review bot zaileys ini sebelum kami jalankan di nomor WhatsApp utama toko. Fokus ke hal yang bisa bikin bot error, pesan nyasar, atau nomor kena restrict. Sebutkan file dan barisnya untuk tiap temuan, urutkan dari yang paling parah. Jangan ubah kodenya.
 graders:
-  - name: no-false-alarms
+  - name: no-false-zaileys-claims
     type: llm
-    criteria: "The code under review is correct zaileys usage: msg.reply() for answers, client.broadcast() for bulk sends (it paces sends itself), the built-in reconnect with a disconnect listener that only logs, an error listener, and try/catch in async handlers. PASS if the review raises no high-severity finding that claims any of these is wrong or unsafe (for example: telling them to add their own reconnect loop, to replace broadcast with a manual loop, to disable authGuard, or claiming a used API does not exist). Low-severity suggestions are fine. FAIL otherwise."
-  - name: no-invented-reconnect
-    type: regex
-    pattern: "(add|tambah)\\w*[^\\n]{0,40}(client\\.connect\\(\\)|reconnect loop|retry loop)"
-    flags: i
-    match: not_contains
+    criteria: "Facts about zaileys that are true: it prints the QR code in the terminal by default (no 'qr' listener needed); it reconnects by itself, so a disconnect listener that only logs is correct; client.broadcast() paces sends itself (5/s by default, rateLimitPerSec lowers it) and is the recommended way to message many chats; msg.reply() answers in the right chat; async handlers need their own try/catch, which this code has. FAIL if the review states anything that contradicts these facts as a finding — for example that the bot needs a qr handler to show the QR, that it should call client.connect() on disconnect, that broadcast should be replaced by a manual send loop, that authGuard should be disabled, or that a zaileys API used here does not exist. Findings about general application logic (persistence, validation, timeouts, opt-in) are acceptable and do not cause a FAIL. PASS otherwise."

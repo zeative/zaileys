@@ -261,13 +261,20 @@ const slugify = (t) => t.toLowerCase().replace(/`/g, '').replace(/[^\w\s-]/g, ''
 const DOCS_URL = /https?:\/\/zaileys\.kejaa\.id(\/[^\s)>\]"'`]*)?/g
 const GENERATED_DOCS = new Set(['/llms.txt', '/llms-full.txt'])
 
+// Mintlify turns some punctuation into hyphens or keeps it ("client.use()" → "client-use", "won't" → "won’t"),
+// so only headings without it (or with an explicit {#id}) have an anchor this check can predict.
+const UNSTABLE_HEADING = /[^\w\s`()-]/
+
 const headingAnchors = (mdx) => {
-  const anchors = new Set()
+  const anchors = new Map()
   let fenced = false
   for (const line of mdx.split('\n')) {
     if (/^\s*(```|~~~)/.test(line)) fenced = !fenced
     const heading = !fenced && line.match(/^#{1,6}\s+(.*?)\s*#*\s*$/)
-    if (heading) anchors.add(slugify(heading[1]))
+    if (!heading) continue
+    const explicit = heading[1].match(/\s*\{#([\w-]+)\}\s*$/)
+    if (explicit) anchors.set(explicit[1], true)
+    else anchors.set(slugify(heading[1]), !UNSTABLE_HEADING.test(heading[1].replace(/`/g, '')))
   }
   return anchors
 }
@@ -283,8 +290,10 @@ export function checkDocsLinks(skillDir, docsDir = join(REPO, 'docs')) {
         const mdx = [join(docsDir, `${page}.mdx`), join(docsDir, page, 'index.mdx')].find((p) => existsSync(p))
         if (!mdx) {
           issues.push(issue('docs-page', file, `${m[0]} has no page in docs/`, index + 1))
-        } else if (anchor && !headingAnchors(readFileSync(mdx, 'utf8')).has(anchor)) {
-          issues.push(issue('docs-anchor', file, `${m[0]} — no heading with anchor #${anchor}`, index + 1))
+        } else if (anchor) {
+          const stable = headingAnchors(readFileSync(mdx, 'utf8')).get(anchor)
+          if (stable === undefined) issues.push(issue('docs-anchor', file, `${m[0]} — no heading with anchor #${anchor}`, index + 1))
+          else if (!stable) issues.push(issue('docs-anchor-unstable', file, `${m[0]} — the heading has punctuation, so its rendered anchor can differ; link the page instead`, index + 1))
         }
       }
     })

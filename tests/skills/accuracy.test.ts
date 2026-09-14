@@ -77,6 +77,16 @@ describe('checkDocsLinks', () => {
     ])
   })
 
+  it('accepts explicit heading ids', () => {
+    const root = tree({ ...docs, 'docs/bots/index.mdx': '---\ntitle: Bots\n---\n\n## Use `client.use()` {#middleware}\n', 'skill/SKILL.md': 'https://zaileys.kejaa.id/bots#middleware\n' })
+    expect(checkDocsLinks(join(root, 'skill'), join(root, 'docs'))).toEqual([])
+  })
+
+  it('rejects anchors to headings whose rendered id cannot be predicted', () => {
+    const root = tree({ ...docs, 'docs/bots/index.mdx': "---\ntitle: Bots\n---\n\n## Run `client.use()` first\n", 'skill/SKILL.md': 'https://zaileys.kejaa.id/bots#run-clientuse-first\n' })
+    expect(checkDocsLinks(join(root, 'skill'), join(root, 'docs'))).toEqual([expect.objectContaining({ rule: 'docs-anchor-unstable', line: 1 })])
+  })
+
   it('reports an anchor that matches no heading', () => {
     const root = tree({ ...docs, 'skill/SKILL.md': 'https://zaileys.kejaa.id/cloud/webhook#raw-body\n' })
     expect(checkDocsLinks(join(root, 'skill'), join(root, 'docs'))).toEqual([expect.objectContaining({ rule: 'docs-anchor', line: 1 })])

@@ -1,8 +1,8 @@
 ---
 title: "Build with AI"
-description: "Install the Zaileys agent skill for Claude Code, Cursor, Codex, or OpenCode, and feed these docs to any AI with llms.txt or the Copy page menu."
+description: "Install the Zaileys agent skill for Claude Code, Cursor, Codex, or OpenCode, check a project with the doctor script, and feed these docs to any AI with llms.txt or the Copy page menu."
 icon: "sparkles"
-keywords: ["ai", "agent skill", "claude code", "claude code plugin", "cursor", "codex", "opencode", "npx skills", "llms.txt", "llms-full.txt", "copy page", "chatgpt", "mcp", "prompt"]
+keywords: ["ai", "agent skill", "claude code", "claude code plugin", "cursor", "codex", "opencode", "npx skills", "zaileys skill", "doctor script", "zaileys-assist", "llms.txt", "llms-full.txt", "copy page", "chatgpt", "mcp", "prompt"]
 ---
 
 Give your AI coding assistant accurate Zaileys knowledge, so it writes code that uses the real API instead of guessing.
@@ -18,7 +18,7 @@ Give your AI coding assistant accurate Zaileys knowledge, so it writes code that
 
 ## Install the agent skill
 
-The Zaileys agent skill is a set of instructions and reference files your assistant loads when you work on Zaileys code. It lives in the Zaileys repository, so you install it straight from `zeative/zaileys`.
+The Zaileys agent skill is one skill, `zaileys`: instructions, reference files, project templates, and a project check that your assistant loads when you work on Zaileys code. It lives in the Zaileys repository, so you install it straight from `zeative/zaileys`.
 
 <Tabs>
   <Tab title="Claude Code plugin">
@@ -30,16 +30,17 @@ The Zaileys agent skill is a set of instructions and reference files your assist
     /plugin install zaileys-official@zeative
     ```
 
-    The skills are namespaced by the plugin, so you call them as `/zaileys-official:zaileys-assist`. To get new versions later, refresh the marketplace from your terminal:
+    Claude uses the skill on its own whenever you work on Zaileys code. To call it by name, type `/zaileys-official:zaileys`. To get new versions later, run this in your terminal:
 
     ```bash
     claude plugin marketplace update zeative
+    claude plugin update zaileys-official@zeative
     ```
 
   </Tab>
   <Tab title="npx skills">
 
-    The [`skills` CLI](https://github.com/vercel-labs/skills) installs the same skills into Claude Code, Codex, Cursor, OpenCode, and many other agents:
+    The [`skills` CLI](https://github.com/vercel-labs/skills) installs the same skill into Claude Code, Codex, Cursor, OpenCode, and many other agents:
 
     ```bash
     npx skills add zeative/zaileys
@@ -56,28 +57,82 @@ The Zaileys agent skill is a set of instructions and reference files your assist
   </Tab>
 </Tabs>
 
-Both methods install the same four skills. Use the plugin if you only use Claude Code. Use `npx skills` for any other agent, or when a whole team should share the skill through the project.
+Both methods install the same skill. Use the plugin if you only use Claude Code. Use `npx skills` for any other agent, or when a whole team should share the skill through the project.
 
-## What the skills do
+## What the skill does
 
-| Skill | What it does |
+You don't pick a mode. Ask for what you need, and the skill opens only the files that job needs:
+
+| You ask for… | What the assistant does |
 | --- | --- |
-| `zaileys-assist` | The entry point. It works out whether you're building, debugging, reviewing, or asking a question, and knows both providers. It activates on any Zaileys task, so you rarely call the others by name. |
-| `zaileys-scaffold` | Generates a complete, runnable bot project from a short description — a layered `src/` folder, `package.json`, `tsconfig.json`, `.env.example`, and `.gitignore`. It asks which provider you want, and follows your existing layout if you already have a project. |
-| `zaileys-debug` | Takes an error or a symptom — a stack trace, an error code such as `SEND_FAILED` or `UNSUPPORTED_ON_CLOUD`, a Meta code such as `131047`, or a reconnect loop — and returns the cause and a concrete fix. |
-| `zaileys-review` | Audits your bot for mistakes, anti-patterns, and ban-safety before you ship. It reports each finding with a severity, the file and line, and a corrected snippet. |
+| A new bot | Picks the provider, login, and storage from your request, starts from a small runnable template, type-checks it, and ends with the exact steps only you can do — scanning the QR code, or filling in Meta credentials and the webhook URL. |
+| A feature in an existing bot | Reads your project first and follows its structure. It checks the feature exists on your provider, and looks up the real API in your installed Zaileys before it writes. |
+| A fix | Classifies the error, code, or symptom — `SEND_FAILED`, `401 invalid signature`, Meta code `131047`, a QR on every restart — finds the cause in your code, and fixes that instead of adding retries. |
+| A review | Ranks real problems by what they break in production — ban risk, lost sessions, crashes, webhook security, the 24-hour window — with the file, line, and fix. |
+| An upgrade or a deploy | Reads the changes between your version and the target, fixes what breaks, and sets up the server: session volume, memory and ffmpeg limits, one process per session. |
 
-`zaileys-assist` also carries reference files the other skills draw on:
+The skill ships these files:
 
 | File | Covers |
 | --- | --- |
-| `references/api.md` | Client options, the send builder, events, storage, and media |
-| `references/recipes.md` | Copy-paste patterns for common bots |
-| `references/errors.md` | Every error class and code, with its meaning and fix |
-| `references/troubleshooting.md` | Runtime symptoms, such as QR loops and broken sessions, and their fixes |
-| `references/pitfalls.md` | Common mistakes and the correct way |
-| `references/cloud.md` | The Cloud API provider: webhook, templates, and its limits |
-| `references/mcp.md` | Connecting an MCP server to an AI-powered Zaileys bot |
+| `SKILL.md` | The facts that prevent most mistakes, and which file to open for each job |
+| `workflows/` | Step-by-step checklists for a new bot, a feature, debugging, reviews, and upgrades or deploys |
+| `references/` | Providers, sending, receiving, commands and plugins, groups and channels, the Cloud API, storage and sessions, every error code, production, and version history |
+| `assets/templates/` | Minimal runnable projects for WhatsApp Web and the Cloud API |
+| `scripts/doctor.mjs` | A read-only check of your project |
+
+### Check a project with the doctor
+
+The doctor finds problems that compile fine but fail when the bot runs: a Cloud API client without `appSecret`, a JSON-parsed webhook body, an invalid `sessionId`, sends to `msg.chatId`, a disabled ban guard, a missing database driver, an ffmpeg without WebP support, or a Docker setup that loses the session on every rebuild. Your assistant runs it for you, and you can run it yourself from the skill's folder:
+
+```bash
+node scripts/doctor.mjs /path/to/your/bot            # human-readable
+node scripts/doctor.mjs /path/to/your/bot --json     # for tools
+node scripts/doctor.mjs /path/to/your/bot --online   # also compares with the latest release
+```
+
+It only reads files. It connects to the network only with `--online`, to look up the latest version on npm.
+
+```text
+zaileys doctor — /home/me/order-bot
+zaileys 4.15.1 · Node.js v22.22.3
+
+✗ cloud-app-secret: Cloud API client without cloud.appSecret: the webhook answers 401 to every delivery (src/server.ts:5)
+    fix: set cloud.appSecret from the Meta app settings (e.g. process.env.WA_APP_SECRET)
+
+12 ok, 0 warning(s), 1 error(s), 4 skipped
+```
+
+## Upgrade from the four skills
+
+Earlier releases shipped four skills: `zaileys-assist`, `zaileys-scaffold`, `zaileys-debug`, and `zaileys-review`. The single `zaileys` skill replaces all of them.
+
+<Tabs>
+  <Tab title="Claude Code plugin">
+
+    Update the marketplace and the plugin. The old skills are removed and the new one is installed in their place:
+
+    ```bash
+    claude plugin marketplace update zeative
+    claude plugin update zaileys-official@zeative
+    ```
+
+    Then restart Claude Code. Call the skill as `/zaileys-official:zaileys` instead of `/zaileys-official:zaileys-assist`.
+
+  </Tab>
+  <Tab title="npx skills">
+
+    `npx skills` keeps skills it installed before, so remove the four old ones first. Otherwise they compete with the new skill:
+
+    ```bash
+    npx skills remove zaileys-assist zaileys-scaffold zaileys-debug zaileys-review -y
+    npx skills add zeative/zaileys
+    ```
+
+    If you installed them globally, add `-g` to both commands.
+
+  </Tab>
+</Tabs>
 
 ## Give a model the whole docs
 
@@ -122,8 +177,8 @@ My Zaileys bot fails with ZaileysBuilderError, code MEDIA_LOAD_FAILED, when it s
 ```
 
 ```text Review before shipping
-/zaileys-official:zaileys-review Review src/bot.ts for ban-safety and missing error
-handling before I deploy it.
+Review this Zaileys bot before I deploy it to our main store number: ban risk,
+lost sessions, and missing error handling. List findings with file and line.
 ```
 
 ```text Migrate providers
@@ -139,7 +194,13 @@ would throw UNSUPPORTED_ON_CLOUD or NOT_IMPLEMENTED, and suggest a replacement f
 
 <AccordionGroup>
   <Accordion title="Does the skill send my code anywhere?">
-    No. It's a folder of Markdown files installed on your machine. Your assistant reads them the same way it reads your code.
+    No. It's a folder of Markdown files, templates, and one script installed on your machine. Your assistant reads them the same way it reads your code, and the doctor script only reads your project — it goes online only when you pass `--online`.
+  </Accordion>
+  <Accordion title="Which Zaileys version does the skill describe?">
+    The v4 line. It also tells your assistant to check the Zaileys version installed in your project and read its type definitions, so answers match the version you actually run. Version-specific changes are collected in one reference file used for upgrades.
+  </Accordion>
+  <Accordion title="I still see zaileys-assist after updating">
+    With the plugin, run `claude plugin marketplace update zeative` and then `claude plugin update zaileys-official@zeative`, and restart Claude Code. With `npx skills`, remove the old skills as shown in [Upgrade from the four skills](#upgrade-from-the-four-skills).
   </Accordion>
   <Accordion title="Which agents can use the skill?">
     Claude Code, through the plugin or `npx skills`. Codex, Cursor, OpenCode, and the other agents the `skills` CLI supports, through `npx skills`.

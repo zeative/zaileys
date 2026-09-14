@@ -118,20 +118,22 @@ Pick your provider → **[Choose Your Provider](https://zaileys.kejaa.id/provide
 
 ## Build with AI
 
-Zaileys ships an **official Agent Skill suite** so your AI assistant writes, reviews, and
-debugs zaileys code with best practices — it knows the exact API, common pitfalls, and how
-to fix errors. Install it straight from this repo:
+Zaileys ships an **official Agent Skill**, `zaileys`, so your AI assistant builds, extends, debugs, reviews,
+upgrades, and deploys zaileys bots with the real API instead of guessing. It covers both providers, includes
+runnable templates and a read-only project doctor, and is checked against the source on every change.
+Install it straight from this repo:
 
 ```bash
-# Claude Code (native plugin — supports auto-update)
+# Claude Code plugin
 /plugin marketplace add zeative/zaileys
 /plugin install zaileys-official@zeative
 
-# npx skills (multi-agent: Claude Code, Codex, Cursor, OpenCode)
+# npx skills (Claude Code, Codex, Cursor, OpenCode, and more)
 npx skills add zeative/zaileys        # add -g for a global install
 ```
 
-The suite has an orchestrator that auto-routes plus focused scaffold, debug, and review skills. See the full guide → **[zaileys.kejaa.id/ai](https://zaileys.kejaa.id/ai)**.
+Upgrading from the four earlier skills (`zaileys-assist`, `-scaffold`, `-debug`, `-review`)? See
+**[zaileys.kejaa.id/ai](https://zaileys.kejaa.id/ai#upgrade-from-the-four-skills)**.
 
 ## Why Zaileys
 
@@ -281,7 +283,7 @@ Package managers: **npm**, **pnpm**, **yarn**, and **bun** are all supported.
   - [Recipes](https://zaileys.kejaa.id/recipes/auto-reply) — complete bots you can copy
   - [Reference](https://zaileys.kejaa.id/reference/client) — every method, option, and event
   - [Feature matrix](https://zaileys.kejaa.id/feature-matrix) — what works on which provider
-- 🤖 [**Build with AI**](https://zaileys.kejaa.id/ai) — official Claude Code / `npx skills` skill
+- 🤖 [**Build with AI**](https://zaileys.kejaa.id/ai) — official agent skill for Claude Code, Codex, Cursor, and more
 - 📦 [**examples/**](./examples) — runnable bots: quickstart, interactive buttons, AIRich, storage adapters, broadcast
 - 🔀 [**MIGRATION.md**](./MIGRATION.md) — upgrading from v3.x to v4.0.0 (breaking changes, side-by-side snippets)
 - 🤝 [**CONTRIBUTING.md**](./CONTRIBUTING.md) — dev setup, tests, commit convention, release flow

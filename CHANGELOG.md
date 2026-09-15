@@ -1,5 +1,11 @@
 # zaileys
 
+## 4.17.0
+
+### Minor Changes
+
+- render html cards without the download prompt by default: `htmlApp()` follows each card with an identical edit (`bypassDownload`, on by default); the card reloads whenever the recipient opens the keyboard, so pass `bypassDownload: false` for pages that keep state
+
 ## 4.16.0
 
 ### Breaking changes to the experimental htmlApp

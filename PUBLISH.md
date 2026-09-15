@@ -1,8 +1,7 @@
 # Publishing Zaileys
 
 The runbook for shipping a release: npm package, GitHub (`main`, `v4`, tag), and the docs site. It records how releases
-are actually cut today (4.16.0 and 4.17.0 were shipped exactly this way). `RELEASE.md` describes an older changesets
-flow and is out of date; when they disagree, this file wins.
+are actually cut today (4.16.0 and 4.17.0 were shipped exactly this way).
 
 Written for maintainers and for AI agents asked to "publish", "release", "rilis", or "deploy docs".
 

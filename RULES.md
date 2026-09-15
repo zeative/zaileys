@@ -5,7 +5,7 @@ releases. They exist so that code written by any contributor, human or AI, reads
 person wrote the whole library.
 
 Read this file before you touch the code. When a rule here conflicts with an older document
-(`CONTRIBUTING.md`, `RELEASE.md`), this file wins. Releases and deploys follow `PUBLISH.md`. When a rule conflicts with what the maintainer tells
+(`CONTRIBUTING.md`), this file wins. Releases and deploys follow `PUBLISH.md`. When a rule conflicts with what the maintainer tells
 you directly, the maintainer wins.
 
 ---

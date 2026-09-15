@@ -38,7 +38,7 @@ jobs:
       - name: Pack Artifact
         run: pnpm pack
 
-      # GitHub Release ONLY. Publishing to the registry is a manual maintainer step — see RELEASE.md.
+      # GitHub Release ONLY. Publishing to the registry is a manual maintainer step — see PUBLISH.md.
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:

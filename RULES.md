@@ -46,7 +46,7 @@ tests/
   e2e/                      real WhatsApp account, opt-in only
   _helpers/, _fixtures/     shared mocks and fixture data
 docs/               Mintlify site (.mdx), English
-skills/zaileys/     the Agent Skill shipped with the package
+skills/zaileys/     the Agent Skill (installed through the plugin or `npx skills`, not npm)
 examples/           runnable bots that use the public API only
 scripts/            repo tooling (audits, release, benchmarks)
 tasks/              local planning notes, gitignored, never referenced by shipped code
@@ -138,8 +138,8 @@ that passes it honestly.
 - **Messages say what went wrong and how to fix it**: name the method, the option, and the accepted
   values. `'htmlApp() requires a non-empty HTML string'`, not `'invalid input'`.
 - **Wrap lower-level failures with `cause`**; never swallow the original error.
-- **Every new code is documented** in `docs/reference/error-codes.mdx`. `pnpm docs:errors:check` fails
-  otherwise.
+- **Every new code is documented** in `docs/reference/error-codes.mdx` and in
+  `skills/zaileys/references/errors.md`. `pnpm docs:errors:check` and `pnpm skill:check` fail otherwise.
 - **Do not throw plain `Error`** from public code paths.
 
 ---
@@ -261,8 +261,7 @@ A user-facing change is not done until users can find it.
 - **Docs** (`docs/*.mdx`, English): update the page for the feature, the option in
   `docs/reference/client-options.mdx` or `send-builder.mdx`, and new error codes. Write for the user:
   real output, a short table, the default value, and what to do when it fails.
-- **Skill** (`skills/zaileys/`): update the relevant reference when the public API or a best practice
-  changes, then run `pnpm skill:check`.
+- **Skill** (`skills/zaileys/`): kept in sync with the code in the same commit. See section 13.
 - **Examples** (`examples/`): add or update one when a feature needs a runnable demonstration. Examples
   import from `../src/index.js` and use only public API.
 - **Security-relevant behaviour** is described in `SECURITY.md`.
@@ -271,7 +270,77 @@ A user-facing change is not done until users can find it.
 
 ---
 
-## 13. Quality gates
+## 13. The Agent Skill
+
+The skill is how AI assistants learn zaileys. A skill that is one release behind teaches users to write code
+that no longer compiles or no longer works, so it is part of the product, not an afterthought.
+
+### Keep it in sync
+
+- **The skill changes in the same commit as the behaviour.** Any change to a public API, an option or its
+  default, an error code or message, an event, provider support, a limit, session or webhook behaviour, or
+  a best practice updates the skill in that commit.
+- **Search the whole skill before you finish.** A fact is often summarised in `SKILL.md` and detailed in a
+  reference: `grep -rn "<old name or value>" skills/zaileys` and update every hit, so no file keeps the old
+  statement.
+- **Docs and skill say the same thing.** When both describe a behaviour, change both, and verify the claim
+  against `src/`, not against the other document.
+- **Current behaviour only**, outside `references/migration.md`. Don't write "since 4.15" or "previously" in
+  other files; move history to the migration reference.
+- **Removed or renamed APIs** get an entry under "Changes within v4" in `references/migration.md` with what
+  breaks, a search pattern to find it, and the fix (section 6).
+
+### Put each fact at the right level
+
+The skill loads in layers: only the description is always in context, `SKILL.md` loads when the skill
+triggers, and every other file loads only when a task needs it. Put content where that order works.
+
+| Level | File | What belongs there | What doesn't |
+| --- | --- | --- | --- |
+| 1 | `SKILL.md` frontmatter | `name` (equals the folder) and a third-person `description` of what the skill does and when to use it, up to 1,024 characters; spec keys only | Instructions, version numbers |
+| 2 | `SKILL.md` body | The facts that prevent the most common failures, the job router, the verification loop; under 500 lines | Topic detail, tutorials |
+| 3 | `workflows/*.md` | Step-by-step checklists for one job (new bot, add feature, debug, review, upgrade and deploy) | API tables that belong in a reference |
+| 3 | `references/*.md` | One topic each: APIs, defaults, limits, failure modes, with the reason behind each rule | Links to other skill files, version history |
+| 3 | `references/migration.md` | The only place for version history and exact version numbers | Current behaviour that isn't a change |
+| 3 | `references/errors.md` | Every error code in `src/`, with meaning and fix | — |
+| 3 | `assets/templates/` | Minimal runnable projects that type-check against `src/` | Pinned zaileys versions (use `^4`) |
+| 3 | `scripts/doctor.mjs` | Read-only checks for mistakes that compile but fail at runtime | Writes, network calls without `--online` |
+
+Rules that keep the layers intact:
+
+- **Only `SKILL.md` links to other skill files**, and it links every one of them. Workflows and references
+  never link each other, and nothing uses `../` paths.
+- **A new file is added to the router in `SKILL.md`** in the same commit, or the assistant never opens it.
+- **Files over 100 lines start with a `## Contents` list.**
+- **One term per concept, matching the docs**: `client` (never `wa`), "WhatsApp Web", "Cloud API".
+- **Every `ts` block compiles against `src/`** with the ambient names `client`, `msg`, `ctx`, and `jid`. A
+  fragment that can't compile gets `<!-- snippet-check: skip — <reason> -->` on the line above.
+- **Docs links are full URLs** (`https://zaileys.kejaa.id/<page>#<anchor>`) to a real page and heading. Link
+  the page, not the anchor, when the heading has punctuation.
+- **A new runtime mistake the doctor can detect** gets a check in `scripts/doctor.mjs` and a triggering and a
+  passing case in `tests/skills/doctor.test.ts`.
+
+### Distribution
+
+- **No `version` in `.claude-plugin/plugin.json` or `.claude-plugin/marketplace.json`.** Claude Code uses the
+  version as the update key; without it, every commit reaches installed users.
+- **The repo root is the plugin.** Don't add `agents/`, `commands/`, `hooks/`, or `.mcp.json` at the root, and
+  don't add a second copy of the skill anywhere.
+
+### Verify
+
+```bash
+pnpm skill:check                                  # structure, snippets, error codes, docs links
+pnpm exec vitest run tests/skills                 # guard and doctor tests
+```
+
+Before a release that changes `SKILL.md`, a workflow, or the description, run the evals on a staged copy
+(`evals/_tools/stage-plugin.sh <dir>`, then `claude plugin eval <dir> --no-publish`) and compare with the
+previous results. A change that lowers a job's score doesn't ship.
+
+---
+
+## 14. Quality gates
 
 Run these before every commit. The pre-commit hook runs the first four; CI runs all of them.
 
@@ -282,7 +351,7 @@ pnpm audit:any src
 pnpm exec vitest run            # the hook runs only --changed; run the full suite before pushing
 pnpm build
 pnpm size
-pnpm skill:check                # when skills/ or the public API changed
+pnpm skill:check                # always when skills/, the public API, or an error code changed
 ```
 
 A red gate is fixed, never bypassed. Do not use `--no-verify`, `@ts-ignore`, `@ts-expect-error` without
@@ -290,7 +359,7 @@ a documented reason, `.skip` on a failing test, or a lowered threshold.
 
 ---
 
-## 14. Git, commits, and releases
+## 15. Git, commits, and releases
 
 - **Work on `main`.** The `v4` branch mirrors `main`; when you push `main`, push the same commit to `v4`
   (`git push origin main main:v4`) after confirming `v4` has no commits of its own.
@@ -310,7 +379,7 @@ a documented reason, `.skip` on a failing test, or a lowered threshold.
 
 ---
 
-## 15. Definition of done
+## 16. Definition of done
 
 A change is done when every applicable box is true:
 
@@ -319,7 +388,8 @@ A change is done when every applicable box is true:
 - [ ] New inputs from outside are bounded, validated, and covered by a security test when relevant.
 - [ ] Nothing new can leak memory, timers, or processes across `disconnect()` and reconnect.
 - [ ] Public types, TSDoc (with defaults), and error codes are complete.
-- [ ] Docs, skill references, and examples are updated for user-facing changes.
-- [ ] All quality gates in section 13 pass locally.
+- [ ] Docs and examples are updated for user-facing changes.
+- [ ] The skill says the same as the code, at the right level (section 13), and `pnpm skill:check` passes.
+- [ ] All quality gates in section 14 pass locally.
 - [ ] The commit message is a clean, English, one-line changelog entry, and a changeset exists for
       behaviour changes.

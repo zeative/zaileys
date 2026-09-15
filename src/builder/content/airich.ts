@@ -13,6 +13,7 @@ export type AIRichPart =
   | { type: 'reels'; reels: AIRichReel | AIRichReel[] }
   | { type: 'post'; posts: AIRichPost | AIRichPost[] }
   | { type: 'tip'; text: string }
+  | { type: 'html'; html: string; height?: number }
   | { type: 'suggest'; prompts: string | string[] }
 
 export type AIRichProduct = {
@@ -289,6 +290,13 @@ const newLayout = (name: string, data: Primitive | Primitive[]): Record<string, 
   },
 })
 
+/** Undocumented WhatsApp primitive; only Android renders it, and it runs with no network access. */
+export const AI_RICH_HTML_PRIMITIVE = 'GenAIaeacdsnwHtmlPrimitive'
+
+/** The host re-measures a page whose height follows its width, so the bubble shudders; pin it instead. */
+const lockHeight = (px: number): string =>
+  `<style>html,body{margin:0;height:${px}px;max-height:${px}px;overflow:hidden}</style>`
+
 const SOURCE_URL = 'https://github.com/zeative/zaileys'
 
 export const buildAIRichContent = (parts: AIRichPart[], opts?: AIRichOptions): AnyMessageContent => {
@@ -308,6 +316,17 @@ export const buildAIRichContent = (parts: AIRichPart[], opts?: AIRichOptions): A
           text: extracted.text,
           ...(entities.length > 0 ? { inline_entities: entities } : {}),
           __typename: 'GenAIMarkdownTextUXPrimitive',
+        }),
+      )
+    } else if (part.type === 'html') {
+      if (typeof part.html !== 'string' || part.html.trim().length === 0) {
+        throw new ZaileysBuilderError('INVALID_OPTIONS', 'html part requires a non-empty HTML string')
+      }
+      sections.push(
+        newLayout('Single', {
+          payload: part.height === undefined ? part.html : lockHeight(part.height) + part.html,
+          trusted_sources: [],
+          __typename: AI_RICH_HTML_PRIMITIVE,
         }),
       )
     } else if (part.type === 'code') {

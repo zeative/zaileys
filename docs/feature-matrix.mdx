@@ -32,6 +32,7 @@ Not sure which provider you're on? It's WhatsApp Web unless you created the clie
 | Mention people | ✓ Yes | ✗ No | Ignored on the Cloud API — the text arrives without mentions. | [Guide](/messaging/text) |
 | Disappearing messages | ✓ Yes | ✗ No | `setDisappearing()` throws. `.disappearing()` on a send is ignored. | [Guide](/messaging/text) |
 | Rich responses (`rich: true`) | ✓ Yes | ✗ No | Rejects with `SEND_FAILED`, cause `NOT_IMPLEMENTED`. | [Guide](/messaging/rich-responses) |
+| HTML apps (`htmlApp()`) | ✓ Android only | ✗ No | Rejects with `SEND_FAILED`, cause `NOT_IMPLEMENTED`. | [Guide](/messaging/html-app) |
 | React with an emoji | ✓ Yes | ✓ Yes | | [Guide](/messaging/edit-delete-react) |
 | Edit a sent message | ✓ Yes | ✗ No | | [Guide](/messaging/edit-delete-react) |
 | Delete a message | ✓ Yes | ✗ No | | [Guide](/messaging/edit-delete-react) |

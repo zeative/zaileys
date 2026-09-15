@@ -1,0 +1,195 @@
+---
+title: "HTML apps"
+description: "Send a small HTML page that runs inside the chat bubble on WhatsApp Android: receipts, charts, calculators, and offline mini games."
+icon: "app-window"
+keywords: ["htmlApp", "html", "html card", "inline html", "webview", "mini app", "android", "canvas", "game", "receipt"]
+---
+
+import { ProviderSupport } from "/snippets/provider-support.jsx"
+
+`htmlApp()` sends an HTML page that WhatsApp Android runs directly inside the message bubble. JavaScript, canvas, and animation work, so the card can be a receipt, a chart, a calculator, or a small game.
+
+<ProviderSupport web={true} cloud={false} note="WhatsApp Web provider only, and only WhatsApp Android renders the card." />
+
+<Warning>
+  This is an undocumented WhatsApp format. It works today on WhatsApp Android and can change or stop working in any WhatsApp update. iOS, WhatsApp Web, and WhatsApp Desktop do not render it.
+</Warning>
+
+## Quick reference
+
+| You want to | Use |
+| --- | --- |
+| Send a card | [`send().htmlApp(markup)`](#send-a-card) |
+| Keep the bubble from jumping | [`height`](#set-the-card-height) |
+| Skip people who can't see it | [`device` and `fallback`](#send-only-to-android) |
+| Put user data in the page safely | [`html` and `htmlJson`](#put-data-in-the-page-safely) |
+| Label the card | `title` |
+| Allow a bigger page | `maxBytes` (default 256 KB) |
+
+## Send a card
+
+```ts
+import { Client, html } from 'zaileys'
+
+const client = new Client()
+
+client.command('receipt', async (ctx) => {
+  const page = html`
+    <style>
+      body { margin: 0; font: 14px system-ui; background: #101814; color: #e6efe9 }
+      .row { display: flex; justify-content: space-between; padding: 6px 14px }
+      .total { border-top: 1px dashed #3a4a42; font-weight: 700 }
+    </style>
+    <div class="row"><span>2× Iced latte</span><span>Rp36.000</span></div>
+    <div class="row"><span>1× Toast</span><span>Rp18.000</span></div>
+    <div class="row total"><span>Total</span><span>Rp54.000</span></div>
+  `
+
+  await ctx.send().htmlApp(page, { title: 'Receipt #A-2291', height: 120 })
+})
+```
+
+On WhatsApp Android the recipient sees a forwarded message labelled **Receipt #A-2291** with the three rows drawn inside it.
+
+## What runs inside the card
+
+Measured on WhatsApp Android. The card runs offline, in a sandbox with no origin.
+
+| Works | Doesn't work |
+| --- | --- |
+| JavaScript, click and touch events | Any network request: `fetch`, XHR, WebSocket, images from your server |
+| Canvas 2D, WebGL 1 and 2, WASM | Links, `window.open`, form submits, `wa.me` links |
+| Web Audio, `requestAnimationFrame`, Workers from a blob | `localStorage`, `sessionStorage`, IndexedDB |
+| Modern CSS, `data:` images and fonts | Scrolling inside the card |
+| `<input>` fields, which open the phone keyboard | Sending anything back to your bot |
+
+Everything the page needs has to be inside the markup. Inline your CSS, JavaScript, images (as `data:` URIs), and data.
+
+<Tip>
+  The card can't talk to your bot. To let people act on what they see, send a [buttons](/messaging/interactive) message right after the card.
+</Tip>
+
+## Set the card height
+
+WhatsApp re-measures a page whose height depends on its width, which makes the bubble jump. `height` pins the card to a fixed number of CSS pixels, from 1 to 4096:
+
+```ts
+import { html } from 'zaileys'
+
+const page = html`<canvas id="chart" width="360" height="320"></canvas>`
+await ctx.send().htmlApp(page, { height: 320 })
+```
+
+Scrolling inside the card does not work, so design pages that fit in that height. For more content, switch between screens with buttons inside the page.
+
+## Send only to Android
+
+Other clients can't draw the card. Pass the recipient's device so they get plain text instead, or nothing at all:
+
+```ts
+import { html } from 'zaileys'
+
+const page = html`<div>Total Rp54.000</div>`
+
+client.command('receipt', async (ctx) => {
+  if (ctx.senderDevice !== 'android') {
+    await ctx.reply('Total Rp54.000, paid')
+    return
+  }
+  await ctx.send().htmlApp(page, { height: 120 })
+})
+```
+
+The same thing in one call:
+
+```ts
+import { html } from 'zaileys'
+
+const page = html`<div>Total Rp54.000</div>`
+await ctx.send().htmlApp(page, { device: ctx.senderDevice, fallback: 'Total Rp54.000, paid' })
+```
+
+| `device` | `fallback` | Result |
+| --- | --- | --- |
+| not set, or `'android'` | any | The card is sent |
+| anything else | set | `fallback` is sent as plain text |
+| anything else | not set | Throws `INVALID_RECIPIENT`; nothing is sent |
+
+`ctx.senderDevice` describes the device the incoming message came from, which is a good guess for a one-to-one reply. In a group, members use different phones, and people without Android see a message they can't open.
+
+## Put data in the page safely
+
+Anything you put into the markup is delivered to the recipient and runs as code. Build pages with the `html` tag, which escapes every value you interpolate:
+
+```ts
+import { html, htmlJson } from 'zaileys'
+
+const name = msg.senderName ?? 'friend'
+const items = [{ label: 'Iced latte', price: 18000 }]
+
+const page = html`
+  <h1>Hi ${name}</h1>
+  <ul>${items.map((item) => html`<li>${item.label}</li>`)}</ul>
+  <script>const items = ${htmlJson(items)}</script>
+`
+```
+
+| Helper | Use it for |
+| --- | --- |
+| `html` | Building markup. Values are escaped; nested `html` results and arrays of them are inserted as markup. |
+| `htmlJson(value)` | Passing data to a `<script>`. The JSON can't close the tag early. |
+| `escapeHtml(text)` | Escaping one string yourself. |
+| `rawHtml(markup)` | Inserting markup you wrote and trust. Never pass user input. |
+
+Never put API keys, tokens, or other people's data into the page. The recipient receives the full markup.
+
+## The Download prompt
+
+WhatsApp sometimes shows **"WhatsApp can't verify the security of this media. Only download if you trust the sender."** with a **Download** link instead of the card. Tapping Download once shows the card.
+
+The prompt doesn't depend on anything Zaileys sends, since identical cards can arrive either way. The known workaround (re-sending the card as an edit of itself) makes the card reload every time the recipient opens the keyboard, so Zaileys doesn't use it.
+
+## On the Cloud API
+
+The Cloud API has no rich messages. `htmlApp()` fails with `ZaileysBuilderError` code `SEND_FAILED`, and `error.cause` is a `ZaileysCloudError` with code `NOT_IMPLEMENTED`.
+
+## Common questions
+
+<AccordionGroup>
+  <Accordion title="The card is empty or never appears">
+    The recipient is not on WhatsApp Android. Check `ctx.senderDevice` before sending, or pass `device` and `fallback`.
+  </Accordion>
+  <Accordion title="My fetch call fails inside the card">
+    The card has no network access at all. Fetch the data in your bot before sending, and put the result in the page with `htmlJson`.
+  </Accordion>
+  <Accordion title="The page state resets">
+    WhatsApp can reload the card, for example after it scrolls far out of view. Storage is blocked, so keep pages that can start over, or send a new card with the updated state.
+  </Accordion>
+  <Accordion title="Can I use an external image or font?">
+    No. Embed them as `data:` URIs. Images are only allowed from `data:`, `blob:`, and Meta's own CDN.
+  </Accordion>
+</AccordionGroup>
+
+## When a send fails
+
+| Error | What went wrong | How to fix it |
+| --- | --- | --- |
+| `EMPTY_CONTENT` — `htmlApp() requires a non-empty HTML string` | The markup is empty or whitespace. | Pass the page markup. |
+| `INVALID_OPTIONS` — `htmlApp() height must be an integer from 1 to 4096` | `height` is zero, negative, fractional, or too large. | Pass a whole number of pixels. |
+| `INVALID_OPTIONS` — `htmlApp() markup is … bytes, over the … byte limit` | The page is bigger than `maxBytes` (256 KB by default). | Shrink inlined images, or raise `maxBytes`. |
+| `INVALID_OPTIONS` — `htmlApp() fallback must be a non-empty string` | `fallback` is empty. | Pass the text to send instead, or leave it out. |
+| `INVALID_RECIPIENT` — `htmlApp() renders only on Android, not "ios"` | `device` is not Android and there is no `fallback`. | Pass `fallback`, or skip the send for that recipient. |
+| `SEND_FAILED` with a `NOT_IMPLEMENTED` cause | You are on the Cloud API. | Send text or [buttons](/messaging/interactive) there. |
+
+Every error except `SEND_FAILED` is thrown by `htmlApp()` itself, before anything is sent. More in [Error handling](/data/error-handling).
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Rich responses" icon="wand-sparkles" href="/messaging/rich-responses">
+    Tables, code, and galleries from markdown.
+  </Card>
+  <Card title="Buttons & lists" icon="mouse-pointer-click" href="/messaging/interactive">
+    Let people act on what the card shows.
+  </Card>
+</CardGroup>

@@ -242,7 +242,7 @@ network failure → `REQUEST_FAILED` with the cause. Meta's code is appended to 
 | --- | --- |
 | `client.send()`, `msg.reply()` | `ZaileysBuilderError` `SEND_FAILED`, the `ZaileysCloudError` on `error.cause` |
 | `sendTemplate()`, `markRead()`, `client.cloud.*` | `ZaileysCloudError` directly |
-| Unsupported content (polls, carousels, `rich: true`, > 3 reply buttons, media headers) | `SEND_FAILED` with cause code `NOT_IMPLEMENTED` |
+| Unsupported content (polls, carousels, `rich: true`, `htmlApp()`, > 3 reply buttons, media headers) | `SEND_FAILED` with cause code `NOT_IMPLEMENTED` |
 | Failure after Meta accepted the message | No throw — `message-status` with `status: 'failed'` and `error.code` |
 
 Whether a limit code arrives as `RATE_LIMITED` or `REQUEST_FAILED` depends on the HTTP status Meta pairs with it,

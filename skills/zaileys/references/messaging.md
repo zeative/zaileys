@@ -77,6 +77,7 @@ await client.send(phoneToJid('+62 812-3456-7890')).text('Your order #1042 has sh
 | Method | Accepts | Limits and gotchas | Cloud API |
 | --- | --- | --- | --- |
 | `text(content, opts?)` | `string`; `{ rich, title, footer, sources }` | Empty/whitespace → `EMPTY_CONTENT`. `rich: true` renders Markdown as an AI-style card (undocumented WhatsApp format; images must be URLs) | Plain only; `rich: true` → `SEND_FAILED` |
+| `htmlApp(markup, { title, height, device, fallback, maxBytes })` | `string` or `html` tag result | Runs inside the bubble on **WhatsApp Android only**, offline: no network, storage, links, or scrolling; the card can't reach the bot. `device` other than `'android'` sends `fallback` text or throws `INVALID_RECIPIENT`. Build pages with `html`/`htmlJson` so values are escaped. Default `maxBytes` 256 KB. May show a one-tap Download prompt | `SEND_FAILED` |
 | `image(src, { caption, viewOnce })` | `MediaSource` | | `viewOnce` ignored |
 | `video(src, { caption, gifPlayback, viewOnce, ptv })` | `MediaSource` | Bytes must sniff as `video/*`, else `INVALID_OPTIONS` — a `.gif` is an image (send it as a sticker or convert to MP4) | `gifPlayback`, `viewOnce`, `ptv` ignored |
 | `videoNote(src, { viewOnce })` | `MediaSource` | Same as `video({ ptv: true })`; errors still name `video()` | Regular video |

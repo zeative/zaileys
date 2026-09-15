@@ -138,9 +138,12 @@ premium users become your own lists checked in the handler or in `client.use()` 
 
 Only entries that break code or change behaviour. Additive features are omitted.
 
-**Unreleased on main:** `htmlApp()` (added in 4.15.0 with `buildHtmlAppContent`, `HtmlAppOptions`) has been
-removed from the source, and the `AIRichPart` type is no longer re-exported. Don't write new code against it.
-Detect: `grep -rnE "htmlApp|buildHtmlAppContent|HtmlApp(Options|Device)|AIRichPart" src`.
+**Unreleased on main:** `htmlApp()` was redesigned. Removed: `buildHtmlAppContent`, `HtmlAppDevice`, the `AIRichPart`
+re-export, and the options `text`, `footer`, `fallbackUrl`, `fallbackButtonText`, `trustedSources`, and `bypassDownload`.
+A non-Android `device` now sends `fallback` as plain text, or throws `INVALID_RECIPIENT` without it, instead of a
+webview button. The follow-up edit that skipped the Download prompt is gone because it reloaded the card whenever
+the keyboard opened. Detect: `grep -rnE "buildHtmlAppContent|HtmlAppDevice|AIRichPart|fallbackUrl|trustedSources|bypassDownload" src`.
+Fix: keep `htmlApp(markup, { title, height, device, fallback })`; move any `text` or `footer` into the page itself.
 
 4.15.1 only fixes animated stickers on ffmpeg 7 and newer; no action.
 

@@ -15,6 +15,7 @@ Look up every method on the builder that `client.send(to)` returns: what each on
 | Method | Kind | Sends or does | On the Cloud API |
 | --- | --- | --- | --- |
 | [`text()`](#text) | Content | A text message, or a rich card with `rich: true` | Plain text only |
+| [`htmlApp()`](#htmlapp) | Content | An HTML page that runs inside the bubble on WhatsApp Android | No |
 | [`image()`](#image) | Content | A photo | Yes — `viewOnce` ignored |
 | [`video()`](#video) | Content | A video or a looping GIF | Yes — `gifPlayback`, `viewOnce` ignored |
 | [`videoNote()`](#videonote) | Content | A round video note | Arrives as a regular video |
@@ -145,6 +146,50 @@ await client.send(jid).text('*Order #1042* is on its way. Track it at https://ex
 ```
 
 Guide: [Text & replies](/messaging/text).
+
+### `htmlApp()`
+
+```ts Signature
+import type { HtmlAppOptions, SafeHtml } from 'zaileys'
+
+interface MessageBuilder<State> {
+  htmlApp(markup: string | SafeHtml, opts?: HtmlAppOptions): MessageBuilder<'content-set'>
+}
+```
+
+Sends an HTML page that WhatsApp Android runs inside the message bubble, offline. Experimental: an undocumented WhatsApp format that iOS, WhatsApp Web, and Desktop don't render.
+
+<ProviderSupport web={true} cloud={false} note="Rejects with SEND_FAILED on the Cloud API." />
+
+<ParamField body="markup" type="string | SafeHtml" required>
+  The page. Build it with the [`html`](/reference/utilities#html) tag so interpolated values are escaped.
+</ParamField>
+<ParamField body="opts.title" type="string">
+  A small label above the card.
+</ParamField>
+<ParamField body="opts.height" type="number">
+  Pins the card height in CSS pixels, from 1 to 4096, so the bubble stops jumping.
+</ParamField>
+<ParamField body="opts.device" type="string">
+  The recipient's device, usually `ctx.senderDevice`. Only `'android'` gets the card.
+</ParamField>
+<ParamField body="opts.fallback" type="string">
+  Plain text sent instead of the card when `device` isn't `'android'`.
+</ParamField>
+<ParamField body="opts.maxBytes" type="number" default="262144">
+  The largest page accepted, in UTF-8 bytes.
+</ParamField>
+
+**Errors:** `EMPTY_CONTENT` for empty markup. `INVALID_OPTIONS` for a bad `height`, `maxBytes`, or `fallback`, or a page over `maxBytes`. `INVALID_RECIPIENT` when `device` isn't Android and there's no `fallback`. On the Cloud API it rejects with `SEND_FAILED`, and `error.cause.code` is `NOT_IMPLEMENTED`.
+
+```ts
+import { html } from 'zaileys'
+
+const title = 'Order #1042 shipped'
+await client.send(jid).htmlApp(html`<h1>${title}</h1>`, { height: 80, device: ctx.senderDevice, fallback: title })
+```
+
+Guide: [HTML apps](/messaging/html-app).
 
 ### `image()`
 

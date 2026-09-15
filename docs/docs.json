@@ -73,7 +73,8 @@
               "messaging/edit-delete-react",
               "messaging/receiving-media",
               "messaging/interactive",
-              "messaging/rich-responses"
+              "messaging/rich-responses",
+              "messaging/html-app"
             ]
           },
           {

@@ -25,6 +25,8 @@ import {
 } from './content/buttons.js'
 import { buildCarouselContent, RELAY_CARDS_MEDIA_KEY, type CardMedia, type CarouselCard } from './content/carousel.js'
 import { buildAIRichContent, type AIRichOptions } from './content/airich.js'
+import { buildHtmlAppContent, type HtmlAppOptions } from './content/html-app.js'
+import type { SafeHtml } from './html.js'
 import { parseRichMarkdown } from './content/markdown.js'
 import { loadMedia } from './media-loader.js'
 import { buildContactContent } from './content/contact.js'
@@ -139,6 +141,16 @@ export class MessageBuilder<State extends BuilderState> {
     } else {
       this.internal.content = buildTextContent(content)
     }
+    return this as unknown as MessageBuilder<'content-set'>
+  }
+
+  /** Sends an HTML page that runs inside the bubble on WhatsApp Android. Experimental WhatsApp format. */
+  htmlApp(
+    this: MessageBuilder<'init'>,
+    markup: string | SafeHtml,
+    opts?: HtmlAppOptions,
+  ): MessageBuilder<'content-set'> {
+    this.internal.content = buildHtmlAppContent(markup, opts)
     return this as unknown as MessageBuilder<'content-set'>
   }
 

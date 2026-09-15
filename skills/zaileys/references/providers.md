@@ -50,7 +50,7 @@ Cloud API sends need the `connected` state too: until the token check passes the
 | --- | --- |
 | `client.group`, `privacy`, `newsletter`, `community`, `profile`, `chat`, `contact`, `business`, `presence` | `ZaileysProviderError` code `UNSUPPORTED_ON_CLOUD` |
 | `edit()`, `delete()`, `pin()`, `unpin()`, `setDisappearing()`, `rejectCall()` | `UNSUPPORTED_ON_CLOUD` |
-| Polls, carousels, events, group invites, `.product()`, `rich: true`, copy/call buttons, more than 3 reply buttons | The send rejects with `ZaileysBuilderError` `SEND_FAILED`; `error.cause` is a `ZaileysCloudError` with code `NOT_IMPLEMENTED` |
+| Polls, carousels, events, group invites, `.product()`, `rich: true`, `htmlApp()`, copy/call buttons, more than 3 reply buttons | The send rejects with `ZaileysBuilderError` `SEND_FAILED`; `error.cause` is a `ZaileysCloudError` with code `NOT_IMPLEMENTED` |
 | `album()` | `SEND_FAILED` — send each file separately |
 | Commands, middleware, plugins, auto-delete | Never run — handle `text` events |
 | `broadcast()`, `forward()` | Throw `client not connected` |

@@ -118,6 +118,24 @@ epochSecondsToMs(null)         // 0
 
 `epochSecondsToMs` is handy for message-store data: `WAMessage.messageTimestamp` is in seconds, while `msg.timestamp` is already in milliseconds.
 
+## HTML
+
+Helpers for building [`htmlApp()`](/messaging/html-app) pages without letting user data inject code.
+
+| Function | Signature | Returns |
+| --- | --- | --- |
+| `html` | ``(strings: TemplateStringsArray, ...values: unknown[]) => SafeHtml`` | Markup with every interpolated value escaped. Nested `html` results and arrays of them are inserted as markup; `null`, `undefined`, and `false` render as nothing. |
+| `htmlJson` | `(value: unknown) => SafeHtml` | JSON for a `<script>` that can't close the tag early. |
+| `escapeHtml` | `(value: string) => string` | The string with `& < > " ' `` ` `` escaped. |
+| `rawHtml` | `(markup: string) => SafeHtml` | Trusted markup that `html` inserts unescaped. Never pass user input. |
+
+```ts
+import { html, htmlJson } from 'zaileys'
+
+const page = html`<h1>${'<Hi>'}</h1><script>const data = ${htmlJson({ a: '</script>' })}</script>`
+String(page) // '<h1>&lt;Hi&gt;</h1><script>const data = {"a":"\u003c/script\u003e"}</script>'
+```
+
 ## Media
 
 | Function | Signature | Returns |

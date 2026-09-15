@@ -138,6 +138,10 @@ premium users become your own lists checked in the handler or in `client.use()` 
 
 Only entries that break code or change behaviour. Additive features are omitted.
 
+**4.17.0:** `htmlApp()` follows every card with an identical edit by default (`bypassDownload: true`) so the
+Download prompt doesn't appear; the card now reloads whenever the recipient opens the keyboard. Detect: `grep -rn
+"htmlApp(" src` on pages that keep state (games, counters, inputs). Fix: pass `bypassDownload: false` there.
+
 **4.16.0:** `htmlApp()` (experimental) was redesigned. Removed: `buildHtmlAppContent`, `HtmlAppDevice`, the `AIRichPart`
 re-export, and the options `text`, `footer`, `fallbackUrl`, `fallbackButtonText`, `trustedSources`, and `bypassDownload`.
 A non-Android `device` now sends `fallback` as plain text, or throws `INVALID_RECIPIENT` without it, instead of a

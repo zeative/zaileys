@@ -7,6 +7,16 @@ keywords: ["changelog", "release notes", "what's new", "versions", "breaking cha
 
 Every v4 release listed in the project's changelog, newest first. Releases without an entry aren't shown. Upgrading from v3? Start with [Migrating from v3](/releases/migration).
 
+<Update label="v4.17.0">
+  **Changed**
+
+  - `htmlApp()` cards render without WhatsApp's "can't verify the security of this media" Download prompt again. Zaileys follows each card with an identical edit, which costs one extra relay and makes the card reload whenever the recipient opens the keyboard. Pass `bypassDownload: false` for pages that keep state, such as games and counters. [The Download prompt](/messaging/html-app#the-download-prompt)
+
+  **Docs**
+
+  - A new [Templates](/templates/index) tab: 29 ready-made `htmlApp()` cards — games, music, greetings, business cards, calculators, and charts — each with a live preview and one `bot.ts` to copy.
+</Update>
+
 <Update label="v4.16.0">
   **Check before upgrading**
 

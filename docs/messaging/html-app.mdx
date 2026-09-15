@@ -141,6 +141,12 @@ const page = html`
 | `escapeHtml(text)` | Escaping one string yourself. |
 | `rawHtml(markup)` | Inserting markup you wrote and trust. Never pass user input. |
 
+`html` escapes values for text and for quoted attribute values. It can't make a value safe everywhere:
+
+- **Quote every attribute** that gets a value: `<div title="${name}">`, never `<div title=${name}>`.
+- **Pass data to scripts only through `htmlJson`**, never as `${value}` inside `<script>`.
+- **Don't interpolate user input into `<style>` or into event handler attributes** such as `onclick`.
+
 Never put API keys, tokens, or other people's data into the page. The recipient receives the full markup.
 
 ## The Download prompt

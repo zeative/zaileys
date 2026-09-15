@@ -5,7 +5,7 @@ releases. They exist so that code written by any contributor, human or AI, reads
 person wrote the whole library.
 
 Read this file before you touch the code. When a rule here conflicts with an older document
-(`CONTRIBUTING.md`, `RELEASE.md`), this file wins. When a rule conflicts with what the maintainer tells
+(`CONTRIBUTING.md`, `RELEASE.md`), this file wins. Releases and deploys follow `PUBLISH.md`. When a rule conflicts with what the maintainer tells
 you directly, the maintainer wins.
 
 ---
@@ -369,7 +369,8 @@ a documented reason, `.skip` on a failing test, or a lowered threshold.
 
 - **Work on `main`.** The `v4` branch mirrors `main`; when you push `main`, push the same commit to `v4`
   (`git push origin main main:v4`) after confirming `v4` has no commits of its own.
-- **Commit only when asked, push only when asked.**
+- **Commit only when asked, push only when asked.** Publishing to npm and deploying the docs follow `PUBLISH.md`
+  step by step, and only when the maintainer asks.
 - **Commit messages are English, Conventional Commits, one line**:
   `fix(store): parse the full chat jid when pruning convex messages`. Header 100 characters or less.
 - **The subject becomes the changelog entry.** `scripts/release.mjs` builds the changelog from commit

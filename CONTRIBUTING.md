@@ -126,7 +126,7 @@ Releases ship as **GitHub Releases**. Publishing to **npm is a deliberate manual
 performed by the maintainer — it is intentionally **not** automated and no `NPM_TOKEN`
 lives in CI.
 
-The short version (full runbook in [RELEASE.md](./RELEASE.md)):
+The short version (full runbook in [PUBLISH.md](./PUBLISH.md)):
 
 ```bash
 pnpm changeset version       # apply version bump + update CHANGELOG
@@ -140,7 +140,7 @@ pnpm build
 npm publish
 ```
 
-See [RELEASE.md](./RELEASE.md) for the complete release process, changeset base-branch
+See [PUBLISH.md](./PUBLISH.md) for the complete release process, changeset base-branch
 handling, and the rationale behind manual npm publishing.
 
 ## Reporting issues

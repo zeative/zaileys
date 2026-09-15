@@ -1,5 +1,7 @@
 # Release Runbook
 
+> **Out of date.** Releases are no longer cut with changesets and `v*` tags. Follow [PUBLISH.md](./PUBLISH.md).
+
 Zaileys ships releases as **GitHub Releases only**. Publishing to npm is a deliberate **manual** step performed by the maintainer — it is intentionally **not** automated.
 
 ## 1. Cut a release

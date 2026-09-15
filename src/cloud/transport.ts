@@ -120,7 +120,8 @@ export class CloudTransport implements Transport {
     if (m['botForwardedMessage'] != null || m['richResponseMessage'] != null) {
       throw new ZaileysCloudError(
         'NOT_IMPLEMENTED',
-        'AIRich rich responses (rich: true) are a WhatsApp-Web-only feature and are not supported on the cloud provider. Send the markdown as plain text with send().text(md) — WhatsApp renders *bold*, _italic_, ~strike~ and ```mono``` natively.',
+        'AIRich content (rich: true and htmlApp()) is WhatsApp-Web-only and not supported on the cloud provider. ' +
+          'Send the text with send().text() — WhatsApp renders *bold*, _italic_, ~strike~ and ```mono``` natively.',
       )
     }
     const interactive = translateInteractiveProto(m)

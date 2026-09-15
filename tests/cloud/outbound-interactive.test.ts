@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { html } from '../../src/builder/html.js'
 import { Client } from '../../src/client/client.js'
+import { ZaileysCloudError } from '../../src/cloud/errors.js'
 
 const fetchMock = vi.fn()
 
@@ -31,6 +33,33 @@ const lastBody = (): Record<string, unknown> =>
   JSON.parse((fetchMock.mock.calls.at(-1) as [string, RequestInit])[1].body as string) as Record<string, unknown>
 
 describe('cloud outbound interactive', () => {
+  it('rejects htmlApp() with NOT_IMPLEMENTED and names htmlApp in the message', async () => {
+    const c = await connectedClient()
+    const sent = c.send('628111').htmlApp(html`<p>Total</p>`)
+    const err = await sent.then(
+      () => undefined,
+      (e: unknown) => e as { code?: string; cause?: unknown },
+    )
+    expect(err?.code).toBe('SEND_FAILED')
+    expect(err?.cause).toBeInstanceOf(ZaileysCloudError)
+    expect((err?.cause as ZaileysCloudError).code).toBe('NOT_IMPLEMENTED')
+    expect((err?.cause as ZaileysCloudError).message).toContain('htmlApp()')
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('rejects rich text with NOT_IMPLEMENTED and names rich: true in the message', async () => {
+    const c = await connectedClient()
+    const err = await c
+      .send('628111')
+      .text('**bold**', { rich: true })
+      .then(
+        () => undefined,
+        (e: unknown) => e as { cause?: unknown },
+      )
+    expect((err?.cause as ZaileysCloudError).code).toBe('NOT_IMPLEMENTED')
+    expect((err?.cause as ZaileysCloudError).message).toContain('rich: true')
+  })
+
   it('buttons() sends a graph interactive button payload', async () => {
     const c = await connectedClient()
     fetchMock.mockResolvedValueOnce(ok({ messages: [{ id: 'wamid.BTN' }] }))

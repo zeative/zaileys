@@ -69,3 +69,8 @@ kbd {
     background: none;
   }
 }
+
+/* `mint export` ships Mintlify's local hot-reload badge, which sticks on "Compiling…" without a dev server. */
+div[role='status'][aria-live='polite'].fixed.cursor-grab.touch-none {
+  display: none !important;
+}

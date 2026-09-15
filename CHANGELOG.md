@@ -1,5 +1,23 @@
 # zaileys
 
+## 4.16.0
+
+### Breaking changes to the experimental htmlApp
+
+- `htmlApp()` is now an inline card for WhatsApp Android with no network, links, storage, or scrolling, based on on-device measurements
+- removed `buildHtmlAppContent`, `HtmlAppDevice`, the `AIRichPart` re-export, and the `htmlApp()` options `text`, `footer`, `fallbackUrl`, `fallbackButtonText`, `trustedSources`, and `bypassDownload`
+- a non-Android `device` sends `fallback` as plain text, or throws `INVALID_RECIPIENT` without it
+- the follow-up edit that skipped the Download prompt is gone because it reloaded the card whenever the keyboard opened
+
+### Minor Changes
+
+- add `htmlApp()` options `title`, `height`, `device`, `fallback`, and `maxBytes` (default 256 KB)
+- add `html`, `htmlJson`, `escapeHtml`, `rawHtml`, and `SafeHtml` to escape values placed in html cards
+
+### Patch Changes
+
+- name htmlApp in the error for rich content on the cloud provider
+
 ## 4.15.1
 
 ### Patch Changes

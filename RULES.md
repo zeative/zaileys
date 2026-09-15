@@ -156,8 +156,9 @@ that passes it honestly.
 - **Naming follows what users already see**: builder methods are verbs or content nouns
   (`text()`, `buttons()`, `reply()`), events are kebab-case (`button-click`, `poll-vote`) and appear in
   the plugin API as camelCase methods automatically.
-- **Removing or renaming anything exported is a breaking change.** It needs the maintainer's approval,
-  a `MIGRATION.md` entry, and a major-version plan.
+- **Removing or renaming anything exported is a breaking change.** It needs the maintainer's approval, a
+  changeset that names what was removed, and an entry under "Changes within v4" in
+  `skills/zaileys/references/migration.md` (`MIGRATION.md` covers v3 to v4 only).
 - **Experimental protocol features** (undocumented WhatsApp primitives, reverse-engineered envelopes)
   keep every magic string in one exported constant and say "experimental" in their TSDoc and docs.
 

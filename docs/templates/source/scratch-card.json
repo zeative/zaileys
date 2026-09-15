@@ -12,6 +12,7 @@
     "tap",
     "swipe"
   ],
+  "stateful": true,
   "sample": {
     "title": "Lucky scratch",
     "prize": "Free iced latte",

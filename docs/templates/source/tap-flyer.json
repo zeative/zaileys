@@ -10,5 +10,6 @@
   "fallback": "Tap Flyer opens on WhatsApp Android only.",
   "inputs": [
     "tap"
-  ]
+  ],
+  "stateful": true
 }

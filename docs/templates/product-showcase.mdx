@@ -411,6 +411,7 @@ client.command('products', async (ctx) => {
     height: 470,
     device: ctx.senderDevice,
     fallback: "This product showcase opens on WhatsApp Android only. Ask the shop for its product list and prices.",
+    bypassDownload: false,
   })
 })
 ```
@@ -420,6 +421,7 @@ client.command('products', async (ctx) => {
 | Height | 470 px |
 | Size | 17.2 KB |
 | Input | Swipe, Tap |
+| Download prompt | May appear on some accounts: `bypassDownload: false` keeps the card from reloading and losing its state |
 | Tested | Not yet tested on a phone |
 
 The card works only on WhatsApp Android, with no network or storage. Other devices get the `fallback` text. See [HTML apps](/messaging/html-app) for every option and limit.

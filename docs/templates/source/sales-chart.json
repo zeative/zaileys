@@ -11,6 +11,7 @@
   "inputs": [
     "tap"
   ],
+  "stateful": false,
   "sample": {
     "title": "Daily sales · Example Store",
     "period": "8–14 Sep 2026",

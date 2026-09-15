@@ -10,5 +10,6 @@
   "fallback": "Tic-tac-toe opens on WhatsApp Android only.",
   "inputs": [
     "tap"
-  ]
+  ],
+  "stateful": true
 }

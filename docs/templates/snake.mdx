@@ -290,6 +290,7 @@ client.command('snake', async (ctx) => {
     height: 442,
     device: ctx.senderDevice,
     fallback: "Snake opens on WhatsApp Android only.",
+    bypassDownload: false,
   })
 })
 ```
@@ -299,6 +300,7 @@ client.command('snake', async (ctx) => {
 | Height | 442 px |
 | Size | 12.7 KB |
 | Input | Tap, Swipe |
+| Download prompt | May appear on some accounts: `bypassDownload: false` keeps the card from reloading and losing its state |
 | Tested | Not yet tested on a phone |
 
 The card works only on WhatsApp Android, with no network or storage. Other devices get the `fallback` text. See [HTML apps](/messaging/html-app) for every option and limit.

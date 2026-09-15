@@ -242,6 +242,7 @@ client.command('split', async (ctx) => {
     height: 340,
     device: ctx.senderDevice,
     fallback: "The bill splitter opens on WhatsApp Android only.",
+    bypassDownload: false,
   })
 })
 ```
@@ -251,6 +252,7 @@ client.command('split', async (ctx) => {
 | Height | 340 px |
 | Size | 11.5 KB |
 | Input | Phone keyboard, Tap |
+| Download prompt | May appear on some accounts: `bypassDownload: false` keeps the card from reloading and losing its state |
 | Tested | Not yet tested on a phone |
 
 The card works only on WhatsApp Android, with no network or storage. Other devices get the `fallback` text. See [HTML apps](/messaging/html-app) for every option and limit.

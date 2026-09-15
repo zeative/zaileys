@@ -233,6 +233,7 @@ client.command('memory', async (ctx) => {
     height: 400,
     device: ctx.senderDevice,
     fallback: "Memory match opens on WhatsApp Android only.",
+    bypassDownload: false,
   })
 })
 ```
@@ -242,6 +243,7 @@ client.command('memory', async (ctx) => {
 | Height | 400 px |
 | Size | 10.6 KB |
 | Input | Tap |
+| Download prompt | May appear on some accounts: `bypassDownload: false` keeps the card from reloading and losing its state |
 | Tested | Not yet tested on a phone |
 
 The card works only on WhatsApp Android, with no network or storage. Other devices get the `fallback` text. See [HTML apps](/messaging/html-app) for every option and limit.

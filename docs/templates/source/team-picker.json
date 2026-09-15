@@ -12,6 +12,7 @@
     "tap",
     "keyboard"
   ],
+  "stateful": true,
   "sample": {
     "title": "Futsal night",
     "names": [

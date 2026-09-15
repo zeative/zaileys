@@ -10,5 +10,6 @@
   "fallback": "The dice and coin flipper opens on WhatsApp Android only.",
   "inputs": [
     "tap"
-  ]
+  ],
+  "stateful": true
 }

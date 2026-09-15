@@ -10,5 +10,6 @@
   "fallback": "Whack-a-Mole opens on WhatsApp Android only.",
   "inputs": [
     "tap"
-  ]
+  ],
+  "stateful": true
 }

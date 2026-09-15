@@ -331,6 +331,7 @@ client.command('flyer', async (ctx) => {
     height: 460,
     device: ctx.senderDevice,
     fallback: "Tap Flyer opens on WhatsApp Android only.",
+    bypassDownload: false,
   })
 })
 ```
@@ -340,6 +341,7 @@ client.command('flyer', async (ctx) => {
 | Height | 460 px |
 | Size | 12.1 KB |
 | Input | Tap |
+| Download prompt | May appear on some accounts: `bypassDownload: false` keeps the card from reloading and losing its state |
 | Tested | Not yet tested on a phone |
 
 The card works only on WhatsApp Android, with no network or storage. Other devices get the `fallback` text. See [HTML apps](/messaging/html-app) for every option and limit.

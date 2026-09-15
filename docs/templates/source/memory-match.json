@@ -10,5 +10,6 @@
   "fallback": "Memory match opens on WhatsApp Android only.",
   "inputs": [
     "tap"
-  ]
+  ],
+  "stateful": true
 }

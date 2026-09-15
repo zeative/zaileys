@@ -11,6 +11,7 @@
   "inputs": [
     "tap"
   ],
+  "stateful": true,
   "sample": {
     "to": "Dinda",
     "from": "The Kopi Senja team",

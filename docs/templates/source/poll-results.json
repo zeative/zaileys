@@ -11,6 +11,7 @@
   "inputs": [
     "none"
   ],
+  "stateful": false,
   "sample": {
     "question": "Which day works best for the team outing?",
     "options": [

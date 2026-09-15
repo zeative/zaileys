@@ -10,5 +10,6 @@
   "fallback": "Word guess opens on WhatsApp Android only.",
   "inputs": [
     "tap"
-  ]
+  ],
+  "stateful": true
 }

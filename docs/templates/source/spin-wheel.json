@@ -11,6 +11,7 @@
   "inputs": [
     "tap"
   ],
+  "stateful": true,
   "sample": {
     "title": "Weekend giveaway",
     "prizes": [

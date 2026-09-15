@@ -302,6 +302,7 @@ client.command('birthday', async (ctx) => {
     height: 432,
     device: ctx.senderDevice,
     fallback: "Happy birthday! This animated birthday card opens on WhatsApp Android only.",
+    bypassDownload: false,
   })
 })
 ```
@@ -311,6 +312,7 @@ client.command('birthday', async (ctx) => {
 | Height | 432 px |
 | Size | 14.9 KB |
 | Input | Tap |
+| Download prompt | May appear on some accounts: `bypassDownload: false` keeps the card from reloading and losing its state |
 | Tested | Not yet tested on a phone |
 
 The card works only on WhatsApp Android, with no network or storage. Other devices get the `fallback` text. See [HTML apps](/messaging/html-app) for every option and limit.

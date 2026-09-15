@@ -231,6 +231,7 @@ client.command('whack', async (ctx) => {
     height: 430,
     device: ctx.senderDevice,
     fallback: "Whack-a-Mole opens on WhatsApp Android only.",
+    bypassDownload: false,
   })
 })
 ```
@@ -240,6 +241,7 @@ client.command('whack', async (ctx) => {
 | Height | 430 px |
 | Size | 11.0 KB |
 | Input | Tap |
+| Download prompt | May appear on some accounts: `bypassDownload: false` keeps the card from reloading and losing its state |
 | Tested | Not yet tested on a phone |
 
 The card works only on WhatsApp Android, with no network or storage. Other devices get the `fallback` text. See [HTML apps](/messaging/html-app) for every option and limit.

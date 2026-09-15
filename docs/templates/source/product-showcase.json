@@ -12,6 +12,7 @@
     "swipe",
     "tap"
   ],
+  "stateful": true,
   "sample": {
     "shop": "Example Goods Co.",
     "currency": "IDR",

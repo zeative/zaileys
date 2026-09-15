@@ -12,6 +12,7 @@
     "keyboard",
     "tap"
   ],
+  "stateful": true,
   "sample": {
     "currency": "IDR",
     "locale": "id-ID"

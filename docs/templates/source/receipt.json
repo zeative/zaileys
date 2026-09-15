@@ -11,6 +11,7 @@
   "inputs": [
     "none"
   ],
+  "stateful": false,
   "sample": {
     "store": "Example Coffee House",
     "receiptNo": "INV-2026-0142",

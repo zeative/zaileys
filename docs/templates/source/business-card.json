@@ -11,6 +11,7 @@
   "inputs": [
     "tap"
   ],
+  "stateful": false,
   "sample": {
     "name": "Maya Example",
     "role": "Brand Designer",

@@ -21,9 +21,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 20
+          cache: pnpm
+
+      # The Open Graph renderer (satori, resvg, sharp, fonts) comes from devDependencies.
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Build the static site
         run: node docs/scripts/build-static.mjs docs-dist
@@ -37,6 +44,8 @@ jobs:
           test -f docs-dist/search-index.json
           test -f docs-dist/llms-full.txt
           test -f docs-dist/vercel.json
+          test -f docs-dist/sitemap.xml
+          test -f docs-dist/og/quickstart.jpg
 
       - name: Deploy to Vercel
         env:

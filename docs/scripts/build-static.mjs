@@ -58,6 +58,10 @@ run('node', [join(DOCS, 'scripts', 'check-anchors.mjs'), relative(ROOT, OUT)], R
 // Mintlify's export copies .js but skips .json, so the index has to be placed by hand.
 copyFileSync(join(DOCS, 'search-index.json'), join(OUT, 'search-index.json'))
 
+// ------------------------------------------------------ 3b. og images & seo
+step('Rendering Open Graph images, canonical URLs, and the sitemap')
+run('node', [join(DOCS, 'scripts', 'build-seo.mjs'), relative(ROOT, OUT)], ROOT)
+
 // --------------------------------------------------------------- 4. llms.txt
 step('Writing llms.txt and llms-full.txt')
 run('node', [join(DOCS, 'scripts', 'build-llms.mjs'), OUT.split('/').pop()], ROOT)

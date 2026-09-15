@@ -287,7 +287,6 @@ client.command('dice', async (ctx) => {
     height: 420,
     device: ctx.senderDevice,
     fallback: "The dice and coin flipper opens on WhatsApp Android only.",
-    bypassDownload: false,
   })
 })
 ```
@@ -297,7 +296,7 @@ client.command('dice', async (ctx) => {
 | Height | 420 px |
 | Size | 14.5 KB |
 | Input | Tap |
-| Download prompt | May appear on some accounts: `bypassDownload: false` keeps the card from reloading and losing its state |
+| Download prompt | Skipped by the default `bypassDownload`. The card reloads when the recipient opens the keyboard, which starts it over; pass `bypassDownload: false` to keep its state |
 | Tested | Not yet tested on a phone |
 
 The card works only on WhatsApp Android, with no network or storage. Other devices get the `fallback` text. See [HTML apps](/messaging/html-app) for every option and limit.

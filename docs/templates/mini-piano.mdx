@@ -383,7 +383,6 @@ client.command('piano', async (ctx) => {
     height: 400,
     device: ctx.senderDevice,
     fallback: "The mini piano opens on WhatsApp Android only.",
-    bypassDownload: false,
   })
 })
 ```
@@ -393,7 +392,7 @@ client.command('piano', async (ctx) => {
 | Height | 400 px |
 | Size | 18.6 KB |
 | Input | Tap, Swipe |
-| Download prompt | May appear on some accounts: `bypassDownload: false` keeps the card from reloading and losing its state |
+| Download prompt | Skipped by the default `bypassDownload`. The card reloads when the recipient opens the keyboard, which starts it over; pass `bypassDownload: false` to keep its state |
 | Tested | Not yet tested on a phone |
 
 The card works only on WhatsApp Android, with no network or storage. Other devices get the `fallback` text. See [HTML apps](/messaging/html-app) for every option and limit.

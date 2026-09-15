@@ -50,8 +50,6 @@ const templates = readdirSync(SOURCE)
     }
     for (const input of meta.inputs ?? []) if (!INPUTS[input]) fail(id, `unknown input "${input}"`)
     if (typeof meta.stateful !== 'boolean') fail(id, '"stateful" must be true or false')
-    // bypassDownload reloads the card whenever the keyboard opens, which would wipe what the user typed.
-    if ((meta.inputs ?? []).includes('keyboard') && meta.stateful !== true) fail(id, 'a card with keyboard input must be "stateful": true')
     const hasData = meta.sample !== undefined
     if (hasData !== markup.includes(DATA)) fail(id, `use ${DATA} in the card exactly when "sample" is set`)
 
@@ -82,7 +80,7 @@ client.command('${t.command}', async (ctx) => {
     title: ${q(t.title)},
     height: ${t.height},
     device: ctx.senderDevice,
-    fallback: ${q(t.fallback)},${t.stateful ? '\n    bypassDownload: false,' : ''}
+    fallback: ${q(t.fallback)},
   })
 })
 `
@@ -117,7 +115,7 @@ ${botFile(t)}\`\`\`
 | Height | ${t.height} px |
 | Size | ${kb(t.bytes)} |
 | Input | ${inputs} |
-| Download prompt | ${t.stateful ? 'May appear on some accounts: \`bypassDownload: false\` keeps the card from reloading and losing its state' : 'Skipped with the default \`bypassDownload\`; a reload is invisible on this card'} |
+| Download prompt | Skipped by the default \`bypassDownload\`. ${t.stateful ? 'The card reloads when the recipient opens the keyboard, which starts it over; pass \`bypassDownload: false\` to keep its state' : 'A reload when the keyboard opens is invisible on this card'} |
 | Tested | ${tested} |
 
 The card works only on WhatsApp Android, with no network or storage. Other devices get the \`fallback\` text. See [HTML apps](/messaging/html-app) for every option and limit.

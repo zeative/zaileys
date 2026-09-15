@@ -349,7 +349,6 @@ client.command('quiz', async (ctx) => {
     height: 460,
     device: ctx.senderDevice,
     fallback: "The quiz opens on WhatsApp Android only.",
-    bypassDownload: false,
   })
 })
 ```
@@ -359,7 +358,7 @@ client.command('quiz', async (ctx) => {
 | Height | 460 px |
 | Size | 13.7 KB |
 | Input | Tap |
-| Download prompt | May appear on some accounts: `bypassDownload: false` keeps the card from reloading and losing its state |
+| Download prompt | Skipped by the default `bypassDownload`. The card reloads when the recipient opens the keyboard, which starts it over; pass `bypassDownload: false` to keep its state |
 | Tested | Not yet tested on a phone |
 
 The card works only on WhatsApp Android, with no network or storage. Other devices get the `fallback` text. See [HTML apps](/messaging/html-app) for every option and limit.

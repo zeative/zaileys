@@ -1,0 +1,202 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { --pink: #ff4f8b; --orange: #ff8a3d; --yellow: #ffc93c; --violet: #7c5cff; --ink: #1d1442; --cream: #fff8ec; --muted: #5b5380; --hint: #776b99; --edge: #f5c7a6; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  body { margin: 0; height: 100%; background: linear-gradient(180deg, #ffdcc8, var(--cream) 60%); color: var(--ink); font: 14px/1.3 system-ui, sans-serif; display: flex; flex-direction: column; justify-content: center; gap: 9px; padding: 0 14px; }
+  .lbl { color: var(--muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
+  .head { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; margin-bottom: 4px; }
+  .pair { display: grid; grid-template-columns: 1.7fr 1fr; gap: 8px; }
+  .box { position: relative; }
+  input { width: 100%; min-width: 0; border: 2px solid var(--edge); border-radius: 14px; background: #fff; color: var(--ink); font: 800 19px system-ui, sans-serif; font-variant-numeric: tabular-nums; padding: 0 12px; height: 44px; outline: none; box-shadow: 0 3px 0 var(--edge); transition: border-color .12s ease, box-shadow .12s ease; }
+  input:focus { border-color: var(--pink); box-shadow: 0 3px 0 var(--pink); }
+  input::placeholder { color: var(--hint); font-weight: 600; }
+  .box input { padding-right: 26px; }
+  .box input.money { padding-right: 46px; }
+  #code { font-size: 12px; top: 15px; }
+  .box i { position: absolute; right: 11px; top: 12px; font-style: normal; font-weight: 800; color: var(--muted); pointer-events: none; }
+  button { border: 0; background: #fff; color: var(--ink); border-radius: 14px; font: 800 15px system-ui, sans-serif; cursor: pointer; box-shadow: inset 0 0 0 2px var(--orange), 0 4px 0 var(--orange); transition: transform .1s ease, box-shadow .1s ease; }
+  button:active { transform: translateY(3px); box-shadow: inset 0 0 0 2px var(--orange), 0 1px 0 var(--orange); }
+  button:focus-visible { outline: 3px solid var(--violet); outline-offset: 2px; }
+  .chips { display: grid; grid-template-columns: repeat(4, 1fr) 1.7fr; gap: 6px; padding-bottom: 3px; }
+  .chip { height: 38px; padding: 0; font-variant-numeric: tabular-nums; }
+  .chip[aria-pressed="true"] { background: var(--ink); color: var(--yellow); box-shadow: inset 0 0 0 2px var(--ink), 0 2px 0 #0b0720; transform: translateY(2px); animation: pop .22s cubic-bezier(.3, 1.8, .5, 1); }
+  @keyframes pop { 50% { transform: translateY(2px) scale(1.08); } }
+  .custom input { height: 38px; font-size: 14px; padding: 0 10px; }
+  .custom.on input { border-color: var(--ink); background: var(--ink); color: var(--yellow); box-shadow: 0 2px 0 #0b0720; }
+  .result { position: relative; background: linear-gradient(115deg, var(--pink), var(--orange) 70%, var(--yellow)); border-radius: 20px; padding: 8px 14px 10px; box-shadow: 0 4px 0 #c42762; }
+  .result .lbl { color: var(--ink); }
+  #monthly { font: 800 32px/1.15 system-ui, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; margin: 1px 0 4px; }
+  #monthly.empty { opacity: .55; }
+  .line { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .line + .line { margin-top: 2px; }
+  .line span:first-child { font-weight: 600; }
+  .detail { min-height: 34px; }
+  #hint { font-size: 13px; font-weight: 700; }
+  #for { padding: 0 8px; border-radius: 999px; background: var(--ink); color: var(--yellow); }
+  #for:empty { display: none; }
+  #note { margin: -1px 0 0; color: var(--muted); font-size: 12px; text-align: center; }
+  @media (prefers-reduced-motion: reduce) { button, input { transition: none; } .chip[aria-pressed="true"] { animation: none; } }
+</style>
+<div class="pair">
+  <div>
+    <div class="head"><label class="lbl" for="amount">Loan amount</label></div>
+    <div class="box"><input id="amount" class="money" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="next" placeholder="0"><i id="code"></i></div>
+  </div>
+  <div>
+    <div class="head"><label class="lbl" for="rate">Interest / year</label></div>
+    <div class="box"><input id="rate" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="done" placeholder="0"><i>%</i></div>
+  </div>
+</div>
+<div role="group" aria-labelledby="termLabel">
+  <div class="head"><span class="lbl" id="termLabel">Term (months)</span></div>
+  <div class="chips">
+    <button type="button" class="chip" data-term="6">6</button>
+    <button type="button" class="chip" data-term="12">12</button>
+    <button type="button" class="chip" data-term="24">24</button>
+    <button type="button" class="chip" data-term="36">36</button>
+    <span class="custom" id="customWrap"><input id="termCustom" type="text" inputmode="numeric" autocomplete="off" enterkeyhint="done" placeholder="Other" aria-label="Custom term in months"></span>
+  </div>
+</div>
+<div class="result" aria-live="polite">
+  <div class="head"><span class="lbl">🏦 Monthly installment</span><span class="lbl" id="for"></span></div>
+  <div id="monthly">—</div>
+  <div class="detail">
+    <div id="hint"></div>
+    <div id="lines">
+      <div class="line"><span>Total paid</span><span id="paid"></span></div>
+      <div class="line"><span>Total interest</span><span id="interest"></span></div>
+    </div>
+  </div>
+</div>
+<p id="note">Fixed rate, monthly installments, no fees</p>
+<script>
+  var DATA = /*DATA*/null;
+  var TEXT = { amount: 'Type the loan amount', rate: 'Type the yearly interest rate', term: 'Term must be 1 to 600 whole months', months: ' months', month: ' month' };
+  var MAX_TERM = 600;
+  var cfg = DATA || {};
+  var state = { term: 12, chip: 12 };
+
+  var locale = cfg.locale || undefined;
+  var money = makeMoney(cfg.currency, locale);
+  // Separator the locale uses for decimals, so "10.000.000" reads as ten million in id-ID but "12.5" stays 12.5.
+  var DECIMAL = decimalChar(locale);
+
+  function makeMoney(currency, loc) {
+    try {
+      var digits = new Intl.NumberFormat(loc, { style: 'currency', currency: currency }).resolvedOptions().maximumFractionDigits;
+      var f = new Intl.NumberFormat(loc, { style: 'currency', currency: currency, minimumFractionDigits: digits, maximumFractionDigits: digits });
+      return { code: currency, format: function (v) { return f.format(v); } };
+    } catch (e) {
+      var plain = new Intl.NumberFormat(loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      return { code: '', format: function (v) { return plain.format(v); } };
+    }
+  }
+
+  function decimalChar(loc) {
+    var parts = new Intl.NumberFormat(loc).formatToParts(1.5);
+    for (var i = 0; i < parts.length; i++) if (parts[i].type === 'decimal') return parts[i].value;
+    return '.';
+  }
+
+  function parseNumber(raw, grouping) {
+    var s = '';
+    for (var i = 0; i < raw.length; i++) {
+      var c = raw.charAt(i);
+      if ((c >= '0' && c <= '9') || c === '.' || c === ',') s += c;
+    }
+    if (!s) return NaN;
+    var dot = s.lastIndexOf('.'), comma = s.lastIndexOf(',');
+    var sep = '';
+    if (dot !== -1 && comma !== -1) sep = dot > comma ? '.' : ',';
+    else if (dot !== -1 || comma !== -1) {
+      var one = dot !== -1 ? '.' : ',';
+      var parts = s.split(one);
+      var looksGrouped = parts.length > 2 || (grouping && one !== DECIMAL && parts[1].length === 3);
+      sep = looksGrouped ? '' : one;
+    }
+    var at = sep ? s.lastIndexOf(sep) : s.length;
+    var whole = digitsOnly(s.slice(0, at)), frac = digitsOnly(s.slice(at + 1));
+    return parseFloat((whole || '0') + '.' + (frac || '0'));
+  }
+
+  function digitsOnly(s) {
+    var out = '';
+    for (var i = 0; i < s.length; i++) if (s.charAt(i) >= '0' && s.charAt(i) <= '9') out += s.charAt(i);
+    return out;
+  }
+
+  // Annuity with a fixed monthly rate (yearly rate / 12); a 0% loan is just the amount spread evenly.
+  function loan(amount, yearlyPercent, months) {
+    var r = yearlyPercent / 100 / 12;
+    var monthly = r === 0 ? amount / months : amount * r / (1 - Math.pow(1 + r, -months));
+    return { monthly: monthly, paid: monthly * months, interest: monthly * months - amount };
+  }
+
+  var amountEl = document.getElementById('amount');
+  var rateEl = document.getElementById('rate');
+  var customEl = document.getElementById('termCustom');
+  var chips = document.querySelectorAll('.chip');
+  var monthlyEl = document.getElementById('monthly');
+
+  function fit(el, max, min) {
+    var size = max;
+    el.style.fontSize = size + 'px';
+    while (el.scrollWidth > el.clientWidth && size > min) { size -= 2; el.style.fontSize = size + 'px'; }
+  }
+
+  function render() {
+    for (var i = 0; i < chips.length; i++) {
+      var on = customEl.value === '' && Number(chips[i].getAttribute('data-term')) === state.term;
+      chips[i].setAttribute('aria-pressed', on ? 'true' : 'false');
+    }
+    document.getElementById('customWrap').className = 'custom' + (customEl.value !== '' ? ' on' : '');
+
+    var amount = parseNumber(amountEl.value, true);
+    var rate = parseNumber(rateEl.value, false);
+    var term = state.term;
+    var problem = !(amount > 0) ? TEXT.amount : !(rate >= 0) ? TEXT.rate : !(term >= 1 && term <= MAX_TERM) ? TEXT.term : '';
+
+    document.getElementById('for').textContent = term >= 1 && term <= MAX_TERM ? term + (term === 1 ? TEXT.month : TEXT.months) : '';
+    document.getElementById('hint').textContent = problem;
+    document.getElementById('hint').hidden = !problem;
+    document.getElementById('lines').hidden = !!problem;
+    if (problem) {
+      monthlyEl.textContent = '—';
+      monthlyEl.className = 'empty';
+    } else {
+      var r = loan(amount, rate, term);
+      monthlyEl.textContent = money.format(r.monthly);
+      monthlyEl.className = '';
+      document.getElementById('paid').textContent = money.format(r.paid);
+      document.getElementById('interest').textContent = money.format(r.interest);
+    }
+    fit(monthlyEl, 32, 18);
+  }
+
+  document.getElementById('code').textContent = money.code;
+  amountEl.addEventListener('input', render);
+  rateEl.addEventListener('input', render);
+  customEl.addEventListener('input', function () {
+    var digits = digitsOnly(customEl.value);
+    state.term = digits ? Number(digits) : state.chip;
+    render();
+  });
+  for (var i = 0; i < chips.length; i++) {
+    chips[i].addEventListener('click', function () {
+      customEl.value = '';
+      state.term = state.chip = Number(this.getAttribute('data-term'));
+      render();
+    });
+  }
+  // The bubble can settle on its final width after the first paint; refit the big number then.
+  addEventListener('resize', render);
+  // Enter moves from the amount to the rate, then closes the phone keyboard so the result is uncovered.
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter') return;
+    if (e.target === amountEl) rateEl.focus();
+    else if (e.target.blur) e.target.blur();
+  });
+  render();
+</script>

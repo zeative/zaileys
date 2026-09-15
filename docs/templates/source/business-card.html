@@ -1,0 +1,476 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { --ink: #1d1442; --muted: #574f78; --cream: #fff8ec; --sky: #38b6ff; --mint: #2ed8a7; --pink: #ff4f8b; --orange: #ff8a3d; --yellow: #ffc93c; --violet: #7c5cff; --grape: #b44cff; --lime: #9be15d; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  body { margin: 0; height: 100%; background: linear-gradient(135deg, #2a1d63, var(--ink)); color: var(--ink); font: 14px/1.3 system-ui, sans-serif; display: flex; padding: 10px; }
+  .stage { flex: 1; min-width: 0; position: relative; perspective: 1400px; }
+  .flipper { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform .6s cubic-bezier(.3, 1.4, .5, 1); }
+  .flipped .flipper { transform: rotateY(180deg); }
+  .face { position: absolute; inset: 0; display: flex; flex-direction: column; background: var(--cream); border-radius: 22px; overflow: hidden; -webkit-backface-visibility: hidden; backface-visibility: hidden; }
+  .back { transform: rotateY(180deg); }
+  .face[aria-hidden="true"] { pointer-events: none; }
+  .hero { flex: none; position: relative; padding: 14px 14px 12px; background: linear-gradient(120deg, var(--sky), var(--mint)); overflow: hidden; }
+  .hero::after { content: ''; position: absolute; right: -30px; top: -40px; width: 120px; height: 120px; border-radius: 50%; background: var(--yellow); opacity: .55; }
+  .who { position: relative; z-index: 1; display: flex; align-items: center; gap: 12px; }
+  .avatar { flex: none; width: 66px; height: 66px; display: grid; place-items: center; border-radius: 58% 42% 52% 48% / 46% 56% 44% 54%; background: linear-gradient(140deg, var(--yellow), var(--orange) 45%, var(--pink)); box-shadow: 0 0 0 3px #fff, 0 4px 0 3px rgba(29, 20, 66, .25); font-weight: 800; font-size: 25px; color: var(--ink); overflow: hidden; transform: rotate(-4deg); }
+  .avatar img { width: 100%; height: 100%; object-fit: cover; transform: rotate(4deg) scale(1.1); }
+  .names { min-width: 0; }
+  h1 { margin: 0; font-size: clamp(19px, 5.4vw, 22px); font-weight: 800; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .role { margin-top: 2px; font-size: 13px; font-weight: 600; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .bio { position: relative; z-index: 1; margin: 10px 0 0; padding: 7px 10px; border-radius: 14px; background: rgba(255, 255, 255, .72); font-size: 12.5px; line-height: 1.35; }
+  .bio span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .list { flex: 1; min-height: 0; overflow: hidden; margin: 0; padding: 10px 10px 0; display: flex; flex-direction: column; gap: 6px; }
+  .row { flex: none; display: flex; align-items: center; gap: 10px; min-height: 42px; padding: 5px 8px 5px 5px; border-radius: 16px; background: #fff; box-shadow: 0 2px 0 rgba(29, 20, 66, .1); cursor: pointer; transition: transform .12s ease; }
+  .row:active { transform: scale(.97); }
+  .chip { flex: none; width: 32px; height: 32px; border-radius: 11px; display: grid; place-items: center; font-size: 17px; background: var(--c); }
+  .txt { flex: 1; min-width: 0; }
+  .lbl { display: block; font-size: 12px; color: var(--muted); }
+  .val { display: block; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; user-select: text; -webkit-user-select: text; font-variant-numeric: tabular-nums; }
+  .copy { flex: none; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 999px; background: var(--cream); color: var(--muted); }
+  .empty { color: var(--muted); font-size: 13px; padding: 8px 4px; }
+  .foot { flex: none; margin-top: auto; padding: 10px; }
+  .btn { width: 100%; min-height: 44px; border: 0; border-radius: 16px; font: 800 15px system-ui, sans-serif; color: var(--ink); background: var(--yellow); box-shadow: 0 4px 0 #d49a14; cursor: pointer; transition: transform .1s ease, box-shadow .1s ease; }
+  .btn:active { transform: translateY(3px); box-shadow: 0 1px 0 #d49a14; }
+  .back-top { flex: none; padding: 12px 14px 10px; background: linear-gradient(120deg, var(--pink), var(--orange)); color: var(--ink); }
+  .back-top b { display: block; font-size: 17px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .back-top span { font-size: 12.5px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .qrwrap { flex: none; display: flex; align-items: center; gap: 12px; padding: 12px 14px 4px; }
+  .qr { flex: none; width: 136px; height: 136px; display: grid; place-items: center; background: #fff; border-radius: 16px; box-shadow: 0 0 0 3px var(--mint), 0 5px 0 3px #1fa982; overflow: hidden; }
+  .qr canvas { display: block; }
+  .qrtext { min-width: 0; font-size: 13px; }
+  .qrtext b { display: block; font-size: 15px; font-weight: 800; margin-bottom: 3px; }
+  .qrtext .lbl { margin-top: 5px; }
+  .noqr .qr { display: none; }
+  .services { flex: 1; min-height: 0; overflow: hidden; padding: 10px 14px 0; }
+  .services h2 { margin: 0 0 7px; font-size: 13px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; }
+  .tag { padding: 6px 11px; border-radius: 999px; font-size: 13px; font-weight: 700; color: var(--ink); background: var(--c); transform: rotate(var(--r)); max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .toast { position: absolute; left: 50%; bottom: 72px; z-index: 5; transform: translate(-50%, 12px) scale(.9); opacity: 0; padding: 8px 14px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 13px; font-weight: 700; white-space: nowrap; pointer-events: none; transition: opacity .2s ease, transform .25s cubic-bezier(.3, 1.6, .5, 1); }
+  .toast.on { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  @media (prefers-reduced-motion: reduce) {
+    .flipper { transition: none; }
+    .row, .btn, .toast { transition: none; }
+  }
+</style>
+<div class="stage" id="stage">
+  <div class="flipper">
+    <main class="face front" id="front" aria-label="Business card">
+      <section class="hero">
+        <div class="who">
+          <div class="avatar" id="avatar" aria-hidden="true"></div>
+          <div class="names">
+            <h1 id="name"></h1>
+            <div class="role" id="role"></div>
+          </div>
+        </div>
+        <p class="bio" id="bio"><span id="bioText"></span></p>
+      </section>
+      <div class="list" id="list" aria-label="Contact details, tap a row to copy"></div>
+      <div class="foot"><button class="btn" id="toBack" type="button">Show QR code 🔄</button></div>
+    </main>
+    <section class="face back" id="back" aria-label="QR code and services" aria-hidden="true">
+      <div class="back-top"><b id="backName"></b><span id="backRole"></span></div>
+      <div class="qrwrap" id="qrwrap">
+        <div class="qr"><canvas id="qr" role="img"></canvas></div>
+        <div class="qrtext"><b id="qrTitle"></b><span id="qrHint"></span><div class="lbl" id="qrFields"></div></div>
+      </div>
+      <div class="services" id="services"><h2>Services</h2><div class="tags" id="tags"></div></div>
+      <div class="foot"><button class="btn" id="toFront" type="button">Back to contacts 🔄</button></div>
+    </section>
+  </div>
+  <div class="toast" id="toast" aria-live="polite"></div>
+</div>
+<script>
+  var DATA = /*DATA*/null;
+  var TEXT = {
+    name: 'Your name',
+    copy: 'Copy',
+    copied: 'Copied ',
+    selected: 'Selected, long-press to copy',
+    noContacts: 'No contact details shared yet.',
+    scanTitle: 'Scan to save',
+    scanHint: 'Point a phone camera at the code to add this contact.',
+    saves: 'Saves: ',
+    noQrTitle: 'No QR code',
+    noQrHint: 'These details are too long for a QR code here. Copy them from the front.',
+    noQrMissing: 'A QR code needs a name plus a phone number or email.',
+    toBack: 'Show QR code 🔄',
+    toBackServices: 'QR code & services 🔄',
+    toFront: 'Back to contacts 🔄'
+  };
+  var CONTACTS = [
+    { key: 'phone', label: 'Phone', icon: '📞', color: '#ffd0e0' },
+    { key: 'email', label: 'Email', icon: '✉️', color: '#cdeaff' },
+    { key: 'website', label: 'Website', icon: '🌐', color: '#c9f5e7' },
+    { key: 'instagram', label: 'Instagram', icon: '📸', color: '#ecd6ff' },
+    { key: 'address', label: 'Address', icon: '📍', color: '#ffe2cc' }
+  ];
+  var TAG_COLORS = ['#ffc93c', '#9be15d', '#8fd4ff', '#ffa6c6', '#c7b8ff', '#7fe8c8', '#ffb27d'];
+  var d = DATA || {};
+
+  function str(v) { return v === undefined || v === null ? '' : String(v).trim(); }
+  function $(id) { return document.getElementById(id); }
+
+  var name = str(d.name), role = str(d.role), company = str(d.company);
+  var roleLine = role && company ? role + ' · ' + company : role || company;
+  $('name').textContent = name || TEXT.name;
+  if (!name) $('name').style.color = 'var(--muted)';
+  $('role').textContent = roleLine;
+  $('backName').textContent = name || TEXT.name;
+  $('backRole').textContent = roleLine;
+  if (str(d.bio)) $('bioText').textContent = str(d.bio); else $('bio').hidden = true;
+
+  var avatar = $('avatar');
+  var photo = str(d.photo);
+  if (photo.indexOf('data:image/') === 0) {
+    var img = document.createElement('img');
+    img.alt = '';
+    img.src = photo;
+    avatar.appendChild(img);
+  } else {
+    var initials = name.split(' ').filter(Boolean).slice(0, 2).map(function (w) { return w.charAt(0).toUpperCase(); }).join('');
+    avatar.textContent = initials || '👋';
+  }
+
+  var toastTimer;
+  function toast(msg) {
+    var t = $('toast');
+    t.textContent = msg;
+    t.className = 'toast on';
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { t.className = 'toast'; }, 1600);
+  }
+
+  function execCopy() {
+    try { return document.execCommand('copy'); } catch (e) { return false; }
+  }
+
+  // Select first so the text stays highlighted for a manual long-press copy when no clipboard API is allowed.
+  function copyRow(valEl, label) {
+    var sel = window.getSelection(), range = document.createRange();
+    range.selectNodeContents(valEl);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    function done(ok) { toast(ok ? TEXT.copied + label.toLowerCase() : TEXT.selected); }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(valEl.textContent).then(function () { done(true); }, function () { done(execCopy()); });
+        return;
+      }
+    } catch (e) {}
+    done(execCopy());
+  }
+
+  function contactValue(c) {
+    var v = str(d[c.key]);
+    if (c.key === 'instagram' && v && v.charAt(0) !== '@') v = '@' + v;
+    return v;
+  }
+
+  var list = $('list');
+  var shown = CONTACTS.filter(function (c) { return contactValue(c); });
+  function renderRows() {
+    for (var count = shown.length; count >= 0; count--) {
+      list.textContent = '';
+      if (!shown.length) {
+        var none = document.createElement('div');
+        none.className = 'empty';
+        none.textContent = TEXT.noContacts;
+        list.appendChild(none);
+        return;
+      }
+      shown.slice(0, count).forEach(function (c) {
+        var row = document.createElement('div');
+        row.className = 'row';
+        row.setAttribute('role', 'button');
+        row.tabIndex = 0;
+        row.setAttribute('aria-label', TEXT.copy + ' ' + c.label.toLowerCase() + ': ' + contactValue(c));
+        row.innerHTML = '<span class="chip" aria-hidden="true"></span><span class="txt"><span class="lbl"></span><span class="val"></span></span><span class="copy" aria-hidden="true"></span>';
+        row.children[0].textContent = c.icon;
+        row.children[0].style.setProperty('--c', c.color);
+        row.querySelector('.lbl').textContent = c.label;
+        var val = row.querySelector('.val');
+        val.textContent = contactValue(c);
+        row.children[2].textContent = TEXT.copy;
+        function act() { copyRow(val, c.label); }
+        row.addEventListener('click', act);
+        row.addEventListener('keydown', function (e) { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); act(); } });
+        list.appendChild(row);
+      });
+      if (list.scrollHeight <= list.clientHeight + 1) return;
+    }
+  }
+
+  var services = Array.isArray(d.services) ? d.services.map(str).filter(Boolean) : [];
+  var tags = $('tags');
+  function renderTags() {
+    for (var count = services.length; count >= 0; count--) {
+      tags.textContent = '';
+      services.slice(0, count).forEach(function (s, i) { addTag(s, i); });
+      if (count < services.length) addTag('+' + (services.length - count) + ' more', count);
+      var box = $('services');
+      if (box.scrollHeight <= box.clientHeight + 1) return;
+    }
+  }
+  function addTag(text, i) {
+    var t = document.createElement('span');
+    t.className = 'tag';
+    t.textContent = text;
+    t.style.setProperty('--c', TAG_COLORS[i % TAG_COLORS.length]);
+    t.style.setProperty('--r', (i % 3 - 1) * 1.5 + 'deg');
+    tags.appendChild(t);
+  }
+
+  // QR Model 2, byte mode, versions 1 to 6: [data codewords, EC codewords per block, blocks]. M first, L when the text is longer.
+  var QR_LEVELS = [
+    { bits: 0, table: [null, [16, 10, 1], [28, 16, 1], [44, 26, 1], [64, 18, 2], [86, 24, 2], [108, 16, 4]] },
+    { bits: 1, table: [null, [19, 7, 1], [34, 10, 1], [55, 15, 1], [80, 20, 1], [108, 26, 1], [136, 18, 2]] }
+  ];
+  var QR_MAX_BYTES = 134;
+
+  function gfMul(x, y) {
+    var z = 0;
+    for (var i = 7; i >= 0; i--) {
+      z = (z << 1) ^ ((z >>> 7) * 0x11d);
+      z ^= ((y >>> i) & 1) * x;
+    }
+    return z;
+  }
+
+  function rsDivisor(degree) {
+    var r = [], root = 1, i, j;
+    for (i = 0; i < degree - 1; i++) r.push(0);
+    r.push(1);
+    for (i = 0; i < degree; i++) {
+      for (j = 0; j < r.length; j++) {
+        r[j] = gfMul(r[j], root);
+        if (j + 1 < r.length) r[j] ^= r[j + 1];
+      }
+      root = gfMul(root, 2);
+    }
+    return r;
+  }
+
+  function rsRemainder(data, div) {
+    var r = div.map(function () { return 0; });
+    data.forEach(function (b) {
+      var f = b ^ r.shift();
+      r.push(0);
+      for (var i = 0; i < div.length; i++) r[i] ^= gfMul(div[i], f);
+    });
+    return r;
+  }
+
+  function maskBit(m, x, y) {
+    switch (m) {
+      case 0: return (x + y) % 2 === 0;
+      case 1: return y % 2 === 0;
+      case 2: return x % 3 === 0;
+      case 3: return (x + y) % 3 === 0;
+      case 4: return (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0;
+      case 5: return x * y % 2 + x * y % 3 === 0;
+      case 6: return (x * y % 2 + x * y % 3) % 2 === 0;
+      default: return ((x + y) % 2 + x * y % 3) % 2 === 0;
+    }
+  }
+
+  function utf8(text) {
+    var s = unescape(encodeURIComponent(text)), bytes = [];
+    for (var i = 0; i < s.length; i++) bytes.push(s.charCodeAt(i));
+    return bytes;
+  }
+
+  function qrMatrix(text) {
+    var bytes = utf8(text), i, k, ver = 0, level = null;
+    for (var li = 0; li < QR_LEVELS.length && !level; li++) {
+      for (ver = 1; ver < 7; ver++) if (QR_LEVELS[li].table[ver][0] - 2 >= bytes.length) { level = QR_LEVELS[li]; break; }
+    }
+    if (!level) return null;
+
+    var spec = level.table[ver], cap = spec[0], bits = [];
+    function put(v, n) { for (var b = n - 1; b >= 0; b--) bits.push((v >>> b) & 1); }
+    put(4, 4);
+    put(bytes.length, 8);
+    bytes.forEach(function (b) { put(b, 8); });
+    put(0, Math.min(4, cap * 8 - bits.length));
+    while (bits.length % 8) bits.push(0);
+    var data = [];
+    for (i = 0; i < bits.length; i += 8) {
+      var v = 0;
+      for (k = 0; k < 8; k++) v = (v << 1) | bits[i + k];
+      data.push(v);
+    }
+    for (var pad = 0xec; data.length < cap; pad ^= 0xec ^ 0x11) data.push(pad);
+
+    var nb = spec[2], len = cap / nb, div = rsDivisor(spec[1]), blocks = [], ecs = [], words = [];
+    for (i = 0; i < nb; i++) {
+      blocks.push(data.slice(i * len, (i + 1) * len));
+      ecs.push(rsRemainder(blocks[i], div));
+    }
+    for (i = 0; i < len; i++) for (k = 0; k < nb; k++) words.push(blocks[k][i]);
+    for (i = 0; i < spec[1]; i++) for (k = 0; k < nb; k++) words.push(ecs[k][i]);
+
+    var size = ver * 4 + 17, mod = [], fn = [];
+    for (i = 0; i < size; i++) { mod.push([]); fn.push([]); for (k = 0; k < size; k++) { mod[i].push(false); fn[i].push(false); } }
+    function set(x, y, dark) { mod[y][x] = dark; fn[y][x] = true; }
+
+    for (i = 0; i < size; i++) { set(6, i, i % 2 === 0); set(i, 6, i % 2 === 0); }
+    [[3, 3], [size - 4, 3], [3, size - 4]].forEach(function (c) {
+      for (var dy = -4; dy <= 4; dy++) for (var dx = -4; dx <= 4; dx++) {
+        var x = c[0] + dx, y = c[1] + dy, dist = Math.max(Math.abs(dx), Math.abs(dy));
+        if (x >= 0 && x < size && y >= 0 && y < size) set(x, y, dist !== 2 && dist !== 4);
+      }
+    });
+    if (ver > 1) {
+      for (var ay = -2; ay <= 2; ay++) for (var ax = -2; ax <= 2; ax++) set(size - 7 + ax, size - 7 + ay, Math.max(Math.abs(ax), Math.abs(ay)) !== 1);
+    }
+
+    function format(mask) {
+      var info = (level.bits << 3) | mask, rem = info;
+      for (var j = 0; j < 10; j++) rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
+      var f = ((info << 10) | rem) ^ 0x5412;
+      function bit(n) { return ((f >>> n) & 1) === 1; }
+      for (j = 0; j <= 5; j++) set(8, j, bit(j));
+      set(8, 7, bit(6)); set(8, 8, bit(7)); set(7, 8, bit(8));
+      for (j = 9; j < 15; j++) set(14 - j, 8, bit(j));
+      for (j = 0; j < 8; j++) set(size - 1 - j, 8, bit(j));
+      for (j = 8; j < 15; j++) set(8, size - 15 + j, bit(j));
+      set(8, size - 8, true);
+    }
+    format(0);
+
+    var n = 0, total = words.length * 8;
+    for (var right = size - 1; right >= 1; right -= 2) {
+      if (right === 6) right = 5;
+      for (var vert = 0; vert < size; vert++) {
+        for (k = 0; k < 2; k++) {
+          var x = right - k, y = ((right + 1) & 2) === 0 ? size - 1 - vert : vert;
+          if (!fn[y][x] && n < total) { mod[y][x] = ((words[n >>> 3] >>> (7 - (n & 7))) & 1) === 1; n++; }
+        }
+      }
+    }
+
+    function applyMask(m) {
+      for (var yy = 0; yy < size; yy++) for (var xx = 0; xx < size; xx++) if (!fn[yy][xx] && maskBit(m, xx, yy)) mod[yy][xx] = !mod[yy][xx];
+    }
+
+    function penalty() {
+      var p = 0, dark = 0, a, b;
+      for (var pass = 0; pass < 2; pass++) {
+        for (a = 0; a < size; a++) {
+          var run = 0, prev = null, line = '';
+          for (b = 0; b < size; b++) {
+            var c = pass ? mod[b][a] : mod[a][b];
+            line += c ? '1' : '0';
+            if (c === prev) { run++; if (run === 5) p += 3; else if (run > 5) p++; } else { prev = c; run = 1; }
+          }
+          ['10111010000', '00001011101'].forEach(function (pat) {
+            for (var at = line.indexOf(pat); at !== -1; at = line.indexOf(pat, at + 1)) p += 40;
+          });
+        }
+      }
+      for (a = 0; a < size; a++) for (b = 0; b < size; b++) {
+        if (mod[a][b]) dark++;
+        if (a < size - 1 && b < size - 1 && mod[a][b] === mod[a][b + 1] && mod[a][b] === mod[a + 1][b] && mod[a][b] === mod[a + 1][b + 1]) p += 3;
+      }
+      return p + Math.floor(Math.abs(dark * 20 - size * size * 10) / (size * size)) * 10;
+    }
+
+    var best = 0, bestScore = Infinity;
+    for (var m = 0; m < 8; m++) {
+      applyMask(m);
+      format(m);
+      var score = penalty();
+      if (score < bestScore) { bestScore = score; best = m; }
+      applyMask(m);
+    }
+    applyMask(best);
+    format(best);
+    return { size: size, modules: mod };
+  }
+
+  function drawQr(canvas, text, cssSize) {
+    var q = qrMatrix(text);
+    if (!q) return false;
+    var dpr = window.devicePixelRatio || 1, quiet = 3, n = q.size + quiet * 2;
+    var px = Math.max(1, Math.floor(cssSize * dpr / n));
+    canvas.width = canvas.height = px * n;
+    canvas.style.width = canvas.style.height = (px * n / dpr) + 'px';
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#1d1442';
+    for (var y = 0; y < q.size; y++) for (var x = 0; x < q.size; x++) {
+      if (q.modules[y][x]) ctx.fillRect((x + quiet) * px, (y + quiet) * px, px, px);
+    }
+    return true;
+  }
+
+  var BS = String.fromCharCode(92), CRLF = String.fromCharCode(13, 10);
+  function vEscape(v) {
+    return [BS, ';', ','].reduce(function (s, ch) { return s.split(ch).join(BS + ch); }, v);
+  }
+  function digits(v) {
+    return v.split('').filter(function (ch) { return ch === '+' || (ch >= '0' && ch <= '9'); }).join('');
+  }
+
+  // Adds optional fields in priority order while the vCard still fits the largest QR this encoder draws.
+  // A long name drops the structured N line first, since FN alone still imports on common phones.
+  function buildVcard(withN) {
+    var parts = name.split(' ').filter(Boolean);
+    var family = parts.length > 1 ? parts.pop() : '';
+    var head = ['BEGIN:VCARD', 'VERSION:3.0'].concat(withN ? ['N:' + vEscape(family) + ';' + vEscape(parts.join(' '))] : [], ['FN:' + vEscape(name)]);
+    var optional = [
+      { line: str(d.phone) && 'TEL:' + digits(str(d.phone)), label: 'phone' },
+      { line: str(d.email) && 'EMAIL:' + vEscape(str(d.email)), label: 'email' },
+      { line: company && 'ORG:' + vEscape(company), label: 'company' },
+      { line: role && 'TITLE:' + vEscape(role), label: 'role' },
+      { line: str(d.website) && 'URL:' + vEscape(str(d.website)), label: 'website' }
+    ];
+    var lines = head.slice(), saved = [], reachable = false;
+    optional.forEach(function (o) {
+      if (!o.line) return;
+      var next = lines.concat([o.line]);
+      if (utf8(next.concat(['END:VCARD']).join(CRLF)).length <= QR_MAX_BYTES) {
+        lines = next;
+        saved.push(o.label);
+        if (o.label === 'phone' || o.label === 'email') reachable = true;
+      }
+    });
+    if (!name || !reachable) return null;
+    return { text: lines.concat(['END:VCARD']).join(CRLF), saved: ['name'].concat(saved) };
+  }
+
+  var vcard = buildVcard(true) || buildVcard(false);
+  var canvas = $('qr');
+  if (vcard && drawQr(canvas, vcard.text, 124)) {
+    canvas.setAttribute('aria-label', 'QR code with the contact card of ' + name);
+    $('qrTitle').textContent = TEXT.scanTitle;
+    $('qrHint').textContent = TEXT.scanHint;
+    $('qrFields').textContent = TEXT.saves + vcard.saved.join(', ');
+  } else {
+    $('qrwrap').className = 'qrwrap noqr';
+    $('qrTitle').textContent = TEXT.noQrTitle;
+    $('qrHint').textContent = name && (str(d.phone) || str(d.email)) ? TEXT.noQrHint : TEXT.noQrMissing;
+  }
+  if (!services.length) $('services').hidden = true;
+  if (!vcard && !services.length) $('toBack').hidden = true;
+  else $('toBack').textContent = TEXT.toBackServices;
+  $('toFront').textContent = TEXT.toFront;
+
+  var stage = $('stage');
+  function flip(toBack) {
+    stage.className = toBack ? 'stage flipped' : 'stage';
+    $('front').setAttribute('aria-hidden', toBack ? 'true' : 'false');
+    $('back').setAttribute('aria-hidden', toBack ? 'false' : 'true');
+    window.getSelection().removeAllRanges();
+  }
+  $('toBack').addEventListener('click', function () { flip(true); });
+  $('toFront').addEventListener('click', function () { flip(false); });
+
+  renderRows();
+  renderTags();
+  addEventListener('resize', function () { renderRows(); renderTags(); });
+</script>

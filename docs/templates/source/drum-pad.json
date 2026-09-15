@@ -1,0 +1,14 @@
+{
+  "id": "drum-pad",
+  "title": "Drum pad",
+  "category": "music",
+  "icon": "drum",
+  "emoji": "🥁",
+  "description": "Nine colorful drum pads synthesized in the card, plus an 8-step beat maker with play, stop, and tempo control.",
+  "height": 434,
+  "command": "drums",
+  "fallback": "The drum pad opens on WhatsApp Android only.",
+  "inputs": [
+    "tap"
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "id": "quiz",
+  "title": "Quiz",
+  "category": "games",
+  "icon": "lightbulb",
+  "emoji": "❓",
+  "description": "A multiple-choice quiz from your bot's questions, one per screen with instant right-or-wrong feedback and a final score.",
+  "height": 460,
+  "command": "quiz",
+  "fallback": "The quiz opens on WhatsApp Android only.",
+  "inputs": [
+    "tap"
+  ],
+  "sample": {
+    "title": "Coffee trivia",
+    "questions": [
+      {
+        "q": "Which country grows the most coffee in the world?",
+        "choices": [
+          "Colombia",
+          "Brazil",
+          "Vietnam",
+          "Ethiopia"
+        ],
+        "answer": 1
+      },
+      {
+        "q": "An espresso marked with just a small spoonful of milk foam is called a…",
+        "choices": [
+          "Latte",
+          "Flat white",
+          "Macchiato",
+          "Americano"
+        ],
+        "answer": 2
+      },
+      {
+        "q": "Coffee beans are the seeds of which part of the coffee plant?",
+        "choices": [
+          "The cherry-like fruit",
+          "The flower",
+          "The root",
+          "The leaf"
+        ],
+        "answer": 0
+      },
+      {
+        "q": "A popular legend says a goat herder noticed his goats getting lively after nibbling coffee berries. In which country is this story usually set?",
+        "choices": [
+          "Yemen",
+          "Turkey",
+          "Italy",
+          "Ethiopia"
+        ],
+        "answer": 3
+      },
+      {
+        "q": "What does a cup of decaf coffee still contain?",
+        "choices": [
+          "No caffeine at all",
+          "A small amount of caffeine",
+          "More caffeine than regular",
+          "Only added sugar"
+        ],
+        "answer": 1
+      }
+    ]
+  }
+}

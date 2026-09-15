@@ -1,0 +1,18 @@
+{
+  "id": "countdown",
+  "title": "Countdown",
+  "category": "data",
+  "icon": "hourglass",
+  "emoji": "⏳",
+  "description": "Count down the days, hours, minutes, and seconds to a deadline you send, with an Ended state once it passes.",
+  "height": 214,
+  "command": "countdown",
+  "fallback": "The ticking countdown opens on WhatsApp Android only.",
+  "inputs": [
+    "none"
+  ],
+  "sample": {
+    "title": "Flash sale ends",
+    "endsAt": "2026-12-31T17:00:00+07:00"
+  }
+}

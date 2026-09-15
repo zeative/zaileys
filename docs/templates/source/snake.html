@@ -1,0 +1,261 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { --lime: #9be15d; --mint: #2ed8a7; --pink: #ff4f8b; --yellow: #ffc93c; --ink: #1d1442; --cream: #fff8ec; --field: #123c3f; --field-2: #17474a; --size: min(84vw, 286px); }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; height: 100%; overflow: hidden; background: linear-gradient(160deg, var(--lime), var(--mint)); color: var(--ink); font: 14px/1.3 system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; user-select: none; -webkit-user-select: none; }
+  header { width: var(--size); display: flex; justify-content: space-between; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+  .pill { height: 34px; display: flex; align-items: center; gap: 4px; padding: 0 12px; border-radius: 999px; background: var(--cream); box-shadow: 0 3px 0 rgba(18, 60, 63, .3); white-space: nowrap; }
+  #status { min-width: 0; font-weight: 800; overflow: hidden; text-overflow: ellipsis; }
+  .score { flex: none; font-size: 13px; font-weight: 700; }
+  .score b { display: inline-block; min-width: 1ch; font-size: 16px; font-weight: 800; }
+  .score .sep { margin-left: 8px; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .score b.bump { animation: bump .3s cubic-bezier(.3, 1.8, .5, 1); }
+  @keyframes bump { 50% { transform: scale(1.5); } }
+  #wrap { position: relative; touch-action: none; width: var(--size); height: var(--size); flex: none; border-radius: 20px; box-shadow: 0 6px 0 rgba(18, 60, 63, .45); }
+  #board { display: block; width: 100%; height: 100%; border-radius: 20px; background: var(--field); touch-action: none; }
+  #overlay { position: absolute; inset: 0; border-radius: 20px; background: rgba(18, 60, 63, .6); display: grid; place-items: center; padding: 16px; }
+  #overlay[hidden] { display: none; }
+  .card { width: 100%; max-width: 240px; padding: 16px 14px; border-radius: 20px; background: var(--cream); display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; box-shadow: 0 5px 0 rgba(29, 20, 66, .3); }
+  .card.in { animation: drop .35s cubic-bezier(.3, 1.5, .5, 1); }
+  @keyframes drop { from { transform: translateY(-14px) scale(.9); opacity: 0; } }
+  #title { font-size: 22px; font-weight: 800; }
+  #hint { font-size: 13px; color: #4a4263; }
+  #play { margin-top: 2px; min-height: 44px; padding: 0 26px; border: 0; border-radius: 999px; background: var(--pink); color: var(--ink); box-shadow: 0 4px 0 #c92f66; font: 800 15px system-ui, sans-serif; cursor: pointer; }
+  #play:active { transform: translateY(3px); box-shadow: 0 1px 0 #c92f66; }
+  #pad { display: grid; grid-template-columns: repeat(3, 60px); grid-template-rows: repeat(2, 40px); gap: 6px 8px; padding-bottom: 4px; }
+  #pad button { border: 0; background: var(--cream); color: var(--ink); border-radius: 14px; box-shadow: 0 4px 0 #1a9c79; font: 800 20px/1 system-ui, sans-serif; cursor: pointer; transition: transform .08s ease; }
+  #pad button:active { transform: translateY(3px); box-shadow: 0 1px 0 #1a9c79; background: #fff; }
+  #up { grid-column: 2; }
+  #left { grid-column: 1; grid-row: 2; }
+  #down { grid-column: 2; grid-row: 2; }
+  #right { grid-column: 3; grid-row: 2; }
+  .confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  @media (prefers-reduced-motion: reduce) { .score b.bump, .card.in { animation: none; } #pad button { transition: none; } }
+</style>
+<header>
+  <span id="status" class="pill" aria-live="polite">Ready</span>
+  <span class="pill score"><span aria-hidden="true">🍓</span><span class="sr">Score</span><b id="score">0</b><span class="sep">Best</span><b id="best">0</b></span>
+</header>
+<div id="wrap">
+  <canvas id="board" role="img" aria-label="Snake board"></canvas>
+  <div id="overlay">
+    <div id="card" class="card">
+      <div id="title">🐍 Snake</div>
+      <div id="hint">Swipe on the board or use the arrows. Eat the berries, avoid the walls and your tail.</div>
+      <button id="play" type="button">Start</button>
+    </div>
+  </div>
+</div>
+<div id="pad" aria-label="Direction controls">
+  <button id="up" type="button" aria-label="Up">↑</button>
+  <button id="left" type="button" aria-label="Left">←</button>
+  <button id="down" type="button" aria-label="Down">↓</button>
+  <button id="right" type="button" aria-label="Right">→</button>
+</div>
+<script>
+  var TEXT = { ready: 'Ready', playing: 'Playing', over: '💥 Game over', start: 'Start', again: 'Play again', won: '🏆 Board full!', best: ' New best!' };
+  var COLORS = { field: '#123c3f', field2: '#17474a', body: '#9be15d', body2: '#7fd14a', head: '#c8f57a', dead: '#ff4f8b', eye: '#1d1442', food: '#ff4f8b', leaf: '#2ed8a7' };
+  var N = 15, START_MS = 170, MIN_MS = 85, STEP_MS = 4;
+  var DIRS = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+
+  var canvas = document.getElementById('board');
+  var ctx = canvas.getContext('2d');
+  var overlay = document.getElementById('overlay');
+  var cardEl = document.getElementById('card');
+  var titleEl = document.getElementById('title');
+  var hintEl = document.getElementById('hint');
+  var playBtn = document.getElementById('play');
+  var statusEl = document.getElementById('status');
+  var scoreEl = document.getElementById('score');
+  var snake, dir, queue, food, score = 0, best = 0, running = false, lost = false, timer = null, speed;
+
+  function same(a, b) { return a[0] === b[0] && a[1] === b[1]; }
+
+  function placeFood() {
+    var free = [];
+    for (var y = 0; y < N; y++) for (var x = 0; x < N; x++) {
+      var taken = false;
+      for (var i = 0; i < snake.length; i++) if (snake[i][0] === x && snake[i][1] === y) { taken = true; break; }
+      if (!taken) free.push([x, y]);
+    }
+    return free.length ? free[Math.floor(Math.random() * free.length)] : null;
+  }
+
+  function reset() {
+    var mid = Math.floor(N / 2);
+    snake = [[mid, mid], [mid - 1, mid], [mid - 2, mid]];
+    dir = 'right';
+    queue = [];
+    score = 0;
+    speed = START_MS;
+    lost = false;
+    food = placeFood();
+  }
+
+  function turn(name) {
+    if (!running) { start(name); return; }
+    var last = queue.length ? queue[queue.length - 1] : dir;
+    var a = DIRS[last], b = DIRS[name];
+    if (name === last || (a[0] + b[0] === 0 && a[1] + b[1] === 0)) return;
+    if (queue.length < 2) queue.push(name);
+  }
+
+  function step() {
+    if (queue.length) dir = queue.shift();
+    var d = DIRS[dir];
+    var head = [snake[0][0] + d[0], snake[0][1] + d[1]];
+    var eating = food && same(head, food);
+    var body = eating ? snake : snake.slice(0, -1);
+    var hitWall = head[0] < 0 || head[1] < 0 || head[0] >= N || head[1] >= N;
+    var hitSelf = false;
+    for (var i = 0; i < body.length; i++) if (same(body[i], head)) { hitSelf = true; break; }
+    if (hitWall || hitSelf) { end(false); return; }
+    snake = [head].concat(body);
+    if (eating) {
+      score++;
+      speed = Math.max(MIN_MS, speed - STEP_MS);
+      scoreEl.classList.remove('bump');
+      void scoreEl.offsetWidth;
+      scoreEl.classList.add('bump');
+      food = placeFood();
+      if (!food) { end(true); return; }
+    }
+    draw();
+    timer = setTimeout(step, speed);
+  }
+
+  function start(name) {
+    if (running) return;
+    reset();
+    if (name && name !== 'left') dir = name;
+    running = true;
+    overlay.hidden = true;
+    var old = document.querySelectorAll('.confetti');
+    for (var k = 0; k < old.length; k++) old[k].remove();
+    statusEl.textContent = TEXT.playing;
+    draw();
+    timer = setTimeout(step, speed);
+  }
+
+  function end(won) {
+    running = false;
+    lost = !won;
+    clearTimeout(timer);
+    var record = score > best;
+    best = Math.max(best, score);
+    statusEl.textContent = won ? TEXT.won : TEXT.over;
+    titleEl.textContent = won ? TEXT.won : TEXT.over;
+    hintEl.textContent = 'You scored ' + score + (score === 1 ? ' point' : ' points') + '.' + (record ? TEXT.best : ' Best this session: ' + best + '.');
+    playBtn.textContent = TEXT.again;
+    overlay.hidden = false;
+    cardEl.classList.remove('in');
+    void cardEl.offsetWidth;
+    cardEl.classList.add('in');
+    draw();
+    if (won || record) confetti();
+    playBtn.focus();
+  }
+
+  function draw() {
+    var px = canvas.clientWidth, ratio = window.devicePixelRatio || 1;
+    var side = Math.round(px * ratio);
+    if (canvas.width !== side || canvas.height !== side) { canvas.width = side; canvas.height = side; }
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    var c = px / N;
+    ctx.fillStyle = COLORS.field;
+    ctx.fillRect(0, 0, px, px);
+    ctx.fillStyle = COLORS.field2;
+    for (var y = 0; y < N; y++) for (var x = (y % 2); x < N; x += 2) ctx.fillRect(x * c, y * c, c, c);
+    if (food) {
+      var fx = (food[0] + 0.5) * c, fy = (food[1] + 0.55) * c;
+      ctx.fillStyle = COLORS.food;
+      ctx.beginPath();
+      ctx.arc(fx, fy, c * 0.38, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = COLORS.leaf;
+      ctx.beginPath();
+      ctx.ellipse(fx + c * 0.1, fy - c * 0.36, c * 0.16, c * 0.08, -0.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = 'rgba(255, 255, 255, .7)';
+      ctx.beginPath();
+      ctx.arc(fx - c * 0.12, fy - c * 0.1, c * 0.08, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    for (var i = snake.length - 1; i >= 0; i--) {
+      ctx.fillStyle = i === 0 ? (lost ? COLORS.dead : COLORS.head) : (i % 2 ? COLORS.body : COLORS.body2);
+      var inset = i === 0 ? 0.5 : 1.5;
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(snake[i][0] * c + inset, snake[i][1] * c + inset, c - inset * 2, c - inset * 2, c * 0.38);
+      else ctx.rect(snake[i][0] * c + inset, snake[i][1] * c + inset, c - inset * 2, c - inset * 2);
+      ctx.fill();
+    }
+    var d = DIRS[dir], hx = (snake[0][0] + 0.5) * c, hy = (snake[0][1] + 0.5) * c;
+    ctx.fillStyle = COLORS.eye;
+    for (var s = -1; s <= 1; s += 2) {
+      var ex = hx + d[0] * c * 0.14 - d[1] * s * c * 0.2, ey = hy + d[1] * c * 0.14 + d[0] * s * c * 0.2;
+      if (lost) {
+        ctx.strokeStyle = COLORS.eye;
+        ctx.lineWidth = Math.max(1.5, c * 0.08);
+        ctx.beginPath();
+        ctx.moveTo(ex - c * 0.08, ey - c * 0.08); ctx.lineTo(ex + c * 0.08, ey + c * 0.08);
+        ctx.moveTo(ex + c * 0.08, ey - c * 0.08); ctx.lineTo(ex - c * 0.08, ey + c * 0.08);
+        ctx.stroke();
+      } else {
+        ctx.beginPath();
+        ctx.arc(ex, ey, c * 0.09, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    scoreEl.textContent = score;
+    document.getElementById('best').textContent = best;
+  }
+
+  function confetti() {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var cv = document.createElement('canvas'), w = window.innerWidth, h = window.innerHeight, r = window.devicePixelRatio || 1;
+    var g = cv.getContext('2d'), bits = [], colors = ['#ff4f8b', '#ffc93c', '#38b6ff', '#fff8ec', '#7c5cff', '#ff8a3d'], t0 = 0;
+    cv.className = 'confetti';
+    cv.width = w * r;
+    cv.height = h * r;
+    document.body.appendChild(cv);
+    for (var i = 0; i < 70; i++) bits.push({ x: w / 2, y: h * 0.4, vx: (Math.random() - 0.5) * 10, vy: -3 - Math.random() * 9, s: 6 + Math.random() * 5, a: Math.random() * 6, c: colors[i % colors.length] });
+    function frame(now) {
+      if (!t0) t0 = now;
+      var t = now - t0;
+      g.setTransform(r, 0, 0, r, 0, 0);
+      g.clearRect(0, 0, w, h);
+      g.globalAlpha = Math.max(0, 1 - t / 1500);
+      bits.forEach(function (b) {
+        b.vy += 0.3; b.x += b.vx; b.y += b.vy; b.a += 0.2;
+        g.save(); g.translate(b.x, b.y); g.rotate(b.a); g.fillStyle = b.c; g.fillRect(-b.s / 2, -b.s / 4, b.s, b.s / 2); g.restore();
+      });
+      if (t < 1500) requestAnimationFrame(frame); else cv.remove();
+    }
+    requestAnimationFrame(frame);
+  }
+
+  var wrap = document.getElementById('wrap'), touch = null;
+  wrap.addEventListener('pointerdown', function (e) { touch = [e.clientX, e.clientY]; });
+  wrap.addEventListener('pointerup', function (e) {
+    if (!touch) return;
+    var dx = e.clientX - touch[0], dy = e.clientY - touch[1];
+    touch = null;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 18) return;
+    turn(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+  });
+  wrap.addEventListener('pointercancel', function () { touch = null; });
+  ['up', 'down', 'left', 'right'].forEach(function (name) {
+    document.getElementById(name).addEventListener('click', function () { turn(name); });
+  });
+  document.addEventListener('keydown', function (e) {
+    var name = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' }[e.key];
+    if (name) { e.preventDefault(); turn(name); }
+  });
+  playBtn.addEventListener('click', function () { start(); });
+  window.addEventListener('resize', draw);
+
+  reset();
+  draw();
+</script>

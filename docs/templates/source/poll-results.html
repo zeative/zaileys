@@ -1,0 +1,153 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { --pink: #ff4f8b; --orange: #ff8a3d; --yellow: #ffc93c; --lime: #9be15d; --mint: #2ed8a7; --sky: #38b6ff; --violet: #7c5cff; --ink: #1d1442; --cream: #fff8ec; --muted: #5b5380; --track: #ece4ff; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; height: 100%; background: linear-gradient(160deg, var(--pink), var(--violet)); color: var(--ink); font: 14px/1.3 system-ui, sans-serif; display: flex; padding: 10px; }
+  .card { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--cream); border-radius: 22px; padding: 14px 16px 12px; box-shadow: 0 5px 0 rgba(29, 20, 66, .22); }
+  .q { margin: 0; font-size: 16px; font-weight: 800; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .result { margin-top: 10px; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 18px; background: linear-gradient(120deg, var(--yellow), var(--orange)); box-shadow: 0 4px 0 #d9661d; }
+  .result .icon { flex: none; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; font-size: 26px; background: var(--cream); animation: wiggle 2.6s ease-in-out infinite; }
+  @keyframes wiggle { 0%, 80%, 100% { transform: rotate(0); } 85% { transform: rotate(-12deg) scale(1.08); } 92% { transform: rotate(10deg) scale(1.08); } }
+  .result .body { min-width: 0; }
+  .result .k { font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+  .result .v { margin-top: 1px; font-size: clamp(19px, 5.8vw, 23px); font-weight: 800; line-height: 1.15; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .result .s { margin-top: 1px; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+  .result.none { background: var(--track); box-shadow: none; }
+  .result.none .icon { animation: none; }
+  #options { flex: 1; min-height: 0; overflow: hidden; margin: 12px 0 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 9px; }
+  #options li { flex: none; }
+  .line { display: flex; align-items: center; gap: 6px; }
+  .label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+  .top .label { font-weight: 800; }
+  .tag { flex: none; padding: 1px 7px 1px 5px; border-radius: 999px; background: var(--ink); color: var(--yellow); font-size: 12px; font-weight: 800; }
+  .pct { flex: none; margin-left: auto; padding-left: 4px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .votes { color: var(--muted); font-weight: 600; font-size: 12px; margin-right: 6px; }
+  .bar { margin-top: 4px; height: 12px; border-radius: 999px; background: var(--track); overflow: hidden; }
+  .bar i { display: block; height: 100%; min-width: 0; border-radius: 999px; transform-origin: left; animation: grow .7s cubic-bezier(.3, 1.3, .5, 1) both; }
+  #options li:nth-child(2) .bar i { animation-delay: .06s; }
+  #options li:nth-child(3) .bar i { animation-delay: .12s; }
+  #options li:nth-child(4) .bar i { animation-delay: .18s; }
+  #options li:nth-child(n+5) .bar i { animation-delay: .24s; }
+  @keyframes grow { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+  .more { color: var(--muted); font-size: 12px; font-weight: 600; }
+  footer { margin-top: 10px; display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  footer span:first-child { flex: none; font-weight: 800; color: var(--ink); }
+  footer span:last-child { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  @media (prefers-reduced-motion: reduce) { .bar i, .result .icon { animation: none; } }
+</style>
+<main class="card" aria-label="Poll results">
+  <h1 class="q" id="question"></h1>
+  <div class="result" id="result" aria-live="polite"><span class="icon" id="resultIcon" aria-hidden="true">👑</span><div class="body"><div class="k" id="resultKind"></div><div class="v" id="resultName"></div><div class="s" id="resultStat"></div></div></div>
+  <ul id="options" aria-label="Options"></ul>
+  <footer><span id="totalVotes"></span><span id="note"></span></footer>
+</main>
+<script>
+  var DATA = /*DATA*/null;
+  var TEXT = {
+    question: 'Poll results',
+    result: 'Result',
+    winner: 'Top choice',
+    tie: 'Tie for first',
+    tagWinner: 'Top',
+    tagTie: 'Tied',
+    noVotes: 'No votes yet',
+    noOptions: 'No options in this poll',
+    votes: function (n) { return n.toLocaleString() + ' vote' + (n === 1 ? '' : 's'); },
+    more: function (n) { return '+' + n + ' more option' + (n === 1 ? '' : 's'); }
+  };
+  var BAR_COLORS = ['#38b6ff', '#ff4f8b', '#2ed8a7', '#ff8a3d', '#7c5cff', '#9be15d', '#ffc93c'];
+  var ICONS = { winner: '👑', tie: '🤝', none: '🗳️' };
+  var d = DATA || {};
+  var options = (Array.isArray(d.options) ? d.options : []).map(function (o, i) {
+    var v = typeof o.votes === 'number' && isFinite(o.votes) && o.votes > 0 ? Math.floor(o.votes) : 0;
+    return { label: String(o.label == null ? 'Option ' + (i + 1) : o.label), votes: v, order: i };
+  });
+  var total = options.reduce(function (sum, o) { return sum + o.votes; }, 0);
+  var best = options.reduce(function (m, o) { return Math.max(m, o.votes); }, 0);
+  var leaders = total > 0 ? options.filter(function (o) { return o.votes === best; }) : [];
+
+  function percent(o) { return total > 0 ? Math.round(o.votes / total * 100) : 0; }
+
+  // Highest votes first, poll order breaks ties, so tied options keep a stable position.
+  options.sort(function (a, b) { return b.votes - a.votes || a.order - b.order; });
+
+  function optionRow(o) {
+    var isTop = leaders.indexOf(o) !== -1;
+    var li = document.createElement('li');
+    if (isTop) li.className = 'top';
+    var line = document.createElement('div');
+    line.className = 'line';
+    var label = document.createElement('span');
+    label.className = 'label';
+    label.textContent = o.label;
+    if (isTop) {
+      var tag = document.createElement('span');
+      tag.className = 'tag';
+      tag.textContent = (leaders.length > 1 ? ICONS.tie + ' ' + TEXT.tagTie : ICONS.winner + ' ' + TEXT.tagWinner);
+    }
+    var pct = document.createElement('span');
+    pct.className = 'pct';
+    var votes = document.createElement('span');
+    votes.className = 'votes';
+    votes.textContent = o.votes.toLocaleString();
+    pct.appendChild(votes);
+    pct.appendChild(document.createTextNode(percent(o) + '%'));
+    line.appendChild(label);
+    if (isTop) line.appendChild(tag);
+    line.appendChild(pct);
+    var bar = document.createElement('div');
+    bar.className = 'bar';
+    var fill = document.createElement('i');
+    fill.style.width = (total > 0 ? o.votes / total * 100 : 0) + '%';
+    // Each option keeps its own color from the poll order, so colors don't shuffle when ranks change.
+    fill.style.background = BAR_COLORS[o.order % BAR_COLORS.length];
+    bar.appendChild(fill);
+    li.appendChild(line);
+    li.appendChild(bar);
+    li.setAttribute('aria-label', o.label + ', ' + TEXT.votes(o.votes) + ', ' + percent(o) + ' percent' + (isTop ? ', ' + (leaders.length > 1 ? TEXT.tagTie : TEXT.winner) : ''));
+    return li;
+  }
+
+  var list = document.getElementById('options');
+
+  // Rows are dropped from the end (lowest votes) until the list fits, since the card cannot scroll.
+  function renderOptions() {
+    for (var shown = options.length; shown >= 0; shown--) {
+      list.textContent = '';
+      if (!options.length) {
+        var none = document.createElement('li');
+        none.className = 'more';
+        none.textContent = TEXT.noOptions;
+        list.appendChild(none);
+        return;
+      }
+      for (var i = 0; i < shown; i++) list.appendChild(optionRow(options[i]));
+      if (shown < options.length) {
+        var more = document.createElement('li');
+        more.className = 'more';
+        more.textContent = TEXT.more(options.length - shown);
+        list.appendChild(more);
+      }
+      if (list.scrollHeight <= list.clientHeight + 1) return;
+    }
+  }
+
+  document.getElementById('question').textContent = d.question || TEXT.question;
+  var result = document.getElementById('result');
+  if (!leaders.length) {
+    result.className = 'result none';
+    document.getElementById('resultIcon').textContent = ICONS.none;
+    document.getElementById('resultKind').textContent = TEXT.result;
+    document.getElementById('resultName').textContent = options.length ? TEXT.noVotes : TEXT.noOptions;
+  } else {
+    document.getElementById('resultKind').textContent = leaders.length > 1 ? TEXT.tie : TEXT.winner;
+    document.getElementById('resultIcon').textContent = leaders.length > 1 ? ICONS.tie : ICONS.winner;
+    document.getElementById('resultName').textContent = leaders.map(function (o) { return o.label; }).join(' & ');
+    document.getElementById('resultStat').textContent = TEXT.votes(best) + ' · ' + percent(leaders[0]) + '%' + (leaders.length > 1 ? ' each' : '');
+  }
+  document.getElementById('totalVotes').textContent = TEXT.votes(total) + ' total';
+  document.getElementById('note').textContent = d.note || '';
+  renderOptions();
+  addEventListener('resize', renderOptions);
+</script>

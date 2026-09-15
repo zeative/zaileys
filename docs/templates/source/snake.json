@@ -1,0 +1,15 @@
+{
+  "id": "snake",
+  "title": "Snake",
+  "category": "games",
+  "icon": "gamepad-2",
+  "emoji": "🐍",
+  "description": "Guide a snake to the berries on a grid that speeds up as it grows, with swipe or arrow controls and a best score for the session.",
+  "height": 442,
+  "command": "snake",
+  "fallback": "Snake opens on WhatsApp Android only.",
+  "inputs": [
+    "tap",
+    "swipe"
+  ]
+}

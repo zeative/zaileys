@@ -1,0 +1,40 @@
+{
+  "id": "poll-results",
+  "title": "Poll Results",
+  "category": "data",
+  "icon": "vote",
+  "emoji": "🗳️",
+  "description": "Poll results with vote counts, percentage bars, the total, and the top choice or tie called out.",
+  "height": 420,
+  "command": "poll",
+  "fallback": "The poll results card opens on WhatsApp Android only.",
+  "inputs": [
+    "none"
+  ],
+  "sample": {
+    "question": "Which day works best for the team outing?",
+    "options": [
+      {
+        "label": "Friday evening",
+        "votes": 18
+      },
+      {
+        "label": "Saturday morning",
+        "votes": 27
+      },
+      {
+        "label": "Saturday afternoon",
+        "votes": 12
+      },
+      {
+        "label": "Sunday brunch",
+        "votes": 9
+      },
+      {
+        "label": "No preference",
+        "votes": 4
+      }
+    ],
+    "note": "Sample poll · closed 15 Sep"
+  }
+}

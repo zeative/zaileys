@@ -1,0 +1,33 @@
+{
+  "id": "business-card",
+  "title": "Business Card",
+  "category": "business",
+  "icon": "contact",
+  "emoji": "📇",
+  "description": "A colorful digital business card with tap-to-copy contact rows, a QR code that saves the contact, and a flip side for services.",
+  "height": 490,
+  "command": "card",
+  "fallback": "This business card opens on WhatsApp Android only. Ask the sender to share their contact details as text.",
+  "inputs": [
+    "tap"
+  ],
+  "sample": {
+    "name": "Maya Example",
+    "role": "Brand Designer",
+    "company": "Example Studio",
+    "bio": "Sample card. I design friendly logos, menus, and packaging for cafés and small shops.",
+    "phone": "+62 812 0000 1234",
+    "email": "maya@studio.example",
+    "website": "studio.example",
+    "instagram": "maya.example",
+    "address": "Jl. Contoh No. 12, Bandung",
+    "services": [
+      "Logo design",
+      "Menu boards",
+      "Packaging",
+      "Social media kits",
+      "Brand workshops",
+      "Signage"
+    ]
+  }
+}

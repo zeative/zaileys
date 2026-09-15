@@ -1,0 +1,15 @@
+{
+  "id": "mini-piano",
+  "title": "Mini piano",
+  "category": "music",
+  "icon": "piano",
+  "emoji": "🎹",
+  "description": "A two-octave touch piano with multi-touch, octave shift, three synthesized sounds, volume, and a demo that plays a public-domain tune while lighting up the keys.",
+  "height": 400,
+  "command": "piano",
+  "fallback": "The mini piano opens on WhatsApp Android only.",
+  "inputs": [
+    "tap",
+    "swipe"
+  ]
+}

@@ -1,0 +1,40 @@
+{
+  "id": "sales-chart",
+  "title": "Sales Chart",
+  "category": "data",
+  "icon": "chart-column",
+  "emoji": "📊",
+  "description": "A seven-day sales bar chart with the period total, the change against the previous period, and a tap readout per day.",
+  "height": 360,
+  "command": "sales",
+  "fallback": "The sales chart opens on WhatsApp Android only.",
+  "inputs": [
+    "tap"
+  ],
+  "sample": {
+    "title": "Daily sales · Example Store",
+    "period": "8–14 Sep 2026",
+    "currency": "IDR",
+    "locale": "id-ID",
+    "labels": [
+      "Mon",
+      "Tue",
+      "Wed",
+      "Thu",
+      "Fri",
+      "Sat",
+      "Sun"
+    ],
+    "values": [
+      3250000,
+      4100000,
+      3875000,
+      4620000,
+      5980000,
+      7240000,
+      6150000
+    ],
+    "change": 12.4,
+    "changeLabel": "vs previous 7 days"
+  }
+}

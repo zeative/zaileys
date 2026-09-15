@@ -265,7 +265,10 @@ A user-facing change is not done until users can find it.
 - **Examples** (`examples/`): add or update one when a feature needs a runnable demonstration. Examples
   import from `../src/index.js` and use only public API.
 - **Security-relevant behaviour** is described in `SECURITY.md`.
-- Docs checks to run when docs change: `pnpm docs:check`, `pnpm docs:errors:check`,
+- **Templates** (`docs/templates/`): edit only `docs/templates/source/<id>.html` and `.json`, then run
+  `pnpm docs:templates`. The pages, the gallery, and the tab in `docs.json` are generated; a template is marked
+  tested only after it ran on a real phone.
+- Docs checks to run when docs change: `pnpm docs:check`, `pnpm docs:errors:check`, `pnpm docs:templates:check`,
   `pnpm docs:anchors:check`, `pnpm docs:search:check`.
 
 ---

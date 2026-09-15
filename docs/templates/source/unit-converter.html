@@ -1,0 +1,193 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { --pink: #ff4f8b; --orange: #ff8a3d; --yellow: #ffc93c; --lime: #9be15d; --sky: #38b6ff; --violet: #7c5cff; --ink: #1d1442; --cream: #fff8ec; --muted: #5b5380; --hint: #776b99; --edge: #efd9a0; --danger: #b3261e; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  body { margin: 0; height: 100%; background: linear-gradient(180deg, #fff0b3, var(--cream) 60%); color: var(--ink); font: 14px/1.3 system-ui, sans-serif; display: flex; flex-direction: column; justify-content: center; gap: 7px; padding: 0 14px; }
+  .lbl { color: var(--muted); font-size: 12px; font-weight: 700; }
+  button { border: 0; background: var(--yellow); color: var(--ink); border-radius: 14px; font: 800 14px system-ui, sans-serif; cursor: pointer; box-shadow: 0 4px 0 #d99a12; transition: transform .1s ease, box-shadow .1s ease; }
+  button:active { transform: translateY(3px); box-shadow: 0 1px 0 #d99a12; }
+  button:focus-visible, select:focus-visible { outline: 3px solid var(--violet); outline-offset: 2px; }
+  .tabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; padding-bottom: 3px; margin-bottom: 1px; }
+  .tabs button { --c: var(--sky); --s: #1f84c7; height: 34px; padding: 0 4px; border-radius: 12px; background: #fff; color: var(--muted); font-size: clamp(12px, 3.6vw, 14px); box-shadow: inset 0 0 0 2px var(--edge), 0 3px 0 var(--edge); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .tabs button:nth-child(2) { --c: var(--lime); --s: #6aa935; }
+  .tabs button:nth-child(3) { --c: var(--pink); --s: #c42762; }
+  .tabs button:active { box-shadow: inset 0 0 0 2px var(--edge), 0 0 0 var(--edge); }
+  .tabs button[aria-pressed="true"] { background: var(--c); color: var(--ink); box-shadow: inset 0 0 0 2px var(--ink), 0 3px 0 var(--ink); animation: pop .22s cubic-bezier(.3, 1.8, .5, 1); }
+  @keyframes pop { 50% { transform: scale(1.06); } }
+  .row { display: flex; gap: 6px; align-items: stretch; }
+  input { flex: 1; width: 100%; min-width: 0; border: 2px solid var(--edge); border-radius: 14px; background: #fff; color: var(--ink); font: 800 20px system-ui, sans-serif; font-variant-numeric: tabular-nums; padding: 0 12px; height: 46px; outline: none; box-shadow: 0 3px 0 var(--edge); transition: border-color .12s ease, box-shadow .12s ease; }
+  input:focus { border-color: var(--orange); box-shadow: 0 3px 0 var(--orange); }
+  input::placeholder { color: var(--hint); font-weight: 600; }
+  #sign { width: 42px; height: 43px; flex: none; font-size: 20px; border-radius: 50%; align-self: flex-start; }
+  .sel { position: relative; flex: none; width: min(40vw, 150px); }
+  .sel::after { content: ''; position: absolute; right: 12px; top: 50%; width: 7px; height: 7px; margin-top: -6px; border: solid var(--ink); border-width: 0 3px 3px 0; transform: rotate(45deg); pointer-events: none; }
+  select { width: 100%; height: 100%; min-height: 46px; appearance: none; -webkit-appearance: none; border: 2px solid var(--edge); border-radius: 14px; background: #fff; color: var(--ink); font: 700 14px system-ui, sans-serif; padding: 0 28px 0 10px; outline: none; box-shadow: 0 3px 0 var(--edge); }
+  .mid { display: flex; justify-content: space-between; align-items: center; padding-bottom: 3px; }
+  #swap { height: 32px; padding: 0 14px; border-radius: 999px; background: var(--orange); box-shadow: 0 3px 0 #c9621f; }
+  #swap:active { box-shadow: 0 0 0 #c9621f; }
+  #result { flex: 1; min-width: 0; height: 56px; border-radius: 16px; background: linear-gradient(115deg, var(--yellow), var(--orange)); color: var(--ink); padding: 0 12px; display: flex; align-items: center; font: 800 28px/1 system-ui, sans-serif; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; box-shadow: 0 3px 0 #d9661d; }
+  #result.empty { background: #efe8ff; color: var(--muted); box-shadow: 0 3px 0 #d8cdf3; }
+  #formula { margin: 3px 0 0; color: var(--muted); font-size: 12px; font-weight: 600; text-align: center; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #formula.bad { color: var(--danger); letter-spacing: -.01em; }
+  @media (prefers-reduced-motion: reduce) { button, input { transition: none; } .tabs button[aria-pressed="true"] { animation: none; } }
+</style>
+<div class="tabs" role="group" aria-label="What to convert" id="tabs"></div>
+<label class="lbl" for="value">From</label>
+<div class="row">
+  <input id="value" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="done" value="1" placeholder="0">
+  <button type="button" id="sign" aria-label="Switch between positive and negative">±</button>
+  <span class="sel"><select id="from" aria-label="From unit"></select></span>
+</div>
+<div class="mid">
+  <span class="lbl">To</span>
+  <button type="button" id="swap">⇅ Swap</button>
+</div>
+<div class="row">
+  <output id="result" aria-live="polite" for="value from to">—</output>
+  <span class="sel"><select id="to" aria-label="To unit"></select></span>
+</div>
+<p id="formula"></p>
+<script>
+  // Factors are exact by definition: meters per unit and kilograms per unit.
+  var KINDS = [
+    { name: 'Length', from: 'ft', to: 'm', units: [
+      ['mm', 'Millimeter', 0.001], ['cm', 'Centimeter', 0.01], ['m', 'Meter', 1], ['km', 'Kilometer', 1000],
+      ['in', 'Inch', 0.0254], ['ft', 'Foot', 0.3048], ['yd', 'Yard', 0.9144], ['mi', 'Mile', 1609.344]
+    ] },
+    { name: 'Weight', from: 'lb', to: 'kg', units: [
+      ['mg', 'Milligram', 0.000001], ['g', 'Gram', 0.001], ['kg', 'Kilogram', 1], ['t', 'Metric ton', 1000],
+      ['oz', 'Ounce', 0.028349523125], ['lb', 'Pound', 0.45359237], ['st', 'Stone', 6.35029318]
+    ] },
+    { name: 'Temperature', from: 'C', to: 'F', units: [['C', 'Celsius'], ['F', 'Fahrenheit'], ['K', 'Kelvin']] }
+  ];
+  var TEXT = { same: 'Same unit, same number', belowZero: 'Below absolute zero (0 K), not a real temperature' };
+  var FORMULAS = {
+    CF: '°F = °C × 9/5 + 32', FC: '°C = (°F − 32) × 5/9', CK: 'K = °C + 273.15',
+    KC: '°C = K − 273.15', FK: 'K = (°F − 32) × 5/9 + 273.15', KF: '°F = (K − 273.15) × 9/5 + 32'
+  };
+  var SYMBOL = { C: '°C', F: '°F', K: 'K' };
+
+  var kind = 0;
+  var chosen = KINDS.map(function (k) { return { from: k.from, to: k.to }; });
+  var valueEl = document.getElementById('value');
+  var fromEl = document.getElementById('from');
+  var toEl = document.getElementById('to');
+  var resultEl = document.getElementById('result');
+  var formulaEl = document.getElementById('formula');
+
+  function unit(k, sym) {
+    for (var i = 0; i < k.units.length; i++) if (k.units[i][0] === sym) return k.units[i];
+    return null;
+  }
+
+  function toCelsius(v, sym) { return sym === 'F' ? (v - 32) * 5 / 9 : sym === 'K' ? v - 273.15 : v; }
+  function fromCelsius(c, sym) { return sym === 'F' ? c * 9 / 5 + 32 : sym === 'K' ? c + 273.15 : c; }
+
+  function convert(k, v, from, to) {
+    if (from === to) return v;
+    if (k.name === 'Temperature') return fromCelsius(toCelsius(v, from), to);
+    return v * unit(k, from)[2] / unit(k, to)[2];
+  }
+
+  function parseValue(raw) {
+    var s = '', negative = false;
+    for (var i = 0; i < raw.length; i++) {
+      var c = raw.charAt(i);
+      if ((c === '-' || c === '−') && s === '') negative = true;
+      else if (c >= '0' && c <= '9') s += c;
+      else if (c === '.' || c === ',') s += '.';
+    }
+    if (s === '' || s === '.') return NaN;
+    var parts = s.split('.');
+    // "1.000.000" or "1,000,000" are grouping; a single separator is a decimal point.
+    var n = parts.length > 2 ? parseFloat(parts.join('')) : parseFloat(s);
+    return negative ? -n : n;
+  }
+
+  function format(n) {
+    var abs = Math.abs(n);
+    if (abs !== 0 && (abs >= 1e15 || abs < 0.000001)) return new Intl.NumberFormat('en-US', { notation: 'scientific', maximumSignificantDigits: 6 }).format(n);
+    return new Intl.NumberFormat('en-US', { maximumSignificantDigits: 10 }).format(n);
+  }
+
+  function fit(el, max, min) {
+    var size = max;
+    el.style.fontSize = size + 'px';
+    while (el.scrollWidth > el.clientWidth && size > min) { size -= 2; el.style.fontSize = size + 'px'; }
+  }
+
+  function fillSelect(el, k, selected) {
+    el.textContent = '';
+    for (var i = 0; i < k.units.length; i++) {
+      var opt = document.createElement('option');
+      opt.value = k.units[i][0];
+      opt.textContent = k.units[i][1];
+      opt.selected = k.units[i][0] === selected;
+      el.appendChild(opt);
+    }
+  }
+
+  var tabButtons = KINDS.map(function (k, i) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = k.name;
+    b.addEventListener('click', function () { kind = i; renderTabs(); renderUnits(); });
+    document.getElementById('tabs').appendChild(b);
+    return b;
+  });
+
+  function renderTabs() {
+    tabButtons.forEach(function (b, i) { b.setAttribute('aria-pressed', i === kind ? 'true' : 'false'); });
+  }
+
+  function renderUnits() {
+    var k = KINDS[kind];
+    fillSelect(fromEl, k, chosen[kind].from);
+    fillSelect(toEl, k, chosen[kind].to);
+    document.getElementById('sign').hidden = k.name !== 'Temperature';
+    render();
+  }
+
+  function render() {
+    var k = KINDS[kind], from = chosen[kind].from, to = chosen[kind].to;
+    var v = parseValue(valueEl.value);
+    var formula = from === to ? TEXT.same : k.name === 'Temperature' ? FORMULAS[from + to] : '1 ' + from + ' = ' + format(convert(k, 1, from, to)) + ' ' + to;
+    var bad = false;
+    if (isNaN(v)) {
+      resultEl.textContent = '—';
+      resultEl.className = 'empty';
+    } else {
+      var out = convert(k, v, from, to);
+      bad = k.name === 'Temperature' && fromCelsius(toCelsius(v, from), 'K') < -1e-9;
+      resultEl.textContent = format(out) + ' ' + (SYMBOL[to] || to);
+      resultEl.className = bad ? 'empty' : '';
+    }
+    formulaEl.textContent = bad ? TEXT.belowZero : formula;
+    formulaEl.className = bad ? 'bad' : '';
+    fit(resultEl, 28, 14);
+  }
+
+  valueEl.addEventListener('input', render);
+  fromEl.addEventListener('change', function () { chosen[kind].from = fromEl.value; render(); });
+  toEl.addEventListener('change', function () { chosen[kind].to = toEl.value; render(); });
+  document.getElementById('swap').addEventListener('click', function () {
+    var c = chosen[kind], t = c.from;
+    c.from = c.to;
+    c.to = t;
+    renderUnits();
+  });
+  document.getElementById('sign').addEventListener('click', function () {
+    var s = valueEl.value.trim();
+    var first = s.charAt(0);
+    valueEl.value = first === '-' || first === '−' ? s.slice(1) : '-' + s;
+    render();
+  });
+  // The bubble can settle on its final width after the first paint; refit the big number then.
+  addEventListener('resize', render);
+  // Enter closes the phone keyboard so the result underneath is no longer covered.
+  valueEl.addEventListener('keydown', function (e) { if (e.key === 'Enter') valueEl.blur(); });
+  renderTabs();
+  renderUnits();
+</script>

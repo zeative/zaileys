@@ -1,0 +1,24 @@
+{
+  "id": "loyalty-card",
+  "title": "Loyalty Card",
+  "category": "business",
+  "icon": "stamp",
+  "emoji": "☕",
+  "description": "A stamp card that shows how many stamps a customer has, how many are left, and celebrates when the reward is ready.",
+  "height": 420,
+  "command": "stamps",
+  "fallback": "Your loyalty card opens on WhatsApp Android only. Ask the shop how many stamps you have.",
+  "inputs": [
+    "tap"
+  ],
+  "sample": {
+    "shop": "Example Coffee Corner",
+    "customer": "Sam Sample",
+    "stamps": 7,
+    "required": 10,
+    "reward": "10th coffee free",
+    "memberId": "MBR-0042-EX",
+    "expires": "31 Dec 2026",
+    "stampIcon": "☕"
+  }
+}

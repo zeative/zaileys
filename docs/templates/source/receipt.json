@@ -1,0 +1,64 @@
+{
+  "id": "receipt",
+  "title": "Receipt",
+  "category": "business",
+  "icon": "receipt",
+  "emoji": "🧾",
+  "description": "A shop receipt with line items, tax and discount, and the total formatted in the shop's currency.",
+  "height": 460,
+  "command": "receipt",
+  "fallback": "Your receipt card opens on WhatsApp Android only.",
+  "inputs": [
+    "none"
+  ],
+  "sample": {
+    "store": "Example Coffee House",
+    "receiptNo": "INV-2026-0142",
+    "date": "15 Sep 2026, 09:41",
+    "currency": "IDR",
+    "locale": "id-ID",
+    "items": [
+      {
+        "name": "Iced Palm Sugar Latte",
+        "qty": 2,
+        "price": 28000
+      },
+      {
+        "name": "Butter Croissant",
+        "qty": 1,
+        "price": 22000
+      },
+      {
+        "name": "Americano",
+        "qty": 1,
+        "price": 20000
+      },
+      {
+        "name": "Banana Bread",
+        "qty": 2,
+        "price": 18000
+      },
+      {
+        "name": "Mineral Water",
+        "qty": 1,
+        "price": 8000
+      },
+      {
+        "name": "Chocolate Cookie",
+        "qty": 3,
+        "price": 9000
+      }
+    ],
+    "discount": {
+      "label": "Member discount",
+      "amount": 15000
+    },
+    "tax": {
+      "label": "Tax 10%",
+      "amount": 15400
+    },
+    "total": 169400,
+    "paymentMethod": "QRIS",
+    "thankYou": "Thank you for visiting. See you again!"
+  }
+}

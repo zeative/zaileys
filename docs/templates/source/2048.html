@@ -1,0 +1,256 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { --yellow: #ffc93c; --orange: #ff8a3d; --pink: #ff4f8b; --grape: #b44cff; --violet: #7c5cff; --sky: #38b6ff; --mint: #2ed8a7; --ink: #1d1442; --cream: #fff8ec; --tray: #2e1d52; --size: min(84vw, 290px); }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; height: 100%; overflow: hidden; background: linear-gradient(165deg, var(--yellow), var(--orange)); color: var(--ink); font: 14px/1.3 system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; user-select: none; -webkit-user-select: none; }
+  header { width: var(--size); display: flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+  .box { min-width: 60px; height: 42px; padding: 0 10px; border-radius: 14px; background: var(--cream); box-shadow: 0 3px 0 rgba(122, 52, 0, .35); display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1.05; }
+  .box span { font-size: 12px; font-weight: 700; color: #5a4f73; }
+  .box b { display: inline-block; font-size: 17px; font-weight: 800; }
+  .box b.bump { animation: pop .25s ease-out; }
+  .toy { flex: none; min-height: 40px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--cream); color: var(--ink); box-shadow: 0 4px 0 #c75f14; font: 800 14px system-ui, sans-serif; white-space: nowrap; cursor: pointer; }
+  .toy:active, #pad button:active, #primary:active { transform: translateY(3px); box-shadow: 0 1px 0 #c75f14; }
+  #new { margin-left: auto; }
+  #wrap { position: relative; width: var(--size); height: var(--size); flex: none; touch-action: none; border-radius: 20px; box-shadow: 0 6px 0 rgba(122, 52, 0, .4); }
+  #board { width: 100%; height: 100%; padding: 7px; border-radius: 20px; background: var(--tray); display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); gap: 7px; }
+  .tile { min-width: 0; min-height: 0; border-radius: 12px; background: rgba(255, 255, 255, .09); display: grid; place-items: center; font: 800 26px/1 system-ui, sans-serif; font-variant-numeric: tabular-nums; color: var(--ink); }
+  .tile.n { box-shadow: inset 0 -4px 0 rgba(29, 20, 66, .22); padding-bottom: 3px; }
+  .tile.d3 { font-size: 23px; }
+  .tile.d4 { font-size: 19px; }
+  .tile.d5 { font-size: 15px; }
+  .v2 { background: var(--cream); } .v4 { background: #ffe6a3; } .v8 { background: var(--yellow); } .v16 { background: #ffab4f; } .v32 { background: var(--orange); } .v64 { background: #ff6b5b; }
+  .v128 { background: var(--pink); } .v256 { background: #e84fd0; } .v512 { background: var(--grape); color: #fff; } .v1024 { background: var(--violet); color: #fff; }
+  .v2048 { background: var(--sky); box-shadow: inset 0 -4px 0 rgba(29, 20, 66, .22), 0 0 0 3px var(--cream); } .big { background: var(--mint); }
+  .new { animation: appear .18s ease-out; }
+  .merged { animation: pop .2s cubic-bezier(.3, 1.8, .5, 1); }
+  @keyframes appear { from { transform: scale(.4); opacity: .2; } }
+  @keyframes pop { 50% { transform: scale(1.16); } }
+  #overlay { position: absolute; inset: 0; border-radius: 20px; background: rgba(46, 29, 82, .72); display: grid; place-items: center; padding: 14px; }
+  #overlay[hidden] { display: none; }
+  .card { width: 100%; max-width: 240px; padding: 16px 12px; border-radius: 20px; background: var(--cream); display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; box-shadow: 0 5px 0 rgba(29, 20, 66, .35); animation: drop .35s cubic-bezier(.3, 1.5, .5, 1); }
+  @keyframes drop { from { transform: translateY(-14px) scale(.9); opacity: 0; } }
+  #title { font-size: 22px; font-weight: 800; }
+  #hint { font-size: 13px; color: #4a4263; font-variant-numeric: tabular-nums; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; margin-top: 2px; }
+  #primary { min-height: 42px; padding: 0 20px; border: 0; border-radius: 999px; background: var(--pink); color: var(--ink); box-shadow: 0 4px 0 #c92f66; font: 800 15px system-ui, sans-serif; cursor: pointer; }
+  #primary:active { box-shadow: 0 1px 0 #c92f66; }
+  #secondary { box-shadow: 0 0 0 2px #e6d6c3 inset, 0 3px 0 #e6d6c3; }
+  #pad { display: grid; grid-template-columns: repeat(3, 60px); grid-template-rows: repeat(2, 40px); gap: 6px 8px; padding-bottom: 4px; }
+  #pad button { border: 0; background: var(--cream); color: var(--ink); border-radius: 14px; box-shadow: 0 4px 0 #c75f14; font: 800 20px/1 system-ui, sans-serif; cursor: pointer; }
+  #up { grid-column: 2; }
+  #left { grid-column: 1; grid-row: 2; }
+  #down { grid-column: 2; grid-row: 2; }
+  #right { grid-column: 3; grid-row: 2; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  @media (prefers-reduced-motion: reduce) { .new, .merged, .card, .box b.bump { animation: none; } }
+</style>
+<header>
+  <div class="box"><span>Score</span><b id="score">0</b></div>
+  <div class="box"><span>Best</span><b id="best">0</b></div>
+  <button id="new" class="toy" type="button">New game</button>
+</header>
+<div id="wrap">
+  <div id="board" role="grid" aria-label="2048 board"></div>
+  <div id="overlay" hidden>
+    <div id="card" class="card">
+      <div id="title"></div>
+      <div id="hint"></div>
+      <div class="actions">
+        <button id="primary" type="button"></button>
+        <button id="secondary" class="toy" type="button">New game</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div id="pad" aria-label="Move controls">
+  <button id="up" type="button" aria-label="Move up">↑</button>
+  <button id="left" type="button" aria-label="Move left">←</button>
+  <button id="down" type="button" aria-label="Move down">↓</button>
+  <button id="right" type="button" aria-label="Move right">→</button>
+</div>
+<span id="status" class="sr" aria-live="polite"></span>
+<script>
+  var TEXT = { win: '🎉 You made 2048!', keep: 'Keep going', over: 'No moves left', again: 'New game' };
+  var GOAL = 2048;
+
+  function lineIndexes(dir) {
+    var lines = [];
+    for (var a = 0; a < 4; a++) {
+      var line = [];
+      for (var b = 0; b < 4; b++) line.push(dir === 'left' || dir === 'right' ? a * 4 + b : b * 4 + a);
+      if (dir === 'right' || dir === 'down') line.reverse();
+      lines.push(line);
+    }
+    return lines;
+  }
+
+  function slide(values) {
+    var tiles = values.filter(function (v) { return v; }), out = [], merged = [], gained = 0;
+    for (var i = 0; i < tiles.length; i++) {
+      if (tiles[i] === tiles[i + 1]) {
+        out.push(tiles[i] * 2);
+        gained += tiles[i] * 2;
+        merged.push(out.length - 1);
+        i++;
+      } else out.push(tiles[i]);
+    }
+    while (out.length < values.length) out.push(0);
+    return { values: out, merged: merged, gained: gained };
+  }
+
+  function move(grid, dir) {
+    var next = grid.slice(), merged = [], gained = 0, moved = false;
+    lineIndexes(dir).forEach(function (line) {
+      var r = slide(line.map(function (i) { return grid[i]; }));
+      gained += r.gained;
+      line.forEach(function (cell, k) {
+        next[cell] = r.values[k];
+        if (next[cell] !== grid[cell]) moved = true;
+      });
+      r.merged.forEach(function (k) { merged.push(line[k]); });
+    });
+    return { grid: next, merged: merged, gained: gained, moved: moved };
+  }
+
+  function canMove(grid) {
+    for (var i = 0; i < 16; i++) {
+      if (!grid[i]) return true;
+      if (i % 4 < 3 && grid[i] === grid[i + 1]) return true;
+      if (i < 12 && grid[i] === grid[i + 4]) return true;
+    }
+    return false;
+  }
+
+  function addTile(grid, rand) {
+    var free = [];
+    for (var i = 0; i < 16; i++) if (!grid[i]) free.push(i);
+    if (!free.length) return -1;
+    var at = free[Math.floor(rand() * free.length)];
+    grid[at] = rand() < 0.9 ? 2 : 4;
+    return at;
+  }
+
+  var boardEl = document.getElementById('board');
+  var overlay = document.getElementById('overlay');
+  var titleEl = document.getElementById('title');
+  var hintEl = document.getElementById('hint');
+  var primaryBtn = document.getElementById('primary');
+  var secondaryBtn = document.getElementById('secondary');
+  var statusEl = document.getElementById('status');
+  var grid, score, best = 0, won, locked, mode;
+
+  function render(fresh, merged) {
+    boardEl.textContent = '';
+    for (var i = 0; i < 16; i++) {
+      var v = grid[i], tile = document.createElement('div');
+      var digits = String(v).length;
+      tile.className = 'tile' + (v ? ' n' + (v > GOAL ? ' big' : ' v' + v) : '') + (digits > 2 ? ' d' + digits : '') +
+        (fresh.indexOf(i) !== -1 ? ' new' : '') + (merged.indexOf(i) !== -1 ? ' merged' : '');
+      tile.setAttribute('role', 'gridcell');
+      tile.setAttribute('aria-label', v ? String(v) : 'empty');
+      tile.textContent = v || '';
+      boardEl.appendChild(tile);
+    }
+    var scoreEl = document.getElementById('score');
+    if (scoreEl.textContent !== String(score) && score) { scoreEl.classList.remove('bump'); void scoreEl.offsetWidth; scoreEl.classList.add('bump'); }
+    scoreEl.textContent = score;
+    document.getElementById('best').textContent = best;
+  }
+
+  function showOverlay(kind) {
+    mode = kind;
+    locked = true;
+    var isWin = kind === 'win';
+    titleEl.textContent = isWin ? TEXT.win : TEXT.over;
+    hintEl.textContent = 'Score ' + score + (isWin ? '. Keep playing for a bigger tile.' : '. Best this session: ' + best + '.');
+    primaryBtn.textContent = isWin ? TEXT.keep : TEXT.again;
+    secondaryBtn.hidden = !isWin;
+    statusEl.textContent = titleEl.textContent + ' ' + hintEl.textContent;
+    overlay.hidden = false;
+    if (isWin) confetti();
+    primaryBtn.focus();
+  }
+
+  function play(dir) {
+    if (locked) return;
+    var r = move(grid, dir);
+    if (!r.moved) return;
+    grid = r.grid;
+    score += r.gained;
+    best = Math.max(best, score);
+    var fresh = addTile(grid, Math.random);
+    render([fresh], r.merged);
+    if (!won && grid.indexOf(GOAL) !== -1) { won = true; showOverlay('win'); }
+    else if (!canMove(grid)) showOverlay('over');
+  }
+
+  function newGame() {
+    grid = [];
+    for (var i = 0; i < 16; i++) grid.push(0);
+    score = 0;
+    won = false;
+    locked = false;
+    overlay.hidden = true;
+    var old = document.querySelectorAll('.confetti');
+    for (var k = 0; k < old.length; k++) old[k].remove();
+    var a = addTile(grid, Math.random), b = addTile(grid, Math.random);
+    statusEl.textContent = 'New game. Swipe or use the arrows.';
+    render([a, b], []);
+  }
+
+  function confetti() {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var cv = document.createElement('canvas'), w = window.innerWidth, h = window.innerHeight, r = window.devicePixelRatio || 1;
+    var g = cv.getContext('2d'), bits = [], colors = ['#ff4f8b', '#ffc93c', '#38b6ff', '#2ed8a7', '#7c5cff', '#fff8ec'], t0 = 0;
+    cv.className = 'confetti';
+    cv.width = w * r;
+    cv.height = h * r;
+    document.body.appendChild(cv);
+    for (var i = 0; i < 70; i++) bits.push({ x: w / 2, y: h * 0.4, vx: (Math.random() - 0.5) * 10, vy: -3 - Math.random() * 9, s: 6 + Math.random() * 5, a: Math.random() * 6, c: colors[i % colors.length] });
+    function frame(now) {
+      if (!t0) t0 = now;
+      var t = now - t0;
+      g.setTransform(r, 0, 0, r, 0, 0);
+      g.clearRect(0, 0, w, h);
+      g.globalAlpha = Math.max(0, 1 - t / 1500);
+      bits.forEach(function (b) {
+        b.vy += 0.3; b.x += b.vx; b.y += b.vy; b.a += 0.2;
+        g.save(); g.translate(b.x, b.y); g.rotate(b.a); g.fillStyle = b.c; g.fillRect(-b.s / 2, -b.s / 4, b.s, b.s / 2); g.restore();
+      });
+      if (t < 1500) requestAnimationFrame(frame); else cv.remove();
+    }
+    requestAnimationFrame(frame);
+  }
+
+  primaryBtn.addEventListener('click', function () {
+    if (mode !== 'win') { newGame(); return; }
+    if (!canMove(grid)) { showOverlay('over'); return; }
+    locked = false;
+    overlay.hidden = true;
+    statusEl.textContent = TEXT.keep;
+  });
+  secondaryBtn.addEventListener('click', newGame);
+  document.getElementById('new').addEventListener('click', newGame);
+  ['up', 'down', 'left', 'right'].forEach(function (name) {
+    document.getElementById(name).addEventListener('click', function () { play(name); });
+  });
+
+  var wrap = document.getElementById('wrap'), touch = null;
+  wrap.addEventListener('pointerdown', function (e) { touch = [e.clientX, e.clientY]; });
+  wrap.addEventListener('pointerup', function (e) {
+    if (!touch) return;
+    var dx = e.clientX - touch[0], dy = e.clientY - touch[1];
+    touch = null;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 20) return;
+    play(Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'right' : 'left') : (dy > 0 ? 'down' : 'up'));
+  });
+  wrap.addEventListener('pointercancel', function () { touch = null; });
+  document.addEventListener('keydown', function (e) {
+    var name = { ArrowUp: 'up', ArrowDown: 'down', ArrowLeft: 'left', ArrowRight: 'right' }[e.key];
+    if (name) { e.preventDefault(); play(name); }
+  });
+
+  newGame();
+</script>

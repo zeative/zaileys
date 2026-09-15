@@ -1,0 +1,14 @@
+{
+  "id": "memory-match",
+  "title": "Memory match",
+  "category": "games",
+  "icon": "brain",
+  "emoji": "🧠",
+  "description": "Flip cards to find 8 fruit pairs, with a move counter, a timer, and confetti when you clear the board.",
+  "height": 400,
+  "command": "memory",
+  "fallback": "Memory match opens on WhatsApp Android only.",
+  "inputs": [
+    "tap"
+  ]
+}

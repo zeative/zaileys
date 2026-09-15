@@ -1,0 +1,30 @@
+{
+  "id": "team-picker",
+  "title": "Team picker",
+  "category": "fun",
+  "icon": "users",
+  "emoji": "👥",
+  "description": "Split a list of names into two to four random, evenly sized teams, and add or remove names before you shuffle.",
+  "height": 420,
+  "command": "teams",
+  "fallback": "The team picker opens on WhatsApp Android only.",
+  "inputs": [
+    "tap",
+    "keyboard"
+  ],
+  "sample": {
+    "title": "Futsal night",
+    "names": [
+      "Ari",
+      "Bima",
+      "Citra",
+      "Dewi",
+      "Eka",
+      "Fajar",
+      "Gita",
+      "Hana",
+      "Indra",
+      "Joko"
+    ]
+  }
+}

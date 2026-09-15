@@ -1,0 +1,264 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { --pink: #ff4f8b; --orange: #ff8a3d; --yellow: #ffc93c; --mint: #2ed8a7; --sky: #38b6ff; --violet: #7c5cff; --grape: #b44cff; --ink: #1d1442; --cream: #fff8ec; --soft: #574b82; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; height: 100%; padding: 12px; display: flex; flex-direction: column; gap: 10px; background: linear-gradient(170deg, var(--ink) 0%, #3f27a3 50%, var(--grape) 100%); color: #fff; font: 14px/1.3 system-ui, sans-serif; user-select: none; -webkit-user-select: none; overflow: hidden; }
+  button { font-family: inherit; }
+  header { flex: none; display: flex; flex-direction: column; gap: 8px; }
+  .top { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-width: 0; }
+  h1 { margin: 0; min-width: 0; font-size: 18px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #count { flex: none; padding: 4px 10px; border-radius: 999px; background: rgba(255, 255, 255, .16); font-size: 13px; font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  #dots { display: flex; gap: 5px; }
+  #dots i { flex: 1; height: 8px; border-radius: 99px; background: rgba(255, 255, 255, .22); transition: background .2s; }
+  #dots i.now { background: #fff; }
+  #dots i.ok { background: var(--mint); }
+  #dots i.bad { background: var(--pink); }
+  #game, #result { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
+  #game[hidden], #result[hidden] { display: none; }
+  #question { flex: 1; min-height: 0; overflow: hidden; display: flex; align-items: center; padding: 8px 14px; border-radius: 20px; background: var(--cream); color: var(--ink); font-size: 19px; line-height: 1.25; font-weight: 800; box-shadow: 0 5px 0 rgba(0, 0, 0, .25); }
+  #question span { display: block; width: 100%; }
+  #choices { flex: none; display: flex; flex-direction: column; gap: 8px; }
+  .choice { position: relative; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 5px 10px 5px 6px; border: 0; border-radius: 16px; background: #fff; color: var(--ink); font-size: 15px; line-height: 1.2; font-weight: 700; text-align: left; box-shadow: 0 4px 0 rgba(29, 20, 66, .45); cursor: pointer; transition: transform .1s, box-shadow .1s, background .2s, opacity .2s; }
+  .choice:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 rgba(29, 20, 66, .45); }
+  .choice:disabled { cursor: default; }
+  .badge { flex: none; display: grid; place-items: center; width: 32px; height: 32px; border-radius: 11px; font-size: 15px; font-weight: 800; color: var(--ink); }
+  .choice:nth-child(1) .badge { background: var(--pink); }
+  .choice:nth-child(2) .badge { background: var(--orange); }
+  .choice:nth-child(3) .badge { background: var(--sky); }
+  .choice:nth-child(4) .badge { background: var(--yellow); }
+  .text { flex: 1; min-width: 0; }
+  .choice.right { background: var(--mint); animation: pop .3s cubic-bezier(.3, 1.8, .5, 1); }
+  .choice.wrong { background: var(--pink); animation: shake .3s; }
+  .choice.right .badge, .choice.wrong .badge { background: #fff; }
+  .choice.dim { opacity: .7; }
+  .primary:focus-visible, .choice:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+  .foot { flex: none; display: flex; align-items: center; gap: 8px; min-height: 44px; }
+  #feedback { flex: 1; min-width: 0; max-height: 40px; overflow: hidden; font-size: 15px; line-height: 1.3; font-weight: 800; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  .primary { flex: none; min-height: 44px; padding: 10px 22px; border: 0; border-radius: 999px; background: var(--yellow); color: var(--ink); font-size: 16px; font-weight: 800; box-shadow: 0 4px 0 #c98a06; cursor: pointer; transition: transform .1s, box-shadow .1s; }
+  .primary:active { transform: translateY(3px); box-shadow: 0 1px 0 #c98a06; }
+  #next.wait { visibility: hidden; }
+  #result { align-items: center; justify-content: center; text-align: center; }
+  #medal { font-size: 54px; line-height: 1; animation: pop .5s cubic-bezier(.3, 1.8, .5, 1); }
+  #final { font-size: 52px; font-weight: 800; line-height: 1; font-variant-numeric: tabular-nums; }
+  #final small { font-size: 22px; opacity: .85; }
+  #tier { font-size: 22px; font-weight: 800; color: var(--yellow); }
+  #blurb { max-width: 280px; font-size: 15px; }
+  #review { display: flex; gap: 6px; }
+  #review i { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 10px; font-style: normal; font-weight: 800; color: var(--ink); }
+  #review i.ok { background: var(--mint); }
+  #review i.bad { background: var(--pink); }
+  @keyframes pop { 0% { transform: scale(.85); } 100% { transform: scale(1); } }
+  @keyframes shake { 25% { transform: translateX(-5px); } 75% { transform: translateX(5px); } }
+  @media (prefers-reduced-motion: reduce) { .choice, #medal { animation: none !important; transition: none; } }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+<header>
+  <div class="top">
+    <h1 id="title">Coffee trivia</h1>
+    <span id="count">Question 1 of 5</span>
+  </div>
+  <div id="dots" aria-hidden="true"></div>
+</header>
+<div id="game">
+  <div id="question"><span id="qtext"></span></div>
+  <div id="choices"></div>
+  <div class="foot">
+    <div id="feedback" aria-live="polite">Pick an answer</div>
+    <button id="next" class="primary wait" type="button">Next</button>
+  </div>
+</div>
+<div id="result" hidden>
+  <div id="medal" aria-hidden="true">🏆</div>
+  <div id="final"></div>
+  <div id="tier" aria-live="polite"></div>
+  <div id="blurb"></div>
+  <div id="review"></div>
+  <button id="again" class="primary" type="button">Play again</button>
+</div>
+<script>
+  var DATA = /*DATA*/null;
+  var TEXT = { pick: 'Pick an answer', right: '✓ Correct!', wrong: '✗ Not quite. It is ', next: 'Next', finish: 'See score', of: ' of ', question: 'Question ' };
+  var TIERS = [
+    { min: 1, medal: '🏆', title: 'Perfect score!', blurb: 'Every answer right. Take a bow.' },
+    { min: .6, medal: '🎉', title: 'Great job!', blurb: 'You really know your stuff.' },
+    { min: .2, medal: '🙂', title: 'Warming up', blurb: 'A few more rounds and you will ace it.' },
+    { min: 0, medal: '🌱', title: 'Fresh start', blurb: 'Every expert started somewhere. Try again!' }
+  ];
+  var EXAMPLE = { title: 'Example quiz', questions: [
+    { q: 'This is an example question. Which option is correct?', choices: ['Option A', 'Option B', 'Option C'], answer: 1 },
+    { q: 'Your bot sends the real questions. Tap the third option.', choices: ['First', 'Second', 'Third'], answer: 2 }
+  ] };
+  var LETTERS = ['A', 'B', 'C', 'D'];
+
+  function clean(data) {
+    var list = data && data.questions && data.questions.length ? data.questions : [];
+    return list.filter(function (item) {
+      return item && item.q && item.choices && item.choices.length >= 2 && item.choices.length <= 4 && item.answer >= 0 && item.answer < item.choices.length;
+    }).map(function (item) {
+      return { q: String(item.q), choices: item.choices.map(String), answer: Math.floor(item.answer) };
+    });
+  }
+
+  var quiz = clean(DATA);
+  var title = DATA && DATA.title ? String(DATA.title) : EXAMPLE.title;
+  if (!quiz.length) { quiz = clean(EXAMPLE); title = EXAMPLE.title; }
+
+  var titleEl = document.getElementById('title');
+  var countEl = document.getElementById('count');
+  var dotsEl = document.getElementById('dots');
+  var gameEl = document.getElementById('game');
+  var resultEl = document.getElementById('result');
+  var questionEl = document.getElementById('question');
+  var qtextEl = document.getElementById('qtext');
+  var choicesEl = document.getElementById('choices');
+  var feedbackEl = document.getElementById('feedback');
+  var nextBtn = document.getElementById('next');
+  var round, index, answers, answered;
+
+  titleEl.textContent = title;
+  for (var d = 0; d < quiz.length; d++) dotsEl.appendChild(document.createElement('i'));
+
+  function shuffle(list) {
+    var a = list.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1)), t = a[i];
+      a[i] = a[j];
+      a[j] = t;
+    }
+    return a;
+  }
+
+  // Each round keeps the original choice index so the answer check survives a reshuffle.
+  function buildRound(mix) {
+    return quiz.map(function (item) {
+      var order = item.choices.map(function (_, i) { return i; });
+      return { q: item.q, answer: item.answer, choices: item.choices, order: mix ? shuffle(order) : order };
+    });
+  }
+
+  function start(mix) {
+    round = buildRound(mix);
+    index = 0;
+    answers = [];
+    resultEl.hidden = true;
+    gameEl.hidden = false;
+    show();
+  }
+
+  function paintDots() {
+    var dots = dotsEl.children;
+    for (var i = 0; i < dots.length; i++) {
+      dots[i].className = i < answers.length ? (answers[i] ? 'ok' : 'bad') : (i === index && resultEl.hidden ? 'now' : '');
+    }
+  }
+
+  function show() {
+    var item = round[index];
+    answered = false;
+    countEl.textContent = TEXT.question + (index + 1) + TEXT.of + round.length;
+    qtextEl.textContent = item.q;
+    choicesEl.innerHTML = '';
+    item.order.forEach(function (orig, pos) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'choice';
+      btn.setAttribute('data-orig', orig);
+      var badge = document.createElement('span');
+      badge.className = 'badge';
+      badge.textContent = LETTERS[pos];
+      var text = document.createElement('span');
+      text.className = 'text';
+      text.textContent = item.choices[orig];
+      btn.appendChild(badge);
+      btn.appendChild(text);
+      btn.addEventListener('click', function () { choose(btn, orig); });
+      choicesEl.appendChild(btn);
+    });
+    feedbackEl.textContent = TEXT.pick;
+    nextBtn.className = 'primary wait';
+    nextBtn.textContent = index === round.length - 1 ? TEXT.finish : TEXT.next;
+    paintDots();
+    fit();
+  }
+
+  // Long questions shrink step by step until the whole screen fits the card height.
+  function fit() {
+    var cs = choicesEl.querySelectorAll('.choice');
+    for (var size = 19; size >= 12; size--) {
+      var choiceSize = Math.min(15, Math.max(13, size));
+      for (var i = 0; i < cs.length; i++) cs[i].style.fontSize = choiceSize + 'px';
+      qtextEl.style.fontSize = size + 'px';
+      if (qtextEl.offsetHeight <= questionEl.clientHeight - 16) break;
+    }
+  }
+
+  function choose(btn, orig) {
+    if (answered) return;
+    answered = true;
+    var item = round[index], correct = orig === item.answer;
+    answers.push(correct);
+    var all = choicesEl.querySelectorAll('.choice');
+    for (var i = 0; i < all.length; i++) {
+      var b = all[i], o = +b.getAttribute('data-orig');
+      b.disabled = true;
+      if (o === item.answer) {
+        b.classList.add('right');
+        b.querySelector('.badge').textContent = '✓';
+        b.setAttribute('aria-label', 'Correct answer: ' + item.choices[o]);
+      } else if (b === btn) {
+        b.classList.add('wrong');
+        b.querySelector('.badge').textContent = '✗';
+        b.setAttribute('aria-label', 'Your pick, wrong: ' + item.choices[o]);
+      } else {
+        b.classList.add('dim');
+      }
+    }
+    feedbackEl.textContent = correct ? TEXT.right : TEXT.wrong + item.choices[item.answer] + '.';
+    nextBtn.className = 'primary';
+    paintDots();
+    fit();
+    nextBtn.focus();
+  }
+
+  function next() {
+    if (!answered) return;
+    if (index < round.length - 1) {
+      index++;
+      show();
+      var first = choicesEl.querySelector('.choice');
+      if (first) first.focus();
+      return;
+    }
+    finish();
+  }
+
+  function finish() {
+    var score = answers.filter(Boolean).length, share = score / round.length, tier = TIERS[TIERS.length - 1];
+    for (var i = 0; i < TIERS.length; i++) if (share >= TIERS[i].min) { tier = TIERS[i]; break; }
+    gameEl.hidden = true;
+    resultEl.hidden = false;
+    countEl.textContent = 'Done';
+    document.getElementById('medal').textContent = tier.medal;
+    document.getElementById('final').innerHTML = score + '<small> / ' + round.length + '</small>';
+    document.getElementById('tier').textContent = tier.title;
+    document.getElementById('blurb').textContent = 'You got ' + score + TEXT.of + round.length + ' right. ' + tier.blurb;
+    var review = document.getElementById('review');
+    review.innerHTML = '';
+    answers.forEach(function (ok, n) {
+      var cell = document.createElement('i');
+      cell.className = ok ? 'ok' : 'bad';
+      cell.textContent = ok ? '✓' : '✗';
+      cell.setAttribute('aria-label', 'Question ' + (n + 1) + (ok ? ' correct' : ' wrong'));
+      review.appendChild(cell);
+    });
+    paintDots();
+    document.getElementById('again').focus();
+  }
+
+  nextBtn.addEventListener('click', next);
+  document.getElementById('again').addEventListener('click', function () { start(true); });
+  window.addEventListener('resize', function () { if (!gameEl.hidden) fit(); });
+
+  start(false);
+</script>

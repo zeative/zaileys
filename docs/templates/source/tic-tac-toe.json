@@ -1,0 +1,14 @@
+{
+  "id": "tic-tac-toe",
+  "title": "Tic-tac-toe",
+  "category": "games",
+  "icon": "grid-3x3",
+  "emoji": "⭕",
+  "description": "Play a round against a bot that almost never loses on a candy-colored board, with a running score and confetti when you win.",
+  "height": 380,
+  "command": "tictactoe",
+  "fallback": "Tic-tac-toe opens on WhatsApp Android only.",
+  "inputs": [
+    "tap"
+  ]
+}

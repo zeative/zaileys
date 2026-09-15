@@ -36,8 +36,14 @@
   },
   "navbar": {
     "links": [
-      { "label": "Discord", "href": "https://discord.gg/HUcQe4xGr3" },
-      { "label": "npm", "href": "https://www.npmjs.com/package/zaileys" }
+      {
+        "label": "Discord",
+        "href": "https://discord.gg/HUcQe4xGr3"
+      },
+      {
+        "label": "npm",
+        "href": "https://www.npmjs.com/package/zaileys"
+      }
     ],
     "primary": {
       "type": "github",
@@ -52,7 +58,15 @@
         "groups": [
           {
             "group": "Get started",
-            "pages": ["index", "quickstart", "installation", "providers", "whatsapp-web", "feature-matrix", "ai"]
+            "pages": [
+              "index",
+              "quickstart",
+              "installation",
+              "providers",
+              "whatsapp-web",
+              "feature-matrix",
+              "ai"
+            ]
           },
           {
             "group": "Core concepts",
@@ -89,7 +103,13 @@
           },
           {
             "group": "Chats & contacts",
-            "pages": ["chats/profile", "chats/presence", "chats/chats", "chats/contacts", "chats/privacy"]
+            "pages": [
+              "chats/profile",
+              "chats/presence",
+              "chats/chats",
+              "chats/contacts",
+              "chats/privacy"
+            ]
           },
           {
             "group": "Groups & channels",
@@ -121,15 +141,26 @@
         "groups": [
           {
             "group": "Get started",
-            "pages": ["cloud/overview", "cloud/setup", "cloud/webhook"]
+            "pages": [
+              "cloud/overview",
+              "cloud/setup",
+              "cloud/webhook"
+            ]
           },
           {
             "group": "Features",
-            "pages": ["cloud/messaging", "cloud/templates", "cloud/events", "cloud/business"]
+            "pages": [
+              "cloud/messaging",
+              "cloud/templates",
+              "cloud/events",
+              "cloud/business"
+            ]
           },
           {
             "group": "Operate",
-            "pages": ["cloud/limits"]
+            "pages": [
+              "cloud/limits"
+            ]
           }
         ]
       },
@@ -160,6 +191,77 @@
         ]
       },
       {
+        "tab": "Templates",
+        "icon": "layout-template",
+        "groups": [
+          {
+            "group": "Start here",
+            "pages": [
+              "templates/index"
+            ]
+          },
+          {
+            "group": "Games",
+            "pages": [
+              "templates/2048",
+              "templates/breakout",
+              "templates/memory-match",
+              "templates/quiz",
+              "templates/scratch-card",
+              "templates/snake",
+              "templates/spin-wheel",
+              "templates/tap-flyer",
+              "templates/tic-tac-toe",
+              "templates/whack-a-mole",
+              "templates/word-guess"
+            ]
+          },
+          {
+            "group": "Music & sound",
+            "pages": [
+              "templates/drum-pad",
+              "templates/mini-piano",
+              "templates/music-player"
+            ]
+          },
+          {
+            "group": "Just for fun",
+            "pages": [
+              "templates/birthday-card",
+              "templates/dice-and-coin",
+              "templates/team-picker"
+            ]
+          },
+          {
+            "group": "Business",
+            "pages": [
+              "templates/business-card",
+              "templates/event-ticket",
+              "templates/loyalty-card",
+              "templates/order-summary",
+              "templates/product-showcase",
+              "templates/receipt"
+            ]
+          },
+          {
+            "group": "Calculators",
+            "pages": [
+              "templates/bill-splitter",
+              "templates/loan-calculator",
+              "templates/unit-converter"
+            ]
+          },
+          {
+            "group": "Data & charts",
+            "pages": [
+              "templates/countdown",
+              "templates/poll-results",
+              "templates/sales-chart"
+            ]
+          }
+        ]
+      },
+      {
         "tab": "Reference",
         "icon": "square-code",
         "groups": [
@@ -180,20 +282,40 @@
           },
           {
             "group": "Resources",
-            "pages": ["reference/troubleshooting", "reference/glossary"]
+            "pages": [
+              "reference/troubleshooting",
+              "reference/glossary"
+            ]
           }
         ]
       },
       {
         "tab": "Releases",
         "icon": "tag",
-        "pages": ["releases/changelog", "releases/versioning", "releases/migration"]
+        "pages": [
+          "releases/changelog",
+          "releases/versioning",
+          "releases/migration"
+        ]
       }
     ]
   },
   "redirects": [
-    { "source": "/reference/changelog", "destination": "/releases/changelog", "permanent": true },
-    { "source": "/reference/migration", "destination": "/releases/migration", "permanent": true }
+    {
+      "source": "/reference/changelog",
+      "destination": "/releases/changelog",
+      "permanent": true
+    },
+    {
+      "source": "/reference/migration",
+      "destination": "/releases/migration",
+      "permanent": true
+    },
+    {
+      "source": "/templates",
+      "destination": "/templates/index",
+      "permanent": false
+    }
   ],
   "footer": {
     "socials": {
@@ -220,7 +342,15 @@
     "prompt": "Search — try \"send image\" or \"pairing code\""
   },
   "contextual": {
-    "options": ["copy", "view", "chatgpt", "claude", "perplexity", "cursor", "vscode"]
+    "options": [
+      "copy",
+      "view",
+      "chatgpt",
+      "claude",
+      "perplexity",
+      "cursor",
+      "vscode"
+    ]
   },
   "errors": {
     "404": {

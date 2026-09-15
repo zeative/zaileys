@@ -1,0 +1,284 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { --pink: #ff4f8b; --orange: #ff8a3d; --yellow: #ffc93c; --mint: #2ed8a7; --sky: #38b6ff; --violet: #7c5cff; --ink: #1d1442; --cream: #fff8ec; --muted: #5b5380; --line: #d9ccf2; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  body { margin: 0; height: 100%; background: var(--violet); color: var(--ink); font: 14px/1.3 system-ui, sans-serif; display: flex; padding: 10px; }
+  .ticket { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--cream); border-radius: 22px; overflow: hidden; box-shadow: 0 5px 0 #5b3fd6; animation: pop .45s cubic-bezier(.3, 1.5, .5, 1) both; }
+  @keyframes pop { from { transform: scale(.94) translateY(8px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .top { position: relative; flex: 1; min-height: 0; overflow: hidden; padding: 12px 16px 12px; background: linear-gradient(115deg, var(--pink), var(--orange) 55%, var(--yellow)); }
+  .kicker { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px 3px 8px; border-radius: 999px; background: var(--ink); color: var(--yellow); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+  .party { position: absolute; top: 8px; right: 12px; font-size: 26px; line-height: 1; transform: rotate(12deg); }
+  h1 { margin: 6px 0 10px; font-size: clamp(20px, 5.8vw, 24px); font-weight: 800; line-height: 1.12; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  dl { margin: 0; display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) auto; gap: 8px 10px; align-items: start; }
+  dl div { min-width: 0; }
+  dl .wide { grid-column: span 2; }
+  dl .pill { max-width: 32vw; }
+  dt { font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+  dd, .val { margin: 1px 0 0; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+  dd.big { width: max-content; min-width: 44px; max-width: 100%; margin-top: 2px; padding: 0 10px; border-radius: 10px; background: var(--ink); color: #fff; font-size: 17px; line-height: 24px; text-align: center; box-shadow: 0 3px 0 rgba(29, 20, 66, .3); }
+  .perf { position: relative; height: 18px; flex: none; }
+  .perf::before { content: ''; position: absolute; left: 18px; right: 18px; top: 50%; border-top: 3px dotted var(--line); }
+  .perf i { position: absolute; top: -2px; width: 22px; height: 22px; border-radius: 50%; background: var(--violet); }
+  .perf .l { left: -11px; }
+  .perf .r { right: -11px; }
+  .stub { flex: none; height: 154px; overflow: hidden; display: flex; align-items: center; gap: 12px; padding: 0 14px 10px 16px; }
+  .stub.no-qr { flex-direction: column; align-items: stretch; justify-content: center; gap: 8px; }
+  .qr { flex: none; width: 128px; height: 128px; display: grid; place-items: center; background: #fff; border-radius: 12px; overflow: hidden; box-shadow: 0 0 0 3px var(--mint); margin: 3px; }
+  .qr canvas { display: block; }
+  .info { min-width: 0; max-height: 100%; overflow: hidden; display: flex; flex-direction: column; gap: 6px; }
+  .code { font: 800 14px/1.25 ui-monospace, Menlo, monospace; letter-spacing: .02em; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+  .no-qr .code { font-size: 13px; -webkit-line-clamp: 4; }
+  .no-qr .holder { display: flex; align-items: baseline; gap: 6px; min-width: 0; }
+  .hint { color: var(--muted); font-size: 12px; }
+  .missing { font-weight: 600; font-style: italic; }
+  .stub .missing { color: var(--muted); }
+  dd.big.missing { padding: 0; background: none; box-shadow: none; color: var(--ink); font-size: 14px; }
+  .hint.lead { display: inline-block; margin-bottom: 3px; padding: 1px 8px; border-radius: 999px; background: var(--sky); color: var(--ink); font-weight: 800; }
+  @media (prefers-reduced-motion: reduce) { .ticket { animation: none; } }
+</style>
+<main class="ticket" aria-label="Event ticket">
+  <section class="top">
+    <div class="kicker"><span aria-hidden="true">🎟️</span>Admit one</div>
+    <span class="party" aria-hidden="true">🎉</span>
+    <h1 id="event"></h1>
+    <dl>
+      <div><dt>Date</dt><dd id="date"></dd></div>
+      <div><dt>Time</dt><dd id="time"></dd></div>
+      <div class="pill"><dt>Section</dt><dd class="big" id="section"></dd></div>
+      <div class="wide"><dt>Venue</dt><dd id="venue"></dd></div>
+      <div class="pill"><dt>Seat</dt><dd class="big" id="seat"></dd></div>
+    </dl>
+  </section>
+  <div class="perf" aria-hidden="true"><i class="l"></i><i class="r"></i></div>
+  <section class="stub" id="stub">
+    <div class="qr" id="qrBox"><canvas id="qr" role="img"></canvas></div>
+    <div class="info">
+      <div><div class="hint lead" id="idLabel">Ticket ID</div><div class="code" id="ticketId"></div></div>
+      <div class="holder"><div class="hint">Ticket holder</div><div class="val" id="holder"></div></div>
+      <div class="hint" id="scanHint"></div>
+    </div>
+  </section>
+</main>
+<script>
+  var DATA = /*DATA*/null;
+  var TEXT = {
+    missing: 'Not set',
+    scan: 'Show this code at the entrance.',
+    noQr: 'Show this ticket ID at the entrance'
+  };
+  var d = DATA || {};
+
+  function show(id, value) {
+    var el = document.getElementById(id);
+    var empty = value === undefined || value === null || value === '';
+    el.textContent = empty ? TEXT.missing : String(value);
+    el.classList.toggle('missing', empty);
+  }
+
+  // QR Model 2, byte mode, error correction M, versions 1 to 6: [data codewords, EC codewords per block, blocks].
+  var QR_M = [null, [16, 10, 1], [28, 16, 1], [44, 26, 1], [64, 18, 2], [86, 24, 2], [108, 16, 4]];
+
+  function gfMul(x, y) {
+    var z = 0;
+    for (var i = 7; i >= 0; i--) {
+      z = (z << 1) ^ ((z >>> 7) * 0x11d);
+      z ^= ((y >>> i) & 1) * x;
+    }
+    return z;
+  }
+
+  function rsDivisor(degree) {
+    var r = [], root = 1, i, j;
+    for (i = 0; i < degree - 1; i++) r.push(0);
+    r.push(1);
+    for (i = 0; i < degree; i++) {
+      for (j = 0; j < r.length; j++) {
+        r[j] = gfMul(r[j], root);
+        if (j + 1 < r.length) r[j] ^= r[j + 1];
+      }
+      root = gfMul(root, 2);
+    }
+    return r;
+  }
+
+  function rsRemainder(data, div) {
+    var r = div.map(function () { return 0; });
+    data.forEach(function (b) {
+      var f = b ^ r.shift();
+      r.push(0);
+      for (var i = 0; i < div.length; i++) r[i] ^= gfMul(div[i], f);
+    });
+    return r;
+  }
+
+  function maskBit(m, x, y) {
+    switch (m) {
+      case 0: return (x + y) % 2 === 0;
+      case 1: return y % 2 === 0;
+      case 2: return x % 3 === 0;
+      case 3: return (x + y) % 3 === 0;
+      case 4: return (Math.floor(x / 3) + Math.floor(y / 2)) % 2 === 0;
+      case 5: return x * y % 2 + x * y % 3 === 0;
+      case 6: return (x * y % 2 + x * y % 3) % 2 === 0;
+      default: return ((x + y) % 2 + x * y % 3) % 2 === 0;
+    }
+  }
+
+  function qrMatrix(text) {
+    var s = unescape(encodeURIComponent(text)), bytes = [], i, k;
+    for (i = 0; i < s.length; i++) bytes.push(s.charCodeAt(i));
+    var ver = 1;
+    while (ver < QR_M.length && QR_M[ver][0] - 2 < bytes.length) ver++;
+    if (ver >= QR_M.length) return null;
+
+    var spec = QR_M[ver], cap = spec[0], bits = [];
+    function put(v, n) { for (var b = n - 1; b >= 0; b--) bits.push((v >>> b) & 1); }
+    put(4, 4);
+    put(bytes.length, 8);
+    bytes.forEach(function (b) { put(b, 8); });
+    put(0, Math.min(4, cap * 8 - bits.length));
+    while (bits.length % 8) bits.push(0);
+    var data = [];
+    for (i = 0; i < bits.length; i += 8) {
+      var v = 0;
+      for (k = 0; k < 8; k++) v = (v << 1) | bits[i + k];
+      data.push(v);
+    }
+    for (var pad = 0xec; data.length < cap; pad ^= 0xec ^ 0x11) data.push(pad);
+
+    var nb = spec[2], len = cap / nb, div = rsDivisor(spec[1]), blocks = [], ecs = [], words = [];
+    for (i = 0; i < nb; i++) {
+      blocks.push(data.slice(i * len, (i + 1) * len));
+      ecs.push(rsRemainder(blocks[i], div));
+    }
+    for (i = 0; i < len; i++) for (k = 0; k < nb; k++) words.push(blocks[k][i]);
+    for (i = 0; i < spec[1]; i++) for (k = 0; k < nb; k++) words.push(ecs[k][i]);
+
+    var size = ver * 4 + 17, mod = [], fn = [];
+    for (i = 0; i < size; i++) { mod.push([]); fn.push([]); for (k = 0; k < size; k++) { mod[i].push(false); fn[i].push(false); } }
+    function set(x, y, dark) { mod[y][x] = dark; fn[y][x] = true; }
+
+    for (i = 0; i < size; i++) { set(6, i, i % 2 === 0); set(i, 6, i % 2 === 0); }
+    [[3, 3], [size - 4, 3], [3, size - 4]].forEach(function (c) {
+      for (var dy = -4; dy <= 4; dy++) for (var dx = -4; dx <= 4; dx++) {
+        var x = c[0] + dx, y = c[1] + dy, dist = Math.max(Math.abs(dx), Math.abs(dy));
+        if (x >= 0 && x < size && y >= 0 && y < size) set(x, y, dist !== 2 && dist !== 4);
+      }
+    });
+    if (ver > 1) {
+      for (var ay = -2; ay <= 2; ay++) for (var ax = -2; ax <= 2; ax++) set(size - 7 + ax, size - 7 + ay, Math.max(Math.abs(ax), Math.abs(ay)) !== 1);
+    }
+
+    function format(mask) {
+      var rem = mask;
+      for (var j = 0; j < 10; j++) rem = (rem << 1) ^ ((rem >>> 9) * 0x537);
+      var f = ((mask << 10) | rem) ^ 0x5412;
+      function bit(n) { return ((f >>> n) & 1) === 1; }
+      for (j = 0; j <= 5; j++) set(8, j, bit(j));
+      set(8, 7, bit(6)); set(8, 8, bit(7)); set(7, 8, bit(8));
+      for (j = 9; j < 15; j++) set(14 - j, 8, bit(j));
+      for (j = 0; j < 8; j++) set(size - 1 - j, 8, bit(j));
+      for (j = 8; j < 15; j++) set(8, size - 15 + j, bit(j));
+      set(8, size - 8, true);
+    }
+    format(0);
+
+    var n = 0, total = words.length * 8;
+    for (var right = size - 1; right >= 1; right -= 2) {
+      if (right === 6) right = 5;
+      for (var vert = 0; vert < size; vert++) {
+        for (k = 0; k < 2; k++) {
+          var x = right - k, y = ((right + 1) & 2) === 0 ? size - 1 - vert : vert;
+          if (!fn[y][x] && n < total) { mod[y][x] = ((words[n >>> 3] >>> (7 - (n & 7))) & 1) === 1; n++; }
+        }
+      }
+    }
+
+    function applyMask(m) {
+      for (var yy = 0; yy < size; yy++) for (var xx = 0; xx < size; xx++) if (!fn[yy][xx] && maskBit(m, xx, yy)) mod[yy][xx] = !mod[yy][xx];
+    }
+
+    function penalty() {
+      var p = 0, dark = 0, a, b;
+      for (var pass = 0; pass < 2; pass++) {
+        for (a = 0; a < size; a++) {
+          var run = 0, prev = null, line = '';
+          for (b = 0; b < size; b++) {
+            var c = pass ? mod[b][a] : mod[a][b];
+            line += c ? '1' : '0';
+            if (c === prev) { run++; if (run === 5) p += 3; else if (run > 5) p++; } else { prev = c; run = 1; }
+          }
+          ['10111010000', '00001011101'].forEach(function (pat) {
+            for (var at = line.indexOf(pat); at !== -1; at = line.indexOf(pat, at + 1)) p += 40;
+          });
+        }
+      }
+      for (a = 0; a < size; a++) for (b = 0; b < size; b++) {
+        if (mod[a][b]) dark++;
+        if (a < size - 1 && b < size - 1 && mod[a][b] === mod[a][b + 1] && mod[a][b] === mod[a + 1][b] && mod[a][b] === mod[a + 1][b + 1]) p += 3;
+      }
+      return p + Math.floor(Math.abs(dark * 20 - size * size * 10) / (size * size)) * 10;
+    }
+
+    var best = 0, bestScore = Infinity;
+    for (var m = 0; m < 8; m++) {
+      applyMask(m);
+      format(m);
+      var score = penalty();
+      if (score < bestScore) { bestScore = score; best = m; }
+      applyMask(m);
+    }
+    applyMask(best);
+    format(best);
+    return { size: size, modules: mod };
+  }
+
+  function drawQr(canvas, text, cssSize) {
+    var q = qrMatrix(text);
+    if (!q) return false;
+    var dpr = window.devicePixelRatio || 1, quiet = 4, n = q.size + quiet * 2;
+    var px = Math.max(1, Math.floor(cssSize * dpr / n));
+    canvas.width = canvas.height = px * n;
+    canvas.style.width = canvas.style.height = (px * n / dpr) + 'px';
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#000000';
+    for (var y = 0; y < q.size; y++) for (var x = 0; x < q.size; x++) {
+      if (q.modules[y][x]) ctx.fillRect((x + quiet) * px, (y + quiet) * px, px, px);
+    }
+    return true;
+  }
+
+  show('event', d.event);
+  show('date', d.date);
+  show('time', d.time);
+  show('venue', d.venue);
+  show('section', d.section);
+  show('seat', d.seat);
+  show('holder', d.holder);
+  show('ticketId', d.ticketId);
+
+  var id = d.ticketId ? String(d.ticketId) : '';
+  var box = document.getElementById('qrBox');
+  var canvas = document.getElementById('qr');
+  if (id && drawQr(canvas, id, 128)) {
+    canvas.setAttribute('aria-label', 'QR code for ticket ' + id);
+    document.getElementById('scanHint').textContent = TEXT.scan;
+  } else {
+    document.getElementById('stub').className = 'stub no-qr';
+    box.style.display = 'none';
+    if (id) document.getElementById('idLabel').textContent = TEXT.noQr;
+  }
+
+  // A long ticket ID can push the scan hint past the stub; the ID matters more, so the hint gives way.
+  function fitHint() {
+    var info = document.querySelector('.info'), hint = document.getElementById('scanHint');
+    hint.hidden = false;
+    if (info.scrollHeight > info.clientHeight + 1) hint.hidden = true;
+  }
+  fitHint();
+  addEventListener('resize', fitHint);
+</script>

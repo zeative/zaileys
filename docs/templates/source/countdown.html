@@ -1,0 +1,113 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { --pink: #ff4f8b; --orange: #ff8a3d; --yellow: #ffc93c; --mint: #2ed8a7; --sky: #38b6ff; --violet: #7c5cff; --ink: #1d1442; --soft: #c9c2ef; --dim: #3a2f66; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  body { margin: 0; height: 100%; background: radial-gradient(circle at 10% 0, rgba(124, 92, 255, .6), transparent 60%), radial-gradient(circle at 100% 100%, rgba(255, 79, 139, .45), transparent 55%), var(--ink); color: #fff; font: 14px/1.3 system-ui, sans-serif; display: flex; flex-direction: column; justify-content: center; gap: 11px; padding: 0 14px; user-select: none; }
+  header { min-width: 0; }
+  .top { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  #title { margin: 0; font: 800 18px/1.25 system-ui, sans-serif; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #status { flex: none; display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 800; padding: 3px 10px 3px 8px; border-radius: 999px; background: var(--mint); color: var(--ink); }
+  #status::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--ink); animation: blink 1s steps(2, start) infinite; }
+  #status.ended { background: var(--soft); }
+  #status.ended::before { content: '🏁'; width: auto; height: auto; background: none; animation: none; font-size: 12px; }
+  @keyframes blink { to { visibility: hidden; } }
+  #when { margin-top: 3px; color: var(--soft); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #clock { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; height: 76px; }
+  .unit { --c: var(--pink); --s: #c42762; min-width: 0; background: var(--c); color: var(--ink); border-radius: 18px; box-shadow: 0 4px 0 var(--s); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+  .unit:nth-child(2) { --c: var(--yellow); --s: #d99a12; }
+  .unit:nth-child(3) { --c: var(--mint); --s: #1a9e79; }
+  .unit:nth-child(4) { --c: var(--sky); --s: #1f84c7; }
+  .unit b { font: 800 clamp(28px, 9.5vw, 38px)/1 system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+  .unit span { font-size: 12px; font-weight: 700; }
+  .unit b.pop { animation: pop .35s cubic-bezier(.3, 1.8, .5, 1); }
+  @keyframes pop { from { transform: scale(.72); } to { transform: scale(1); } }
+  #clock.ended .unit { --c: var(--dim); --s: #140d33; color: var(--soft); }
+  .progress { display: grid; gap: 5px; }
+  .bar { height: 10px; border-radius: 999px; background: rgba(255, 255, 255, .16); overflow: hidden; }
+  #fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--yellow), var(--pink)); border-radius: 999px; }
+  #progressText { color: var(--soft); font-size: 12px; font-variant-numeric: tabular-nums; }
+  #note { margin: 0; color: var(--soft); font-size: 12px; text-align: center; }
+  @media (prefers-reduced-motion: reduce) { #status::before, .unit b.pop { animation: none; } }
+</style>
+<header>
+  <div class="top"><h1 id="title"></h1><span id="status" aria-live="polite"></span></div>
+  <div id="when"></div>
+</header>
+<div id="clock" role="timer" aria-label="Time left">
+  <div class="unit"><b id="d">0</b><span>days</span></div>
+  <div class="unit"><b id="h">00</b><span>hours</span></div>
+  <div class="unit"><b id="m">00</b><span>minutes</span></div>
+  <div class="unit"><b id="s">00</b><span>seconds</span></div>
+</div>
+<div class="progress" id="progress" hidden>
+  <div class="bar"><div id="fill"></div></div>
+  <div id="progressText"></div>
+</div>
+<p id="note">Counted on this phone's clock</p>
+<script>
+  var DATA = /*DATA*/null;
+  var TEXT = { running: 'Counting', ended: 'Ended', ends: 'Ends ', endedAt: 'Ended ', invalid: 'No valid end time in this card', untitled: 'Countdown', notStarted: 'Starts ', passed: '% of the time has passed' };
+  var cfg = DATA || {};
+  var end = new Date(cfg.endsAt).getTime();
+  var start = new Date(cfg.startsAt).getTime();
+  // Progress needs a real start; without one there is no honest denominator, so the bar stays hidden.
+  var hasProgress = !isNaN(start) && !isNaN(end) && start < end;
+  var dateFormat = new Intl.DateTimeFormat('en-GB', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
+
+  function pad(n) { return n < 10 ? '0' + n : String(n); }
+
+  // Round up so 00:00 appears exactly when the deadline passes, not a second early.
+  function parts(ms) {
+    var total = Math.max(0, Math.ceil(ms / 1000));
+    return { d: Math.floor(total / 86400), h: Math.floor(total / 3600) % 24, m: Math.floor(total / 60) % 60, s: total % 60 };
+  }
+
+  // A digit pops only when its value actually changes; restarting the animation needs a reflow in between.
+  function setUnit(id, text) {
+    var el = document.getElementById(id);
+    if (el.textContent === text) return;
+    el.textContent = text;
+    el.classList.remove('pop');
+    void el.offsetWidth;
+    el.classList.add('pop');
+  }
+
+  function tick() {
+    var now = Date.now();
+    var ended = now >= end;
+    var p = parts(end - now);
+    setUnit('d', String(p.d));
+    setUnit('h', pad(p.h));
+    setUnit('m', pad(p.m));
+    setUnit('s', pad(p.s));
+    document.getElementById('clock').className = ended ? 'ended' : '';
+
+    var statusEl = document.getElementById('status');
+    var label = ended ? TEXT.ended : TEXT.running;
+    if (statusEl.textContent !== label) statusEl.textContent = label;
+    statusEl.className = ended ? 'ended' : '';
+    document.getElementById('when').textContent = (ended ? TEXT.endedAt : TEXT.ends) + dateFormat.format(end);
+
+    if (hasProgress) {
+      var ratio = Math.min(1, Math.max(0, (now - start) / (end - start)));
+      document.getElementById('fill').style.width = (ratio * 100) + '%';
+      document.getElementById('progressText').textContent = now < start ? TEXT.notStarted + dateFormat.format(start) : Math.floor(ratio * 100) + TEXT.passed;
+    }
+    // Wake just after the remaining time crosses the next whole second, so digits never skip or lag.
+    if (!ended) setTimeout(tick, (end - Date.now()) % 1000 + 20);
+  }
+
+  document.getElementById('title').textContent = cfg.title || TEXT.untitled;
+  if (isNaN(end)) {
+    document.getElementById('status').textContent = TEXT.ended;
+    document.getElementById('status').hidden = true;
+    document.getElementById('when').textContent = TEXT.invalid;
+    document.getElementById('clock').className = 'ended';
+    ['d', 'h', 'm', 's'].forEach(function (id) { document.getElementById(id).textContent = '—'; });
+  } else {
+    document.getElementById('progress').hidden = !hasProgress;
+    tick();
+  }
+</script>

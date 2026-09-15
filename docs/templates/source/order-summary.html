@@ -1,0 +1,215 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { --pink: #ff4f8b; --orange: #ff8a3d; --yellow: #ffc93c; --lime: #9be15d; --mint: #2ed8a7; --sky: #38b6ff; --violet: #7c5cff; --ink: #1d1442; --cream: #fff8ec; --muted: #5b5380; --line: #e4daf3; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  body { margin: 0; height: 100%; background: linear-gradient(160deg, var(--sky), var(--mint)); color: var(--ink); font: 14px/1.3 system-ui, sans-serif; display: flex; padding: 10px; }
+  .card { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--cream); border-radius: 22px; padding: 12px 16px 14px; box-shadow: 0 5px 0 rgba(29, 20, 66, .18); }
+  .top { display: flex; justify-content: space-between; align-items: center; gap: 10px; color: var(--muted); font-size: 12px; }
+  .top span { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+  .top b { flex: none; padding: 2px 9px; border-radius: 999px; background: var(--ink); color: var(--yellow); font-weight: 800; font-variant-numeric: tabular-nums; }
+  .top b:empty { display: none; }
+  .hero { margin-top: 6px; display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .badge { flex: none; width: 44px; height: 44px; border-radius: 15px; display: grid; place-items: center; font-size: 26px; background: linear-gradient(135deg, var(--yellow), var(--orange)); box-shadow: 0 4px 0 #d9661d; animation: bob 2.4s ease-in-out infinite; }
+  @keyframes bob { 0%, 100% { transform: translateY(0) rotate(-4deg); } 50% { transform: translateY(-3px) rotate(4deg); } }
+  .hero div { min-width: 0; }
+  h1 { margin: 0; font-size: clamp(21px, 6.6vw, 28px); font-weight: 800; line-height: 1.1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .eta { margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .eta b { font-weight: 700; }
+  ol { margin: 10px 0 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(4, 1fr); }
+  ol li { --c: var(--pink); position: relative; min-width: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; text-align: center; }
+  ol li:nth-child(2) { --c: var(--yellow); }
+  ol li:nth-child(3) { --c: var(--sky); }
+  ol li:nth-child(4) { --c: var(--mint); }
+  ol li + li::before { content: ''; position: absolute; top: 14px; right: 50%; width: calc(100% - 34px); margin-right: 17px; height: 6px; border-radius: 3px; background: var(--line); }
+  ol li.done::before, ol li.now::before { background: var(--c); }
+  .dot { position: relative; width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; font-size: 15px; font-weight: 800; border: 2px dashed #b9acd6; color: var(--muted); background: #fff; font-variant-numeric: tabular-nums; }
+  .done .dot { background: var(--c); border: 0; color: var(--ink); box-shadow: 0 3px 0 rgba(29, 20, 66, .22); }
+  .now .dot { background: var(--c); border: 3px solid var(--ink); color: var(--ink); box-shadow: 0 3px 0 rgba(29, 20, 66, .22); animation: pulse 1.6s ease-in-out infinite; }
+  @keyframes pulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+  .label { max-width: 100%; font-size: 12px; font-weight: 600; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .done .label { color: var(--ink); }
+  .now .label { color: var(--ink); font-weight: 800; }
+  .when { max-width: 100%; font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-height: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rule { flex: none; margin: 8px 0 10px; border-top: 2px dashed var(--line); }
+  #items { flex: 1; min-height: 0; overflow: hidden; margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 8px; }
+  #items li { flex: none; display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .thumb { flex: none; width: 36px; height: 36px; border-radius: 12px; display: grid; place-items: center; font-weight: 800; font-size: 13px; color: var(--ink); box-shadow: inset 0 -3px 0 rgba(29, 20, 66, .18); }
+  .item { min-width: 0; flex: 1; }
+  .item div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+  .item .qty { color: var(--muted); font-size: 12px; font-weight: 400; font-variant-numeric: tabular-nums; }
+  .price { flex: none; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .more, .empty { color: var(--muted); font-size: 12px; font-weight: 600; }
+  footer { margin-top: 10px; display: flex; justify-content: space-between; align-items: stretch; gap: 10px; }
+  .ship { min-width: 34%; flex: 1; padding: 6px 10px; border-radius: 14px; background: #efe8ff; }
+  .ship div, .sum div { font-size: 12px; font-weight: 700; }
+  .ship div { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .ship p { margin: 1px 0 0; font-size: 13px; line-height: 1.25; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .sum { flex: none; padding: 6px 12px; border-radius: 14px; background: linear-gradient(120deg, var(--yellow), var(--orange)); text-align: right; display: flex; flex-direction: column; justify-content: center; }
+  .sum b { font-size: clamp(16px, 5vw, 20px); font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  @media (prefers-reduced-motion: reduce) { .badge, .now .dot { animation: none; } }
+</style>
+<main class="card" aria-label="Order status">
+  <div class="top"><span id="order"></span><b id="progress"></b></div>
+  <div class="hero">
+    <span class="badge" id="badge" aria-hidden="true">📦</span>
+    <div>
+      <h1 id="status" aria-live="polite"></h1>
+      <div class="eta" id="eta"></div>
+    </div>
+  </div>
+  <ol id="steps" aria-label="Order progress"></ol>
+  <div class="rule"></div>
+  <ul id="items" aria-label="Items"></ul>
+  <footer>
+    <div class="ship"><div>📍 Deliver to</div><p id="address"></p></div>
+    <div class="sum"><div>Total</div><b id="total"></b></div>
+  </footer>
+</main>
+<script>
+  var DATA = /*DATA*/null;
+  var STEPS = ['Ordered', 'Paid', 'Shipped', 'Delivered'];
+  var STEP_ICONS = ['🛒', '💳', '🚚', '🎉'];
+  var TEXT = {
+    order: 'Order ',
+    stepOf: function (n) { return 'Step ' + n + ' of ' + STEPS.length; },
+    unknown: 'Status unavailable',
+    noAddress: 'No address on file',
+    noItems: 'No items listed',
+    more: function (n) { return '+' + n + ' more item' + (n === 1 ? '' : 's'); }
+  };
+  var THUMB_COLORS = ['#ff4f8b', '#38b6ff', '#ffc93c', '#2ed8a7', '#ff8a3d', '#9be15d'];
+  var d = DATA || {};
+  var items = Array.isArray(d.items) ? d.items : [];
+  var step = Math.floor(Number(d.step));
+  if (!(step >= 1 && step <= STEPS.length)) step = 0;
+
+  function num(v) { return typeof v === 'number' && isFinite(v) ? v : null; }
+
+  function moneyFormat(currency, locale) {
+    var loc = locale || undefined;
+    try { new Intl.NumberFormat(loc); } catch (e) { loc = undefined; }
+    try {
+      var nf = new Intl.NumberFormat(loc, { style: 'currency', currency: currency, currencyDisplay: 'code' });
+      return function (v) { return nf.format(v); };
+    } catch (e) {
+      var plain = new Intl.NumberFormat(loc, { maximumFractionDigits: 2 });
+      return function (v) { return (currency ? currency + ' ' : '') + plain.format(v); };
+    }
+  }
+  var money = moneyFormat(d.currency, d.locale);
+
+  function initials(name) {
+    var words = String(name || '?').split(' ').filter(Boolean);
+    var s = words.length > 1 ? words[0].charAt(0) + words[1].charAt(0) : String(words[0] || '?').slice(0, 2);
+    return s.toUpperCase();
+  }
+
+  function colorFor(name) {
+    var h = 0, s = String(name || '');
+    for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 997;
+    return THUMB_COLORS[h % THUMB_COLORS.length];
+  }
+
+  function renderSteps() {
+    var ol = document.getElementById('steps');
+    var dates = Array.isArray(d.stepDates) ? d.stepDates : [];
+    STEPS.forEach(function (label, i) {
+      var n = i + 1;
+      var state = n < step || (n === step && step === STEPS.length) ? 'done' : n === step ? 'now' : 'todo';
+      var li = document.createElement('li');
+      li.className = state;
+      var dot = document.createElement('span');
+      dot.className = 'dot';
+      dot.textContent = state === 'done' ? '✓' : String(n);
+      var name = document.createElement('span');
+      name.className = 'label';
+      name.textContent = label;
+      var when = document.createElement('span');
+      when.className = 'when';
+      when.textContent = n <= step && dates[i] ? dates[i] : '';
+      li.appendChild(dot);
+      li.appendChild(name);
+      li.appendChild(when);
+      li.setAttribute('aria-label', label + (state === 'done' ? ', done' : state === 'now' ? ', current step' : ', not yet'));
+      if (state === 'now') li.setAttribute('aria-current', 'step');
+      ol.appendChild(li);
+    });
+  }
+
+  function itemRow(item) {
+    var li = document.createElement('li');
+    var thumb = document.createElement('span');
+    thumb.className = 'thumb';
+    thumb.setAttribute('aria-hidden', 'true');
+    thumb.style.background = colorFor(item.name);
+    thumb.textContent = initials(item.name);
+    var body = document.createElement('div');
+    body.className = 'item';
+    var name = document.createElement('div');
+    name.textContent = item.name || 'Item';
+    var qty = document.createElement('div');
+    qty.className = 'qty';
+    qty.textContent = 'Qty ' + (num(item.qty) === null ? 1 : item.qty);
+    body.appendChild(name);
+    body.appendChild(qty);
+    li.appendChild(thumb);
+    li.appendChild(body);
+    if (num(item.price) !== null) {
+      var price = document.createElement('span');
+      price.className = 'price';
+      price.textContent = money(item.price * (num(item.qty) === null ? 1 : item.qty));
+      li.appendChild(price);
+    }
+    return li;
+  }
+
+  var list = document.getElementById('items');
+
+  // Rows are dropped from the end until the list fits, since the card cannot scroll.
+  function renderItems() {
+    for (var shown = items.length; shown >= 0; shown--) {
+      list.textContent = '';
+      if (!items.length) {
+        var none = document.createElement('li');
+        none.className = 'empty';
+        none.textContent = TEXT.noItems;
+        list.appendChild(none);
+        return;
+      }
+      for (var i = 0; i < shown; i++) list.appendChild(itemRow(items[i]));
+      if (shown < items.length) {
+        var more = document.createElement('li');
+        more.className = 'more';
+        more.textContent = TEXT.more(items.length - shown);
+        list.appendChild(more);
+      }
+      if (list.scrollHeight <= list.clientHeight + 1) return;
+    }
+  }
+
+  document.getElementById('order').textContent = d.orderId ? TEXT.order + d.orderId : '';
+  document.getElementById('progress').textContent = step ? TEXT.stepOf(step) : '';
+  document.getElementById('status').textContent = step ? STEPS[step - 1] : TEXT.unknown;
+  if (step) document.getElementById('badge').textContent = STEP_ICONS[step - 1];
+  var eta = document.getElementById('eta');
+  if (d.eta) {
+    var etaText = document.createElement('b');
+    etaText.textContent = d.eta;
+    eta.appendChild(etaText);
+  } else {
+    eta.hidden = true;
+  }
+  renderSteps();
+
+  var address = document.getElementById('address');
+  address.textContent = d.address || TEXT.noAddress;
+  if (!d.address) address.style.color = 'var(--muted)';
+  var total = num(d.total);
+  var totalEl = document.getElementById('total');
+  totalEl.textContent = total === null ? 'Not available' : money(total);
+  if (total === null) totalEl.style.fontSize = '15px';
+  renderItems();
+  addEventListener('resize', renderItems);
+</script>

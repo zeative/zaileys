@@ -1,0 +1,223 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { --pink: #ff4f8b; --orange: #ff8a3d; --yellow: #ffc93c; --lime: #9be15d; --mint: #2ed8a7; --sky: #38b6ff; --violet: #7c5cff; --grape: #b44cff; --ink: #1d1442; --cream: #fff8ec; --night: #2a1d5e; --night-2: #33256f; --muted: #c9bff0; --size: min(78vw, 270px); }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; height: 100%; overflow: hidden; background: radial-gradient(circle at 50% 42%, rgba(180, 76, 255, .45), transparent 62%), repeating-conic-gradient(from 0deg at 50% 42%, var(--night) 0 9deg, var(--night-2) 9deg 18deg); color: var(--cream); font: 14px/1.3 system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; padding: 0 14px; text-align: center; user-select: none; -webkit-user-select: none; }
+  h1 { margin: 0; font-size: 19px; font-weight: 800; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #wheel { display: block; width: var(--size); height: var(--size); flex: none; }
+  #result { min-height: 24px; max-width: 100%; font-size: 17px; font-weight: 700; }
+  #result b { color: var(--yellow); font-weight: 800; }
+  #result.won { animation: pop .45s cubic-bezier(.3, 1.8, .5, 1); }
+  @keyframes pop { 40% { transform: scale(1.18); } }
+  #spin { min-height: 46px; padding: 0 38px; border: 0; border-radius: 999px; background: var(--yellow); color: var(--ink); box-shadow: 0 5px 0 #c98f00; font: 800 17px system-ui, sans-serif; cursor: pointer; transition: transform .1s ease; }
+  #spin:active:not(:disabled) { transform: translateY(4px); box-shadow: 0 1px 0 #c98f00; }
+  #spin:disabled { background: #6b5b9a; color: var(--cream); box-shadow: 0 5px 0 #3f3270; cursor: default; }
+  .note { max-width: 300px; color: var(--muted); font-size: 12px; }
+  .confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  @media (prefers-reduced-motion: reduce) { #result.won { animation: none; } #spin { transition: none; } }
+</style>
+<h1 id="title">Prize wheel</h1>
+<canvas id="wheel" role="img" aria-label="Prize wheel"></canvas>
+<div id="result" aria-live="polite">Tap Spin to pick a prize</div>
+<button id="spin" type="button">Spin</button>
+<div class="note">Random pick: every slice has the same chance. The result stays on this phone.</div>
+<script>
+  var DATA = /*DATA*/null;
+  var TEXT = { title: 'Prize wheel', ready: 'Tap Spin to pick a prize', spinning: 'Spinning…', result: 'You got: ', spin: 'Spin', again: 'Spin again' };
+  var EXAMPLE = ['Prize A', 'Prize B', 'Try again', 'Prize C'];
+  // Deep violet and grape carry white labels; the lighter slices carry ink labels.
+  var SLICES = [['#ff4f8b', '#1d1442'], ['#ff8a3d', '#1d1442'], ['#ffc93c', '#1d1442'], ['#9be15d', '#1d1442'], ['#2ed8a7', '#1d1442'], ['#38b6ff', '#1d1442'], ['#6a45ff', '#ffffff'], ['#9a2ee6', '#ffffff']];
+  var INK = '#1d1442', CREAM = '#fff8ec', RIM = '#1d1442', BULBS = ['#ffc93c', '#fff8ec'], POINTER = '#ff4f8b';
+  var TAU = Math.PI * 2, MAX_SLICES = 12;
+
+  function mod(a, n) { return ((a % n) + n) % n; }
+
+  function sliceAt(rotation, count) {
+    return Math.floor(mod(-rotation, TAU) / (TAU / count)) % count;
+  }
+
+  // Lands inside the chosen slice, away from its edges, after 4-5 full turns.
+  function targetFor(current, index, count, rand) {
+    var offset = (index + 0.15 + 0.7 * rand()) * (TAU / count);
+    var turns = 4 + Math.floor(rand() * 2);
+    return current + turns * TAU + mod(-offset - current, TAU);
+  }
+
+  // Keeps the last slice from matching the first when the palette wraps.
+  function styleFor(i, count) {
+    var k = i % SLICES.length;
+    if (count > 1 && i === count - 1 && k === 0) k = 6;
+    return SLICES[k];
+  }
+
+  var prizes = DATA && DATA.prizes && DATA.prizes.length >= 2 ? DATA.prizes.slice(0, MAX_SLICES).map(String) : EXAMPLE;
+  var title = DATA && DATA.title ? String(DATA.title) : TEXT.title;
+  var canvas = document.getElementById('wheel');
+  var ctx = canvas.getContext('2d');
+  var resultEl = document.getElementById('result');
+  var spinBtn = document.getElementById('spin');
+  var rotation = -Math.PI / prizes.length, winner = -1, spinning = false, kick = 0, lastSlice = -1;
+
+  document.getElementById('title').textContent = title;
+  canvas.setAttribute('aria-label', title + ' with ' + prizes.length + ' slices: ' + prizes.join(', '));
+
+  function fit(text, max) {
+    if (ctx.measureText(text).width <= max) return text;
+    while (text.length > 1 && ctx.measureText(text + '…').width > max) text = text.slice(0, -1);
+    return text + '…';
+  }
+
+  function slice(cx, cy, radius, start, seg) {
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, radius, start, start + seg);
+    ctx.closePath();
+  }
+
+  function draw() {
+    var px = canvas.clientWidth, ratio = window.devicePixelRatio || 1;
+    var side = Math.round(px * ratio);
+    if (canvas.width !== side || canvas.height !== side) { canvas.width = side; canvas.height = side; }
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    ctx.clearRect(0, 0, px, px);
+    var n = prizes.length, seg = TAU / n, cx = px / 2, cy = px / 2 + 3, rim = px / 2 - 5, r = rim - 10;
+    var fontSize = n > 8 || px < 250 ? 12 : 13;
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, rim, 0, TAU);
+    ctx.fillStyle = RIM;
+    ctx.fill();
+    var phase = spinning ? Math.floor(Date.now() / 140) % 2 : 0;
+    for (var b = 0; b < 16; b++) {
+      var ba = b / 16 * TAU;
+      ctx.beginPath();
+      ctx.arc(cx + Math.cos(ba) * (rim - 5), cy + Math.sin(ba) * (rim - 5), 2.6, 0, TAU);
+      ctx.fillStyle = BULBS[(b + phase) % 2];
+      ctx.fill();
+    }
+
+    ctx.font = '700 ' + fontSize + 'px system-ui, sans-serif';
+    for (var pass = 0; pass < 2; pass++) {
+      for (var i = 0; i < n; i++) {
+        var won = i === winner;
+        if ((pass === 1) !== won) continue;
+        var start = -Math.PI / 2 + rotation + i * seg, mid = start + seg / 2, style = styleFor(i, n);
+        // The winning slice is drawn last and nudged outward so it reads without color.
+        var ox = won ? Math.cos(mid) * 5 : 0, oy = won ? Math.sin(mid) * 5 : 0;
+        slice(cx + ox, cy + oy, r, start, seg);
+        ctx.fillStyle = style[0];
+        ctx.fill();
+        ctx.strokeStyle = won ? CREAM : RIM;
+        ctx.lineWidth = won ? 4 : 2;
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+        ctx.save();
+        ctx.translate(cx + ox, cy + oy);
+        var flip = Math.cos(mid) < 0;
+        // Left-half labels are turned around so no text reads upside down.
+        ctx.rotate(flip ? mid + Math.PI : mid);
+        ctx.textAlign = flip ? 'left' : 'right';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = style[1];
+        ctx.fillText(fit((won ? '★ ' : '') + prizes[i], r - 34), flip ? 13 - r : r - 13, 0);
+        ctx.restore();
+      }
+    }
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, 19, 0, TAU);
+    ctx.fillStyle = CREAM;
+    ctx.fill();
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = RIM;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(cx, cy, 7, 0, TAU);
+    ctx.fillStyle = POINTER;
+    ctx.fill();
+
+    ctx.save();
+    ctx.translate(cx, 4);
+    ctx.rotate(kick * 0.35);
+    ctx.beginPath();
+    ctx.moveTo(-13, 0);
+    ctx.lineTo(13, 0);
+    ctx.lineTo(0, 23);
+    ctx.closePath();
+    ctx.fillStyle = POINTER;
+    ctx.fill();
+    ctx.lineWidth = 3;
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = CREAM;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function confetti() {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var cv = document.createElement('canvas'), w = window.innerWidth, h = window.innerHeight, r = window.devicePixelRatio || 1;
+    var g = cv.getContext('2d'), bits = [], t0 = 0;
+    cv.className = 'confetti';
+    cv.width = w * r;
+    cv.height = h * r;
+    document.body.appendChild(cv);
+    for (var i = 0; i < 80; i++) bits.push({ x: w / 2, y: h * 0.4, vx: (Math.random() - 0.5) * 11, vy: -3 - Math.random() * 9, s: 6 + Math.random() * 5, a: Math.random() * 6, c: SLICES[i % SLICES.length][0] });
+    function frame(now) {
+      if (!t0) t0 = now;
+      var t = now - t0;
+      g.setTransform(r, 0, 0, r, 0, 0);
+      g.clearRect(0, 0, w, h);
+      g.globalAlpha = Math.max(0, 1 - t / 1500);
+      bits.forEach(function (b) {
+        b.vy += 0.3; b.x += b.vx; b.y += b.vy; b.a += 0.2;
+        g.save(); g.translate(b.x, b.y); g.rotate(b.a); g.fillStyle = b.c; g.fillRect(-b.s / 2, -b.s / 4, b.s, b.s / 2); g.restore();
+      });
+      if (t < 1500) requestAnimationFrame(frame); else cv.remove();
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function spin() {
+    if (spinning) return;
+    spinning = true;
+    winner = -1;
+    spinBtn.disabled = true;
+    resultEl.className = '';
+    resultEl.textContent = TEXT.spinning;
+    var pick = Math.floor(Math.random() * prizes.length);
+    var from = rotation, to = targetFor(rotation, pick, prizes.length, Math.random);
+    var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    var duration = calm ? 1200 : 3000 + Math.random() * 2000, begin = 0;
+    function frame(now) {
+      if (!begin) begin = now;
+      var t = Math.min(1, (now - begin) / duration);
+      rotation = from + (to - from) * (1 - Math.pow(1 - t, 3));
+      var at = sliceAt(rotation, prizes.length);
+      if (at !== lastSlice && !calm) kick = 1;
+      lastSlice = at;
+      kick *= 0.8;
+      if (t < 1) { draw(); requestAnimationFrame(frame); return; }
+      rotation = mod(to, TAU);
+      winner = sliceAt(rotation, prizes.length);
+      spinning = false;
+      kick = 0;
+      spinBtn.disabled = false;
+      spinBtn.textContent = TEXT.again;
+      resultEl.textContent = TEXT.result;
+      var b = document.createElement('b');
+      b.textContent = prizes[winner];
+      resultEl.appendChild(b);
+      resultEl.className = 'won';
+      draw();
+      if (prizes[winner].toLowerCase().indexOf('try again') === -1) confetti();
+    }
+    draw();
+    requestAnimationFrame(frame);
+  }
+
+  spinBtn.addEventListener('click', spin);
+  window.addEventListener('resize', draw);
+  resultEl.textContent = TEXT.ready;
+  draw();
+</script>

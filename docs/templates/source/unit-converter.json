@@ -1,0 +1,15 @@
+{
+  "id": "unit-converter",
+  "title": "Unit converter",
+  "category": "calculators",
+  "icon": "ruler",
+  "emoji": "📏",
+  "description": "Convert length, weight, and temperature with exact factors and the formula shown under the result.",
+  "height": 272,
+  "command": "convert",
+  "fallback": "The unit converter opens on WhatsApp Android only.",
+  "inputs": [
+    "keyboard",
+    "tap"
+  ]
+}

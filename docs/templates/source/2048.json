@@ -1,0 +1,15 @@
+{
+  "id": "2048",
+  "title": "2048",
+  "category": "games",
+  "icon": "layout-grid",
+  "emoji": "🔢",
+  "description": "Slide and merge candy-colored tiles to reach 2048, with swipe or arrow controls and a running score.",
+  "height": 452,
+  "command": "2048",
+  "fallback": "2048 opens on WhatsApp Android only.",
+  "inputs": [
+    "tap",
+    "swipe"
+  ]
+}

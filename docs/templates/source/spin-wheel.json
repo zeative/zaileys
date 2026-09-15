@@ -1,0 +1,25 @@
+{
+  "id": "spin-wheel",
+  "title": "Spin wheel",
+  "category": "games",
+  "icon": "gift",
+  "emoji": "🎡",
+  "description": "Spin a rainbow prize wheel filled with your own prizes; every slice has the same chance and the result shows in the card.",
+  "height": 450,
+  "command": "spin",
+  "fallback": "The prize wheel opens on WhatsApp Android only.",
+  "inputs": [
+    "tap"
+  ],
+  "sample": {
+    "title": "Weekend giveaway",
+    "prizes": [
+      "Free coffee",
+      "10% off",
+      "Try again",
+      "Free pastry",
+      "20% off",
+      "Try again"
+    ]
+  }
+}

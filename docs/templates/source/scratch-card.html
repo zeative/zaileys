@@ -1,0 +1,234 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { --pink: #ff4f8b; --orange: #ff8a3d; --yellow: #ffc93c; --violet: #7c5cff; --grape: #b44cff; --mint: #2ed8a7; --ink: #1d1442; --cream: #fff8ec; --soft: #574b82; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; height: 100%; padding: 12px 14px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; background: linear-gradient(150deg, var(--yellow), var(--orange) 55%, var(--pink)); color: var(--ink); font: 14px/1.3 system-ui, sans-serif; text-align: center; user-select: none; -webkit-user-select: none; overflow: hidden; }
+  h1 { margin: 0; max-width: 100%; font-size: 20px; line-height: 30px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #ticket { position: relative; flex: none; width: min(100%, 380px); height: 196px; border-radius: 22px; background: var(--cream); box-shadow: 0 6px 0 rgba(29, 20, 66, .28); }
+  #prize { position: absolute; inset: 8px; border: 2px dashed #ffb27d; border-radius: 16px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 10px 12px; overflow: hidden; }
+  .label { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #6a47f0; }
+  #prizeText { max-width: 100%; font-size: 24px; line-height: 1.15; font-weight: 800; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  #code { max-width: 100%; padding: 6px 14px; border-radius: 12px; border: 2px dashed var(--violet); background: #fff; font: 800 20px/1.1 ui-monospace, Menlo, monospace; letter-spacing: .06em; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #code.pop { background: var(--yellow); border-color: var(--ink); animation: pop .5s cubic-bezier(.3, 1.8, .5, 1); }
+  #note { max-width: 100%; font-size: 12px; color: var(--soft); overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+  #coat { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 22px; touch-action: none; cursor: crosshair; transition: opacity .45s ease; }
+  #coat.gone { opacity: 0; pointer-events: none; }
+  #status { height: 20px; max-width: 100%; font-size: 15px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  #reveal { border: 0; min-height: 40px; padding: 8px 20px; border-radius: 999px; background: rgba(255, 248, 236, .92); color: var(--ink); font: 800 14px system-ui, sans-serif; box-shadow: 0 4px 0 rgba(29, 20, 66, .25); cursor: pointer; transition: transform .1s, box-shadow .1s; }
+  #reveal:active { transform: translateY(3px); box-shadow: 0 1px 0 rgba(29, 20, 66, .25); }
+  #after { height: 44px; display: flex; align-items: center; font-size: 13px; font-weight: 600; }
+  #after[hidden], #reveal[hidden] { display: none; }
+  #confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  @keyframes pop { 0% { transform: scale(.6); } 100% { transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce) { #code.pop { animation: none; } #coat, #reveal { transition: none; } }
+</style>
+<h1 id="title">Lucky scratch</h1>
+<div id="ticket">
+  <div id="prize" aria-hidden="true">
+    <div class="label">Your prize</div>
+    <div id="prizeText"></div>
+    <div id="code"></div>
+    <div id="note"></div>
+  </div>
+  <canvas id="coat" role="img" aria-label="Scratch area covering the prize"></canvas>
+</div>
+<div id="status" aria-live="polite">Scratch the card with your finger</div>
+<button id="reveal" type="button">Reveal all</button>
+<div id="after" hidden>The sender picked this prize for you</div>
+<canvas id="confetti" aria-hidden="true"></canvas>
+<script>
+  var DATA = /*DATA*/null;
+  var TEXT = { hint: 'Scratch the card with your finger', more: 'Keep scratching…', done: '🎉 Revealed! Enjoy your prize', coat: 'Scratch here', reveal: 'Reveal all' };
+  var EXAMPLE = { title: 'Example scratch card', prize: 'Example prize', code: 'EXAMPLE-0000', note: 'Sample data. Your bot sets the prize.' };
+  var THRESHOLD = .55, BRUSH = 20;
+  var CONFETTI = ['#ff4f8b', '#ffc93c', '#2ed8a7', '#38b6ff', '#7c5cff', '#ff8a3d'];
+
+  var card = DATA && DATA.prize ? DATA : EXAMPLE;
+  var titleEl = document.getElementById('title');
+  var prizeEl = document.getElementById('prizeText');
+  var codeEl = document.getElementById('code');
+  var noteEl = document.getElementById('note');
+  var prizeBox = document.getElementById('prize');
+  var statusEl = document.getElementById('status');
+  var revealBtn = document.getElementById('reveal');
+  var coat = document.getElementById('coat');
+  var cctx = coat.getContext('2d');
+  var fx = document.getElementById('confetti');
+  var fctx = fx.getContext('2d');
+  var ratio = window.devicePixelRatio || 1, revealed = false, scratched = false, lastPt = null, lastCheck = 0;
+
+  titleEl.textContent = '🎟️ ' + String(card.title || EXAMPLE.title);
+  prizeEl.textContent = String(card.prize);
+  if (card.code) codeEl.textContent = String(card.code); else codeEl.hidden = true;
+  if (card.note) noteEl.textContent = String(card.note); else noteEl.hidden = true;
+
+  // Shrinks a long prize name until the whole ticket fits.
+  function fitPrize() {
+    for (var size = 24; size > 15; size -= 1) {
+      prizeEl.style.fontSize = size + 'px';
+      if (prizeBox.scrollHeight <= prizeBox.clientHeight && prizeEl.scrollHeight <= prizeEl.clientHeight + 1) break;
+    }
+  }
+
+  function fitCode() {
+    for (var size = 20; size > 12; size -= 1) {
+      codeEl.style.fontSize = size + 'px';
+      if (codeEl.scrollWidth <= codeEl.clientWidth) break;
+    }
+  }
+
+  function drawCoat() {
+    var w = coat.clientWidth, h = coat.clientHeight;
+    ratio = window.devicePixelRatio || 1;
+    coat.width = Math.round(w * ratio);
+    coat.height = Math.round(h * ratio);
+    cctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    cctx.globalCompositeOperation = 'source-over';
+    var g = cctx.createLinearGradient(0, 0, w, h);
+    g.addColorStop(0, '#7c5cff');
+    g.addColorStop(.55, '#b44cff');
+    g.addColorStop(1, '#ff4f8b');
+    cctx.fillStyle = g;
+    cctx.fillRect(0, 0, w, h);
+    cctx.fillStyle = 'rgba(255, 255, 255, .22)';
+    for (var y = 10; y < h; y += 22) for (var x = (y % 44 === 10 ? 8 : 19); x < w; x += 22) {
+      cctx.beginPath();
+      cctx.arc(x, y, 3, 0, Math.PI * 2);
+      cctx.fill();
+    }
+    cctx.font = '800 17px system-ui, sans-serif';
+    var label = '🪙 ' + TEXT.coat, tw = cctx.measureText(label).width + 36;
+    cctx.fillStyle = 'rgba(29, 20, 66, .25)';
+    pill(w / 2 - tw / 2, h / 2 - 20, tw, 44);
+    cctx.fillStyle = '#fff8ec';
+    pill(w / 2 - tw / 2, h / 2 - 24, tw, 44);
+    cctx.fillStyle = '#1d1442';
+    cctx.textAlign = 'center';
+    cctx.textBaseline = 'middle';
+    cctx.fillText(label, w / 2, h / 2 - 1);
+  }
+
+  function pill(x, y, w, h) {
+    cctx.beginPath();
+    if (cctx.roundRect) cctx.roundRect(x, y, w, h, h / 2); else cctx.rect(x, y, w, h);
+    cctx.fill();
+  }
+
+  function point(e) {
+    var r = coat.getBoundingClientRect();
+    return [e.clientX - r.left, e.clientY - r.top];
+  }
+
+  function scratch(from, to) {
+    cctx.globalCompositeOperation = 'destination-out';
+    cctx.lineCap = 'round';
+    cctx.lineWidth = BRUSH * 2;
+    cctx.beginPath();
+    cctx.moveTo(from[0], from[1]);
+    cctx.lineTo(to[0] + .01, to[1]);
+    cctx.stroke();
+    cctx.globalCompositeOperation = 'source-over';
+  }
+
+  // Share of the coat that is see-through, sampled on a grid to keep it cheap.
+  function scratchedRatio() {
+    var w = coat.width, h = coat.height;
+    if (!w || !h) return 0;
+    var data = cctx.getImageData(0, 0, w, h).data, step = Math.max(4, Math.round(6 * ratio)), clear = 0, total = 0;
+    for (var y = step >> 1; y < h; y += step) {
+      for (var x = step >> 1; x < w; x += step) {
+        total++;
+        if (data[(y * w + x) * 4 + 3] < 128) clear++;
+      }
+    }
+    return total ? clear / total : 0;
+  }
+
+  function check(force) {
+    var now = Date.now();
+    if (revealed || (!force && now - lastCheck < 120)) return;
+    lastCheck = now;
+    if (scratchedRatio() >= THRESHOLD) reveal();
+  }
+
+  function reveal() {
+    if (revealed) return;
+    revealed = true;
+    lastPt = null;
+    coat.classList.add('gone');
+    prizeBox.removeAttribute('aria-hidden');
+    codeEl.classList.add('pop');
+    revealBtn.hidden = true;
+    document.getElementById('after').hidden = false;
+    statusEl.textContent = TEXT.done;
+    var spoken = document.createElement('span');
+    spoken.className = 'sr';
+    spoken.textContent = ': ' + String(card.prize) + (card.code ? ', code ' + card.code : '');
+    statusEl.appendChild(spoken);
+    burst();
+  }
+
+  var bits = [], fxRunning = false;
+  function burst() {
+    if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var W = fx.clientWidth, H = fx.clientHeight, t = document.getElementById('ticket').getBoundingClientRect();
+    fx.width = Math.round(W * ratio);
+    fx.height = Math.round(H * ratio);
+    for (var i = 0; i < 90; i++) {
+      var a = -Math.PI / 2 + (Math.random() - .5) * 2.4, v = 260 + Math.random() * 320;
+      bits.push({ x: t.left + t.width / 2, y: t.top + t.height / 2, vx: Math.cos(a) * v, vy: Math.sin(a) * v, r: Math.random() * 6, vr: (Math.random() - .5) * 14, w: 5 + Math.random() * 5, h: 8 + Math.random() * 6, c: CONFETTI[i % CONFETTI.length], life: 1.6 + Math.random() * .6 });
+    }
+    if (!fxRunning) { fxRunning = true; lastFx = 0; requestAnimationFrame(tick); }
+  }
+
+  var lastFx = 0;
+  function tick(now) {
+    var dt = lastFx ? Math.min((now - lastFx) / 1000, .05) : 0;
+    lastFx = now;
+    fctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    fctx.clearRect(0, 0, fx.clientWidth, fx.clientHeight);
+    bits = bits.filter(function (b) { return (b.life -= dt) > 0; });
+    bits.forEach(function (b) {
+      b.vy += 700 * dt;
+      b.vx *= 1 - 1.2 * dt;
+      b.x += b.vx * dt;
+      b.y += b.vy * dt;
+      b.r += b.vr * dt;
+      fctx.save();
+      fctx.globalAlpha = Math.min(1, b.life * 2);
+      fctx.translate(b.x, b.y);
+      fctx.rotate(b.r);
+      fctx.fillStyle = b.c;
+      fctx.fillRect(-b.w / 2, -b.h / 2, b.w, b.h);
+      fctx.restore();
+    });
+    if (bits.length) requestAnimationFrame(tick); else { fxRunning = false; fctx.clearRect(0, 0, fx.clientWidth, fx.clientHeight); }
+  }
+
+  coat.addEventListener('pointerdown', function (e) {
+    if (revealed) return;
+    e.preventDefault();
+    if (coat.setPointerCapture) coat.setPointerCapture(e.pointerId);
+    lastPt = point(e);
+    scratch(lastPt, lastPt);
+    if (!scratched) { scratched = true; statusEl.textContent = TEXT.more; }
+  });
+  coat.addEventListener('pointermove', function (e) {
+    if (!lastPt || revealed) return;
+    var p = point(e);
+    scratch(lastPt, p);
+    lastPt = p;
+    check(false);
+  });
+  function lift() { if (lastPt) { lastPt = null; check(true); } }
+  coat.addEventListener('pointerup', lift);
+  coat.addEventListener('pointercancel', lift);
+  revealBtn.addEventListener('click', reveal);
+  window.addEventListener('resize', function () { if (!revealed && !scratched) drawCoat(); });
+
+  fitCode();
+  fitPrize();
+  drawCoat();
+</script>

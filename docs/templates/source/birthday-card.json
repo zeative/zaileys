@@ -1,0 +1,20 @@
+{
+  "id": "birthday-card",
+  "title": "Birthday card",
+  "category": "fun",
+  "icon": "cake",
+  "emoji": "🎂",
+  "description": "Send an animated birthday card with the person's name and your message; they tap the candles out to set off confetti.",
+  "height": 432,
+  "command": "birthday",
+  "fallback": "Happy birthday! This animated birthday card opens on WhatsApp Android only.",
+  "inputs": [
+    "tap"
+  ],
+  "sample": {
+    "to": "Dinda",
+    "from": "The Kopi Senja team",
+    "message": "Have the sweetest year ahead!",
+    "age": 25
+  }
+}

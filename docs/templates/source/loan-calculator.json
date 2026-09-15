@@ -1,0 +1,19 @@
+{
+  "id": "loan-calculator",
+  "title": "Loan calculator",
+  "category": "calculators",
+  "icon": "landmark",
+  "emoji": "🏦",
+  "description": "Work out the monthly installment, total paid, and total interest for a fixed-rate loan.",
+  "height": 320,
+  "command": "loan",
+  "fallback": "The loan calculator opens on WhatsApp Android only.",
+  "inputs": [
+    "keyboard",
+    "tap"
+  ],
+  "sample": {
+    "currency": "IDR",
+    "locale": "id-ID"
+  }
+}

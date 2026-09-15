@@ -1,0 +1,202 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { --pink: #ff4f8b; --orange: #ff8a3d; --yellow: #ffc93c; --lime: #9be15d; --mint: #2ed8a7; --violet: #7c5cff; --grape: #b44cff; --ink: #1d1442; --cream: #fff8ec; --grass: #3fa83a; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; height: 100%; padding: 10px; display: flex; flex-direction: column; gap: 8px; background: linear-gradient(170deg, var(--lime), var(--mint)); color: var(--ink); font: 14px/1.3 system-ui, sans-serif; user-select: none; -webkit-user-select: none; overflow: hidden; }
+  button { font-family: inherit; }
+  header { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; min-height: 34px; padding: 5px 12px; border-radius: 999px; background: var(--cream); box-shadow: 0 3px 0 rgba(29, 20, 66, .2); font-weight: 800; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .pill b { font-size: 17px; }
+  .pill.score { background: var(--yellow); }
+  #bar { flex: none; height: 10px; border-radius: 99px; background: rgba(29, 20, 66, .18); overflow: hidden; }
+  #fill { height: 100%; width: 100%; border-radius: 99px; background: linear-gradient(90deg, var(--orange), var(--yellow)); transform-origin: left; }
+  #fill.low { background: var(--pink); }
+  #field { position: relative; flex: 1; min-height: 0; display: grid; place-items: center; }
+  #grid { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 8px; }
+  .hole { position: relative; overflow: hidden; padding: 0; border: 0; border-radius: 22px; background: rgba(255, 255, 255, .38); box-shadow: 0 4px 0 rgba(29, 20, 66, .16); cursor: pointer; touch-action: manipulation; }
+  .hole:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+  .pit { position: absolute; left: 12%; right: 12%; bottom: 12%; height: 30%; border-radius: 50%; background: var(--ink); box-shadow: inset 0 7px 0 rgba(0, 0, 0, .4), 0 5px 0 var(--grass); }
+  .mask { position: absolute; left: 12%; right: 12%; top: 0; bottom: 27%; overflow: hidden; pointer-events: none; }
+  .mole { position: absolute; left: 17%; right: 17%; bottom: 0; height: 84%; border-radius: 50% 50% 34% 34% / 56% 56% 30% 30%; background: var(--violet); transform: translateY(105%); transition: transform .13s ease-out, background .1s; }
+  .mole::after { content: ''; position: absolute; left: 22%; right: 22%; bottom: 0; height: 36%; border-radius: 50% 50% 0 0; background: #a996ff; }
+  .eye { position: absolute; top: 25%; width: 17%; height: 17%; border-radius: 50%; background: var(--ink); box-shadow: inset -2px -2px 0 rgba(255, 255, 255, .45); transition: height .1s; }
+  .eye.l { left: 26%; } .eye.r { right: 26%; }
+  .nose { position: absolute; z-index: 1; top: 45%; left: 38%; right: 38%; height: 14%; border-radius: 50%; background: var(--pink); }
+  .teeth { position: absolute; z-index: 1; top: 58%; left: 43%; right: 43%; height: 10%; border-radius: 0 0 3px 3px; background: #fff; }
+  .hole.up .mole { transform: translateY(10%); }
+  .hole.hit .mole { transform: translateY(24%) scale(.94); background: var(--grape); }
+  .hole.hit .eye { top: 32%; height: 4%; border-radius: 3px; box-shadow: none; }
+  .plus { position: absolute; top: 6%; left: 50%; padding: 1px 9px; border-radius: 99px; background: var(--yellow); color: var(--ink); font-size: 16px; font-weight: 800; box-shadow: 0 2px 0 rgba(29, 20, 66, .25); opacity: 0; transform: translate(-50%, 8px); pointer-events: none; }
+  .hole.hit .plus { animation: rise .55s ease-out forwards; }
+  @keyframes rise { 0% { opacity: 1; transform: translate(-50%, 8px) scale(.7); } 30% { transform: translate(-50%, -2px) scale(1.15); } 100% { opacity: 0; transform: translate(-50%, -14px) scale(1); } }
+  #overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 12px; }
+  #overlay[hidden] { display: none; }
+  .panel { width: min(100%, 260px); padding: 16px; border-radius: 22px; background: var(--cream); text-align: center; box-shadow: 0 6px 0 rgba(29, 20, 66, .25); animation: pop .3s cubic-bezier(.3, 1.6, .5, 1); }
+  #title { font-size: 24px; font-weight: 800; }
+  #hint { margin: 6px 0 14px; font-size: 14px; color: #4d4278; font-variant-numeric: tabular-nums; }
+  #hint b { color: var(--ink); }
+  #badge { display: inline-block; margin-bottom: 6px; padding: 2px 10px; border-radius: 99px; background: var(--pink); color: var(--ink); font-size: 13px; font-weight: 800; }
+  #badge[hidden] { display: none; }
+  #play { min-height: 44px; padding: 10px 28px; border: 0; border-radius: 999px; background: var(--yellow); color: var(--ink); font-size: 16px; font-weight: 800; box-shadow: 0 4px 0 #c98a06; cursor: pointer; transition: transform .1s, box-shadow .1s; }
+  #play:active { transform: translateY(3px); box-shadow: 0 1px 0 #c98a06; }
+  #play:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+  #status { flex: none; height: 20px; text-align: center; font-size: 14px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  @keyframes pop { from { transform: scale(.8); opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .mole, .eye, #play { transition: none; } .panel { animation: none; } .hole.hit .plus { animation: none; opacity: 1; transform: translate(-50%, 0); } }
+</style>
+<header>
+  <span class="pill score">Score <b id="score">0</b></span>
+  <span class="pill">⏱ <b id="time">30</b>s</span>
+  <span class="pill">Best <b id="best">0</b></span>
+</header>
+<div id="bar" role="progressbar" aria-label="Time left" aria-valuemin="0" aria-valuemax="30" aria-valuenow="30"><div id="fill"></div></div>
+<div id="field">
+  <div id="grid"></div>
+  <div id="overlay">
+    <div class="panel">
+      <div id="badge" hidden>New best!</div>
+      <div id="title">Whack-a-Mole</div>
+      <div id="hint">Tap the moles as they pop up. You have 30 seconds, and misses cost nothing.</div>
+      <button id="play" type="button">Start</button>
+    </div>
+  </div>
+</div>
+<div id="status" aria-live="polite">Moles pop up at random</div>
+<script>
+  var TEXT = { ready: 'Moles pop up at random', go: 'Whack! Misses cost nothing', hurry: 'Hurry, 5 seconds left!', over: 'Time’s up! ⏰', again: 'Play again' };
+  var ROUND_MS = 30000, HIT_MS = 380;
+
+  var grid = document.getElementById('grid');
+  var field = document.getElementById('field');
+  var overlay = document.getElementById('overlay');
+  var titleEl = document.getElementById('title');
+  var hintEl = document.getElementById('hint');
+  var badgeEl = document.getElementById('badge');
+  var playBtn = document.getElementById('play');
+  var scoreEl = document.getElementById('score');
+  var timeEl = document.getElementById('time');
+  var bestEl = document.getElementById('best');
+  var barEl = document.getElementById('bar');
+  var fillEl = document.getElementById('fill');
+  var statusEl = document.getElementById('status');
+
+  var holes = [], state = 'ready', score = 0, best = 0, elapsed = 0, nextSpawn = 0, lastHole = -1, shownSecond = 30;
+
+  for (var i = 0; i < 9; i++) {
+    var btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'hole';
+    btn.setAttribute('aria-label', 'Hole ' + (i + 1));
+    btn.innerHTML = '<span class="pit"></span><span class="mask"><span class="mole"><span class="eye l"></span><span class="eye r"></span><span class="nose"></span><span class="teeth"></span></span></span><span class="plus">+1</span>';
+    grid.appendChild(btn);
+    holes.push({ el: btn, state: 'down', until: 0 });
+    (function (n) {
+      // pointerdown reacts faster than click on phones; click with detail 0 is keyboard activation.
+      btn.addEventListener('pointerdown', function () { whack(n); });
+      btn.addEventListener('click', function (e) { if (e.detail === 0) whack(n); });
+    })(i);
+  }
+
+  function rand(min, max) { return min + Math.random() * (max - min); }
+
+  function setHole(h, next, until) {
+    h.state = next;
+    h.until = until;
+    h.el.className = next === 'down' ? 'hole' : 'hole ' + next;
+    h.el.setAttribute('aria-label', next === 'up' ? 'Mole! Tap to whack' : 'Empty hole');
+  }
+
+  // Later in the round moles stay up for less time and more of them show at once.
+  function spawn() {
+    var p = elapsed / ROUND_MS, maxUp = p < .33 ? 1 : p < .7 ? 2 : 3, up = 0, free = [];
+    for (var i = 0; i < holes.length; i++) {
+      if (holes[i].state !== 'down') up++;
+      else if (i !== lastHole) free.push(i);
+    }
+    if (up >= maxUp || !free.length) return;
+    var pick = free[Math.floor(Math.random() * free.length)];
+    lastHole = pick;
+    setHole(holes[pick], 'up', elapsed + rand(850, 1250) * (1 - .45 * p));
+  }
+
+  function update(dt) {
+    if (state !== 'playing') return;
+    elapsed = Math.min(ROUND_MS, elapsed + dt);
+    for (var i = 0; i < holes.length; i++) {
+      var h = holes[i];
+      if (h.state !== 'down' && elapsed >= h.until) setHole(h, 'down', 0);
+    }
+    if (elapsed >= nextSpawn) {
+      spawn();
+      var p = elapsed / ROUND_MS;
+      nextSpawn = elapsed + rand(320, 700) * (1 - .4 * p);
+    }
+    var left = ROUND_MS - elapsed, sec = Math.ceil(left / 1000);
+    fillEl.style.transform = 'scaleX(' + (left / ROUND_MS) + ')';
+    if (sec !== shownSecond) {
+      shownSecond = sec;
+      timeEl.textContent = sec;
+      barEl.setAttribute('aria-valuenow', sec);
+      fillEl.className = sec <= 5 ? 'low' : '';
+      if (sec === 5) statusEl.textContent = TEXT.hurry;
+    }
+    if (left <= 0) end();
+  }
+
+  function whack(n) {
+    var h = holes[n];
+    if (state !== 'playing' || h.state !== 'up') return;
+    score++;
+    scoreEl.textContent = score;
+    setHole(h, 'hit', elapsed + HIT_MS);
+  }
+
+  function start() {
+    score = 0;
+    elapsed = 0;
+    nextSpawn = 250;
+    lastHole = -1;
+    shownSecond = -1;
+    for (var i = 0; i < holes.length; i++) setHole(holes[i], 'down', 0);
+    scoreEl.textContent = 0;
+    overlay.hidden = true;
+    badgeEl.hidden = true;
+    state = 'playing';
+    statusEl.textContent = TEXT.go;
+    last = 0;
+    update(0);
+  }
+
+  function end() {
+    state = 'over';
+    for (var i = 0; i < holes.length; i++) setHole(holes[i], 'down', 0);
+    var record = score > best;
+    best = Math.max(best, score);
+    bestEl.textContent = best;
+    titleEl.textContent = TEXT.over;
+    hintEl.innerHTML = 'You whacked <b>' + score + '</b> ' + (score === 1 ? 'mole' : 'moles') + '.<br>Best this session: <b>' + best + '</b>.';
+    badgeEl.hidden = !(record && score > 0);
+    playBtn.textContent = TEXT.again;
+    overlay.hidden = false;
+    statusEl.textContent = TEXT.over + ' Score ' + score + '.';
+  }
+
+  function layout() {
+    var size = Math.floor(Math.min(field.clientWidth, field.clientHeight));
+    grid.style.width = size + 'px';
+    grid.style.height = size + 'px';
+  }
+
+  var last = 0;
+  function frame(now) {
+    if (last) update(Math.min(now - last, 100));
+    last = now;
+    requestAnimationFrame(frame);
+  }
+
+  playBtn.addEventListener('click', start);
+  window.addEventListener('resize', layout);
+  layout();
+  requestAnimationFrame(frame);
+</script>

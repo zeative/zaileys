@@ -1,0 +1,14 @@
+{
+  "id": "tap-flyer",
+  "title": "Tap Flyer",
+  "category": "games",
+  "icon": "bird",
+  "emoji": "🐤",
+  "description": "Tap to flap a little bird through candy-colored pipes, scoring a point for every gap and keeping a best score for the session.",
+  "height": 460,
+  "command": "flyer",
+  "fallback": "Tap Flyer opens on WhatsApp Android only.",
+  "inputs": [
+    "tap"
+  ]
+}

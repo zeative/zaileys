@@ -1,0 +1,376 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { --pink: #ff4f8b; --orange: #ff8a3d; --yellow: #ffc93c; --lime: #9be15d; --mint: #2ed8a7; --sky: #38b6ff; --violet: #7c5cff; --ink: #1d1442; --cream: #fff8ec; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; height: 100%; padding: 10px; display: flex; flex-direction: column; gap: 8px; background: linear-gradient(165deg, #2b1c66, var(--ink) 60%); color: #fff; font: 14px/1.3 system-ui, sans-serif; user-select: none; -webkit-user-select: none; overflow: hidden; }
+  button { font-family: inherit; }
+  header { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+  .pill { display: inline-flex; align-items: center; gap: 5px; min-height: 34px; padding: 5px 12px; border-radius: 999px; background: rgba(255, 255, 255, .12); font-weight: 800; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .pill b { font-size: 16px; }
+  .pill.score { background: var(--yellow); color: var(--ink); }
+  #wrap { flex: 1; min-height: 0; display: grid; place-items: center; }
+  #stage { position: relative; touch-action: none; border-radius: 18px; overflow: hidden; box-shadow: 0 0 0 3px rgba(124, 92, 255, .55), 0 6px 0 rgba(0, 0, 0, .35); }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  #overlay { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 14px; background: rgba(29, 20, 66, .55); }
+  #overlay[hidden] { display: none; }
+  .panel { width: min(100%, 250px); padding: 16px; border-radius: 22px; background: var(--cream); color: var(--ink); text-align: center; box-shadow: 0 6px 0 rgba(0, 0, 0, .3); animation: pop .3s cubic-bezier(.3, 1.6, .5, 1); }
+  #title { font-size: 24px; font-weight: 800; }
+  #hint { margin: 6px 0 14px; font-size: 14px; color: #4d4278; font-variant-numeric: tabular-nums; }
+  .controls { flex: none; display: grid; grid-template-columns: 1fr 1.25fr 1fr; gap: 8px; }
+  .btn { min-height: 44px; border: 0; border-radius: 16px; background: var(--cream); color: var(--ink); font-size: 15px; font-weight: 800; box-shadow: 0 4px 0 #b9a9e0; cursor: pointer; touch-action: none; transition: transform .08s, box-shadow .08s; }
+  .btn:active, .btn.held { transform: translateY(3px); box-shadow: 0 1px 0 #b9a9e0; }
+  .btn.primary { background: var(--yellow); box-shadow: 0 4px 0 #c98a06; }
+  .btn.primary:active { box-shadow: 0 1px 0 #c98a06; }
+  .btn:disabled { opacity: .45; cursor: default; }
+  #left, #right { font-size: 20px; }
+  .btn:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+  @keyframes pop { from { transform: scale(.8); opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { .panel { animation: none; } .btn { transition: none; } }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+<header>
+  <span class="pill score">Score <b id="score">0</b></span>
+  <span class="pill">Level <b id="level">1</b></span>
+  <span class="pill"><span aria-hidden="true">❤️</span><span class="sr">Lives</span> <b id="lives">3</b></span>
+</header>
+<div id="wrap">
+  <div id="stage">
+    <canvas id="board" role="img" aria-label="Breakout board"></canvas>
+    <div id="overlay">
+      <div class="panel">
+        <div id="title">Breakout</div>
+        <div id="hint">Drag on the board or hold the arrows to move. Clear every brick to level up.</div>
+        <button id="play" class="btn primary" type="button" style="padding: 0 26px">Start</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="controls">
+  <button id="left" class="btn" type="button" aria-label="Move left">◀</button>
+  <button id="mid" class="btn primary" type="button" disabled>Launch</button>
+  <button id="right" class="btn" type="button" aria-label="Move right">▶</button>
+</div>
+<div id="status" class="sr" aria-live="polite"></div>
+<script>
+  var TEXT = { start: 'Start', launch: 'Launch', pause: 'Pause', resume: 'Resume', over: 'Game over', won: 'You win! 🎉', again: 'Play again', serveHint: 'Tap the board or Launch', paused: 'Paused' };
+  var W = 300, H = 330, STEP = 1 / 120, LEVELS = [220, 250, 285], LIVES = 3;
+  var COLS = 7, ROWS = 6, BRICK_TOP = 40, SIDE = 12, GAP = 4, BRICK_H = 13;
+  var BRICK_W = (W - SIDE * 2 - GAP * (COLS - 1)) / COLS;
+  var PADDLE_W = 58, PADDLE_H = 10, PADDLE_Y = H - 26, PADDLE_SPEED = 330, R = 5;
+  var ROW_COLORS = ['#ff4f8b', '#ff8a3d', '#ffc93c', '#9be15d', '#2ed8a7', '#38b6ff'];
+
+  var canvas = document.getElementById('board');
+  var ctx = canvas.getContext('2d');
+  var stage = document.getElementById('stage');
+  var wrap = document.getElementById('wrap');
+  var overlay = document.getElementById('overlay');
+  var titleEl = document.getElementById('title');
+  var hintEl = document.getElementById('hint');
+  var playBtn = document.getElementById('play');
+  var midBtn = document.getElementById('mid');
+  var statusEl = document.getElementById('status');
+
+  var state = 'ready', score = 0, level = 0, lives = LIVES, bricks = [], sparks = [];
+  var px = W / 2, ppx = px, hold = 0, dragX = null;
+  var ball = { x: W / 2, y: PADDLE_Y - R - 1, px: W / 2, py: PADDLE_Y - R - 1, vx: 0, vy: 0 };
+  var clock = 0, bannerUntil = 0, banner = '';
+
+  function buildBricks() {
+    bricks = [];
+    for (var r = 0; r < ROWS; r++) for (var c = 0; c < COLS; c++) {
+      bricks.push({ x: SIDE + c * (BRICK_W + GAP), y: BRICK_TOP + r * (BRICK_H + GAP), color: ROW_COLORS[r], points: (ROWS - r) * 10, alive: true });
+    }
+  }
+
+  function aliveCount() {
+    var n = 0;
+    for (var i = 0; i < bricks.length; i++) if (bricks[i].alive) n++;
+    return n;
+  }
+
+  function newGame() {
+    score = 0;
+    level = 0;
+    lives = LIVES;
+    buildBricks();
+    px = W / 2;
+    serve('Level 1');
+  }
+
+  function serve(text) {
+    state = 'serve';
+    ball.vx = ball.vy = 0;
+    banner = text || '';
+    bannerUntil = clock + 1.6;
+    overlay.hidden = true;
+    syncUi();
+  }
+
+  function launch() {
+    if (state !== 'serve') return;
+    var speed = LEVELS[level], angle = (Math.random() - .5) * .9;
+    ball.vx = Math.sin(angle) * speed;
+    ball.vy = -Math.cos(angle) * speed;
+    state = 'playing';
+    bannerUntil = 0;
+    syncUi();
+  }
+
+  function circleHits(b) {
+    var nx = Math.max(b.x, Math.min(ball.x, b.x + BRICK_W));
+    var ny = Math.max(b.y, Math.min(ball.y, b.y + BRICK_H));
+    var dx = ball.x - nx, dy = ball.y - ny;
+    return dx * dx + dy * dy < R * R;
+  }
+
+  function hitBrick() {
+    for (var i = 0; i < bricks.length; i++) {
+      var b = bricks[i];
+      if (b.alive && circleHits(b)) {
+        b.alive = false;
+        score += b.points;
+        burst(b.x + BRICK_W / 2, b.y + BRICK_H / 2, b.color);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function burst(x, y, color) {
+    for (var i = 0; i < 8; i++) {
+      var a = Math.random() * Math.PI * 2, v = 40 + Math.random() * 90;
+      sparks.push({ x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: .5, color: color });
+    }
+  }
+
+  // Ball moves one axis at a time so a brick hit knows which side it came from.
+  function update(dt) {
+    clock += dt;
+    for (var s = sparks.length - 1; s >= 0; s--) {
+      var sp = sparks[s];
+      sp.life -= dt;
+      sp.x += sp.vx * dt;
+      sp.y += sp.vy * dt;
+      sp.vy += 240 * dt;
+      if (sp.life <= 0) sparks.splice(s, 1);
+    }
+    if (state !== 'serve' && state !== 'playing') return;
+    if (dragX !== null) px = dragX;
+    else px += hold * PADDLE_SPEED * dt;
+    px = Math.max(PADDLE_W / 2, Math.min(W - PADDLE_W / 2, px));
+    if (state === 'serve') {
+      ball.x = px;
+      ball.y = PADDLE_Y - R - 1;
+      return;
+    }
+    ball.x += ball.vx * dt;
+    if (ball.x < R) { ball.x = R; ball.vx = Math.abs(ball.vx); }
+    if (ball.x > W - R) { ball.x = W - R; ball.vx = -Math.abs(ball.vx); }
+    if (hitBrick()) { ball.x -= ball.vx * dt; ball.vx = -ball.vx; }
+    ball.y += ball.vy * dt;
+    if (ball.y < R) { ball.y = R; ball.vy = Math.abs(ball.vy); }
+    if (hitBrick()) { ball.y -= ball.vy * dt; ball.vy = -ball.vy; }
+    if (ball.vy > 0 && ball.y + R >= PADDLE_Y && ball.y - R <= PADDLE_Y + PADDLE_H && ball.x >= px - PADDLE_W / 2 - R && ball.x <= px + PADDLE_W / 2 + R) {
+      var offset = Math.max(-1, Math.min(1, (ball.x - px) / (PADDLE_W / 2))), speed = LEVELS[level], angle = offset * 1.05;
+      ball.vx = Math.sin(angle) * speed;
+      ball.vy = -Math.cos(angle) * speed;
+      ball.y = PADDLE_Y - R;
+    }
+    if (ball.y - R > H) {
+      lives--;
+      if (lives <= 0) { end(false); return; }
+      serve(lives === 1 ? 'Last life!' : lives + ' lives left');
+      return;
+    }
+    if (!aliveCount()) {
+      if (level === LEVELS.length - 1) { end(true); return; }
+      level++;
+      buildBricks();
+      serve('Level ' + (level + 1) + ' · faster ball');
+    }
+    syncUi();
+  }
+
+  function end(won) {
+    state = won ? 'won' : 'over';
+    titleEl.textContent = won ? TEXT.won : TEXT.over;
+    hintEl.textContent = (won ? 'All ' + LEVELS.length + ' levels cleared. ' : 'Reached level ' + (level + 1) + '. ') + 'Score ' + score + '.';
+    playBtn.textContent = TEXT.again;
+    overlay.hidden = false;
+    if (won) for (var i = 0; i < 6; i++) burst(40 + Math.random() * 220, 60 + Math.random() * 200, ROW_COLORS[i]);
+    syncUi();
+  }
+
+  var lastUi = '';
+  function syncUi() {
+    var key = [state, score, level, lives].join('|');
+    if (key === lastUi) return;
+    lastUi = key;
+    document.getElementById('score').textContent = score;
+    document.getElementById('level').textContent = level + 1;
+    document.getElementById('lives').textContent = lives;
+    midBtn.disabled = state !== 'serve' && state !== 'playing' && state !== 'paused';
+    midBtn.textContent = state === 'playing' ? TEXT.pause : state === 'paused' ? TEXT.resume : TEXT.launch;
+    midBtn.className = state === 'serve' || state === 'paused' ? 'btn primary' : 'btn';
+    statusEl.textContent = state === 'over' || state === 'won' ? titleEl.textContent + ' Score ' + score + '.' : state === 'serve' ? 'Level ' + (level + 1) + ', ' + lives + ' lives' : '';
+  }
+
+  function rrect(x, y, w, h, r) {
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x, y, w, h, r); else ctx.rect(x, y, w, h);
+    ctx.fill();
+  }
+
+  function layout() {
+    var aw = wrap.clientWidth, ah = wrap.clientHeight, s = Math.min(aw / W, ah / H);
+    stage.style.width = Math.floor(W * s) + 'px';
+    stage.style.height = Math.floor(H * s) + 'px';
+  }
+
+  function draw(alpha) {
+    var cssW = canvas.clientWidth, cssH = canvas.clientHeight, ratio = window.devicePixelRatio || 1;
+    if (!cssW) return;
+    if (canvas.width !== Math.round(cssW * ratio) || canvas.height !== Math.round(cssH * ratio)) {
+      canvas.width = Math.round(cssW * ratio);
+      canvas.height = Math.round(cssH * ratio);
+    }
+    ctx.setTransform(ratio * cssW / W, 0, 0, ratio * cssH / H, 0, 0);
+    var g = ctx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#2a1a63');
+    g.addColorStop(1, '#170f38');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = 'rgba(255, 255, 255, .06)';
+    for (var gy = 12; gy < H; gy += 24) for (var gx = 12; gx < W; gx += 24) ctx.fillRect(gx, gy, 2, 2);
+
+    for (var i = 0; i < bricks.length; i++) {
+      var b = bricks[i];
+      if (!b.alive) continue;
+      ctx.fillStyle = b.color;
+      rrect(b.x, b.y, BRICK_W, BRICK_H, 4);
+      ctx.fillStyle = 'rgba(255, 255, 255, .35)';
+      rrect(b.x + 3, b.y + 2, BRICK_W - 6, 3, 2);
+    }
+    for (i = 0; i < sparks.length; i++) {
+      ctx.globalAlpha = Math.max(0, sparks[i].life * 2);
+      ctx.fillStyle = sparks[i].color;
+      ctx.fillRect(sparks[i].x - 2, sparks[i].y - 2, 4, 4);
+    }
+    ctx.globalAlpha = 1;
+
+    var x = ppx + (px - ppx) * alpha;
+    var pg = ctx.createLinearGradient(0, PADDLE_Y, 0, PADDLE_Y + PADDLE_H);
+    pg.addColorStop(0, '#ffc93c');
+    pg.addColorStop(1, '#ff8a3d');
+    ctx.fillStyle = pg;
+    rrect(x - PADDLE_W / 2, PADDLE_Y, PADDLE_W, PADDLE_H, 5);
+
+    var bx = ball.px + (ball.x - ball.px) * alpha, by = ball.py + (ball.y - ball.py) * alpha;
+    if (state === 'serve') { bx = x; by = PADDLE_Y - R - 1; }
+    if (state !== 'ready' && state !== 'over' && state !== 'won') {
+      if (state === 'playing') {
+        ctx.fillStyle = 'rgba(255, 79, 139, .35)';
+        ctx.beginPath();
+        ctx.arc(bx - ball.vx * .025, by - ball.vy * .025, R * .8, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.fillStyle = '#fff';
+      ctx.beginPath();
+      ctx.arc(bx, by, R, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    if (state === 'serve' || state === 'paused') {
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillStyle = 'rgba(255, 248, 236, .95)';
+      rrect(W / 2 - 110, 196, 220, 58, 16);
+      ctx.fillStyle = '#1d1442';
+      ctx.font = '800 17px system-ui, sans-serif';
+      ctx.fillText(state === 'paused' ? TEXT.paused : (clock < bannerUntil && banner ? banner : 'Level ' + (level + 1)), W / 2, 215);
+      ctx.font = '600 13px system-ui, sans-serif';
+      ctx.fillStyle = '#4d4278';
+      ctx.fillText(state === 'paused' ? 'Tap Resume to continue' : TEXT.serveHint, W / 2, 236);
+    }
+  }
+
+  var last = 0, acc = 0;
+  function frame(now) {
+    if (!last) last = now;
+    acc += Math.min((now - last) / 1000, .1);
+    last = now;
+    // Fixed physics steps keep the ball speed identical on 60 Hz and 120 Hz screens.
+    while (acc >= STEP - 1e-9) {
+      ppx = px;
+      ball.px = ball.x;
+      ball.py = ball.y;
+      update(STEP);
+      acc -= STEP;
+    }
+    draw(acc / STEP);
+    requestAnimationFrame(frame);
+  }
+
+  function worldX(e) {
+    var r = canvas.getBoundingClientRect();
+    return (e.clientX - r.left) / r.width * W;
+  }
+
+  var down = null;
+  stage.addEventListener('pointerdown', function (e) {
+    if (!overlay.hidden) return;
+    e.preventDefault();
+    if (stage.setPointerCapture) stage.setPointerCapture(e.pointerId);
+    down = { x: e.clientX, y: e.clientY, t: Date.now() };
+    dragX = worldX(e);
+  });
+  stage.addEventListener('pointermove', function (e) { if (down) dragX = worldX(e); });
+  function release(e, tap) {
+    if (!down) return;
+    var moved = Math.abs(e.clientX - down.x) + Math.abs(e.clientY - down.y), quick = Date.now() - down.t < 300;
+    down = null;
+    dragX = null;
+    if (tap && moved < 10 && quick) { if (state === 'serve') launch(); else if (state === 'paused') togglePause(); }
+  }
+  stage.addEventListener('pointerup', function (e) { release(e, true); });
+  stage.addEventListener('pointercancel', function (e) { release(e, false); });
+
+  function togglePause() {
+    if (state === 'playing') state = 'paused';
+    else if (state === 'paused') state = 'playing';
+    syncUi();
+  }
+
+  function holdButton(id, dir) {
+    var btn = document.getElementById(id);
+    function stop() { if (hold === dir) hold = 0; btn.classList.remove('held'); }
+    btn.addEventListener('pointerdown', function (e) { e.preventDefault(); hold = dir; btn.classList.add('held'); });
+    btn.addEventListener('pointerup', stop);
+    btn.addEventListener('pointerleave', stop);
+    btn.addEventListener('pointercancel', stop);
+    btn.addEventListener('click', function (e) { if (e.detail === 0 && (state === 'serve' || state === 'playing')) px = Math.max(PADDLE_W / 2, Math.min(W - PADDLE_W / 2, px + dir * 30)); });
+  }
+  holdButton('left', -1);
+  holdButton('right', 1);
+
+  midBtn.addEventListener('click', function () { if (state === 'serve') launch(); else togglePause(); });
+  playBtn.addEventListener('click', newGame);
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowLeft') { hold = -1; e.preventDefault(); }
+    if (e.key === 'ArrowRight') { hold = 1; e.preventDefault(); }
+    if (e.key === ' ' && e.target === document.body) {
+      e.preventDefault();
+      if (state === 'serve') launch(); else if (state === 'playing' || state === 'paused') togglePause();
+    }
+  });
+  document.addEventListener('keyup', function (e) {
+    if ((e.key === 'ArrowLeft' && hold === -1) || (e.key === 'ArrowRight' && hold === 1)) hold = 0;
+  });
+  window.addEventListener('resize', layout);
+
+  buildBricks();
+  layout();
+  syncUi();
+  requestAnimationFrame(frame);
+</script>

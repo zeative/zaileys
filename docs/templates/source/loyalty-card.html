@@ -1,0 +1,206 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { --ink: #1d1442; --muted: #5a4f6e; --cream: #fff8ec; --orange: #ff8a3d; --pink: #ff4f8b; --yellow: #ffc93c; --violet: #7c5cff; --mint: #2ed8a7; --sky: #38b6ff; --lime: #9be15d; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  body { margin: 0; height: 100%; background: radial-gradient(circle at 20% 10%, #3a2a7a, var(--ink) 70%); color: var(--ink); font: 14px/1.3 system-ui, sans-serif; display: flex; padding: 10px; user-select: none; -webkit-user-select: none; }
+  .card { flex: 1; min-width: 0; position: relative; display: flex; flex-direction: column; background: var(--cream); border-radius: 22px; overflow: hidden; }
+  header { flex: none; position: relative; display: flex; align-items: center; gap: 11px; padding: 13px 14px; background: linear-gradient(115deg, var(--orange), var(--pink)); overflow: hidden; }
+  header::before, header::after { content: ''; position: absolute; border-radius: 50%; background: var(--yellow); opacity: .45; }
+  header::before { width: 90px; height: 90px; right: -22px; top: -38px; }
+  header::after { width: 34px; height: 34px; right: 70px; bottom: -18px; background: #fff; opacity: .3; }
+  .logo { flex: none; position: relative; z-index: 1; width: 46px; height: 46px; display: grid; place-items: center; border-radius: 16px; background: var(--yellow); box-shadow: 0 3px 0 #d49a14; font-size: 25px; transform: rotate(-6deg); }
+  .shop { position: relative; z-index: 1; min-width: 0; }
+  .kicker { font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+  h1 { margin: 1px 0 0; font-size: clamp(18px, 5.2vw, 21px); font-weight: 800; line-height: 1.15; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .customer { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .panel { flex: 1; min-height: 0; display: flex; flex-direction: column; justify-content: center; gap: 10px; padding: 12px 14px 8px; }
+  .grid { display: grid; justify-content: center; gap: var(--gap, 10px); }
+  .stamp { position: relative; aspect-ratio: 1; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 13px; color: var(--muted); border: 2.5px dashed #cdbfa6; background: #fff; }
+  .stamp.on { border: 0; color: var(--ink); background: var(--c); box-shadow: 0 3px 0 rgba(29, 20, 66, .22); transform: rotate(var(--r)); }
+  .stamp.on::after { content: ''; position: absolute; inset: 12%; border-radius: 50%; border: 2px dashed rgba(29, 20, 66, .35); }
+  .stamp .mark { font-size: calc(var(--s) * .42); line-height: 1; }
+  .stamp.goal { border-color: var(--pink); background: #ffe3ee; color: var(--pink); }
+  .stamp.goal .mark { font-size: calc(var(--s) * .36); }
+  .stamp.goal.on { background: var(--yellow); color: var(--ink); }
+  .stamp.wiggle { animation: wiggle .45s ease; }
+  @keyframes wiggle { 0%, 100% { transform: rotate(var(--r, 0deg)) scale(1); } 30% { transform: rotate(-14deg) scale(1.12); } 60% { transform: rotate(10deg) scale(1.06); } }
+  .progress { display: flex; flex-direction: column; gap: 5px; }
+  .bar { height: 12px; border-radius: 999px; background: #efe2cb; overflow: hidden; }
+  .fill { height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, var(--mint), var(--sky), var(--violet)); transition: width .8s cubic-bezier(.3, 1.3, .5, 1); }
+  .count { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; font-variant-numeric: tabular-nums; }
+  .count b { font-size: 15px; font-weight: 800; }
+  .count span { font-size: 13px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+  .reward { flex: none; display: flex; align-items: center; gap: 10px; margin: 0 14px; padding: 8px 12px; border-radius: 16px; background: #fff; box-shadow: 0 2px 0 rgba(29, 20, 66, .1); }
+  .reward .gift { flex: none; font-size: 22px; }
+  .reward div { min-width: 0; }
+  .reward small { display: block; font-size: 12px; color: var(--muted); }
+  .reward b { display: block; font-size: 14px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  footer { flex: none; display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; padding: 9px 14px 12px; font-size: 12px; color: var(--muted); }
+  footer div { min-width: 0; }
+  footer b { display: block; color: var(--ink); font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .mono { font-family: ui-monospace, Menlo, monospace; letter-spacing: .03em; }
+  footer .right { text-align: right; }
+  .ready { display: none; align-items: center; justify-content: center; gap: 8px; padding: 8px 10px; border-radius: 16px; background: linear-gradient(90deg, var(--yellow), var(--lime)); box-shadow: 0 3px 0 #b9a21f; font-size: 19px; font-weight: 800; text-align: center; animation: pop .5s cubic-bezier(.3, 1.6, .5, 1); }
+  .done .ready { display: flex; }
+  .done .reward { background: var(--ink); color: #fff; box-shadow: 0 3px 0 #0e0a24; }
+  .done .reward small { color: #d8d0ff; }
+  .done .reward b { color: #fff !important; }
+  @keyframes pop { 0% { transform: scale(.6); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+  canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  @media (prefers-reduced-motion: reduce) {
+    .fill { transition: none; }
+    .stamp.wiggle, .ready { animation: none; }
+  }
+</style>
+<main class="card" id="card" aria-label="Loyalty stamp card">
+  <header>
+    <div class="logo" id="logo" aria-hidden="true"></div>
+    <div class="shop">
+      <div class="kicker">Loyalty card</div>
+      <h1 id="shop"></h1>
+      <div class="customer" id="customer"></div>
+    </div>
+  </header>
+  <section class="panel">
+    <div class="ready" id="ready" role="status"><span aria-hidden="true">🎉</span><span id="readyText"></span><span aria-hidden="true">🎉</span></div>
+    <div class="grid" id="grid" role="img"></div>
+    <div class="progress">
+      <div class="bar" aria-hidden="true"><div class="fill" id="fill"></div></div>
+      <div class="count" aria-live="polite"><b id="countMain"></b><span id="countLeft"></span></div>
+    </div>
+  </section>
+  <div class="reward"><span class="gift" aria-hidden="true">🎁</span><div><small id="rewardLabel"></small><b id="reward"></b></div></div>
+  <footer>
+    <div><span>Member ID</span><b class="mono" id="member"></b></div>
+    <div class="right"><span>Valid until</span><b id="expires"></b></div>
+  </footer>
+  <canvas id="confetti" aria-hidden="true"></canvas>
+</main>
+<script>
+  var DATA = /*DATA*/null;
+  var TEXT = {
+    shop: 'Your shop',
+    customer: 'Card holder',
+    reward: 'A free treat',
+    rewardLabel: 'Your reward',
+    rewardReadyLabel: 'Show this card to claim',
+    ready: 'Reward ready!',
+    missing: 'Not set',
+    count: function (n, total) { return n + ' of ' + total + ' stamps'; },
+    left: function (n) { return n + ' to go'; },
+    allDone: 'All collected ✓',
+    stampsAria: function (n, total) { return n + ' of ' + total + ' stamps collected'; }
+  };
+  var COLORS = ['#ff8a3d', '#ff4f8b', '#7c5cff', '#2ed8a7', '#38b6ff'];
+  var MAX_STAMPS = 20;
+  var d = DATA || {};
+
+  function str(v) { return v === undefined || v === null ? '' : String(v).trim(); }
+  function $(id) { return document.getElementById(id); }
+  function int(v, fallback) { var n = Math.floor(Number(v)); return isFinite(n) ? n : fallback; }
+
+  var required = Math.min(MAX_STAMPS, Math.max(1, int(d.required, 10)));
+  var stamps = Math.min(required, Math.max(0, int(d.stamps, 0)));
+  var left = required - stamps;
+  var complete = left === 0;
+  var mark = str(d.stampIcon) || '☕';
+
+  function fill(id, value, fallback) {
+    var el = $(id);
+    el.textContent = value || fallback;
+    if (!value) el.style.color = 'var(--muted)';
+  }
+  fill('shop', str(d.shop), TEXT.shop);
+  fill('customer', str(d.customer), TEXT.customer);
+  fill('reward', str(d.reward), TEXT.reward);
+  fill('member', str(d.memberId), TEXT.missing);
+  fill('expires', str(d.expires), TEXT.missing);
+  $('logo').textContent = str(d.logoIcon) || mark;
+  $('countMain').textContent = TEXT.count(stamps, required);
+  $('countLeft').textContent = complete ? TEXT.allDone : TEXT.left(left);
+  $('rewardLabel').textContent = complete ? TEXT.rewardReadyLabel : TEXT.rewardLabel;
+  $('readyText').textContent = TEXT.ready;
+
+  var grid = $('grid');
+  grid.setAttribute('aria-label', TEXT.stampsAria(stamps, required));
+
+  // Picks the column count that gives the biggest stamps in the space left between header and footer.
+  function layout() {
+    var panel = grid.parentNode, other = 0;
+    for (var i = 0; i < panel.children.length; i++) {
+      var c = panel.children[i];
+      if (c !== grid && getComputedStyle(c).display !== 'none') other += c.offsetHeight + 10;
+    }
+    var styles = getComputedStyle(panel);
+    var h = panel.clientHeight - parseFloat(styles.paddingTop) - parseFloat(styles.paddingBottom) - other;
+    var w = panel.clientWidth - parseFloat(styles.paddingLeft) - parseFloat(styles.paddingRight);
+    var best = {};
+    for (var cols = 1; cols <= required; cols++) {
+      var rows = Math.ceil(required / cols), gap = cols > 6 ? 7 : 10;
+      var size = Math.floor(Math.min(58, (w - gap * (cols - 1)) / cols, (h - gap * (rows - 1)) / rows));
+      var score = size - (rows * cols - required) * 3;
+      if (best.score === undefined || score >= best.score) best = { size: size, cols: cols, gap: gap, score: score };
+    }
+    grid.style.setProperty('--gap', best.gap + 'px');
+    grid.style.gridTemplateColumns = 'repeat(' + best.cols + ', ' + Math.max(20, best.size) + 'px)';
+    grid.style.setProperty('--s', Math.max(20, best.size) + 'px');
+  }
+
+  for (var i = 0; i < required; i++) {
+    var s = document.createElement('div');
+    var on = i < stamps, goal = i === required - 1;
+    s.className = 'stamp' + (on ? ' on' : '') + (goal ? ' goal' : '');
+    s.style.setProperty('--c', COLORS[i % COLORS.length]);
+    s.style.setProperty('--r', (((i * 37) % 25) - 12) + 'deg');
+    s.innerHTML = '<span class="mark"></span>';
+    s.firstChild.textContent = goal ? '🎁' : on ? mark : String(i + 1);
+    if (!goal && !on) s.firstChild.style.fontSize = 'inherit';
+    s.addEventListener('click', function () {
+      var el = this;
+      el.classList.remove('wiggle');
+      void el.offsetWidth;
+      el.classList.add('wiggle');
+      if (complete) burst();
+    });
+    grid.appendChild(s);
+  }
+
+  var reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var canvas = $('confetti'), ctx = canvas.getContext('2d'), bits = [], running = false;
+  function burst() {
+    if (reduced) return;
+    var dpr = window.devicePixelRatio || 1, w = canvas.clientWidth, h = canvas.clientHeight;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    var palette = COLORS.concat(['#ffc93c', '#9be15d']);
+    for (var k = 0; k < 90; k++) {
+      bits.push({ x: w / 2 + (Math.random() - .5) * 60, y: h * .35, vx: (Math.random() - .5) * 9, vy: -Math.random() * 9 - 3, r: Math.random() * 6.28, vr: (Math.random() - .5) * .3, s: 5 + Math.random() * 5, c: palette[k % palette.length], life: 0 });
+    }
+    if (!running) { running = true; requestAnimationFrame(tick); }
+    function tick() {
+      ctx.clearRect(0, 0, w, h);
+      bits = bits.filter(function (b) { return b.y < h + 20 && b.life < 200; });
+      bits.forEach(function (b) {
+        b.life++; b.vy += .22; b.vx *= .99; b.x += b.vx; b.y += b.vy; b.r += b.vr;
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.rotate(b.r);
+        ctx.fillStyle = b.c;
+        ctx.fillRect(-b.s / 2, -b.s / 4, b.s, b.s / 2);
+        ctx.restore();
+      });
+      if (bits.length) requestAnimationFrame(tick); else { running = false; ctx.clearRect(0, 0, w, h); }
+    }
+  }
+
+  if (complete) $('card').className = 'card done';
+  layout();
+  addEventListener('resize', layout);
+  requestAnimationFrame(function () {
+    $('fill').style.width = (stamps / required * 100) + '%';
+    if (complete) setTimeout(burst, 250);
+  });
+</script>

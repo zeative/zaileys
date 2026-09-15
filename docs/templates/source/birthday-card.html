@@ -1,0 +1,266 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { --pink: #ff4f8b; --orange: #ff8a3d; --yellow: #ffc93c; --mint: #2ed8a7; --sky: #38b6ff; --violet: #7c5cff; --grape: #b44cff; --ink: #1d1442; --cream: #fff8ec; --cake: min(72vw, 250px); }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; height: 100%; position: relative; overflow: hidden; background: linear-gradient(170deg, var(--violet) 0%, var(--grape) 100%); color: #fff; font: 14px/1.3 system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: space-between; padding: 12px 14px 14px; text-align: center; user-select: none; -webkit-user-select: none; }
+  main { position: relative; z-index: 1; width: 100%; max-width: 400px; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: space-between; gap: 8px; }
+  header { width: 100%; }
+  .happy { margin: 0; font-size: 17px; font-weight: 800; letter-spacing: .2px; }
+  h1 { margin: 0; font-size: clamp(32px, 11vw, 46px); line-height: 1.05; font-weight: 800; text-shadow: 0 3px 0 var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-bottom: 4px; }
+  h1.long { font-size: clamp(24px, 8vw, 32px); }
+  .pop { animation: pop .6s cubic-bezier(.3, 1.6, .5, 1) both; }
+  @keyframes pop { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+  .cake { position: relative; width: var(--cake); flex: none; display: flex; flex-direction: column; align-items: center; }
+  .candles { display: flex; justify-content: center; align-items: flex-end; gap: 2px; height: 78px; margin-bottom: -6px; position: relative; z-index: 2; }
+  .candle { position: relative; width: 34px; height: 78px; border: 0; padding: 0; background: none; cursor: pointer; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; }
+  .candle:active .stick, .candle:active .digit { transform: translateY(2px); }
+  .candle:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; border-radius: 10px; }
+  .stick { width: 12px; height: 42px; border-radius: 4px 4px 2px 2px; background: repeating-linear-gradient(160deg, #fff 0 6px, var(--sky) 6px 12px); box-shadow: inset -2px 0 0 rgba(29, 20, 66, .15); transition: transform .1s; }
+  .digit { font: 900 54px/.9 system-ui, sans-serif; color: var(--yellow); text-shadow: 0 3px 0 var(--ink), 2px 0 0 var(--ink), -2px 0 0 var(--ink), 0 -2px 0 var(--ink); transition: transform .1s; }
+  .candle.num { width: 46px; margin-bottom: -8px; }
+  .wick { width: 2px; height: 6px; background: var(--ink); border-radius: 1px; }
+  .flame { position: absolute; left: 50%; width: 14px; height: 22px; margin-left: -7px; border-radius: 50% 50% 50% 50% / 62% 62% 38% 38%; background: radial-gradient(circle at 50% 70%, #fff 0 18%, var(--yellow) 32%, var(--orange) 78%); box-shadow: 0 0 14px 4px rgba(255, 201, 60, .55); transform-origin: 50% 90%; animation: flicker .5s ease-in-out infinite alternate; transition: transform .25s ease, opacity .25s ease; }
+  .candle .flame { bottom: 48px; }
+  .candle.num .flame { bottom: 54px; }
+  @keyframes flicker { 0% { transform: scale(1, 1) rotate(-3deg); } 50% { transform: scale(.92, 1.08) rotate(2deg); } 100% { transform: scale(1.05, .95) rotate(-1deg); } }
+  .candle.out .flame { animation: none; transform: scale(0); opacity: 0; }
+  .smoke { position: absolute; left: 50%; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; background: rgba(255, 255, 255, .7); opacity: 0; pointer-events: none; }
+  .candle .smoke { bottom: 50px; }
+  .candle.out .smoke { animation: smoke 1s ease-out forwards; }
+  @keyframes smoke { 0% { opacity: .8; transform: translateY(0) scale(.6); } 100% { opacity: 0; transform: translateY(-28px) scale(1.8); } }
+
+  .tier { position: relative; border-radius: 12px 12px 8px 8px; }
+  .tier.top { width: 78%; height: 42px; background: var(--pink); z-index: 1; }
+  .tier.bottom { width: 94%; height: 54px; margin-top: -2px; background: var(--orange) radial-gradient(circle, var(--yellow) 0 2px, transparent 3px) 0 20px / 16px 14px; }
+  .tier::before { content: ''; position: absolute; left: 0; right: 0; top: 0; height: 12px; border-radius: 12px 12px 0 0; background: var(--cream); }
+  .tier::after { content: ''; position: absolute; left: 4px; right: 4px; top: 10px; height: 12px; background: radial-gradient(circle at 50% 0, var(--cream) 0 6px, transparent 7px) 0 0 / 16px 12px repeat-x; }
+  .tier.bottom::before { background: #fff; }
+  .tier.bottom::after { background-image: radial-gradient(circle at 50% 0, #fff 0 6px, transparent 7px); }
+  .plate { width: 100%; height: 12px; margin-top: -3px; border-radius: 50%; background: var(--cream); box-shadow: 0 4px 0 rgba(29, 20, 66, .3); }
+
+  .slot { flex: none; height: 50px; display: flex; align-items: center; justify-content: center; }
+  .wish { position: absolute; left: 50%; bottom: 14px; z-index: 3; white-space: nowrap; padding: 6px 14px; border-radius: 14px; background: var(--cream); color: var(--ink); font-size: 15px; font-weight: 800; box-shadow: 0 3px 0 var(--ink); transform: translateX(-50%) rotate(-4deg); }
+  .wish.pop { animation: wish .6s cubic-bezier(.3, 1.6, .5, 1) both; }
+  @keyframes wish { from { transform: translateX(-50%) rotate(-4deg) scale(.3); opacity: 0; } to { transform: translateX(-50%) rotate(-4deg) scale(1); opacity: 1; } }
+  #status { min-height: 30px; max-width: 100%; display: inline-flex; align-items: center; justify-content: center; padding: 5px 14px; border-radius: 999px; background: rgba(29, 20, 66, .42); font-size: 13px; font-weight: 700; }
+  #status.sr { position: absolute; width: 1px; height: 1px; min-height: 0; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .note { width: 100%; background: var(--cream); color: var(--ink); border-radius: 20px; padding: 12px 14px; box-shadow: 0 4px 0 rgba(29, 20, 66, .35); }
+  #message { margin: 0; font-size: 15px; font-weight: 700; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  #from { margin: 4px 0 0; font-size: 13px; color: #5b4a86; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #again { flex: none; min-height: 44px; padding: 0 26px; border: 0; border-radius: 999px; background: var(--yellow); color: var(--ink); font: 800 15px system-ui, sans-serif; box-shadow: 0 4px 0 #c98f00; cursor: pointer; transition: transform .1s, box-shadow .1s; }
+  #again:active { transform: translateY(3px); box-shadow: 0 1px 0 #c98f00; }
+
+  .balloon { position: absolute; z-index: 0; width: clamp(28px, 9vw, 40px); aspect-ratio: 4 / 5; border-radius: 50% 50% 48% 48% / 56% 56% 44% 44%; background: radial-gradient(circle at 34% 30%, rgba(255, 255, 255, .65) 0 10%, transparent 12%), var(--c); animation: bob 3.4s ease-in-out infinite alternate; }
+  .balloon::after { content: ''; position: absolute; left: 50%; top: 100%; width: 1px; height: 36px; background: rgba(255, 255, 255, .6); }
+  @keyframes bob { from { transform: translateY(6px) rotate(-4deg); } to { transform: translateY(-14px) rotate(4deg); } }
+  #confetti { position: absolute; inset: 0; width: 100%; height: 100%; z-index: 5; pointer-events: none; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .flame, .balloon, .pop, .wish.pop { animation: none; }
+    .candle.out .smoke { animation: none; }
+  }
+</style>
+<i class="balloon" style="--c: var(--pink); left: 3%; top: 26%; animation-delay: -1s"></i>
+<i class="balloon" style="--c: var(--mint); right: 4%; top: 30%"></i>
+<i class="balloon" style="--c: var(--yellow); left: 2%; top: 56%; animation-delay: -2.2s"></i>
+<i class="balloon" style="--c: var(--sky); right: 3%; top: 58%; animation-delay: -.6s"></i>
+<main>
+  <header id="head">
+    <p class="happy" id="happy">Happy birthday,</p>
+    <h1 id="name">Friend!</h1>
+  </header>
+  <div class="cake" id="cake">
+    <div class="candles" id="candles"></div>
+    <div class="tier top"></div>
+    <div class="tier bottom"></div>
+    <div class="plate"></div>
+    <div class="wish" id="wish" hidden>Make a wish! 🎉</div>
+  </div>
+  <section class="note">
+    <p id="message">Wishing you a wonderful year ahead!</p>
+    <p id="from">From your friends</p>
+  </section>
+  <div class="slot">
+    <div id="status" aria-live="polite">Tap each candle to blow it out</div>
+    <button id="again" type="button" hidden>Celebrate again</button>
+  </div>
+</main>
+<canvas id="confetti" aria-hidden="true"></canvas>
+<script>
+  var DATA = /*DATA*/null;
+  var TEXT = { happy: 'Happy birthday,', happyAge: ' birthday,', hint: 'Tap each candle to blow it out', left: ' still lit', done: 'All candles are out. Make a wish!', from: 'From ', lit: 'lit', out: 'blown out' };
+  var EXAMPLE = { to: 'Friend', from: 'your friends', message: 'Wishing you a wonderful year ahead!' };
+  var COLORS = ['#ff4f8b', '#ff8a3d', '#ffc93c', '#9be15d', '#2ed8a7', '#38b6ff', '#fff8ec'];
+  var PLAIN_CANDLES = 5;
+
+  function clean(v, fallback, max) {
+    var s = v == null ? '' : String(v).trim();
+    if (!s) return fallback;
+    return s.length > max ? s.slice(0, max - 1) + '…' : s;
+  }
+
+  function ordinal(n) {
+    var suffix = ['th', 'st', 'nd', 'rd'], v = n % 100;
+    return n + (suffix[(v - 20) % 10] || suffix[v] || suffix[0]);
+  }
+
+  var d = DATA || {};
+  var who = clean(d.to, EXAMPLE.to, 28);
+  var age = Math.floor(Number(d.age));
+  var hasAge = d.age != null && isFinite(age) && age >= 1 && age <= 150;
+  // With an age the cake gets number candles (25 = "2" and "5"); without one, five plain candles.
+  var candleLabels = hasAge ? String(age).split('') : [];
+  var candleCount = hasAge ? candleLabels.length : PLAIN_CANDLES;
+
+  var nameEl = document.getElementById('name');
+  var statusEl = document.getElementById('status');
+  var againBtn = document.getElementById('again');
+  var wishEl = document.getElementById('wish');
+  var candlesEl = document.getElementById('candles');
+  var canvas = document.getElementById('confetti');
+  var ctx = canvas.getContext('2d');
+  var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var candles = [], lit = 0, pieces = [], rafId = 0;
+
+  document.getElementById('happy').textContent = hasAge ? 'Happy ' + ordinal(age) + TEXT.happyAge : TEXT.happy;
+  nameEl.textContent = who + '!';
+  if (who.length > 11) nameEl.className = 'long';
+  document.getElementById('message').textContent = clean(d.message, EXAMPLE.message, 140);
+  document.getElementById('from').textContent = TEXT.from + clean(d.from, EXAMPLE.from, 60);
+
+  function candleLabel(i) {
+    var what = hasAge ? 'Number candle ' + candleLabels[i] : 'Candle ' + (i + 1) + ' of ' + candleCount;
+    return what + ', ' + (candles[i].classList.contains('out') ? TEXT.out : TEXT.lit);
+  }
+
+  function buildCandles() {
+    candlesEl.textContent = '';
+    candles = [];
+    for (var i = 0; i < candleCount; i++) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.className = hasAge ? 'candle num' : 'candle';
+      var flame = document.createElement('span');
+      flame.className = 'flame';
+      flame.style.animationDelay = (-i * 0.17) + 's';
+      var smoke = document.createElement('span');
+      smoke.className = 'smoke';
+      var wick = document.createElement('span');
+      wick.className = 'wick';
+      var body = document.createElement('span');
+      body.className = hasAge ? 'digit' : 'stick';
+      if (hasAge) body.textContent = candleLabels[i];
+      b.appendChild(flame);
+      b.appendChild(smoke);
+      b.appendChild(wick);
+      b.appendChild(body);
+      b.addEventListener('click', blow.bind(null, i));
+      candlesEl.appendChild(b);
+      candles.push(b);
+      b.setAttribute('aria-label', candleLabel(i));
+    }
+    lit = candleCount;
+  }
+
+  function blow(i) {
+    var c = candles[i];
+    if (c.classList.contains('out')) return;
+    c.classList.add('out');
+    c.setAttribute('aria-label', candleLabel(i));
+    lit--;
+    if (lit > 0) {
+      statusEl.textContent = lit + (lit === 1 ? ' candle' : ' candles') + TEXT.left;
+      return;
+    }
+    statusEl.textContent = TEXT.done;
+    statusEl.classList.add('sr');
+    againBtn.hidden = false;
+    wishEl.hidden = false;
+    wishEl.classList.remove('pop');
+    void wishEl.offsetWidth;
+    wishEl.classList.add('pop');
+    burst();
+  }
+
+  function sizeCanvas() {
+    var w = document.body.clientWidth, h = document.body.clientHeight, ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.round(w * ratio);
+    canvas.height = Math.round(h * ratio);
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    return { w: w, h: h };
+  }
+
+  function piece(x, y, vx, vy) {
+    return { x: x, y: y, vx: vx, vy: vy, r: Math.random() * 6.3, spin: (Math.random() - 0.5) * 0.4, w: 6 + Math.random() * 5, h: 4 + Math.random() * 3, c: COLORS[Math.floor(Math.random() * COLORS.length)] };
+  }
+
+  function drawPiece(p, alpha) {
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.translate(p.x, p.y);
+    ctx.rotate(p.r);
+    ctx.fillStyle = p.c;
+    ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+    ctx.restore();
+  }
+
+  function burst() {
+    var size = sizeCanvas(), cake = document.getElementById('cake').getBoundingClientRect();
+    cancelAnimationFrame(rafId);
+    pieces = [];
+    if (calm) {
+      canvas.style.zIndex = '0';
+      // Reduced motion: confetti lies still along the edges so it never covers the message.
+      for (var k = 0; k < 60; k++) {
+        var side = k % 2 === 0, px = side ? Math.random() * size.w * 0.14 : size.w * (0.86 + Math.random() * 0.14);
+        drawPiece(piece(px, Math.random() * size.h, 0, 0), 1);
+      }
+      return;
+    }
+    var ox = cake.left + cake.width / 2, oy = cake.top + 30;
+    for (var i = 0; i < 140; i++) {
+      var angle = -Math.PI / 2 + (Math.random() - 0.5) * 2.2, speed = 4 + Math.random() * 7;
+      pieces.push(piece(ox, oy, Math.cos(angle) * speed, Math.sin(angle) * speed));
+    }
+    var start = 0;
+    function frame(now) {
+      if (!start) start = now;
+      var t = (now - start) / 1000;
+      ctx.clearRect(0, 0, size.w, size.h);
+      var alive = false;
+      for (var j = 0; j < pieces.length; j++) {
+        var p = pieces[j];
+        p.vy += 0.22;
+        p.vx *= 0.985;
+        p.x += p.vx;
+        p.y += p.vy;
+        p.r += p.spin;
+        if (p.y < size.h + 20) alive = true;
+        drawPiece(p, t > 2.4 ? Math.max(0, 1 - (t - 2.4) / 0.8) : 1);
+      }
+      if (alive && t < 3.2) rafId = requestAnimationFrame(frame);
+      else ctx.clearRect(0, 0, size.w, size.h);
+    }
+    rafId = requestAnimationFrame(frame);
+  }
+
+  function replay(initial) {
+    cancelAnimationFrame(rafId);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    buildCandles();
+    againBtn.hidden = true;
+    wishEl.hidden = true;
+    statusEl.classList.remove('sr');
+    statusEl.textContent = TEXT.hint;
+    var head = document.getElementById('head');
+    head.classList.remove('pop');
+    void head.offsetWidth;
+    head.classList.add('pop');
+    if (!initial) candles[0].focus();
+  }
+
+  againBtn.addEventListener('click', function () { replay(false); });
+  replay(true);
+</script>

@@ -1,0 +1,102 @@
+{
+  "id": "product-showcase",
+  "title": "Product Showcase",
+  "category": "business",
+  "icon": "shopping-bag",
+  "emoji": "🛍️",
+  "description": "A swipeable carousel of up to five products with prices in the shop currency, badges, and color or size options.",
+  "height": 470,
+  "command": "products",
+  "fallback": "This product showcase opens on WhatsApp Android only. Ask the shop for its product list and prices.",
+  "inputs": [
+    "swipe",
+    "tap"
+  ],
+  "sample": {
+    "shop": "Example Goods Co.",
+    "currency": "IDR",
+    "locale": "id-ID",
+    "products": [
+      {
+        "name": "Cloud Mug",
+        "price": 89000,
+        "badge": "New",
+        "emoji": "☕",
+        "description": "Sample product. A chunky stoneware mug that keeps your coffee warm a little longer.",
+        "variants": [
+          {
+            "name": "Mint",
+            "hex": "#2ed8a7"
+          },
+          {
+            "name": "Peach",
+            "hex": "#ffb27d"
+          },
+          {
+            "name": "Sky",
+            "hex": "#38b6ff"
+          }
+        ]
+      },
+      {
+        "name": "Canvas Tote",
+        "price": 120000,
+        "oldPrice": 150000,
+        "badge": "-20%",
+        "image": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyMDAgMjAwIj48cGF0aCBkPSJNNzIgNzhWNjBhMjggMjggMCAwIDEgNTYgMHYxOCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjMWQxNDQyIiBzdHJva2Utd2lkdGg9IjkiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIvPjxwYXRoIGQ9Ik00NCA3NGgxMTJsLTggMTAwYTEwIDEwIDAgMCAxLTEwIDlINjJhMTAgMTAgMCAwIDEtMTAtOXoiIGZpbGw9IiNmZmY4ZWMiIHN0cm9rZT0iIzFkMTQ0MiIgc3Ryb2tlLXdpZHRoPSI2IiBzdHJva2UtbGluZWpvaW49InJvdW5kIi8+PHBhdGggZD0iTTUwIDExMmgxMDBsLTIgMjZINTJ6IiBmaWxsPSIjZmY0ZjhiIi8+PGNpcmNsZSBjeD0iMTAwIiBjeT0iMTU4IiByPSIxMSIgZmlsbD0iI2ZmYzkzYyIgc3Ryb2tlPSIjMWQxNDQyIiBzdHJva2Utd2lkdGg9IjQiLz48cGF0aCBkPSJNNzggOTJsNiA2bTMyLTZsNiA2IiBzdHJva2U9IiMxZDE0NDIiIHN0cm9rZS13aWR0aD0iNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+PC9zdmc+",
+        "description": "Sample product. A roomy tote with an inside pocket, big enough for a laptop.",
+        "variants": [
+          {
+            "name": "Natural",
+            "hex": "#f3e3c3"
+          },
+          {
+            "name": "Pink stripe",
+            "hex": "#ff4f8b"
+          }
+        ]
+      },
+      {
+        "name": "Sunny Sneakers",
+        "price": 459000,
+        "badge": "Best seller",
+        "emoji": "👟",
+        "description": "Sample product. Light, cushioned everyday sneakers.",
+        "variants": [
+          "39",
+          "40",
+          "41",
+          "42",
+          "43"
+        ]
+      },
+      {
+        "name": "Pocket Plant",
+        "price": 65000,
+        "emoji": "🪴",
+        "description": "Sample product. A tiny desk plant in a hand-painted pot.",
+        "variants": [
+          "Small",
+          "Large"
+        ]
+      },
+      {
+        "name": "Retro Cap",
+        "price": 99000,
+        "badge": "Last 3",
+        "emoji": "🧢",
+        "description": "Sample product. An adjustable cotton cap with a curved brim.",
+        "variants": [
+          {
+            "name": "Yellow",
+            "hex": "#ffc93c"
+          },
+          {
+            "name": "Violet",
+            "hex": "#7c5cff"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "id": "dice-and-coin",
+  "title": "Dice & coin",
+  "category": "fun",
+  "icon": "dices",
+  "emoji": "🎲",
+  "description": "Roll one to three dice with a total, or flip a coin with a running heads-and-tails tally, all with fair random results.",
+  "height": 420,
+  "command": "dice",
+  "fallback": "The dice and coin flipper opens on WhatsApp Android only.",
+  "inputs": [
+    "tap"
+  ]
+}

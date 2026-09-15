@@ -1,0 +1,345 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { --pink: #ff4f8b; --orange: #ff8a3d; --yellow: #ffc93c; --lime: #9be15d; --mint: #2ed8a7; --sky: #38b6ff; --violet: #7c5cff; --grape: #b44cff; --ink: #1d1442; --cream: #fff8ec; --panel: #2b2062; --soft: #cfc3f5; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; height: 100%; overflow: hidden; color: #fff; font: 14px/1.3 system-ui, sans-serif; user-select: none; -webkit-user-select: none; background: radial-gradient(80% 50% at 100% 0%, rgba(56, 182, 255, .28), rgba(56, 182, 255, 0) 70%), radial-gradient(80% 50% at 0% 100%, rgba(255, 79, 139, .25), rgba(255, 79, 139, 0) 70%), var(--ink); }
+  button { font: inherit; color: inherit; border: 0; background: none; padding: 0; cursor: pointer; }
+  button:focus-visible { outline: 3px solid var(--yellow); outline-offset: 2px; }
+  svg { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2.3; stroke-linecap: round; stroke-linejoin: round; display: block; }
+  #app { height: 100%; display: flex; flex-direction: column; gap: 8px; padding: 12px; }
+  .top { flex: none; display: flex; align-items: center; gap: 8px; height: 40px; }
+  h1 { margin: 0; font-size: 18px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; flex: 1; }
+  .tabs { flex: none; display: flex; padding: 3px; gap: 3px; border-radius: 14px; background: var(--panel); }
+  .tabs button { height: 34px; padding: 0 12px; border-radius: 11px; font-size: 14px; font-weight: 800; color: var(--soft); transition: background .2s ease, color .2s ease; }
+  .tabs button[aria-pressed="true"] { background: var(--cream); color: var(--ink); }
+  .icon { flex: none; width: 40px; height: 40px; border-radius: 12px; display: grid; place-items: center; background: var(--panel); box-shadow: 0 3px 0 #0f0a26; transition: transform .12s ease, box-shadow .12s ease; }
+  .icon[aria-pressed="true"] { background: var(--pink); }
+  .icon:active, .small:active, .tool:active { transform: translateY(2px); box-shadow: 0 1px 0 #0f0a26; }
+  .screen { flex: 1; min-height: 0; }
+  #pads[hidden], #beat[hidden] { display: none; }
+  #pads { display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 8px; touch-action: none; }
+  .pad { position: relative; min-width: 0; min-height: 0; border-radius: 20px; background: linear-gradient(145deg, var(--a), var(--b)); box-shadow: 0 5px 0 var(--d); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; transition: transform .1s ease, box-shadow .1s ease; }
+  .pad .e { font-size: clamp(24px, 8vw, 32px); line-height: 1; }
+  .pad .n { font-size: 12px; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: rgba(29, 20, 66, .6); white-space: nowrap; }
+  .pad::after { content: ""; position: absolute; inset: 0; border-radius: inherit; border: 3px solid #fff; opacity: 0; pointer-events: none; }
+  .pad.hit { animation: pop .22s cubic-bezier(.3, 1.6, .5, 1); }
+  .pad.hit::after { animation: ring .3s ease-out; }
+  .pad.down { transform: translateY(3px); box-shadow: 0 2px 0 var(--d); }
+  @keyframes pop { 0% { transform: translateY(3px) scale(.92); } 60% { transform: scale(1.05); } 100% { transform: scale(1); } }
+  @keyframes ring { 0% { opacity: .9; transform: scale(.95); } 100% { opacity: 0; transform: scale(1.12); } }
+  #beat { display: flex; flex-direction: column; gap: 6px; }
+  .tools { flex: none; display: flex; align-items: center; gap: 6px; height: 32px; }
+  .tool { height: 32px; padding: 0 12px; border-radius: 11px; background: var(--panel); font-size: 13px; font-weight: 800; box-shadow: 0 3px 0 #0f0a26; flex: none; transition: transform .12s ease, box-shadow .12s ease; }
+  .hint { font-size: 12px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; margin-left: auto; }
+  #grid { flex: 1; min-height: 0; display: grid; grid-template-columns: 32px repeat(8, 1fr); grid-template-rows: repeat(9, 1fr); gap: 2px 3px; }
+  .lab { border-radius: 8px; display: grid; place-items: center; font-size: 16px; background: var(--panel); min-height: 0; }
+  .cell { min-width: 0; min-height: 0; border-radius: 7px; background: rgba(255, 255, 255, .08); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .1); transition: background .12s ease, transform .1s ease; }
+  .cell.q { background: rgba(255, 255, 255, .14); }
+  .cell.on { background: linear-gradient(145deg, var(--a), var(--b)); box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .25); }
+  .cell.now { box-shadow: inset 0 0 0 2px #fff; }
+  .cell.on.now { transform: scale(1.08); box-shadow: 0 0 0 2px #fff; }
+  .transport { flex: none; display: flex; align-items: center; gap: 8px; height: 48px; }
+  #play { flex: 1; min-width: 0; height: 46px; border-radius: 16px; color: var(--ink); font-size: 15px; font-weight: 800; background: linear-gradient(135deg, var(--yellow), var(--orange)); box-shadow: 0 4px 0 #b85a1e; display: inline-flex; align-items: center; justify-content: center; gap: 8px; transition: transform .12s ease, box-shadow .12s ease; }
+  #play:active { transform: translateY(3px); box-shadow: 0 1px 0 #b85a1e; }
+  #play svg { width: 18px; height: 18px; }
+  .tempo { flex: none; display: flex; align-items: center; gap: 4px; padding: 4px; border-radius: 16px; background: var(--panel); }
+  .small { width: 38px; height: 38px; border-radius: 12px; background: #3b2e7e; font-size: 20px; font-weight: 800; box-shadow: 0 3px 0 #0f0a26; transition: transform .12s ease, box-shadow .12s ease; }
+  .small:disabled { opacity: .4; }
+  #bpm { min-width: 60px; text-align: center; font-weight: 800; font-size: 15px; font-variant-numeric: tabular-nums; line-height: 1.05; }
+  #bpm small { display: block; font-size: 12px; font-weight: 700; color: var(--soft); }
+  @media (prefers-reduced-motion: reduce) { .pad.hit, .pad.hit::after { animation: none; } .pad.hit { filter: brightness(1.2); } .cell.on.now { transform: none; } }
+</style>
+<main id="app">
+  <header class="top">
+    <h1>🥁 Drum pad</h1>
+    <div class="tabs" role="group" aria-label="Screen">
+      <button type="button" id="tabPads" aria-pressed="true">Pads</button>
+      <button type="button" id="tabBeat" aria-pressed="false">Beat</button>
+    </div>
+    <button class="icon" id="mute" type="button" aria-pressed="false" aria-label="Mute"></button>
+  </header>
+  <section class="screen" id="pads" aria-label="Drum pads"></section>
+  <section class="screen" id="beat" hidden>
+    <div class="tools">
+      <button class="tool" id="clear" type="button">Clear</button>
+      <button class="tool" id="example" type="button">Example</button>
+      <span class="hint" id="hint" aria-live="polite">Tap squares to edit</span>
+    </div>
+    <div id="grid" role="grid" aria-label="8-step beat"></div>
+  </section>
+  <div class="transport">
+    <button id="play" type="button"></button>
+    <div class="tempo">
+      <button class="small" id="slower" type="button" aria-label="Slower">−</button>
+      <span id="bpm" aria-live="polite"></span>
+      <button class="small" id="faster" type="button" aria-label="Faster">+</button>
+    </div>
+  </div>
+</main>
+<script>
+  var TEXT = { play: "Play beat", stop: "Stop", bpm: "BPM", hint: "Tap squares to edit", cleared: "Beat cleared", example: "Example loaded", noSound: "No sound here" };
+  var PADS = [
+    { name: "Kick", emoji: "💥", a: "#ff4f8b", b: "#ff8a3d", d: "#a8284f" },
+    { name: "Snare", emoji: "🥁", a: "#ff8a3d", b: "#ffc93c", d: "#b85a1e" },
+    { name: "Clap", emoji: "👏", a: "#ffc93c", b: "#9be15d", d: "#a57f12" },
+    { name: "Hi-hat", emoji: "🎩", a: "#9be15d", b: "#2ed8a7", d: "#4f8f2a" },
+    { name: "Open hat", emoji: "🔔", a: "#2ed8a7", b: "#38b6ff", d: "#17866a" },
+    { name: "Tom", emoji: "🛢️", a: "#38b6ff", b: "#7c5cff", d: "#1f6fae" },
+    { name: "Cowbell", emoji: "🐮", a: "#7c5cff", b: "#b44cff", d: "#4b2fb0" },
+    { name: "Rim", emoji: "🥢", a: "#b44cff", b: "#ff4f8b", d: "#7422b0" },
+    { name: "Sparkle", emoji: "✨", a: "#ffc93c", b: "#ff4f8b", d: "#b0355e" }
+  ];
+  var STEPS = 8, MIN_BPM = 60, MAX_BPM = 180;
+  var EXAMPLE = [[0, 4, 5], [2, 6], [], [0, 1, 2, 3, 4, 5, 6], [7], [], [], [], []];
+  var ICON = {
+    vol: '<svg viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg>',
+    mute: '<svg viewBox="0 0 24 24"><path d="M11 5 6 9H2v6h4l5 4z" fill="currentColor"/><path d="m22 9-6 6M16 9l6 6"/></svg>',
+    play: '<svg viewBox="0 0 24 24"><path d="M7 4.5v15L19.5 12z" fill="currentColor"/></svg>',
+    stop: '<svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor"/></svg>'
+  };
+
+  var AC = window.AudioContext || window.webkitAudioContext;
+  var ac = null, master = null, comp = null, timer = 0, raf = 0, openHat = null;
+  var S = { bpm: 110, muted: false, playing: false, step: 0, nextTime: 0, screen: "pads", now: -1 };
+  var pattern = [], queue = [], padEls = [], cellEls = [];
+  var stats = { voices: 0 };
+  var $ = function (id) { return document.getElementById(id); };
+
+  function buildChain(c) {
+    var m = c.createGain(), k = c.createDynamicsCompressor();
+    k.threshold.value = -10; k.knee.value = 8; k.ratio.value = 4; k.attack.value = .002; k.release.value = .15;
+    m.connect(k); k.connect(c.destination);
+    return { master: m, comp: k };
+  }
+
+  function noiseBuf(c) {
+    if (c.zNoise) return c.zNoise;
+    var b = c.createBuffer(1, c.sampleRate, c.sampleRate), d = b.getChannelData(0);
+    for (var i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    return (c.zNoise = b);
+  }
+
+  function osc(c, out, type, f, t, vol, decay, o) {
+    o = o || {};
+    var n = c.createOscillator(), g = c.createGain();
+    n.type = type;
+    n.frequency.setValueAtTime(f, t);
+    if (o.to) n.frequency.exponentialRampToValueAtTime(o.to, t + (o.toT || .1));
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + (o.a || .002));
+    g.gain.exponentialRampToValueAtTime(.0005, t + decay);
+    n.connect(g); g.connect(out);
+    n.start(t); n.stop(t + decay + .03);
+    stats.voices++;
+    return g;
+  }
+
+  function noise(c, out, t, vol, decay, type, f, q) {
+    var s = c.createBufferSource(), fl = c.createBiquadFilter(), g = c.createGain();
+    s.buffer = noiseBuf(c);
+    fl.type = type; fl.frequency.value = f; fl.Q.value = q || .7;
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(vol, t + .002);
+    g.gain.exponentialRampToValueAtTime(.0005, t + decay);
+    s.connect(fl); fl.connect(g); g.connect(out);
+    s.start(t, Math.random() * .5); s.stop(t + decay + .03);
+    stats.voices++;
+    return g;
+  }
+
+  function choke(t) { if (openHat) { openHat.gain.cancelScheduledValues(t); openHat.gain.setTargetAtTime(0, t, .012); openHat = null; } }
+
+  var SOUNDS = [
+    function (c, out, t) { osc(c, out, "sine", 155, t, .95, .42, { to: 45, toT: .14 }); osc(c, out, "triangle", 420, t, .25, .04, { to: 90, toT: .03 }); },
+    function (c, out, t) { noise(c, out, t, .75, .2, "bandpass", 1900, .6); osc(c, out, "triangle", 190, t, .4, .12, { to: 120, toT: .08 }); },
+    function (c, out, t) { for (var i = 0; i < 3; i++) noise(c, out, t + i * .011, .9, .03, "bandpass", 1150, 1.4); noise(c, out, t + .033, .9, .22, "bandpass", 1150, 1.1); },
+    function (c, out, t) { choke(t); noise(c, out, t, .6, .06, "highpass", 7000, .9); },
+    function (c, out, t) { choke(t); openHat = noise(c, out, t, .5, .42, "highpass", 6500, .9); },
+    function (c, out, t) { osc(c, out, "sine", 210, t, .8, .45, { to: 115, toT: .3 }); noise(c, out, t, .12, .06, "lowpass", 1400); },
+    function (c, out, t) { var bp = c.createBiquadFilter(); bp.type = "bandpass"; bp.frequency.value = 820; bp.Q.value = 1.4; bp.connect(out); osc(c, bp, "square", 562, t, .32, .35); osc(c, bp, "square", 845, t, .32, .35); },
+    function (c, out, t) { osc(c, out, "triangle", 1750, t, .5, .045); osc(c, out, "sine", 420, t, .45, .05); noise(c, out, t, .5, .03, "bandpass", 3200, 1.2); },
+    function (c, out, t) { var notes = [1319, 1661, 1976, 2637]; for (var i = 0; i < 4; i++) { osc(c, out, "sine", notes[i], t + i * .055, .2, .5); osc(c, out, "triangle", notes[i] * 2, t + i * .055, .03, .15); } }
+  ];
+
+  function unlock() {
+    if (!AC) { $("hint").textContent = TEXT.noSound; return false; }
+    if (!ac) { ac = new AC(); var ch = buildChain(ac); master = ch.master; comp = ch.comp; applyVolume(); }
+    if (ac.state === "suspended") ac.resume();
+    return true;
+  }
+
+  function applyVolume() { if (master) master.gain.setTargetAtTime(S.muted ? 0 : .5, ac.currentTime, .015); }
+
+  function flash(i) {
+    var el = padEls[i];
+    if (!el || S.screen !== "pads") return;
+    el.classList.remove("hit");
+    void el.offsetWidth;
+    el.classList.add("hit");
+  }
+
+  function hitPad(i) {
+    flash(i);
+    if (!unlock()) return;
+    SOUNDS[i](ac, master, ac.currentTime + .005);
+  }
+
+  function buildPads() {
+    var box = $("pads");
+    PADS.forEach(function (p, i) {
+      var el = document.createElement("button");
+      el.type = "button"; el.className = "pad";
+      el.style.setProperty("--a", p.a); el.style.setProperty("--b", p.b); el.style.setProperty("--d", p.d);
+      el.innerHTML = '<span class="e" aria-hidden="true">' + p.emoji + '</span><span class="n">' + p.name + "</span>";
+      el.addEventListener("animationend", function (e) { if (e.animationName === "pop") el.classList.remove("hit"); });
+      el.addEventListener("click", function (e) { if (e.detail === 0) hitPad(i); });
+      box.appendChild(el);
+      padEls.push(el);
+    });
+    var down = {};
+    box.addEventListener("pointerdown", function (e) {
+      var el = e.target.closest(".pad");
+      if (!el) return;
+      e.preventDefault();
+      var i = padEls.indexOf(el);
+      down[e.pointerId] = el;
+      el.classList.add("down");
+      hitPad(i);
+    });
+    var up = function (e) { var el = down[e.pointerId]; if (el) el.classList.remove("down"); delete down[e.pointerId]; };
+    box.addEventListener("pointerup", function (e) { up(e); unlock(); });
+    box.addEventListener("pointercancel", up);
+    box.addEventListener("pointerleave", up);
+    box.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+  }
+
+  function buildGrid() {
+    var grid = $("grid");
+    PADS.forEach(function (p, r) {
+      var lab = document.createElement("button");
+      lab.type = "button"; lab.className = "lab"; lab.textContent = p.emoji;
+      lab.setAttribute("aria-label", "Preview " + p.name);
+      lab.addEventListener("click", function () { if (unlock()) SOUNDS[r](ac, master, ac.currentTime + .005); });
+      grid.appendChild(lab);
+      cellEls[r] = [];
+      for (var s = 0; s < STEPS; s++) {
+        var cell = document.createElement("button");
+        cell.type = "button";
+        cell.className = "cell" + (s % 2 === 0 ? " q" : "");
+        cell.style.setProperty("--a", p.a); cell.style.setProperty("--b", p.b);
+        (function (row, step, el) { el.addEventListener("click", function () { pattern[row][step] = !pattern[row][step]; if (pattern[row][step] && !S.playing && unlock()) SOUNDS[row](ac, master, ac.currentTime + .005); renderCell(row, step); }); })(r, s, cell);
+        grid.appendChild(cell);
+        cellEls[r][s] = cell;
+      }
+    });
+  }
+
+  function renderCell(r, s) {
+    var el = cellEls[r][s], on = !!pattern[r][s];
+    el.classList.toggle("on", on);
+    el.setAttribute("aria-pressed", on);
+    el.setAttribute("aria-label", PADS[r].name + ", step " + (s + 1) + (on ? ", on" : ", off"));
+  }
+
+  function loadPattern(src) {
+    pattern = PADS.map(function (p, r) { var row = []; for (var s = 0; s < STEPS; s++) row.push(src ? src[r].indexOf(s) !== -1 : false); return row; });
+    for (var r = 0; r < PADS.length; r++) for (var s = 0; s < STEPS; s++) renderCell(r, s);
+  }
+
+  function stepDur() { return 60 / S.bpm / 2; }
+
+  function scheduler() {
+    while (S.nextTime < ac.currentTime + .1) {
+      if (S.nextTime < ac.currentTime - .05) S.nextTime = ac.currentTime + .01;
+      for (var r = 0; r < PADS.length; r++) if (pattern[r][S.step]) SOUNDS[r](ac, master, S.nextTime);
+      queue.push({ step: S.step, t: S.nextTime });
+      S.nextTime += stepDur();
+      S.step = (S.step + 1) % STEPS;
+    }
+  }
+
+  function draw() {
+    if (!S.playing) return;
+    var now = ac.currentTime, shown = S.now;
+    while (queue.length && queue[0].t <= now) { shown = queue.shift().step; for (var r = 0; r < PADS.length; r++) if (pattern[r][shown]) flash(r); }
+    if (shown !== S.now) { setPlayhead(shown); }
+    raf = requestAnimationFrame(draw);
+  }
+
+  function setPlayhead(step) {
+    for (var r = 0; r < PADS.length; r++) {
+      if (S.now >= 0) cellEls[r][S.now].classList.remove("now");
+      if (step >= 0) cellEls[r][step].classList.add("now");
+    }
+    S.now = step;
+  }
+
+  function start() {
+    if (!unlock()) return;
+    S.playing = true; S.step = 0; queue = [];
+    var go = function () {
+      if (!S.playing) return;
+      S.nextTime = ac.currentTime + .06;
+      scheduler();
+      timer = setInterval(scheduler, 25);
+      raf = requestAnimationFrame(draw);
+    };
+    if (ac.state === "running") go(); else ac.resume().then(go);
+    renderTransport();
+  }
+
+  function stop() {
+    S.playing = false;
+    clearInterval(timer);
+    cancelAnimationFrame(raf);
+    queue = [];
+    setPlayhead(-1);
+    if (ac) {
+      // Silence notes already queued ahead, then restore the bus.
+      var now = ac.currentTime;
+      master.gain.cancelScheduledValues(now);
+      master.gain.setValueAtTime(0, now);
+      openHat = null;
+      master.disconnect();
+      var fresh = ac.createGain();
+      fresh.connect(comp);
+      master = fresh;
+      applyVolume();
+    }
+    renderTransport();
+  }
+
+  function renderTransport() {
+    $("play").innerHTML = (S.playing ? ICON.stop : ICON.play) + "<span>" + (S.playing ? TEXT.stop : TEXT.play) + "</span>";
+    $("bpm").innerHTML = S.bpm + "<small>" + TEXT.bpm + "</small>";
+    $("slower").disabled = S.bpm <= MIN_BPM;
+    $("faster").disabled = S.bpm >= MAX_BPM;
+    $("mute").innerHTML = S.muted ? ICON.mute : ICON.vol;
+    $("mute").setAttribute("aria-pressed", S.muted);
+    $("mute").setAttribute("aria-label", S.muted ? "Unmute" : "Mute");
+  }
+
+  function show(screen) {
+    S.screen = screen;
+    $("pads").hidden = screen !== "pads";
+    $("beat").hidden = screen !== "beat";
+    $("tabPads").setAttribute("aria-pressed", screen === "pads");
+    $("tabBeat").setAttribute("aria-pressed", screen === "beat");
+  }
+
+  $("tabPads").addEventListener("click", function () { show("pads"); });
+  $("tabBeat").addEventListener("click", function () { show("beat"); });
+  $("play").addEventListener("click", function () { S.playing ? stop() : start(); });
+  $("slower").addEventListener("click", function () { S.bpm = Math.max(MIN_BPM, S.bpm - 5); renderTransport(); });
+  $("faster").addEventListener("click", function () { S.bpm = Math.min(MAX_BPM, S.bpm + 5); renderTransport(); });
+  $("mute").addEventListener("click", function () { S.muted = !S.muted; unlock(); applyVolume(); renderTransport(); });
+  $("clear").addEventListener("click", function () { loadPattern(null); $("hint").textContent = TEXT.cleared; });
+  $("example").addEventListener("click", function () { loadPattern(EXAMPLE); $("hint").textContent = TEXT.example; });
+
+  buildPads();
+  buildGrid();
+  loadPattern(EXAMPLE);
+  renderTransport();
+  show("pads");
+</script>

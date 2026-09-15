@@ -1,0 +1,21 @@
+{
+  "id": "scratch-card",
+  "title": "Scratch Card",
+  "category": "games",
+  "icon": "ticket",
+  "emoji": "🎟️",
+  "description": "A prize card the user scratches with a finger to reveal the prize and code your bot chose, with a confetti burst and a Reveal all button.",
+  "height": 350,
+  "command": "scratch",
+  "fallback": "Your scratch card opens on WhatsApp Android only.",
+  "inputs": [
+    "tap",
+    "swipe"
+  ],
+  "sample": {
+    "title": "Lucky scratch",
+    "prize": "Free iced latte",
+    "code": "LATTE-2291",
+    "note": "Show this at the counter by 30 Nov"
+  }
+}

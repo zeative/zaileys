@@ -1,0 +1,15 @@
+{
+  "id": "breakout",
+  "title": "Breakout",
+  "category": "games",
+  "icon": "brick-wall",
+  "emoji": "🧱",
+  "description": "Bounce a ball off your paddle to smash rainbow bricks across three levels that get a little faster, with three lives and a score.",
+  "height": 450,
+  "command": "breakout",
+  "fallback": "Breakout opens on WhatsApp Android only.",
+  "inputs": [
+    "tap",
+    "swipe"
+  ]
+}

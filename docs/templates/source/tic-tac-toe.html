@@ -1,0 +1,159 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { --pink: #ff4f8b; --sky: #38b6ff; --yellow: #ffc93c; --violet: #7c5cff; --ink: #1d1442; --cream: #fff8ec; --tray: #ffe4cf; --size: min(86vw, 272px); }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; height: 100%; overflow: hidden; background: linear-gradient(155deg, var(--violet), var(--pink)); color: var(--ink); font: 14px/1.3 system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; user-select: none; -webkit-user-select: none; }
+  header { width: var(--size); display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+  .pill { height: 34px; display: flex; align-items: center; gap: 5px; padding: 0 11px; border-radius: 999px; background: var(--cream); box-shadow: 0 3px 0 rgba(29, 20, 66, .25); white-space: nowrap; }
+  #status { min-width: 0; font-weight: 800; overflow: hidden; text-overflow: ellipsis; }
+  .score { flex: none; padding: 0 9px; font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .score b { font-size: 16px; font-weight: 800; margin-right: 3px; }
+  .dot { width: 12px; height: 12px; border-radius: 4px; background: var(--pink); }
+  .dot.o { border-radius: 50%; background: var(--sky); }
+  #board { flex: none; width: var(--size); aspect-ratio: 1; padding: 8px; border-radius: 22px; background: var(--tray); box-shadow: 0 6px 0 rgba(29, 20, 66, .28); display: grid; grid-template-columns: repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 8px; }
+  .cell { position: relative; min-width: 0; min-height: 0; border: 0; border-radius: 16px; background: #fff; box-shadow: 0 4px 0 #efc9ab; cursor: pointer; transition: transform .12s ease, opacity .2s ease; }
+  .cell:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 #efc9ab; }
+  .cell:disabled { cursor: default; }
+  .cell.x { background: var(--pink); box-shadow: 0 4px 0 #c92f66; }
+  .cell.o { background: var(--sky); box-shadow: 0 4px 0 #1f86c9; }
+  .cell::before, .cell::after { position: absolute; inset: 0; margin: auto; }
+  .cell.x::before, .cell.x::after { content: ''; width: 56%; height: 14%; border-radius: 99px; background: var(--ink); transform: rotate(45deg); }
+  .cell.x::after { transform: rotate(-45deg); }
+  .cell.o::before { content: ''; width: 52%; height: 52%; border-radius: 50%; border: calc(var(--size) * .045) solid var(--ink); }
+  .cell.pop { animation: pop .32s cubic-bezier(.3, 1.6, .5, 1); }
+  .cell.win { animation: bounce .7s ease-in-out infinite alternate; box-shadow: 0 4px 0 var(--ink), inset 0 0 0 4px var(--yellow); }
+  #board.done .cell:not(.win) { opacity: .45; }
+  @keyframes pop { from { transform: scale(.6); } }
+  @keyframes bounce { to { transform: translateY(-4px) scale(1.04); } }
+  #again { flex: none; min-height: 44px; padding: 0 26px; border: 0; border-radius: 999px; background: var(--yellow); color: var(--ink); box-shadow: 0 4px 0 #c98f00; font: 800 15px system-ui, sans-serif; cursor: pointer; transition: transform .1s ease; }
+  #again:active { transform: translateY(3px); box-shadow: 0 1px 0 #c98f00; }
+  .confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  @media (prefers-reduced-motion: reduce) { .cell.pop, .cell.win { animation: none; } .cell, #again { transition: none; } }
+</style>
+<header>
+  <span id="status" class="pill" aria-live="polite">Your move</span>
+  <span class="pill score"><i class="dot" aria-hidden="true"></i>You <b id="you">0</b><i class="dot o" aria-hidden="true"></i>Bot <b id="bot">0</b></span>
+</header>
+<div id="board" role="grid" aria-label="Tic-tac-toe board"></div>
+<button id="again" type="button">New round</button>
+<script>
+  var TEXT = { move: 'Your move', thinking: 'Bot is thinking…', win: 'You win! 🎉', lose: 'Bot wins', draw: 'Draw' };
+  var LINES = [[0,1,2],[3,4,5],[6,7,8],[0,3,6],[1,4,7],[2,5,8],[0,4,8],[2,4,6]];
+  var board, over, thinking, last, round = 0, score = { you: 0, bot: 0 };
+  var boardEl = document.getElementById('board');
+  var statusEl = document.getElementById('status');
+  var cells = [];
+
+  function winner(b) {
+    for (var i = 0; i < LINES.length; i++) {
+      var l = LINES[i];
+      if (b[l[0]] && b[l[0]] === b[l[1]] && b[l[1]] === b[l[2]]) return { mark: b[l[0]], line: l };
+    }
+    return b.indexOf('') === -1 ? { mark: 'draw', line: [] } : null;
+  }
+
+  function minimax(b, turn) {
+    var w = winner(b);
+    if (w) return { score: w.mark === 'O' ? 1 : w.mark === 'X' ? -1 : 0 };
+    var best = { score: turn === 'O' ? -2 : 2, move: -1 };
+    for (var i = 0; i < 9; i++) {
+      if (b[i]) continue;
+      b[i] = turn;
+      var s = minimax(b, turn === 'O' ? 'X' : 'O').score;
+      b[i] = '';
+      if ((turn === 'O' && s > best.score) || (turn === 'X' && s < best.score)) best = { score: s, move: i };
+    }
+    return best;
+  }
+
+  function botMove() {
+    var free = [];
+    for (var i = 0; i < 9; i++) if (!board[i]) free.push(i);
+    var move = Math.random() < 0.2 ? free[Math.floor(Math.random() * free.length)] : minimax(board.slice(), 'O').move;
+    thinking = false;
+    play(move, 'O');
+  }
+
+  function play(i, mark) {
+    if (over || board[i] || (mark === 'X' && thinking)) return;
+    board[i] = mark;
+    last = i;
+    var w = winner(board);
+    if (w) {
+      over = true;
+      if (w.mark === 'X') { score.you++; statusEl.textContent = TEXT.win; confetti(); }
+      else if (w.mark === 'O') { score.bot++; statusEl.textContent = TEXT.lose; }
+      else statusEl.textContent = TEXT.draw;
+      render(w.line);
+      return;
+    }
+    if (mark === 'X') {
+      thinking = true;
+      statusEl.textContent = TEXT.thinking;
+      var thisRound = round;
+      setTimeout(function () { if (thisRound === round) botMove(); }, 350);
+    } else {
+      statusEl.textContent = TEXT.move;
+    }
+    render([]);
+  }
+
+  function render(line) {
+    boardEl.className = over && line.length ? 'done' : '';
+    for (var i = 0; i < 9; i++) {
+      var cell = cells[i];
+      cell.className = 'cell' + (board[i] ? ' ' + board[i].toLowerCase() : '') + (i === last ? ' pop' : '') + (line.indexOf(i) !== -1 ? ' win' : '');
+      cell.setAttribute('aria-label', 'Cell ' + (i + 1) + (board[i] ? ', ' + board[i] : ', empty') + (line.indexOf(i) !== -1 ? ', winning line' : ''));
+      cell.disabled = over || thinking || !!board[i];
+    }
+    document.getElementById('you').textContent = score.you;
+    document.getElementById('bot').textContent = score.bot;
+  }
+
+  function confetti() {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var cv = document.createElement('canvas'), w = window.innerWidth, h = window.innerHeight, r = window.devicePixelRatio || 1;
+    var g = cv.getContext('2d'), bits = [], colors = ['#ff4f8b', '#ffc93c', '#38b6ff', '#2ed8a7', '#7c5cff', '#ff8a3d'], t0 = 0;
+    cv.className = 'confetti';
+    cv.width = w * r;
+    cv.height = h * r;
+    document.body.appendChild(cv);
+    for (var i = 0; i < 70; i++) bits.push({ x: w / 2, y: h * 0.45, vx: (Math.random() - 0.5) * 10, vy: -3 - Math.random() * 9, s: 6 + Math.random() * 5, a: Math.random() * 6, c: colors[i % colors.length] });
+    function frame(now) {
+      if (!t0) t0 = now;
+      var t = now - t0;
+      g.setTransform(r, 0, 0, r, 0, 0);
+      g.clearRect(0, 0, w, h);
+      g.globalAlpha = Math.max(0, 1 - t / 1500);
+      bits.forEach(function (b) {
+        b.vy += 0.3; b.x += b.vx; b.y += b.vy; b.a += 0.2;
+        g.save(); g.translate(b.x, b.y); g.rotate(b.a); g.fillStyle = b.c; g.fillRect(-b.s / 2, -b.s / 4, b.s, b.s / 2); g.restore();
+      });
+      if (t < 1500) requestAnimationFrame(frame); else cv.remove();
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function reset() {
+    round++;
+    var old = document.querySelectorAll('.confetti');
+    for (var k = 0; k < old.length; k++) old[k].remove();
+    board = ['', '', '', '', '', '', '', '', ''];
+    over = false;
+    thinking = false;
+    last = -1;
+    statusEl.textContent = TEXT.move;
+    render([]);
+  }
+
+  for (var i = 0; i < 9; i++) {
+    var cell = document.createElement('button');
+    cell.type = 'button';
+    (function (index) { cell.addEventListener('click', function () { play(index, 'X'); }); })(i);
+    cells.push(cell);
+    boardEl.appendChild(cell);
+  }
+  document.getElementById('again').addEventListener('click', reset);
+  reset();
+</script>

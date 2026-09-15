@@ -1,0 +1,217 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { --pink: #ff4f8b; --orange: #ff8a3d; --yellow: #ffc93c; --lime: #9be15d; --mint: #2ed8a7; --sky: #38b6ff; --violet: #7c5cff; --ink: #1d1442; --cream: #fff8ec; --muted: #5b5380; --line: #dcd0ef; --minus: #0a7a5a; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  [hidden] { display: none !important; }
+  body { margin: 0; height: 100%; background: linear-gradient(150deg, var(--mint), var(--sky)); color: var(--ink); font: 14px/1.3 system-ui, sans-serif; display: flex; padding: 12px 12px 20px; }
+  .paper { position: relative; flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--cream); border-radius: 22px 22px 0 0; padding: 16px 16px 12px; box-shadow: 0 6px 0 rgba(29, 20, 66, .12); }
+  /* Torn-paper bottom edge: cream triangles hanging below the paper. */
+  .paper::after { content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 9px; background: conic-gradient(from -45deg at 50% 100%, var(--cream) 90deg, transparent 0) 0 0 / 18px 9px repeat-x; }
+  header { display: flex; align-items: center; gap: 10px; min-height: 44px; }
+  .paid header { padding-right: 58px; }
+  .logo { flex: none; width: 38px; height: 38px; border-radius: 14px; display: grid; place-items: center; font-size: 22px; background: linear-gradient(135deg, var(--yellow), var(--orange)); box-shadow: 0 3px 0 #d9661d; }
+  .head { min-width: 0; }
+  .store { font-size: 18px; font-weight: 800; line-height: 1.2; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .meta { margin-top: 2px; color: var(--muted); font-size: 12px; display: flex; flex-wrap: wrap; gap: 0 8px; font-variant-numeric: tabular-nums; }
+  .meta span { white-space: nowrap; }
+  .stamp { position: absolute; top: 8px; right: 10px; width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center; text-align: center; background: var(--pink); box-shadow: 0 4px 0 #c42762; transform: rotate(-14deg); animation: stamp .5s cubic-bezier(.3, 1.6, .5, 1) both .15s; }
+  .stamp b { width: 48px; height: 48px; border-radius: 50%; border: 2px dashed var(--ink); display: grid; place-items: center; align-content: center; background: var(--yellow); font-size: 13px; font-weight: 800; letter-spacing: .04em; line-height: 1; }
+  .stamp small { display: block; font-size: 14px; margin-top: 1px; }
+  @keyframes stamp { from { opacity: 0; transform: rotate(-40deg) scale(1.8); } to { opacity: 1; transform: rotate(-14deg) scale(1); } }
+  .rule { flex: none; margin: 9px 0; border-top: 2px dashed var(--line); }
+  #items { flex: 1; min-height: 0; overflow: hidden; margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 7px; }
+  #items li { flex: none; }
+  #items li .name::before { content: ''; display: inline-block; width: 8px; height: 8px; margin: 0 7px 1px 0; border-radius: 3px; background: var(--pink); vertical-align: middle; }
+  #items li:nth-child(5n+2) .name::before { background: var(--orange); }
+  #items li:nth-child(5n+3) .name::before { background: var(--mint); }
+  #items li:nth-child(5n+4) .name::before { background: var(--sky); }
+  #items li:nth-child(5n+5) .name::before { background: var(--violet); }
+  .row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-variant-numeric: tabular-nums; }
+  .row .name { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #items .row .name { font-weight: 600; }
+  .row .amt { flex: none; font-weight: 600; }
+  .each { padding-left: 15px; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+  .more, .empty { color: var(--muted); font-size: 12px; font-weight: 600; }
+  #sums { display: flex; flex-direction: column; gap: 2px; color: var(--muted); font-size: 13px; }
+  #sums .minus { color: var(--minus); }
+  .total { margin-top: 8px; display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 14px; border-radius: 16px; background: linear-gradient(100deg, var(--mint), var(--sky)); }
+  .total span { font-weight: 800; }
+  .total b { min-width: 0; font-size: clamp(22px, 7vw, 28px); font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  footer { margin-top: 8px; display: flex; flex-direction: column; align-items: center; gap: 5px; text-align: center; min-width: 0; }
+  .pay { max-width: 100%; border-radius: 999px; padding: 4px 12px; font-size: 12px; font-weight: 600; background: var(--ink); color: #fff; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pay b { color: var(--yellow); font-weight: 800; }
+  .thanks { color: var(--muted); font-size: 12px; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  @media (prefers-reduced-motion: reduce) { .stamp { animation: none; } }
+</style>
+<main class="paper" aria-label="Receipt">
+  <header>
+    <span class="logo" aria-hidden="true">🧾</span>
+    <div class="head">
+      <div class="store" id="store"></div>
+      <div class="meta"><span id="number"></span><span id="date"></span></div>
+    </div>
+  </header>
+  <div class="stamp" id="stamp" hidden><b>PAID<small aria-hidden="true">✓</small></b></div>
+  <div class="rule"></div>
+  <ul id="items" aria-label="Items"></ul>
+  <div class="rule"></div>
+  <div id="sums"></div>
+  <div class="total"><span>Total</span><b id="total"></b></div>
+  <footer>
+    <div class="pay" id="pay"></div>
+    <div class="thanks" id="thanks"></div>
+  </footer>
+</main>
+<script>
+  var DATA = /*DATA*/null;
+  var TEXT = {
+    store: 'Receipt',
+    subtotal: 'Subtotal',
+    tax: 'Tax',
+    discount: 'Discount',
+    paidWith: 'Paid with ',
+    noItems: 'No items listed',
+    more: function (n) { return '+' + n + ' more item' + (n === 1 ? '' : 's'); }
+  };
+  var d = DATA || {};
+  var items = Array.isArray(d.items) ? d.items : [];
+
+  function num(v) { return typeof v === 'number' && isFinite(v) ? v : null; }
+
+  function formatters(currency, locale) {
+    var loc = locale || undefined, money, plain;
+    try { new Intl.NumberFormat(loc); } catch (e) { loc = undefined; }
+    try {
+      money = new Intl.NumberFormat(loc, { style: 'currency', currency: currency, currencyDisplay: 'code' });
+      var digits = money.resolvedOptions().maximumFractionDigits;
+      plain = new Intl.NumberFormat(loc, { minimumFractionDigits: digits, maximumFractionDigits: digits });
+    } catch (e) {
+      plain = new Intl.NumberFormat(loc, { maximumFractionDigits: 2 });
+      money = { format: function (v) { return (currency ? currency + ' ' : '') + plain.format(v); } };
+    }
+    return { money: function (v) { return money.format(v); }, plain: function (v) { return plain.format(v); } };
+  }
+  var fmt = formatters(d.currency, d.locale);
+
+  function lineAmount(item) {
+    var qty = num(item.qty) === null ? 1 : item.qty;
+    if (num(item.amount) !== null) return item.amount;
+    return num(item.price) === null ? null : qty * item.price;
+  }
+
+  function itemRow(item) {
+    var li = document.createElement('li');
+    var row = document.createElement('div');
+    row.className = 'row';
+    var name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = item.name || 'Item';
+    var amt = document.createElement('span');
+    amt.className = 'amt';
+    var total = lineAmount(item);
+    amt.textContent = total === null ? '' : fmt.plain(total);
+    row.appendChild(name);
+    row.appendChild(amt);
+    li.appendChild(row);
+    // A single unit repeats the line amount, so the unit price only shows for qty above one.
+    if (num(item.price) !== null && (num(item.qty) === null ? 1 : item.qty) !== 1) {
+      var each = document.createElement('div');
+      each.className = 'each';
+      each.textContent = (num(item.qty) === null ? 1 : item.qty) + ' × ' + fmt.plain(item.price);
+      li.appendChild(each);
+    }
+    return li;
+  }
+
+  var list = document.getElementById('items');
+
+  // Rows are dropped from the end until the list fits, since the card cannot scroll.
+  function renderItems() {
+    for (var shown = items.length; shown >= 0; shown--) {
+      list.textContent = '';
+      if (!items.length) {
+        var none = document.createElement('li');
+        none.className = 'empty';
+        none.textContent = TEXT.noItems;
+        list.appendChild(none);
+        return;
+      }
+      for (var i = 0; i < shown; i++) list.appendChild(itemRow(items[i]));
+      if (shown < items.length) {
+        var more = document.createElement('li');
+        more.className = 'more';
+        more.textContent = TEXT.more(items.length - shown);
+        list.appendChild(more);
+      }
+      if (list.scrollHeight <= list.clientHeight + 1) return;
+    }
+  }
+
+  function sumRow(label, value, minus) {
+    var row = document.createElement('div');
+    row.className = 'row' + (minus ? ' minus' : '');
+    var l = document.createElement('span');
+    l.className = 'name';
+    l.textContent = label;
+    var v = document.createElement('span');
+    v.className = 'amt';
+    v.textContent = (minus ? '− ' : '') + fmt.plain(Math.abs(value));
+    row.appendChild(l);
+    row.appendChild(v);
+    document.getElementById('sums').appendChild(row);
+  }
+
+  function adjustment(entry, fallbackLabel) {
+    if (!entry) return null;
+    if (num(entry) !== null) return { label: fallbackLabel, amount: entry };
+    return num(entry.amount) === null ? null : { label: entry.label || fallbackLabel, amount: entry.amount };
+  }
+
+  document.getElementById('store').textContent = d.store || TEXT.store;
+  document.getElementById('number').textContent = d.receiptNo ? '#' + d.receiptNo : '';
+  document.getElementById('date').textContent = d.date || '';
+
+  var computed = 0, known = items.length > 0;
+  items.forEach(function (item) {
+    var a = lineAmount(item);
+    if (a === null) known = false; else computed += a;
+  });
+  var subtotal = num(d.subtotal) !== null ? d.subtotal : known ? computed : null;
+  var tax = adjustment(d.tax, TEXT.tax);
+  var discount = adjustment(d.discount, TEXT.discount);
+  if (subtotal !== null && (tax || discount)) sumRow(TEXT.subtotal, subtotal);
+  if (tax) sumRow(tax.label, tax.amount);
+  if (discount) sumRow(discount.label, discount.amount, true);
+
+  var total = num(d.total);
+  if (total === null && subtotal !== null) total = subtotal + (tax ? tax.amount : 0) - (discount ? Math.abs(discount.amount) : 0);
+  var totalEl = document.getElementById('total');
+  totalEl.textContent = total === null ? 'Not available' : fmt.money(total);
+  if (total === null) totalEl.style.fontSize = '17px';
+
+  var pay = document.getElementById('pay');
+  if (d.paymentMethod) {
+    pay.textContent = TEXT.paidWith;
+    var method = document.createElement('b');
+    method.textContent = d.paymentMethod;
+    pay.appendChild(method);
+    document.getElementById('stamp').hidden = false;
+    document.querySelector('.paper').classList.add('paid');
+  } else {
+    pay.hidden = true;
+  }
+  document.getElementById('thanks').textContent = d.thankYou || '';
+  // Long amounts shrink to fit rather than being cut off, since a clipped number would misstate it.
+  function fitText(el, min) {
+    el.style.fontSize = '';
+    var size = parseFloat(getComputedStyle(el).fontSize);
+    while (el.scrollWidth > el.clientWidth && size > min) { size -= 1; el.style.fontSize = size + 'px'; }
+  }
+  function layout() {
+    renderItems();
+    if (total !== null) fitText(totalEl, 14);
+  }
+  layout();
+  addEventListener('resize', layout);
+</script>

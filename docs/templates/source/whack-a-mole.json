@@ -1,0 +1,14 @@
+{
+  "id": "whack-a-mole",
+  "title": "Whack-a-Mole",
+  "category": "games",
+  "icon": "hammer",
+  "emoji": "🔨",
+  "description": "Tap cartoon moles as they pop out of nine holes in a 30-second round, then see your score and best for the session.",
+  "height": 430,
+  "command": "whack",
+  "fallback": "Whack-a-Mole opens on WhatsApp Android only.",
+  "inputs": [
+    "tap"
+  ]
+}

@@ -1,0 +1,204 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { --sky: #38b6ff; --grape: #b44cff; --violet: #7c5cff; --mint: #2ed8a7; --pink: #ff4f8b; --yellow: #ffc93c; --ink: #1d1442; --cream: #fff8ec; --size: min(84vw, 290px); }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; height: 100%; overflow: hidden; background: linear-gradient(160deg, var(--sky), var(--grape)); color: var(--ink); font: 14px/1.3 system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; user-select: none; -webkit-user-select: none; }
+  header { width: var(--size); display: flex; justify-content: space-between; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; }
+  .pill { height: 34px; display: flex; align-items: center; gap: 4px; padding: 0 12px; border-radius: 999px; background: var(--cream); box-shadow: 0 3px 0 rgba(29, 20, 66, .25); white-space: nowrap; }
+  #status { min-width: 0; font-weight: 800; overflow: hidden; text-overflow: ellipsis; }
+  .stats { flex: none; font-size: 13px; font-weight: 700; }
+  .stats b { font-size: 16px; font-weight: 800; }
+  .stats i { font-style: normal; margin-left: 6px; }
+  #wrap { position: relative; width: var(--size); height: var(--size); flex: none; }
+  #board { width: 100%; height: 100%; display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(4, 1fr); gap: 7px; }
+  .card { position: relative; min-width: 0; min-height: 0; padding: 0; border: 0; background: transparent; color: var(--ink); perspective: 400px; cursor: pointer; }
+  .inner { position: absolute; inset: 0; transform-style: preserve-3d; transition: transform .32s cubic-bezier(.3, 1.4, .5, 1); }
+  .card.up .inner { transform: rotateY(180deg); }
+  .face { position: absolute; inset: 0; border-radius: 14px; display: grid; place-items: center; -webkit-backface-visibility: hidden; backface-visibility: hidden; box-shadow: inset 0 -4px 0 rgba(29, 20, 66, .25); }
+  .back { background: radial-gradient(circle at 30% 25%, rgba(255, 255, 255, .28) 0 18%, transparent 19%), linear-gradient(145deg, var(--violet), var(--grape)); color: var(--cream); font: 800 26px/1 system-ui, sans-serif; padding-bottom: 3px; }
+  .front { background: var(--cream); transform: rotateY(180deg); font-size: clamp(26px, 9vw, 36px); line-height: 1; padding-bottom: 3px; }
+  .card.done .front { background: var(--mint); }
+  .card.done .front::after { content: '✓'; position: absolute; top: 4px; right: 4px; width: 17px; height: 17px; border-radius: 50%; background: var(--ink); color: var(--cream); display: grid; place-items: center; font: 800 11px/1 system-ui, sans-serif; }
+  .card.miss .front { box-shadow: inset 0 0 0 3px var(--pink), inset 0 -4px 0 rgba(29, 20, 66, .25); }
+  .card.miss { animation: shake .32s .3s; }
+  .card.just { animation: pop .4s .25s cubic-bezier(.3, 1.8, .5, 1); }
+  .card:active:not(:disabled) { transform: scale(.94); }
+  .card:disabled { cursor: default; }
+  @keyframes shake { 25% { transform: translateX(-4px) rotate(-3deg); } 75% { transform: translateX(4px) rotate(3deg); } }
+  @keyframes pop { 50% { transform: scale(1.12); } }
+  #overlay { position: absolute; inset: 0; border-radius: 20px; background: rgba(29, 20, 66, .55); display: grid; place-items: center; padding: 16px; }
+  #overlay[hidden] { display: none; }
+  .win { width: 100%; max-width: 240px; padding: 16px 12px; border-radius: 20px; background: var(--cream); display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; box-shadow: 0 5px 0 rgba(29, 20, 66, .35); animation: drop .35s cubic-bezier(.3, 1.5, .5, 1); }
+  @keyframes drop { from { transform: translateY(-14px) scale(.9); opacity: 0; } }
+  #title { font-size: 22px; font-weight: 800; }
+  #result { font-size: 14px; color: #4a4263; font-variant-numeric: tabular-nums; }
+  #result b { color: var(--ink); font-weight: 800; }
+  #play { margin-top: 2px; min-height: 44px; padding: 0 24px; border: 0; border-radius: 999px; background: var(--yellow); color: var(--ink); box-shadow: 0 4px 0 #c98f00; font: 800 15px system-ui, sans-serif; cursor: pointer; }
+  #play:active { transform: translateY(3px); box-shadow: 0 1px 0 #c98f00; }
+  #restart { flex: none; min-height: 40px; padding: 0 22px; border: 0; border-radius: 999px; background: var(--cream); color: var(--ink); box-shadow: 0 4px 0 #6d2fb8; font: 800 14px system-ui, sans-serif; cursor: pointer; }
+  #restart:active { transform: translateY(3px); box-shadow: 0 1px 0 #6d2fb8; }
+  .confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  @media (prefers-reduced-motion: reduce) { .inner { transition: none; } .card.miss, .card.just, .win { animation: none; } }
+</style>
+<header>
+  <span id="status" class="pill" aria-live="polite">Find the pairs</span>
+  <span class="pill stats">Moves <b id="moves">0</b><i aria-hidden="true">⏱</i><b id="time">0:00</b></span>
+</header>
+<div id="wrap">
+  <div id="board" aria-label="Memory cards"></div>
+  <div id="overlay" hidden>
+    <div class="win">
+      <div id="title">🎉 All pairs found!</div>
+      <div id="result"></div>
+      <button id="play" type="button">Play again</button>
+    </div>
+  </div>
+</div>
+<button id="restart" type="button">Restart</button>
+<script>
+  var CARDS = [['🍎', 'Apple'], ['🍋', 'Lemon'], ['🍇', 'Grapes'], ['🍉', 'Watermelon'], ['🍒', 'Cherries'], ['🥝', 'Kiwi'], ['🍑', 'Peach'], ['🍍', 'Pineapple']];
+  var TEXT = { start: 'Find the pairs', match: 'Match!', miss: 'Not a pair', won: 'All pairs found!' };
+  var COLORS = ['#ff4f8b', '#ffc93c', '#38b6ff', '#2ed8a7', '#fff8ec', '#ff8a3d'];
+  var FLIP_BACK_MS = 800;
+
+  var boardEl = document.getElementById('board');
+  var statusEl = document.getElementById('status');
+  var overlay = document.getElementById('overlay');
+  var deck, open, found, moves, busy, startedAt, clock, round = 0;
+
+  function shuffle(list) {
+    for (var i = list.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1)), t = list[i];
+      list[i] = list[j];
+      list[j] = t;
+    }
+    return list;
+  }
+
+  function formatTime(ms) {
+    var s = Math.floor(ms / 1000);
+    return Math.floor(s / 60) + ':' + (s % 60 < 10 ? '0' : '') + (s % 60);
+  }
+
+  function elapsed() { return startedAt ? Date.now() - startedAt : 0; }
+
+  function tick() { document.getElementById('time').textContent = formatTime(elapsed()); }
+
+  function build() {
+    boardEl.textContent = '';
+    deck.forEach(function (card, i) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'card';
+      btn.innerHTML = '<span class="inner"><span class="face back" aria-hidden="true">?</span><span class="face front" aria-hidden="true"><span class="emoji"></span></span></span>';
+      btn.querySelector('.emoji').textContent = CARDS[card.pair][0];
+      btn.addEventListener('click', function () { flip(i); });
+      card.el = btn;
+      boardEl.appendChild(btn);
+    });
+    paint();
+  }
+
+  function paint() {
+    deck.forEach(function (card, i) {
+      var up = card.done || open.indexOf(i) !== -1;
+      card.el.className = 'card' + (up ? ' up' : '') + (card.done ? ' done' : '') + (card.miss ? ' miss' : '');
+      card.el.disabled = card.done;
+      card.el.setAttribute('aria-label', 'Card ' + (i + 1) + ', ' + (card.done ? CARDS[card.pair][1] + ', matched' : up ? CARDS[card.pair][1] : 'face down'));
+    });
+    document.getElementById('moves').textContent = moves;
+  }
+
+  function flip(i) {
+    var card = deck[i];
+    if (busy || card.done || open.indexOf(i) !== -1) return;
+    if (!startedAt) { startedAt = Date.now(); clock = setInterval(tick, 500); }
+    open.push(i);
+    if (open.length < 2) { statusEl.textContent = CARDS[card.pair][1]; paint(); return; }
+    moves++;
+    var a = deck[open[0]], b = deck[open[1]];
+    if (a.pair === b.pair) {
+      a.done = b.done = true;
+      open = [];
+      found++;
+      statusEl.textContent = TEXT.match + ' ' + found + ' of ' + CARDS.length;
+      paint();
+      a.el.classList.add('just');
+      b.el.classList.add('just');
+      if (found === CARDS.length) win();
+      return;
+    }
+    a.miss = b.miss = true;
+    busy = true;
+    statusEl.textContent = TEXT.miss;
+    paint();
+    var thisRound = round;
+    setTimeout(function () {
+      if (thisRound !== round) return;
+      a.miss = b.miss = false;
+      open = [];
+      busy = false;
+      paint();
+    }, FLIP_BACK_MS);
+  }
+
+  function win() {
+    clearInterval(clock);
+    tick();
+    statusEl.textContent = TEXT.won;
+    var result = document.getElementById('result');
+    result.innerHTML = '<b></b> moves in <b></b>';
+    result.children[0].textContent = moves;
+    result.children[1].textContent = formatTime(elapsed());
+    var thisRound = round;
+    setTimeout(function () { if (thisRound !== round) return; overlay.hidden = false; confetti(); document.getElementById('play').focus(); }, 450);
+  }
+
+  function confetti() {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var cv = document.createElement('canvas'), w = window.innerWidth, h = window.innerHeight, r = window.devicePixelRatio || 1;
+    var g = cv.getContext('2d'), bits = [], t0 = 0;
+    cv.className = 'confetti';
+    cv.width = w * r;
+    cv.height = h * r;
+    document.body.appendChild(cv);
+    for (var i = 0; i < 70; i++) bits.push({ x: w / 2, y: h * 0.4, vx: (Math.random() - 0.5) * 10, vy: -3 - Math.random() * 9, s: 6 + Math.random() * 5, a: Math.random() * 6, c: COLORS[i % COLORS.length] });
+    function frame(now) {
+      if (!t0) t0 = now;
+      var t = now - t0;
+      g.setTransform(r, 0, 0, r, 0, 0);
+      g.clearRect(0, 0, w, h);
+      g.globalAlpha = Math.max(0, 1 - t / 1500);
+      bits.forEach(function (b) {
+        b.vy += 0.3; b.x += b.vx; b.y += b.vy; b.a += 0.2;
+        g.save(); g.translate(b.x, b.y); g.rotate(b.a); g.fillStyle = b.c; g.fillRect(-b.s / 2, -b.s / 4, b.s, b.s / 2); g.restore();
+      });
+      if (t < 1500) requestAnimationFrame(frame); else cv.remove();
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function reset() {
+    clearInterval(clock);
+    round++;
+    var old = document.querySelectorAll('.confetti');
+    for (var k = 0; k < old.length; k++) old[k].remove();
+    var pairs = [];
+    for (var p = 0; p < CARDS.length; p++) pairs.push({ pair: p }, { pair: p });
+    deck = shuffle(pairs);
+    open = [];
+    found = 0;
+    moves = 0;
+    busy = false;
+    startedAt = 0;
+    overlay.hidden = true;
+    statusEl.textContent = TEXT.start;
+    tick();
+    build();
+  }
+
+  document.getElementById('restart').addEventListener('click', reset);
+  document.getElementById('play').addEventListener('click', reset);
+  reset();
+</script>

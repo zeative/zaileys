@@ -1,0 +1,309 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { --pink: #ff4f8b; --orange: #ff8a3d; --yellow: #ffc93c; --lime: #9be15d; --mint: #2ed8a7; --sky: #38b6ff; --ink: #1d1442; --cream: #fff8ec; --soft: #5b4a86; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; height: 100%; background: linear-gradient(165deg, var(--yellow) 0%, var(--orange) 100%); color: var(--ink); font: 14px/1.3 system-ui, sans-serif; padding: 12px 14px 14px; user-select: none; -webkit-user-select: none; }
+  main { height: 100%; max-width: 440px; margin: 0 auto; display: flex; flex-direction: column; gap: 8px; }
+  header { flex: none; display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 30px; }
+  h1 { margin: 0; min-width: 0; font-size: 21px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .badge { flex: none; padding: 4px 10px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 12px; font-weight: 700; }
+  .screen { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+  .screen[hidden] { display: none; }
+  button { font-family: inherit; cursor: pointer; }
+  button:focus-visible, input:focus-visible { outline: 3px solid var(--ink); outline-offset: 2px; }
+
+  .panel { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; padding: 8px 10px 10px; border-radius: 20px; background: var(--cream); box-shadow: 0 4px 0 rgba(29, 20, 66, .22); }
+  .hint { flex: none; font-size: 12px; font-weight: 700; color: var(--soft); }
+  .chips { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-wrap: wrap; align-content: flex-start; gap: 6px; }
+  .chip { max-width: 100%; height: 34px; display: inline-flex; align-items: center; gap: 6px; padding: 0 6px 0 12px; border: 0; border-radius: 999px; background: #fff; color: var(--ink); font-size: 14px; font-weight: 700; box-shadow: 0 2px 0 rgba(29, 20, 66, .25); animation: chipIn .25s cubic-bezier(.3, 1.6, .5, 1); }
+  .chip span { max-width: 8em; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  .chip i { flex: none; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; background: var(--pink); font-style: normal; font-size: 13px; line-height: 1; }
+  .chip:active { transform: translateY(2px); box-shadow: none; }
+  .chip[hidden] { display: none; }
+  .chip.more { padding: 0 12px; background: transparent; border: 2px dashed var(--ink); box-shadow: none; }
+  .empty { font-size: 13px; font-weight: 600; color: var(--soft); padding: 6px 2px; }
+  @keyframes chipIn { from { transform: scale(.6); } to { transform: scale(1); } }
+
+  .row { flex: none; display: flex; align-items: center; gap: 8px; }
+  input { flex: 1; min-width: 0; height: 42px; padding: 0 12px; border: 2px solid var(--ink); border-radius: 14px; background: #fff; color: var(--ink); font: 700 15px system-ui, sans-serif; user-select: text; -webkit-user-select: text; }
+  input::placeholder { color: #6f6390; }
+  .soft { flex: none; min-width: 42px; height: 42px; padding: 0 14px; border: 0; border-radius: 14px; background: #fff; color: var(--ink); font-size: 15px; font-weight: 800; box-shadow: 0 3px 0 rgba(29, 20, 66, .35); }
+  .soft:active { transform: translateY(3px); box-shadow: 0 0 0 rgba(29, 20, 66, .35); }
+  .soft:disabled { opacity: .45; box-shadow: none; cursor: default; transform: none; }
+  .teams { justify-content: space-between; padding: 3px 3px 3px 12px; border-radius: 16px; background: rgba(255, 248, 236, .6); }
+  .teams b { display: block; font-size: 15px; line-height: 19px; font-weight: 800; }
+  .teams small { display: block; min-height: 15px; font-size: 12px; line-height: 15px; font-weight: 700; color: var(--ink); white-space: nowrap; }
+  .step { display: flex; align-items: center; gap: 4px; }
+  .step output { min-width: 26px; text-align: center; font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .step .soft { font-size: 20px; padding: 0; }
+  .primary { flex: none; width: 100%; min-height: 46px; border: 0; border-radius: 999px; background: var(--sky); color: var(--ink); font-size: 17px; font-weight: 800; box-shadow: 0 4px 0 #1f7fc0; transition: transform .1s, box-shadow .1s; }
+  .primary:active { transform: translateY(3px); box-shadow: 0 1px 0 #1f7fc0; }
+  .primary:disabled { background: #d9e6ee; box-shadow: none; cursor: default; transform: none; }
+  #status { flex: none; min-height: 16px; margin: 0; font-size: 12px; font-weight: 700; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .grid { flex: 1; min-height: 0; display: grid; gap: 8px; }
+  .card { min-width: 0; min-height: 0; display: flex; flex-direction: column; border-radius: 18px; overflow: hidden; background: var(--cream); box-shadow: 0 4px 0 rgba(29, 20, 66, .25); }
+  .card.reveal { animation: reveal .45s cubic-bezier(.3, 1.5, .5, 1) both; }
+  @keyframes reveal { from { transform: scale(.5) rotate(-6deg); opacity: 0; } to { transform: scale(1) rotate(0); opacity: 1; } }
+  .card h2 { flex: none; margin: 0; padding: 5px 10px 5px; background: var(--c); font-size: 15px; line-height: 19px; font-weight: 800; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card h2 small { display: block; font-size: 12px; line-height: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .card ul { flex: 1; min-height: 0; margin: 0; padding: 4px 10px 6px; list-style: none; overflow: hidden; }
+  .card li { height: 20px; line-height: 20px; font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .card li.extra { color: var(--soft); font-size: 13px; }
+  .card.reveal li { animation: nameIn .3s ease-out both; }
+  @keyframes nameIn { from { opacity: 0; transform: translateX(-8px); } to { opacity: 1; transform: none; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .chip, .card.reveal, .card.reveal li { animation: none; }
+  }
+</style>
+<main>
+  <header>
+    <h1 id="title">Team picker</h1>
+    <span class="badge">🎲 Random</span>
+  </header>
+
+  <section class="screen" id="setup">
+    <div class="panel">
+      <div class="hint" id="hint">Players · tap a name to remove it</div>
+      <div class="chips" id="chips"></div>
+    </div>
+    <div class="row">
+      <input id="name" type="text" inputmode="text" enterkeyhint="done" autocomplete="off" autocapitalize="words" maxlength="20" placeholder="Add a name" aria-label="Add a name">
+      <button type="button" class="soft" id="add">Add</button>
+    </div>
+    <div class="row teams">
+      <div><b>Teams</b><small id="per"></small></div>
+      <div class="step">
+        <button type="button" class="soft" id="fewer" aria-label="Fewer teams">−</button>
+        <output id="teamCount" aria-live="polite">2</output>
+        <button type="button" class="soft" id="moreTeams" aria-label="More teams">+</button>
+      </div>
+    </div>
+    <button type="button" class="primary" id="shuffle">Shuffle teams</button>
+  </section>
+
+  <section class="screen" id="result" hidden>
+    <div class="grid" id="grid"></div>
+    <div class="row">
+      <button type="button" class="soft" id="edit">Edit names</button>
+      <button type="button" class="primary" id="again" style="flex: 1; width: auto">Shuffle again</button>
+    </div>
+  </section>
+
+  <p id="status" aria-live="polite"></p>
+</main>
+<script>
+  var DATA = /*DATA*/null;
+  var TEXT = { title: 'Team picker', players: ' players', player: ' player', hint: 'Players · tap a name to remove it', empty: 'No names yet. Add one below.', more: ' more', added: 'Added ', removed: 'Removed ', dup: ' is already on the list', full: 'The list is full', need: 'Add at least ', needEnd: ' names to make teams', perTeam: ' per team', split: 'Random split: ', team: 'Team ' };
+  var EXAMPLE = ['Player 1', 'Player 2', 'Player 3', 'Player 4', 'Player 5', 'Player 6'];
+  var TEAM_COLORS = ['#ff4f8b', '#38b6ff', '#2ed8a7', '#9be15d'];
+  var TEAM_MARKS = ['★', '●', '▲', '◆'];
+  var MIN_TEAMS = 2, MAX_TEAMS = 4, MAX_NAMES = 60, MAX_LEN = 20;
+
+  function $(id) { return document.getElementById(id); }
+  function tidy(v, max) { return String(v == null ? '' : v).split(' ').filter(Boolean).join(' ').slice(0, max || MAX_LEN); }
+
+  // Unbiased integer in [0, n) from the crypto generator.
+  function randInt(n) {
+    var limit = Math.floor(4294967296 / n) * n, buf = new Uint32Array(1);
+    if (!window.crypto || !crypto.getRandomValues) return Math.floor(Math.random() * n);
+    do { crypto.getRandomValues(buf); } while (buf[0] >= limit);
+    return buf[0] % n;
+  }
+
+  function shuffled(list) {
+    var a = list.slice();
+    for (var i = a.length - 1; i > 0; i--) {
+      var j = randInt(i + 1), t = a[i];
+      a[i] = a[j];
+      a[j] = t;
+    }
+    return a;
+  }
+
+  // Deals the shuffled names round-robin, so team sizes never differ by more than one.
+  function makeTeams(list, count) {
+    var teams = [], order = shuffled(list);
+    for (var t = 0; t < count; t++) teams.push([]);
+    for (var i = 0; i < order.length; i++) teams[i % count].push(order[i]);
+    return teams;
+  }
+
+  var d = DATA || {};
+  var names = [];
+  (Array.isArray(d.names) ? d.names : EXAMPLE).forEach(function (n) { addName(tidy(n), true); });
+  var title = tidy(d.title, 40) || TEXT.title;
+  var teamCount = MIN_TEAMS, start = 0, shown = 0;
+  var calm = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  $('title').textContent = title;
+
+  function plural(n) { return n + (n === 1 ? TEXT.player : TEXT.players); }
+  function say(text) { $('status').textContent = text; }
+
+  function addName(name, quiet) {
+    if (!name) return false;
+    for (var i = 0; i < names.length; i++) {
+      if (names[i].toLowerCase() === name.toLowerCase()) { if (!quiet) say(name + TEXT.dup); return false; }
+    }
+    if (names.length >= MAX_NAMES) { if (!quiet) say(TEXT.full); return false; }
+    names.push(name);
+    return true;
+  }
+
+  function chip(label, cls) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.className = cls;
+    var s = document.createElement('span');
+    s.textContent = label;
+    b.appendChild(s);
+    return b;
+  }
+
+  // Shows as many chips as fit from the start index; a "+K more" chip pages through the rest.
+  function renderChips() {
+    var box = $('chips');
+    box.textContent = '';
+    if (start >= names.length) start = 0;
+    if (!names.length) {
+      var e = document.createElement('div');
+      e.className = 'empty';
+      e.textContent = TEXT.empty;
+      box.appendChild(e);
+      shown = 0;
+      return;
+    }
+    var items = [];
+    for (var i = start; i < names.length; i++) {
+      var c = chip(names[i], 'chip');
+      var x = document.createElement('i');
+      x.textContent = '×';
+      x.setAttribute('aria-hidden', 'true');
+      c.appendChild(x);
+      c.setAttribute('aria-label', 'Remove ' + names[i]);
+      c.addEventListener('click', remove.bind(null, i));
+      box.appendChild(c);
+      items.push(c);
+    }
+    shown = items.length;
+    var more = chip('', 'chip more');
+    more.addEventListener('click', function () {
+      start += shown;
+      if (start >= names.length) start = 0;
+      renderChips();
+    });
+    function label() {
+      var hidden = names.length - shown;
+      more.firstChild.textContent = '+' + hidden + TEXT.more;
+      more.setAttribute('aria-label', 'Show ' + hidden + ' more names');
+      more.hidden = hidden === 0;
+    }
+    label();
+    box.appendChild(more);
+    while (box.scrollHeight > box.clientHeight + 1 && shown > 1) {
+      box.removeChild(items[--shown]);
+      label();
+    }
+  }
+
+  function render() {
+    var n = names.length;
+    $('hint').textContent = plural(n) + ' · tap a name to remove it';
+    $('teamCount').textContent = String(teamCount);
+    $('fewer').disabled = teamCount <= MIN_TEAMS;
+    $('moreTeams').disabled = teamCount >= MAX_TEAMS;
+    var enough = n >= teamCount;
+    $('shuffle').disabled = !enough;
+    $('per').textContent = enough ? Math.floor(n / teamCount) + (n % teamCount ? '–' + Math.ceil(n / teamCount) : '') + TEXT.perTeam : 'Need ' + teamCount + '+ names';
+    renderChips();
+    return enough;
+  }
+
+  function remove(i) {
+    var gone = names.splice(i, 1)[0];
+    render();
+    say(TEXT.removed + gone + ' · ' + plural(names.length));
+    var chips = $('chips').querySelectorAll('.chip:not(.more)');
+    if (chips.length) chips[Math.max(0, Math.min(i - start, chips.length - 1))].focus(); else $('name').focus();
+  }
+
+  function submitName() {
+    var input = $('name'), name = tidy(input.value);
+    if (!name) return;
+    if (!addName(name, false)) return;
+    input.value = '';
+    // Page forward until the new name is on screen.
+    for (var guard = 0; guard < names.length; guard++) {
+      render();
+      if (names.length - 1 < start + shown) break;
+      start += shown;
+    }
+    say(TEXT.added + name + ' · ' + plural(names.length));
+  }
+
+  function showTeams() {
+    if (!render()) { say(TEXT.need + teamCount + TEXT.needEnd); return; }
+    var teams = makeTeams(names, teamCount), grid = $('grid');
+    $('setup').hidden = true;
+    $('result').hidden = false;
+    grid.textContent = '';
+    var cols = teamCount === 4 ? 2 : teamCount;
+    grid.style.gridTemplateColumns = 'repeat(' + cols + ', minmax(0, 1fr))';
+    grid.style.gridTemplateRows = 'repeat(' + Math.ceil(teamCount / cols) + ', minmax(0, 1fr))';
+    var lists = [];
+    teams.forEach(function (members, t) {
+      var card = document.createElement('div');
+      card.className = calm ? 'card' : 'card reveal';
+      card.style.setProperty('--c', TEAM_COLORS[t]);
+      card.style.animationDelay = (t * 0.09) + 's';
+      var h = document.createElement('h2');
+      h.textContent = TEAM_MARKS[t] + ' ' + TEXT.team + (t + 1);
+      var count = document.createElement('small');
+      count.textContent = plural(members.length);
+      h.appendChild(count);
+      card.appendChild(h);
+      var ul = document.createElement('ul');
+      card.appendChild(ul);
+      grid.appendChild(card);
+      lists.push({ ul: ul, members: members, delay: t * 0.09 });
+    });
+    lists.forEach(function (l) {
+      var fit = Math.max(1, Math.floor((l.ul.clientHeight - 10) / 20));
+      var visible = l.members.length > fit ? fit - 1 : l.members.length;
+      for (var i = 0; i < visible; i++) {
+        var li = document.createElement('li');
+        li.textContent = l.members[i];
+        li.style.animationDelay = (l.delay + 0.2 + i * 0.05) + 's';
+        l.ul.appendChild(li);
+      }
+      if (visible < l.members.length) {
+        var extra = document.createElement('li');
+        extra.className = 'extra';
+        extra.textContent = '+' + (l.members.length - visible) + TEXT.more;
+        extra.style.animationDelay = (l.delay + 0.2 + visible * 0.05) + 's';
+        l.ul.appendChild(extra);
+      }
+    });
+    say(TEXT.split + teams.map(function (m) { return m.length; }).join(' / ') + ' · ' + plural(names.length));
+    $('again').focus();
+  }
+
+  $('add').addEventListener('click', function () { submitName(); $('name').focus(); });
+  $('name').addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); submitName(); } });
+  $('fewer').addEventListener('click', function () { if (teamCount > MIN_TEAMS) { teamCount--; render(); } });
+  $('moreTeams').addEventListener('click', function () { if (teamCount < MAX_TEAMS) { teamCount++; render(); } });
+  $('shuffle').addEventListener('click', showTeams);
+  $('again').addEventListener('click', showTeams);
+  $('edit').addEventListener('click', function () {
+    $('result').hidden = true;
+    $('setup').hidden = false;
+    render();
+    say(plural(names.length) + ' · ' + teamCount + ' teams');
+  });
+  window.addEventListener('resize', function () { if ($('result').hidden) render(); });
+
+  render();
+  say(render() ? plural(names.length) + ' · ' + teamCount + ' teams' : TEXT.need + teamCount + TEXT.needEnd);
+</script>

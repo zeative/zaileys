@@ -24,6 +24,7 @@ const walk = (dir) =>
 // Checks that only need the .mdx and src/ run first, so they fail before the slow export.
 step('Checking sources')
 run('node', [join(DOCS, 'scripts', 'check-error-codes.mjs')], ROOT)
+run('node', [join(DOCS, 'scripts', 'build-templates.mjs'), '--check'], ROOT)
 
 // ---------------------------------------------------------------- 2. export
 step('Exporting the Mintlify site')

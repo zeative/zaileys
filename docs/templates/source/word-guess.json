@@ -1,0 +1,14 @@
+{
+  "id": "word-guess",
+  "title": "Word guess",
+  "category": "games",
+  "icon": "spell-check",
+  "emoji": "🔤",
+  "description": "Guess a random 5-letter English word in 6 tries with an on-screen keyboard that marks letter hints by color and shape.",
+  "height": 478,
+  "command": "wordguess",
+  "fallback": "Word guess opens on WhatsApp Android only.",
+  "inputs": [
+    "tap"
+  ]
+}

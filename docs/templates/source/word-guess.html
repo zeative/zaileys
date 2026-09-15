@@ -1,0 +1,234 @@
+<!doctype html>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+  :root { --sky: #38b6ff; --violet: #7c5cff; --mint: #2ed8a7; --yellow: #ffc93c; --pink: #ff4f8b; --ink: #1d1442; --cream: #fff8ec; --miss: #3b2d7a; --miss-text: #d8d0ff; --tile: min(42px, 11vw); }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body { margin: 0; height: 100%; overflow: hidden; background: linear-gradient(170deg, var(--sky), var(--violet)); color: var(--ink); font: 14px/1.3 system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; user-select: none; -webkit-user-select: none; }
+  header { width: min(94vw, 300px); display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  #status { min-width: 0; height: 34px; display: flex; align-items: center; padding: 0 12px; border-radius: 999px; background: var(--cream); box-shadow: 0 3px 0 rgba(29, 20, 66, .3); font-weight: 800; font-variant-numeric: tabular-nums; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #status.bad { background: var(--pink); box-shadow: 0 3px 0 #b8285c; animation: nudge .3s; }
+  #again { flex: none; min-height: 36px; padding: 0 14px; border: 0; border-radius: 999px; background: var(--cream); color: var(--ink); box-shadow: 0 3px 0 rgba(29, 20, 66, .3); font: 800 13px system-ui, sans-serif; cursor: pointer; }
+  #again.primary { background: var(--pink); box-shadow: 0 4px 0 #b8285c; }
+  #again:active { transform: translateY(3px); box-shadow: 0 0 0 rgba(29, 20, 66, .3); }
+  #grid { display: grid; grid-template-rows: repeat(6, var(--tile)); gap: 5px; }
+  .row { display: grid; grid-template-columns: repeat(5, var(--tile)); gap: 5px; }
+  .row.shake { animation: shake .3s; }
+  .tile { position: relative; border: 2px solid rgba(255, 255, 255, .55); border-radius: 10px; background: rgba(255, 255, 255, .16); display: grid; place-items: center; font: 800 calc(var(--tile) * .5)/1 system-ui, sans-serif; text-transform: uppercase; }
+  .tile.typed { border-color: var(--cream); background: var(--cream); animation: tap .14s ease-out; }
+  .correct, .present, .absent { border-color: transparent; }
+  .tile.correct, .tile.present, .tile.absent { animation: reveal .3s ease-out both; box-shadow: inset 0 -3px 0 rgba(29, 20, 66, .2); }
+  .correct { background: var(--mint); color: var(--ink); }
+  .present { background: var(--yellow); color: var(--ink); }
+  .absent { background: var(--miss); color: var(--miss-text); }
+  .correct::before { content: ''; position: absolute; top: 3px; right: 3px; width: 6px; height: 6px; border-radius: 50%; background: var(--ink); }
+  .present::after { content: ''; position: absolute; left: 24%; right: 24%; bottom: 5px; height: 3px; border-radius: 2px; background: var(--ink); }
+  .row.won .tile { animation: hop .5s cubic-bezier(.3, 1.8, .5, 1) both; }
+  @keyframes reveal { from { transform: rotateX(90deg); } }
+  @keyframes tap { 50% { transform: scale(1.1); } }
+  @keyframes hop { 40% { transform: translateY(-10px); } }
+  @keyframes shake { 25% { transform: translateX(-6px); } 75% { transform: translateX(6px); } }
+  @keyframes nudge { 50% { transform: scale(1.06); } }
+  #keys { width: min(96vw, 420px); display: flex; flex-direction: column; gap: 6px; padding-bottom: 3px; }
+  .keyrow { display: flex; gap: 4px; }
+  .keyrow i { flex: .5; }
+  .key { position: relative; flex: 1; min-width: 0; height: 40px; padding: 0; border: 0; border-radius: 8px; background: var(--cream); color: var(--ink); box-shadow: 0 3px 0 #4b3bb0; font: 800 15px/1 system-ui, sans-serif; text-transform: uppercase; cursor: pointer; }
+  .key.wide { flex: 1.5; font-size: 12px; text-transform: none; }
+  .key:active { transform: translateY(3px); box-shadow: 0 0 0 #4b3bb0; }
+  .key.correct { background: var(--mint); }
+  .key.present { background: var(--yellow); }
+  .key.absent { background: var(--miss); color: var(--miss-text); box-shadow: 0 3px 0 #251a52; }
+  .key.correct::before { top: 3px; right: 3px; width: 5px; height: 5px; }
+  .key.present::after { bottom: 5px; }
+  .confetti { position: fixed; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  @media (prefers-reduced-motion: reduce) { .row.shake, .tile.typed, .tile.correct, .tile.present, .tile.absent, .row.won .tile, #status.bad { animation: none; } }
+</style>
+<header>
+  <span id="status" aria-live="polite">Guess the 5-letter word</span>
+  <button id="again" type="button">New round</button>
+</header>
+<div id="grid"></div>
+<div id="keys" aria-label="Keyboard"></div>
+<script>
+  var ANSWERS = 'about actor after agree alarm alive allow alone apple award beach begin bench black blank block board brain bread break brick bring brown brush build candy chain chair charm chart cheap check child class clean clear climb clock cloud coach coast couch count cover crane cream dance dream dress drink drive early earth eight empty enjoy enter field final floor flour fresh fruit ghost giant glass grape grass great green group guest guide happy heart heavy honey horse hotel house juice knife laugh learn lemon light lucky lunch magic match money mouse mouth movie music night noise ocean olive paint paper party peace phone photo piano pizza place plane plant plate price prize queen quick quiet radio river robot round salad sheep shirt sleep smile snake sound spoon sport start stone storm sugar sunny sweet table thank tiger toast today tower train truck uncle watch water whale wheel white zebra'.split(' ');
+  var EXTRA = 'abide abort above abuse acorn acute adapt admit adopt adult again agent aging ahead aisle album alert alien align alike alley alloy aloft aloud alpha altar alter amber amend among ample amuse angel anger angle angry ankle annoy apart apply apron arbor arena argue arise armor aroma arrow aside asset atlas attic audio audit avoid awake aware awful bacon badge baker basic basil basin batch beard beast began being belly below berry bingo birth blade blame bland blast bleak blend blind blink bliss blood bloom blown bluff blunt blush boast bonus boost booth bored bound boxer brand brass brave breed bribe bride brief brine brisk broad broke brook broom brute buddy bunch burst cabin cable camel canal canoe cargo carry carve catch cater cause cedar chalk chaos cheek cheer chess chest chick chief chili chill choir chord chunk cider cigar civic civil claim clamp clash clasp clerk click cliff cling cloak clone close cloth clown coral cough could court crack craft crash crate crawl crazy creek crisp cross crowd crown crude cruel crumb crush crust cubic curve cycle daily dairy daisy dealt decay delay dense depth diary dirty ditch diver dizzy dodge doing donor doubt dough dozen draft drain drama drank drawn dried drift drill drove drown dryer eager eagle elbow elder elect elite email ember enemy entry equal equip erase error essay event every exact exile exist extra fable faint fairy faith false fancy fatal fault feast fence ferry fever fewer fiber fifth fifty fight first fixed flair flake flame flank flash flask fleet flesh flick fling float flock flood fluid flute foamy focus foggy force forge forth forum found frail frame freak freed front frost froze fudge fully funny fuzzy gauge gecko genre giddy given glare gleam glide globe gloom glory glove going goose gorge grace grade grain grand grasp grave gravy graze greed greet grief grill grind groan groom gross grove growl grown guard guess habit hairy handy hardy harsh haste hatch haunt haven hazel hedge hello hence hobby hoist holly hover human hurry icing ideal idiom igloo image index inner input irony issue ivory jazzy jeans jelly jewel joint joker jolly judge jumbo jumpy kayak khaki kiosk kitty knack knead kneel knelt knock known koala label labor lance large laser latch later latte layer leafy lease least leave ledge legal level lever lilac limit linen liner lingo liver llama local lodge lofty logic loose lover lower loyal lumpy lunar lying major mango manor maple march marsh mason meant meaty medal melon mercy merge merit merry messy metal midst might mimic mince minor minus misty mixer model moist molar month moody moose moral motor mound mount mourn mover muddy mural naive nasal nasty naval needy nerve never newly nicer niche ninja noble north notch novel nudge nurse nutty oasis occur offer often onion onset opera orbit order organ other otter ought ounce outer owner oxide ozone pagan panel parka pasta paste patch pause peach pearl pecan pedal penny perch peril perky petal petty phase picky piece pilot pinch pitch pixel plaid plain plank plaza plead pluck plumb plume plump poach point poker polar porch pouch pound power prawn press pride prime print prior probe prone proof prose proud prune pulse punch pupil puppy purse quack quail quake quart quest queue quilt quirk quite quota quote racer rainy raise rally ramen ranch range rapid raven razor reach react ready realm rebel refer reign relax relay renew repay reply rhino rhyme rider ridge rifle right rigid rinse ripen risen risky rival roast robin rocky rogue roomy roost rough route rowdy royal rugby ruler rumor rural rusty sadly saint salsa salty sandy satin sauce sauna savor scale scalp scare scarf scary scene scent scoop scope score scout scrap screw scrub seize sense serve setup seven shade shaft shake shaky shall shame shape share shark sharp shave shawl sheer shelf shell shift shine shiny shock shore short shout shove shrub shrug siege sight silky silly since sixth sixty skate skier skill skirt skull slang slant slash slate sleek sleet slept slice slide slime sling slope sloth small smart smash smell smoke snack snail snare sneak sniff snore snowy sober soggy solar solid solve sorry south space spade spare spark speak spear speed spend spent spice spicy spill spine spite spoke spook spout spray squad squat squid stack staff stage stain stair stake stale stalk stall stamp stand stare stark state steak steal steam steel steep steer stern stick stiff still sting stink stock stomp stood stool stoop store stork story stout stove strap straw stray strip stuck study stuff stump stung style suite super surge sushi swamp swarm swear sweat sweep swell swept swift swing swirl sword syrup tabby talon tango tangy tardy taste tasty teach teeth tempo tense tenth thick thief thigh thing think thorn those three threw throw thumb tidal tight timer timid tired title token tonic tooth topic torch total touch tough towel toxic trace track trade trail trait trash tread treat trend trial trick tried troll troop trout truly trunk trust truth tulip tutor tweak twice twine twirl twist ultra under unfit union unite unity until unzip upper upset urban usage usual utter vague valid value vapor vault vegan venom verge verse video vigor villa vinyl viola viper viral virus visit visor vista vital vivid vocal vogue voice voter vowel wacky wafer wagon waist waltz waste weary weave wedge weird wheat whisk whole widen widow width wield windy wiser witch witty woman woody world worry worse worst worth would wound woven wreck wrist write wrong wrote yacht yearn yeast yield young youth yummy zesty'.split(' ');
+  var TEXT = { start: 'Guess the 5-letter word', short: 'Need 5 letters', unknown: 'Not in the word list', lose: 'The word was ', win: 'Solved in ', tries: 'Try ' };
+  var ROWS = 6, LEN = 5;
+  var KEYS = ['qwertyuiop', ' asdfghjkl ', '>zxcvbnm<'];
+  var RANK = { absent: 1, present: 2, correct: 3 };
+
+  function score(guess, answer) {
+    var result = [], left = {};
+    for (var i = 0; i < LEN; i++) {
+      if (guess[i] === answer[i]) result[i] = 'correct';
+      else left[answer[i]] = (left[answer[i]] || 0) + 1;
+    }
+    for (var j = 0; j < LEN; j++) {
+      if (result[j]) continue;
+      if (left[guess[j]]) { result[j] = 'present'; left[guess[j]]--; }
+      else result[j] = 'absent';
+    }
+    return result;
+  }
+
+  var VALID = {};
+  ANSWERS.concat(EXTRA).forEach(function (w) { VALID[w] = true; });
+
+  var gridEl = document.getElementById('grid');
+  var keysEl = document.getElementById('keys');
+  var statusEl = document.getElementById('status');
+  var againBtn = document.getElementById('again');
+  var answer, row, current, done, letterState, round = 0, keyEls = {};
+
+  for (var r = 0; r < ROWS; r++) {
+    var rowEl = document.createElement('div');
+    rowEl.className = 'row';
+    rowEl.setAttribute('role', 'group');
+    for (var c = 0; c < LEN; c++) {
+      var tile = document.createElement('div');
+      tile.className = 'tile';
+      tile.setAttribute('aria-hidden', 'true');
+      rowEl.appendChild(tile);
+    }
+    gridEl.appendChild(rowEl);
+  }
+
+  KEYS.forEach(function (letters) {
+    var line = document.createElement('div');
+    line.className = 'keyrow';
+    letters.split('').forEach(function (ch) {
+      if (ch === ' ') { line.appendChild(document.createElement('i')); return; }
+      var key = document.createElement('button');
+      key.type = 'button';
+      key.className = 'key' + (ch === '>' || ch === '<' ? ' wide' : '');
+      key.textContent = ch === '>' ? 'Enter' : ch === '<' ? '⌫' : ch;
+      if (ch === '<') key.setAttribute('aria-label', 'Delete');
+      key.addEventListener('click', function () { press(ch === '>' ? 'enter' : ch === '<' ? 'delete' : ch); });
+      if (ch !== '>' && ch !== '<') keyEls[ch] = key;
+      line.appendChild(key);
+    });
+    keysEl.appendChild(line);
+  });
+
+  function say(text, bad) {
+    statusEl.textContent = text;
+    statusEl.className = '';
+    if (bad) { void statusEl.offsetWidth; statusEl.className = 'bad'; }
+  }
+
+  function paintRow() {
+    var tiles = gridEl.children[row].children;
+    for (var i = 0; i < LEN; i++) {
+      tiles[i].textContent = current[i] || '';
+      tiles[i].className = 'tile' + (current[i] ? ' typed' : '');
+    }
+  }
+
+  function paintKey(ch) {
+    var state = letterState[ch];
+    keyEls[ch].className = 'key' + (state ? ' ' + state : '');
+    keyEls[ch].setAttribute('aria-label', ch.toUpperCase() + (state ? ', ' + state : ''));
+  }
+
+  function submit() {
+    var rowEl = gridEl.children[row];
+    if (current.length < LEN || !VALID[current]) {
+      say(current.length < LEN ? TEXT.short : TEXT.unknown, true);
+      rowEl.classList.remove('shake');
+      void rowEl.offsetWidth;
+      rowEl.classList.add('shake');
+      return;
+    }
+    var result = score(current, answer), spoken = [];
+    for (var i = 0; i < LEN; i++) {
+      var ch = current[i];
+      rowEl.children[i].className = 'tile ' + result[i];
+      rowEl.children[i].style.animationDelay = (i * 60) + 'ms';
+      if (!letterState[ch] || RANK[result[i]] > RANK[letterState[ch]]) letterState[ch] = result[i];
+      paintKey(ch);
+      spoken.push(ch.toUpperCase() + ' ' + result[i]);
+    }
+    rowEl.setAttribute('aria-label', 'Guess ' + (row + 1) + ': ' + current.toUpperCase() + '. ' + spoken.join(', '));
+    var solved = current === answer;
+    row++;
+    current = '';
+    if (solved || row === ROWS) {
+      done = true;
+      say(solved ? TEXT.win + row + '/' + ROWS + '! 🎉' : TEXT.lose + answer.toUpperCase());
+      againBtn.className = 'primary';
+      if (solved) {
+        var thisRound = round;
+        setTimeout(function () { if (thisRound !== round) return; rowEl.classList.add('won'); confetti(); }, LEN * 60 + 300);
+      }
+      againBtn.focus();
+    } else say(TEXT.tries + (row + 1) + ' of ' + ROWS);
+  }
+
+  function press(key) {
+    if (done) return;
+    if (key === 'enter') { submit(); return; }
+    if (key === 'delete') current = current.slice(0, -1);
+    else if (current.length < LEN) current += key;
+    else return;
+    say(TEXT.tries + (row + 1) + ' of ' + ROWS);
+    paintRow();
+  }
+
+  function confetti() {
+    if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var cv = document.createElement('canvas'), w = window.innerWidth, h = window.innerHeight, r = window.devicePixelRatio || 1;
+    var g = cv.getContext('2d'), bits = [], colors = ['#ff4f8b', '#ffc93c', '#2ed8a7', '#fff8ec', '#38b6ff', '#ff8a3d'], t0 = 0;
+    cv.className = 'confetti';
+    cv.width = w * r;
+    cv.height = h * r;
+    document.body.appendChild(cv);
+    for (var i = 0; i < 70; i++) bits.push({ x: w / 2, y: h * 0.35, vx: (Math.random() - 0.5) * 10, vy: -3 - Math.random() * 9, s: 6 + Math.random() * 5, a: Math.random() * 6, c: colors[i % colors.length] });
+    function frame(now) {
+      if (!t0) t0 = now;
+      var t = now - t0;
+      g.setTransform(r, 0, 0, r, 0, 0);
+      g.clearRect(0, 0, w, h);
+      g.globalAlpha = Math.max(0, 1 - t / 1500);
+      bits.forEach(function (b) {
+        b.vy += 0.3; b.x += b.vx; b.y += b.vy; b.a += 0.2;
+        g.save(); g.translate(b.x, b.y); g.rotate(b.a); g.fillStyle = b.c; g.fillRect(-b.s / 2, -b.s / 4, b.s, b.s / 2); g.restore();
+      });
+      if (t < 1500) requestAnimationFrame(frame); else cv.remove();
+    }
+    requestAnimationFrame(frame);
+  }
+
+  function newRound() {
+    round++;
+    var old = document.querySelectorAll('.confetti');
+    for (var k = 0; k < old.length; k++) old[k].remove();
+    answer = ANSWERS[Math.floor(Math.random() * ANSWERS.length)];
+    row = 0;
+    current = '';
+    done = false;
+    letterState = {};
+    for (var r = 0; r < ROWS; r++) {
+      var rowEl = gridEl.children[r];
+      rowEl.removeAttribute('aria-label');
+      rowEl.className = 'row';
+      for (var i = 0; i < LEN; i++) {
+        rowEl.children[i].className = 'tile';
+        rowEl.children[i].textContent = '';
+        rowEl.children[i].style.animationDelay = '';
+      }
+    }
+    for (var ch in keyEls) paintKey(ch);
+    againBtn.className = '';
+    say(TEXT.start);
+  }
+
+  againBtn.addEventListener('click', newRound);
+  document.addEventListener('keydown', function (e) {
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    var k = e.key.toLowerCase();
+    if (k === 'enter') { if (done) return; e.preventDefault(); press('enter'); }
+    else if (k === 'backspace') press('delete');
+    else if (k.length === 1 && k >= 'a' && k <= 'z') press(k);
+  });
+
+  newRound();
+</script>

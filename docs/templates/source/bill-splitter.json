@@ -1,0 +1,20 @@
+{
+  "id": "bill-splitter",
+  "title": "Bill splitter",
+  "category": "calculators",
+  "icon": "users",
+  "emoji": "🍕",
+  "description": "Split a bill with tip between friends and see what each person pays, rounded up so the bill is covered.",
+  "height": 340,
+  "command": "split",
+  "fallback": "The bill splitter opens on WhatsApp Android only.",
+  "inputs": [
+    "keyboard",
+    "tap"
+  ],
+  "sample": {
+    "currency": "IDR",
+    "locale": "id-ID",
+    "roundTo": 100
+  }
+}

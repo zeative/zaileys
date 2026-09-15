@@ -1,0 +1,51 @@
+{
+  "id": "order-summary",
+  "title": "Order Summary",
+  "category": "business",
+  "icon": "package",
+  "emoji": "📦",
+  "description": "An order status card with a four-step tracker, the items, delivery address, ETA, and total.",
+  "height": 440,
+  "command": "order",
+  "fallback": "Your order status card opens on WhatsApp Android only.",
+  "inputs": [
+    "none"
+  ],
+  "sample": {
+    "orderId": "ORD-20260915-7731",
+    "step": 3,
+    "stepDates": [
+      "12 Sep",
+      "12 Sep",
+      "14 Sep",
+      null
+    ],
+    "eta": "Arrives Thu, 17 Sep",
+    "currency": "IDR",
+    "locale": "id-ID",
+    "items": [
+      {
+        "name": "Canvas Tote Bag",
+        "qty": 1,
+        "price": 89000
+      },
+      {
+        "name": "Ceramic Mug",
+        "qty": 2,
+        "price": 65000
+      },
+      {
+        "name": "Dot Grid Notebook",
+        "qty": 3,
+        "price": 42000
+      },
+      {
+        "name": "Brass Bookmark",
+        "qty": 1,
+        "price": 35000
+      }
+    ],
+    "address": "12 Example Street, Bandung",
+    "total": 380000
+  }
+}

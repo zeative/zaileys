@@ -2,6 +2,7 @@ import type { AnyMessageContent } from 'baileys'
 import { ZaileysBuilderError } from '../errors.js'
 import { SafeHtml } from '../html.js'
 import { buildAIRichContent } from './airich.js'
+import { RELAY_BYPASS_DOWNLOAD_KEY } from './buttons.js'
 import { buildTextContent } from './text.js'
 
 /** Default byte ceiling for `htmlApp()` markup. */
@@ -20,6 +21,12 @@ export interface HtmlAppOptions {
   fallback?: string
   /** Byte ceiling for the UTF-8 markup. Default 256 KB. */
   maxBytes?: number
+  /**
+   * Follow the card with an identical edit so it renders without WhatsApp's Download prompt. Costs one extra
+   * relay, and the card reloads whenever the recipient opens the keyboard. Default `true`; `false` for pages
+   * that keep state, such as games.
+   */
+  bypassDownload?: boolean
 }
 
 const assertPositiveInteger = (name: string, value: number | undefined, max?: number): void => {
@@ -58,8 +65,10 @@ export const buildHtmlAppContent = (markup: string | SafeHtml, opts: HtmlAppOpti
     }
     return buildTextContent(opts.fallback)
   }
-  return buildAIRichContent(
+  const content = buildAIRichContent(
     [{ type: 'html', html: source, ...(opts.height === undefined ? {} : { height: opts.height }) }],
     opts.title === undefined ? undefined : { title: opts.title },
-  )
+  ) as unknown as Record<string, unknown>
+  if (opts.bypassDownload !== false) content[RELAY_BYPASS_DOWNLOAD_KEY] = true
+  return content as unknown as AnyMessageContent
 }

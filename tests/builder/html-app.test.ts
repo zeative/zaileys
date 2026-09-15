@@ -2,7 +2,7 @@ import type { WAMessage, WAMessageKey } from 'baileys'
 import { describe, expect, it, vi } from 'vitest'
 import { MessageBuilder, type BuilderSocketLike } from '../../src/builder/builder.js'
 import { AI_RICH_HTML_PRIMITIVE } from '../../src/builder/content/airich.js'
-import { RELAY_CONTENT_KEY } from '../../src/builder/content/buttons.js'
+import { RELAY_BYPASS_DOWNLOAD_KEY, RELAY_CONTENT_KEY } from '../../src/builder/content/buttons.js'
 import { buildHtmlAppContent, HTML_APP_MAX_BYTES } from '../../src/builder/content/html-app.js'
 import { ZaileysBuilderError } from '../../src/builder/errors.js'
 import { html } from '../../src/builder/html.js'
@@ -68,6 +68,16 @@ describe('buildHtmlAppContent card', () => {
   it('renders for an android device', () => {
     expect(primitivesOf(buildHtmlAppContent(PAGE, { device: 'android' }))).toHaveLength(1)
   })
+
+  it('asks for the download-prompt edit by default', () => {
+    const content = buildHtmlAppContent(PAGE) as unknown as Record<string, unknown>
+    expect(content[RELAY_BYPASS_DOWNLOAD_KEY]).toBe(true)
+  })
+
+  it('leaves the edit out when bypassDownload is false', () => {
+    const content = buildHtmlAppContent(PAGE, { bypassDownload: false }) as unknown as Record<string, unknown>
+    expect(content[RELAY_BYPASS_DOWNLOAD_KEY]).toBeUndefined()
+  })
 })
 
 describe('buildHtmlAppContent devices', () => {
@@ -119,15 +129,42 @@ describe('MessageBuilder.htmlApp', () => {
     return { socket, relayMessage, sendMessage }
   }
 
-  it('relays the card without the interactive node and with no follow-up edit', async () => {
+  it('relays the card without the interactive node', async () => {
     const { socket, relayMessage, sendMessage } = makeSocket()
-    await MessageBuilder.create(socket, RECIPIENT).htmlApp(PAGE, { height: 120 })
+    await MessageBuilder.create(socket, RECIPIENT).htmlApp(PAGE, { height: 120, bypassDownload: false })
     expect(sendMessage).not.toHaveBeenCalled()
     expect(relayMessage).toHaveBeenCalledOnce()
     type RelayCall = [string, { botForwardedMessage?: unknown }, { additionalNodes?: unknown[] }]
     const [, message, opts] = relayMessage.mock.calls[0]! as unknown as RelayCall
     expect(message.botForwardedMessage).toBeDefined()
     expect(opts.additionalNodes).toBeUndefined()
+  })
+
+  it('follows the card with an identical edit of the same message id by default', async () => {
+    const { socket, relayMessage } = makeSocket()
+    const key = await MessageBuilder.create(socket, RECIPIENT).htmlApp(PAGE)
+    expect(relayMessage).toHaveBeenCalledTimes(2)
+    type ProtocolMessage = { type?: number; key?: { id?: string }; editedMessage?: unknown }
+    type EditCall = [string, { botForwardedMessage?: { message?: { protocolMessage?: ProtocolMessage } } }]
+    const [, edit] = relayMessage.mock.calls[1]! as unknown as EditCall
+    const protocolMessage = edit.botForwardedMessage?.message?.protocolMessage
+    expect(protocolMessage?.type).toBe(14)
+    expect(protocolMessage?.key?.id).toBe(key.id)
+    expect(protocolMessage?.editedMessage).toBeDefined()
+  })
+
+  it('still resolves the card key when the follow-up edit fails', async () => {
+    let calls = 0
+    const relayMessage = vi.fn(async () => {
+      calls++
+      if (calls === 2) throw new Error('edit rejected')
+      return 'R1'
+    })
+    const sendMessage = vi.fn(async () => ({ key: { id: 'X' } as WAMessageKey }) as WAMessage)
+    const socket: BuilderSocketLike = { sendMessage, relayMessage, user: { id: '9@s.whatsapp.net' } }
+    const key = await MessageBuilder.create(socket, RECIPIENT).htmlApp(PAGE)
+    expect(typeof key.id).toBe('string')
+    expect(relayMessage).toHaveBeenCalledTimes(2)
   })
 
   it('sends the fallback as plain text for a non-android device', async () => {

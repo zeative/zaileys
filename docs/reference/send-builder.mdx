@@ -179,6 +179,9 @@ Sends an HTML page that WhatsApp Android runs inside the message bubble, offline
 <ParamField body="opts.maxBytes" type="number" default="262144">
   The largest page accepted, in UTF-8 bytes.
 </ParamField>
+<ParamField body="opts.bypassDownload" type="boolean" default="true">
+  Follow the card with an identical edit so it renders without WhatsApp's Download prompt. Costs one extra relay, and the card reloads when the recipient opens the keyboard — pass `false` for pages that keep state.
+</ParamField>
 
 **Errors:** `EMPTY_CONTENT` for empty markup. `INVALID_OPTIONS` for a bad `height`, `maxBytes`, or `fallback`, or a page over `maxBytes`. `INVALID_RECIPIENT` when `device` isn't Android and there's no `fallback`. On the Cloud API it rejects with `SEND_FAILED`, and `error.cause.code` is `NOT_IMPLEMENTED`.
 

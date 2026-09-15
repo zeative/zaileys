@@ -25,6 +25,7 @@ import { ProviderSupport } from "/snippets/provider-support.jsx"
 | Put user data in the page safely | [`html` and `htmlJson`](#put-data-in-the-page-safely) |
 | Label the card | `title` |
 | Allow a bigger page | `maxBytes` (default 256 KB) |
+| Keep a stateful page from reloading | [`bypassDownload: false`](#the-download-prompt) |
 
 ## Send a card
 
@@ -151,9 +152,25 @@ Never put API keys, tokens, or other people's data into the page. The recipient 
 
 ## The Download prompt
 
-WhatsApp sometimes shows **"WhatsApp can't verify the security of this media. Only download if you trust the sender."** with a **Download** link instead of the card. Tapping Download once shows the card.
+WhatsApp can show **"WhatsApp can't verify the security of this media. Only download if you trust the sender."** with a **Download** link instead of the card.
 
-The prompt doesn't depend on anything Zaileys sends, since identical cards can arrive either way. The known workaround (re-sending the card as an edit of itself) makes the card reload every time the recipient opens the keyboard, so Zaileys doesn't use it.
+Zaileys avoids it by default: right after the card, it sends an identical edit of the same message, which WhatsApp renders straight away. That is what `bypassDownload` does, and it is on unless you turn it off.
+
+```ts
+import { html } from 'zaileys'
+
+const page = html`<div id="game"></div>`
+await ctx.send().htmlApp(page, { bypassDownload: false })
+```
+
+| `bypassDownload` | The recipient sees | The cost |
+| --- | --- | --- |
+| `true` (default) | The card, rendered immediately | One extra relay per card, and the card reloads whenever the recipient opens the keyboard |
+| `false` | A Download link first, on some accounts | Nothing — the card is never reloaded |
+
+**Turn it off for pages that keep state**, such as games, counters, and animations: a reload sends them back to their starting state. For a receipt, a chart, or a result card, the reload is invisible.
+
+Why the prompt exists at all: a card must be marked as a forwarded bot message to render on WhatsApp at all, and that same marking is what puts it behind an "unknown sender" check on the recipient's client. The check is enabled per account by WhatsApp, which is why the same card can arrive with the prompt for one person and without it for another.
 
 ## On the Cloud API
 
@@ -169,7 +186,7 @@ The Cloud API has no rich messages. `htmlApp()` fails with `ZaileysBuilderError`
     The card has no network access at all. Fetch the data in your bot before sending, and put the result in the page with `htmlJson`.
   </Accordion>
   <Accordion title="The page state resets">
-    WhatsApp can reload the card, for example after it scrolls far out of view. Storage is blocked, so keep pages that can start over, or send a new card with the updated state.
+    The most common cause is `bypassDownload`, which is on by default: the card reloads whenever the recipient opens the keyboard. Pass `bypassDownload: false` for pages that keep state. WhatsApp can also reload a card on its own, and storage is blocked, so prefer pages that can start over.
   </Accordion>
   <Accordion title="Can I use an external image or font?">
     No. Embed them as `data:` URIs. Images are only allowed from `data:`, `blob:`, and Meta's own CDN.

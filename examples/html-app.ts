@@ -1,6 +1,7 @@
 /**
  * HTML app card: reply ".card" to get a live counter that runs inside the bubble on WhatsApp Android.
- * Other devices get a plain-text answer instead.
+ * Other devices get a plain-text answer instead. The counter keeps state, so it opts out of the
+ * download-prompt edit, which would reload the card whenever the keyboard opens.
  *
  * Run: OWNER=6285xxxx bun run examples/html-app.ts
  */
@@ -51,5 +52,6 @@ client.on('text', async (msg) => {
     height: 180,
     device: msg.senderDevice,
     fallback: 'The counter card only opens on WhatsApp Android.',
+    bypassDownload: false,
   })
 })

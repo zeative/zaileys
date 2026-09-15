@@ -15,6 +15,7 @@ import { sendAlbum } from './album.js'
 import { buildAudioContent } from './content/audio.js'
 import {
   buildButtonsContent,
+  RELAY_BYPASS_DOWNLOAD_KEY,
   RELAY_CONTENT_KEY,
   RELAY_MEDIA_KEY,
   RELAY_REQUIRE_GROUP_KEY,
@@ -406,7 +407,13 @@ export class MessageBuilder<State extends BuilderState> {
             : (relayInner as proto.IMessage)
         const headerMedia = relayContent[RELAY_MEDIA_KEY] as HeaderMedia | undefined
         const cardsMedia = relayContent[RELAY_CARDS_MEDIA_KEY] as CardMedia[] | undefined
-        return this.sendRelay(inner, headerMedia, cardsMedia, statusMedia !== undefined)
+        return this.sendRelay(
+          inner,
+          headerMedia,
+          cardsMedia,
+          statusMedia !== undefined,
+          relayContent[RELAY_BYPASS_DOWNLOAD_KEY] === true,
+        )
       }
       const content = this.internal.content as AnyMessageContent & {
         mentions?: string[]
@@ -503,6 +510,7 @@ export class MessageBuilder<State extends BuilderState> {
     headerMedia?: HeaderMedia,
     cardsMedia?: CardMedia[],
     wrapAsGroupStatus = false,
+    bypassDownload = false,
   ): Promise<WAMessageKey> {
     const relay = this.socket.relayMessage
     if (typeof relay !== 'function') {
@@ -551,7 +559,41 @@ export class MessageBuilder<State extends BuilderState> {
     } catch (err) {
       throw new ZaileysBuilderError('SEND_FAILED', 'socket relayMessage rejected', { cause: err })
     }
+    if (bypassDownload) await this.relayIdenticalEdit(waMsg, genOptions)
     this.internal.recordSent?.(waMsg as WAMessage)
     return waMsg.key as WAMessageKey
+  }
+
+  /**
+   * Re-sends the card as an edit of itself, which renders it without WhatsApp's download prompt. The edit
+   * must sit inside `botForwardedMessage` like the original, or it lands as its own broken message.
+   */
+  private async relayIdenticalEdit(
+    waMsg: { key: WAMessageKey; message?: proto.IMessage | null },
+    genOptions: Parameters<typeof generateWAMessageFromContent>[2],
+  ): Promise<void> {
+    const relay = this.socket.relayMessage
+    if (typeof relay !== 'function' || waMsg.message == null) return
+    const edit = generateWAMessageFromContent(
+      this.internal.recipient,
+      {
+        botForwardedMessage: {
+          message: {
+            protocolMessage: {
+              key: { remoteJid: this.internal.recipient, fromMe: true, id: waMsg.key.id },
+              type: 14,
+              editedMessage: waMsg.message,
+            },
+          },
+        },
+      } as unknown as proto.IMessage,
+      genOptions,
+    )
+    if (typeof edit.key?.id !== 'string') return
+    try {
+      await relay(this.internal.recipient, edit.message, { messageId: edit.key.id })
+    } catch {
+      /** The card already arrived; it just sits behind the download prompt. */
+    }
   }
 }

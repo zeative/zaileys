@@ -7,6 +7,22 @@ keywords: ["changelog", "release notes", "what's new", "versions", "breaking cha
 
 Every v4 release listed in the project's changelog, newest first. Releases without an entry aren't shown. Upgrading from v3? Start with [Migrating from v3](/releases/migration).
 
+<Update label="v4.16.0">
+  **Check before upgrading**
+
+  - `htmlApp()` is rebuilt as an offline card for WhatsApp Android. It has no network, links, storage, or scrolling, and it can't send anything back to your bot. `buildHtmlAppContent`, `HtmlAppDevice`, the `AIRichPart` export, and the options `text`, `footer`, `fallbackUrl`, `fallbackButtonText`, `trustedSources`, and `bypassDownload` are gone. The feature stays experimental. [HTML apps](/messaging/html-app)
+  - With a `device` other than Android, `htmlApp()` sends `fallback` as plain text, or throws `INVALID_RECIPIENT` when there's no `fallback`. [Send only to Android](/messaging/html-app#send-only-to-android)
+
+  **Added**
+
+  - `htmlApp()` options `title`, `height`, `device`, `fallback`, and `maxBytes`. [HTML apps](/messaging/html-app)
+  - The `html` tag and `htmlJson`, `escapeHtml`, `rawHtml`, and `SafeHtml`, so user data can't inject script into a card. [Put data in the page safely](/messaging/html-app#put-data-in-the-page-safely)
+
+  **Fixed**
+
+  - On the Cloud API, the `NOT_IMPLEMENTED` error for a card now names `htmlApp()` instead of only `rich: true`.
+</Update>
+
 <Update label="v4.15.1">
   **Fixed**
 

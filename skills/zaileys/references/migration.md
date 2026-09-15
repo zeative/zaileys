@@ -138,7 +138,7 @@ premium users become your own lists checked in the handler or in `client.use()` 
 
 Only entries that break code or change behaviour. Additive features are omitted.
 
-**Unreleased on main:** `htmlApp()` was redesigned. Removed: `buildHtmlAppContent`, `HtmlAppDevice`, the `AIRichPart`
+**4.16.0:** `htmlApp()` (experimental) was redesigned. Removed: `buildHtmlAppContent`, `HtmlAppDevice`, the `AIRichPart`
 re-export, and the options `text`, `footer`, `fallbackUrl`, `fallbackButtonText`, `trustedSources`, and `bypassDownload`.
 A non-Android `device` now sends `fallback` as plain text, or throws `INVALID_RECIPIENT` without it, instead of a
 webview button. The follow-up edit that skipped the Download prompt is gone because it reloaded the card whenever

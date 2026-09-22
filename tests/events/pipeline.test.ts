@@ -382,6 +382,61 @@ describe('attachInboundPipeline — messages.update mutations', () => {
     expect(seen.mock.calls[0]?.[0]).toMatchObject({ newContent: 'fixed' })
   })
 
+  it('emits message-status for a receipt on our own message', () => {
+    // the linked-device path reports delivery through acks, not status webhooks;
+    // before this existed, `delivered` and `read` could never be reached at all
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('message-status', seen)
+    socket.triggerMessagesUpdate([
+      {
+        key: { remoteJid: '999@s.whatsapp.net', id: 'SENT-1', fromMe: true },
+        update: { status: proto.WebMessageInfo.Status.DELIVERY_ACK, messageTimestamp: 1900 },
+      },
+    ])
+    expect(seen.mock.calls[0]?.[0]).toMatchObject({
+      id: 'SENT-1',
+      status: 'delivered',
+      recipientId: '999@s.whatsapp.net',
+    })
+  })
+
+  it('does not emit message-status for someone else\'s message', () => {
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('message-status', seen)
+    socket.triggerMessagesUpdate([
+      {
+        key: { remoteJid: '999@s.whatsapp.net', id: 'THEIRS', fromMe: false },
+        update: { status: proto.WebMessageInfo.Status.READ },
+      },
+    ])
+    expect(seen).not.toHaveBeenCalled()
+  })
+
+  it('does not mistake an edit for a receipt', () => {
+    // one messages.update item can only be one thing; decoding it as both would
+    // report a delivery that never happened
+    const { client, socket } = setup()
+    const seen = vi.fn()
+    client.on('message-status', seen)
+    socket.triggerMessagesUpdate([
+      {
+        key: { remoteJid: '999@s.whatsapp.net', id: 'M1', fromMe: true },
+        update: {
+          message: {
+            protocolMessage: {
+              type: proto.Message.ProtocolMessage.Type.MESSAGE_EDIT,
+              key: { id: 'M1' },
+              editedMessage: { conversation: 'fixed' },
+            },
+          },
+        },
+      },
+    ])
+    expect(seen).not.toHaveBeenCalled()
+  })
+
   it('emits delete on REVOKE protocol', () => {
     const { client, socket } = setup()
     const seen = vi.fn()

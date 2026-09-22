@@ -6,6 +6,7 @@ import {
   decodeEdit,
   decodePollVote,
   decodeReaction,
+  decodeReceipt,
   type MutationContext,
   type ReactionItem,
 } from '../../../src/events/decoders/mutations.js'
@@ -390,5 +391,76 @@ describe('decodePollVote', () => {
       ctx(),
     )
     expect(out?.timestamp).toBe(2000)
+  })
+})
+
+describe('decodeReceipt', () => {
+  it('pins the ack numbers against the real Baileys enum', () => {
+    /*
+     * The map is written as literals so that importing this module never
+     * touches `proto`. That safety costs a guard: if upstream ever renumbers
+     * the enum, this is what fails instead of every status silently shifting.
+     */
+    expect(proto.WebMessageInfo.Status.ERROR).toBe(0)
+    expect(proto.WebMessageInfo.Status.PENDING).toBe(1)
+    expect(proto.WebMessageInfo.Status.SERVER_ACK).toBe(2)
+    expect(proto.WebMessageInfo.Status.DELIVERY_ACK).toBe(3)
+    expect(proto.WebMessageInfo.Status.READ).toBe(4)
+    expect(proto.WebMessageInfo.Status.PLAYED).toBe(5)
+  })
+
+  const receipt = (status: number, over: Partial<WAMessageKey> = {}) => ({
+    key: key({ fromMe: true, id: 'SENT-1', ...over }),
+    update: { status, messageTimestamp: 1710 },
+  })
+
+  it('maps SERVER_ACK to sent — reaching WhatsApp is not reaching the phone', () => {
+    // the most tempting mistake: a hand-copied table that calls this "delivered"
+    expect(decodeReceipt(receipt(proto.WebMessageInfo.Status.SERVER_ACK))?.status).toBe('sent')
+  })
+
+  it('maps DELIVERY_ACK to delivered and READ to read', () => {
+    expect(decodeReceipt(receipt(proto.WebMessageInfo.Status.DELIVERY_ACK))?.status).toBe(
+      'delivered',
+    )
+    expect(decodeReceipt(receipt(proto.WebMessageInfo.Status.READ))?.status).toBe('read')
+  })
+
+  it('treats a played audio note as read', () => {
+    expect(decodeReceipt(receipt(proto.WebMessageInfo.Status.PLAYED))?.status).toBe('read')
+  })
+
+  it('maps ERROR to failed', () => {
+    expect(decodeReceipt(receipt(proto.WebMessageInfo.Status.ERROR))?.status).toBe('failed')
+  })
+
+  it('ignores PENDING — it is not a receipt', () => {
+    // emitting it would move the timeline backwards from an ack already seen
+    expect(decodeReceipt(receipt(proto.WebMessageInfo.Status.PENDING))).toBeNull()
+  })
+
+  it('ignores receipts for messages we did not send', () => {
+    // messages.update also fires for other people's messages
+    expect(
+      decodeReceipt({
+        key: key({ fromMe: false, id: 'THEIRS' }),
+        update: { status: proto.WebMessageInfo.Status.DELIVERY_ACK },
+      }),
+    ).toBeNull()
+  })
+
+  it('ignores updates that carry no status at all', () => {
+    expect(decodeReceipt({ key: key({ fromMe: true }), update: {} })).toBeNull()
+  })
+
+  it('ignores an unknown ack instead of guessing', () => {
+    expect(decodeReceipt(receipt(99))).toBeNull()
+  })
+
+  it('carries the message id and recipient so a consumer can match it', () => {
+    const out = decodeReceipt(receipt(proto.WebMessageInfo.Status.READ))
+    expect(out?.id).toBe('SENT-1')
+    expect(out?.recipientId).toBe('111@s.whatsapp.net')
+    expect(out?.timestamp).toBe(1710)
   })
 })

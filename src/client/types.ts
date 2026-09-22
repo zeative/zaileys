@@ -144,7 +144,14 @@ export type ConnectionEventMap = {
   'command-error': { command: string; error: unknown; ctx: CommandContext }
   /** A prefixed message matched no command. Only emitted when something is listening. */
   'command-not-found': { command: string; message: MessageContext }
-  /** Cloud provider: delivery lifecycle of outbound messages (sent/delivered/read/failed). */
+  /**
+   * Delivery lifecycle of outbound messages (sent/delivered/read/failed).
+   *
+   * Emitted by both transports. On the Cloud provider it comes from status
+   * webhooks; on a linked device it is decoded from Baileys acks. The payload
+   * is the same either way — `conversationId` and `error` are Cloud-only and
+   * simply absent on a linked device.
+   */
   'message-status': CloudStatusEvent
   /** Cloud provider: template review lifecycle (APPROVED/REJECTED/PAUSED...). */
   'template-status': CloudTemplateStatusEvent

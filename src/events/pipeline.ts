@@ -53,6 +53,7 @@ import {
   decodeEdit,
   decodePollVote,
   decodeReaction,
+  decodeReceipt,
   type MessageUpdate,
   type MutationContext,
   type ReactionItem,
@@ -398,6 +399,12 @@ export function attachInboundPipeline(
       tryEmit(() => decodeEdit(item, mutationCtx), (p) => client.emit('edit', p))
       tryEmit(() => decodeDelete(item, mutationCtx), (p) => client.emit('delete', p))
       tryEmit(() => decodePollVote(item, mutationCtx), (p) => client.emit('poll-vote', p))
+      /**
+       * Same event as the Cloud provider on purpose: a consumer should not need
+       * to know which transport a channel uses to learn whether its message
+       * arrived.
+       */
+      tryEmit(() => decodeReceipt(item), (p) => client.emit('message-status', p))
     }
   })
 

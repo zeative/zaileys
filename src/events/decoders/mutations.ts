@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { proto, type WAMessageKey } from 'baileys'
+import type { CloudStatusEvent, CloudMessageStatus } from '../../cloud/translate/inbound.js'
 import type { DeletePayload, EditPayload, PollVotePayload, ReactionPayload } from '../types.js'
 import { extractJid, extractSender, safeNumber, type LongLike } from './_shared.js'
 
@@ -168,4 +169,62 @@ export const decodePollVote = (update: MessageUpdate, ctx: MutationContext): Pol
     }
   }
   return null
+}
+
+/**
+ * Maps Baileys' numeric ack to the same vocabulary the Cloud provider reports.
+ *
+ * Written as literals rather than `proto.WebMessageInfo.Status.*` on purpose:
+ * touching `proto` while this module is being evaluated breaks every test that
+ * mocks `baileys` without it. The numbers are pinned against the real enum in
+ * `tests/events/decoders/mutations.test.ts`, so an upstream change fails loudly
+ * instead of quietly shifting every status by one.
+ *
+ * `SERVER_ACK` (2) is *sent*, not delivered — the message reached WhatsApp and
+ * nothing more. Reading it as delivered is the mistake that makes a screen
+ * claim a message is on someone's phone when it is not.
+ *
+ * `PENDING` (1) is deliberately absent. It is not a receipt; it is the state a
+ * message sits in before anyone has acknowledged anything, and emitting it as
+ * one would make the timeline move backwards. `PLAYED` (5) maps to `read`: an
+ * audio note that was listened to has certainly been read.
+ */
+const ACK_TO_STATUS: Partial<Record<number, CloudMessageStatus>> = {
+  0: 'failed',
+  2: 'sent',
+  3: 'delivered',
+  4: 'read',
+  5: 'read',
+}
+
+/**
+ * Decodes a delivery receipt for a message **we** sent.
+ *
+ * `messages.update` carries every kind of change, including ones about messages
+ * other people sent. A receipt is only meaningful for our own outbound
+ * messages, so anything without `fromMe` is not ours to report.
+ *
+ * The payload shape matches `CloudStatusEvent` on purpose: a consumer should
+ * not need to know which transport a channel happens to use to learn whether
+ * its message arrived.
+ */
+export const decodeReceipt = (update: MessageUpdate): CloudStatusEvent | null => {
+  const key = update?.key
+  if (!key || key.fromMe !== true) return null
+
+  const ack = update.update?.status
+  if (typeof ack !== 'number') return null
+
+  const status = ACK_TO_STATUS[ack]
+  if (status === undefined) return null
+
+  const id = key.id
+  if (typeof id !== 'string' || id.length === 0) return null
+
+  return {
+    id,
+    status,
+    recipientId: extractJid(key.remoteJid) ?? '',
+    timestamp: numberOr(update.update?.messageTimestamp, 0),
+  }
 }

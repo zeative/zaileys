@@ -38,7 +38,7 @@ For a feature-by-feature answer, see the [feature matrix](/feature-matrix).
 | **Messaging someone first** | Anyone with WhatsApp | Free-form only within the <Term id="service-window" />. Otherwise, templates only. |
 | **Groups, channels, communities, status, polls** | ✓ Yes | ✗ No |
 | **Templates, Flows, catalog, analytics** | ✗ No | ✓ Yes |
-| **Delivery and read status events** | ✗ No | ✓ Yes, with the `message-status` event |
+| **Delivery and read status events** | ✓ Yes, with the `message-status` event | ✓ Yes, with extra Cloud-only fields |
 | **Cost** | Free | Meta's WhatsApp Business pricing applies |
 
 ## Understand the ban risk
@@ -121,13 +121,13 @@ Work through this list before you move a WhatsApp Web bot to the Cloud API:
 5. **Replace message types the Cloud API can't send.** Polls, carousels, events, group invites, products sent with `.product()`, rich responses (`rich: true`), copy and call buttons, and more than 3 reply buttons reject with a `ZaileysBuilderError` (code `SEND_FAILED`) whose `error.cause` is a `ZaileysCloudError` with code `NOT_IMPLEMENTED`. `album()` rejects with `SEND_FAILED`.
 6. **Check your automation.** In the current release, commands, middleware, plugins, `broadcast()`, `scheduleAt()`, `forward()`, and auto-delete rely on the WhatsApp Web connection and don't work on the Cloud API. The [feature matrix](/feature-matrix) has the details.
 7. **Send templates to start conversations.** Outside the 24-hour window, a free-form send fails with Meta error `131047`. Use `client.sendTemplate()` with an approved [template](/cloud/templates).
-8. **Listen for Cloud-only events.** `message-status`, `template-status`, `flow-response`, and `order` only fire on the Cloud API ([Cloud events](/cloud/events)).
+8. **Listen for Cloud-only events.** `template-status`, `flow-response`, and `order` only fire on the Cloud API ([Cloud events](/cloud/events)). `message-status` fires on both, and gains `conversationId` and `error` here.
 
 ## Migrate from Official to Unofficial
 
 1. **Drop the `cloud` options** and `provider: 'cloud'`. Log in with a QR code or pairing code instead ([WhatsApp Web setup](/whatsapp-web)).
 2. **Remove Cloud-only calls.** `client.webhook()`, `client.cloud`, `client.sendTemplate()`, and `client.markRead()` throw a `ZaileysCloudError` with code `CONFIG`. For read receipts, use `client.chat.markRead()`.
-3. **Stop waiting for Cloud-only events.** `message-status`, `template-status`, `flow-response`, and `order` never fire on WhatsApp Web.
+3. **Stop waiting for Cloud-only events.** `template-status`, `flow-response`, and `order` never fire on WhatsApp Web. `message-status` still does, without `conversationId` and `error`.
 4. **Add ban protection.** Follow [Understand the ban risk](#understand-the-ban-risk), especially for anything that sends to many people.
 
 ## Common questions

@@ -7,6 +7,20 @@ keywords: ["changelog", "release notes", "what's new", "versions", "breaking cha
 
 Every v4 release listed in the project's changelog, newest first. Releases without an entry aren't shown. Upgrading from v3? Start with [Migrating from v3](/releases/migration).
 
+<Update label="v4.18.0">
+  **Check before upgrading**
+
+  - `message-status` now fires on WhatsApp Web, where it never fired before. A handler written for the Cloud API runs on a linked device too — check it doesn't assume `conversationId` or `error`, which stay Cloud-only. [Providers](/providers)
+
+  **Added**
+
+  - Delivery receipts on a linked device. Outbound messages report `sent`, `delivered`, `read`, and `failed` through the same `message-status` event both providers use, so a consumer doesn't need to know which transport a channel uses. [Cloud events](/cloud/events)
+
+  **Fixed**
+
+  - Nothing on a linked device could learn whether a message it sent arrived. `messages.update` already carried the ack, but the pipeline only decoded it into `edit`, `delete`, and `poll-vote`.
+</Update>
+
 <Update label="v4.17.0">
   **Changed**
 

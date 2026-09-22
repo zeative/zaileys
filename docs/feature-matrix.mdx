@@ -117,7 +117,7 @@ Not sure which provider you're on? It's WhatsApp Web unless you created the clie
 | --- | --- | --- | --- | --- |
 | Send approved templates | ✗ No | ✓ Yes | `client.sendTemplate()` | [Guide](/cloud/templates) |
 | Create, list, and delete templates | ✗ No | ✓ Yes | `client.cloud.templates`. Needs `wabaId`. | [Guide](/cloud/templates) |
-| Delivery status (`message-status`) | ✗ No | ✓ Yes | Sent, delivered, read, failed. | [Guide](/cloud/events) |
+| Delivery status (`message-status`) | ✓ Yes | ✓ Yes | Sent, delivered, read, failed. `conversationId` and `error` are Cloud-only. | [Guide](/cloud/events) |
 | Business profile | ✓ Yes | ✓ Yes | `client.business.profile()` on Web, `client.cloud.profile` on the Cloud API. | [Guide](/data/business) |
 | Catalog and products | ✓ Yes | ✓ Yes | `client.business` on Web, `client.cloud.commerce` on the Cloud API. | [Guide](/data/business) |
 | Send a product message | ✓ Yes | ✓ Yes | `.product()` on Web, `client.cloud.commerce.sendProduct()` on the Cloud API. | [Guide](/cloud/business) |

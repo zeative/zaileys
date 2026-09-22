@@ -1,5 +1,11 @@
 # zaileys
 
+## 4.18.0
+
+### Minor Changes
+
+- report delivery receipts on a linked device: `message-status` now fires on both providers with `sent`, `delivered`, `read`, and `failed`, decoded from Baileys acks. Receipts for messages the bot did not send are ignored, and `PENDING` is not reported. `conversationId` and `error` stay Cloud-only
+
 ## 4.17.0
 
 ### Minor Changes

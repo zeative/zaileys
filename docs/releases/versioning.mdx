@@ -9,7 +9,7 @@ Zaileys ships as a single npm package, `zaileys`, on one release line at a time.
 
 ## Reading a version number
 
-A version looks like `4.17.0` — major, minor, patch. Releases are cut from the commits since the last release, and the commit type decides the bump.
+A version looks like `4.18.0` — major, minor, patch. Releases are cut from the commits since the last release, and the commit type decides the bump.
 
 | Bump | Example | Triggered by | What it means for your bot |
 | --- | --- | --- | --- |
@@ -31,8 +31,8 @@ Fixes land on the newest v4 release only. There is no maintenance branch for old
 
 | Line | Status | What to do |
 | --- | --- | --- |
-| **v4** — current, `4.17.0` | Actively developed. Fixes and features land here. | Stay on it. |
-| **v4**, older releases | No backports. A fix released in `4.17.0` is not published for `4.16.x`. | Upgrade to the newest v4 to pick up a fix. |
+| **v4** — current, `4.18.0` | Actively developed. Fixes and features land here. | Stay on it. |
+| **v4**, older releases | No backports. A fix released in `4.18.0` is not published for `4.16.x`. | Upgrade to the newest v4 to pick up a fix. |
 | **v3** | Ended. v4 was a rewrite with no compatibility layer, so v3 gets no fixes. | [Migrate to v4](/releases/migration) — the page maps every renamed option and API. |
 
 Older releases stay installable on npm forever, so pinning to `4.10.0` keeps working. It just won't receive fixes.
@@ -92,19 +92,19 @@ A fresh install writes a caret range into your `package.json`:
 ```json package.json
 {
   "dependencies": {
-    "zaileys": "^4.17.0"
+    "zaileys": "^4.18.0"
   }
 }
 ```
 
-`^4.17.0` accepts anything from `4.17.0` up to (but not including) `5.0.0`, so a fresh `npm install` on a new machine can pull a newer minor than the one you tested. Your lockfile prevents that for existing installs — commit it.
+`^4.18.0` accepts anything from `4.18.0` up to (but not including) `5.0.0`, so a fresh `npm install` on a new machine can pull a newer minor than the one you tested. Your lockfile prevents that for existing installs — commit it.
 
 If you want the version fixed no matter what, drop the caret:
 
 ```json package.json
 {
   "dependencies": {
-    "zaileys": "4.17.0"
+    "zaileys": "4.18.0"
   }
 }
 ```

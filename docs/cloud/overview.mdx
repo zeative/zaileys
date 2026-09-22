@@ -72,7 +72,7 @@ export const webhook = client.webhook()
 
 - `provider: 'cloud'` and the four `cloud` values are the only Cloud-specific setup. [Meta app setup](/cloud/setup) shows where each value comes from.
 - The `text` handler is identical to one on WhatsApp Web.
-- `message-status` is Cloud-only. After a reply, it fires with `sent`, then `delivered`, then `read`, as the customer's phone reports each step.
+- `message-status` fires on both providers. After a reply, it reports `sent`, then `delivered`, then `read`, as the customer's phone reports each step. On the Cloud API it also carries `conversationId` and `error`, which a linked device has no equivalent for.
 - `webhook` has to be served on a public HTTPS URL. [Webhook](/cloud/webhook) shows Next.js, Hono, Express, and Node's `http` server.
 
 ## What stays the same
@@ -94,7 +94,7 @@ export const webhook = client.webhook()
 | **Messaging someone first** | Anyone with WhatsApp | Free-form messages only inside the <Term id="service-window" />. Outside it, an approved template. [Templates](/cloud/templates) |
 | **What you can send** | Every message type | Text, media, locations, contacts, reactions, up to 3 reply buttons, and lists. Anything else rejects with `SEND_FAILED`, with `NOT_IMPLEMENTED` on `error.cause`. [Messaging](/cloud/messaging) |
 | **Groups, channels, chats, profile, presence** | Available | `client.group`, `client.chat`, and the other WhatsApp Web modules throw `UNSUPPORTED_ON_CLOUD` |
-| **Delivery and read receipts** | Not available | The `message-status` event. [Cloud events](/cloud/events) |
+| **Delivery and read receipts** | The `message-status` event, decoded from acks | The same `message-status` event, from Meta's status webhooks. [Cloud events](/cloud/events) |
 | **Sending limits** | WhatsApp's anti-spam rules | Meta's messaging limits and your number's quality rating. [Limits](/cloud/limits) |
 
 The [feature matrix](/feature-matrix) answers "does X work on the Cloud API?" for every feature.

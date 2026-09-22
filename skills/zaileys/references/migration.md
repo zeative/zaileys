@@ -138,6 +138,11 @@ premium users become your own lists checked in the handler or in `client.use()` 
 
 Only entries that break code or change behaviour. Additive features are omitted.
 
+**4.18.0:** `message-status` now fires on WhatsApp Web as well as the Cloud API, decoded from Baileys acks. A
+handler written for Cloud runs on a linked device too. Detect: `grep -rn "message-status" src/`. Fix: check the
+handler doesn't assume `conversationId` or `error` — both stay Cloud-only and are absent on a linked device. If a
+handler was registered only because the event was believed dead on Web, it will now run.
+
 **4.17.0:** `htmlApp()` follows every card with an identical edit by default (`bypassDownload: true`) so the
 Download prompt doesn't appear; the card now reloads whenever the recipient opens the keyboard. Detect: `grep -rn
 "htmlApp(" src` on pages that keep state (games, counters, inputs). Fix: pass `bypassDownload: false` there.

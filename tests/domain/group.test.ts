@@ -116,6 +116,75 @@ describe('GroupModule — create / participants / metadata / subject / descripti
   })
 })
 
+describe('GroupModule — cachedMetadata', () => {
+  let mock: MockSocket
+  let now: number
+  let group: GroupModule
+
+  beforeEach(() => {
+    mock = createMockSocket()
+    now = 1_000
+    group = new GroupModule(() => mock as unknown as DomainSocketLike, undefined, { clock: { now: () => now } })
+  })
+
+  it('serves repeat lookups from the cache within five minutes', async () => {
+    await group.cachedMetadata(GROUP)
+    now += 4 * 60_000
+    await group.cachedMetadata(GROUP)
+    expect(mock.groupMetadata).toHaveBeenCalledTimes(1)
+  })
+
+  it('refetches after the five-minute ttl', async () => {
+    await group.cachedMetadata(GROUP)
+    now += 5 * 60_000 + 1
+    await group.cachedMetadata(GROUP)
+    expect(mock.groupMetadata).toHaveBeenCalledTimes(2)
+  })
+
+  it('shares one fetch between concurrent lookups', async () => {
+    await Promise.all([group.cachedMetadata(GROUP), group.cachedMetadata(GROUP), group.cachedMetadata(GROUP)])
+    expect(mock.groupMetadata).toHaveBeenCalledTimes(1)
+  })
+
+  it('reuses what a fresh metadata() call fetched', async () => {
+    await group.metadata(GROUP)
+    await group.cachedMetadata(GROUP)
+    expect(mock.groupMetadata).toHaveBeenCalledTimes(1)
+  })
+
+  it('refetches after invalidateMetadata()', async () => {
+    await group.cachedMetadata(GROUP)
+    group.invalidateMetadata(GROUP)
+    await group.cachedMetadata(GROUP)
+    expect(mock.groupMetadata).toHaveBeenCalledTimes(2)
+  })
+
+  it('invalidateMetadata() with no group clears every entry', async () => {
+    await group.cachedMetadata(GROUP)
+    await group.cachedMetadata('other@g.us')
+    group.invalidateMetadata()
+    await group.cachedMetadata(GROUP)
+    await group.cachedMetadata('other@g.us')
+    expect(mock.groupMetadata).toHaveBeenCalledTimes(4)
+  })
+
+  it('refetches after the bot changes the group itself', async () => {
+    await group.cachedMetadata(GROUP)
+    await group.promote(GROUP, [MEMBER_A])
+    await group.cachedMetadata(GROUP)
+    await group.updateSubject(GROUP, 'new name')
+    await group.cachedMetadata(GROUP)
+    expect(mock.groupMetadata).toHaveBeenCalledTimes(3)
+  })
+
+  it('does not cache a failed fetch', async () => {
+    mock.groupMetadata.mockRejectedValueOnce(new Error('timeout'))
+    await expect(group.cachedMetadata(GROUP)).rejects.toThrow('timeout')
+    await group.cachedMetadata(GROUP)
+    expect(mock.groupMetadata).toHaveBeenCalledTimes(2)
+  })
+})
+
 describe('GroupModule — NOT_CONNECTED guards (core methods)', () => {
   let group: GroupModule
 

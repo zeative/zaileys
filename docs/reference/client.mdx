@@ -743,7 +743,7 @@ Create and manage groups, their members, settings, and invites.
 
 <ProviderSupport web={true} cloud={false} />
 
-**Methods:** `create`, `metadata`, `list`, `addMember`, `removeMember`, `promote`, `demote`, `updateSubject`, `updateDescription`, `setting`, `toggleEphemeral`, `memberAddMode`, `joinApproval`, `joinRequests`, `approveJoin`, `rejectJoin`, `tagMember`, `inviteCode`, `revokeInvite`, `acceptInvite`, `inviteInfo`, `leave`.
+**Methods:** `create`, `metadata`, `cachedMetadata`, `invalidateMetadata`, `list`, `addMember`, `removeMember`, `promote`, `demote`, `updateSubject`, `updateDescription`, `setting`, `toggleEphemeral`, `memberAddMode`, `joinApproval`, `joinRequests`, `approveJoin`, `rejectJoin`, `tagMember`, `inviteCode`, `revokeInvite`, `acceptInvite`, `inviteInfo`, `leave`.
 
 ```ts
 const info = await client.group.metadata('120363025246125486@g.us')

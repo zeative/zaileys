@@ -30,7 +30,8 @@
 | Call | Returns / notes |
 | --- | --- |
 | `group.create(subject, participantJids)` | `GroupMetadata`. Paced 60 s. Check `participants` for who actually got in |
-| `group.metadata(groupId)` | `GroupMetadata`: `subject`, `desc`, `owner`, `participants[]` (`id`, `admin: 'admin' \| 'superadmin' \| null`, `phoneNumber`/`lid` when shared), `announce`, `restrict`, `memberAddMode`, `joinApprovalMode`, `ephemeralDuration`, `linkedParent`. A network query each call — cache it yourself in busy bots |
+| `group.metadata(groupId)` | `GroupMetadata`: `subject`, `desc`, `owner`, `participants[]` (`id`, `admin: 'admin' \| 'superadmin' \| null`, `phoneNumber`/`lid` when shared), `announce`, `restrict`, `memberAddMode`, `joinApprovalMode`, `ephemeralDuration`, `linkedParent`. A network query each call; use it when the answer must be current, such as an authorization check |
+| `group.cachedMetadata(groupId)` | Same shape, up to 5 minutes old, invalidated by group events and on every reconnect; concurrent calls share one request. Use it on hot paths. `group.invalidateMetadata(groupId?)` drops one group or all |
 | `group.list()` | Metadata of every group the bot is in; find an ID by `subject` |
 | `group.updateSubject(id, subject)` / `updateDescription(id, text?)` | Omitting `text` clears the description |
 | `group.setting(id, 'announcement' \| 'not_announcement' \| 'locked' \| 'unlocked')` | Admins-only sending / admins-only info editing |

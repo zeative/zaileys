@@ -92,6 +92,16 @@ console.log(info.desc ?? '(no description)')
 console.log(info.announce ? 'Only admins can send' : 'Everyone can send')
 ```
 
+`metadata()` always asks WhatsApp. For lookups on every message, such as checking a member list before replying, use `cachedMetadata()`. It returns a copy up to five minutes old, refreshed whenever a group event reports a change, and concurrent lookups share one request. Zaileys already uses this cache when it sends to a group, so a reply in a busy group skips a metadata round trip.
+
+```ts
+const info = await client.group.cachedMetadata('120363041234567890@g.us')
+
+client.group.invalidateMetadata('120363041234567890@g.us')
+```
+
+Call `invalidateMetadata(groupId)` to drop one group's cached copy, or `invalidateMetadata()` to drop them all. The cache also clears itself on every reconnect, because changes made while the bot was offline don't arrive as events.
+
 The fields you'll use most:
 
 <ResponseField name="id" type="string">

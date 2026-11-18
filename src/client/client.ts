@@ -615,6 +615,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       syncFullHistory: false,
       qrTimeout: QR_DEFAULT_TTL_MS,
       ...this.socketCaches,
+      cachedGroupMetadata: (jid) => this.group.cachedMetadata(jid).catch(() => undefined),
       ...(this.waVersion ? { version: this.waVersion } : {}),
       ...this.baileysExtra,
       auth: { creds, keys },
@@ -1159,8 +1160,16 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         this.logger.warn(err, 'rememberCallerInfo failed')
       }
     }
+    const onGroupsUpdate = (updates: Array<{ id?: string | null }>): void => {
+      for (const update of updates) if (update.id) this._group?.invalidateMetadata(update.id)
+    }
+    const onParticipantsUpdate = (update: { id: string }): void => {
+      this._group?.invalidateMetadata(update.id)
+    }
     socket.ev.on('connection.update', onConnection)
     socket.ev.on('creds.update', onCreds)
+    socket.ev.on('groups.update', onGroupsUpdate)
+    socket.ev.on('group-participants.update', onParticipantsUpdate)
     const ws = (socket as { ws?: { on?: unknown; off?: unknown } }).ws
     if (ws !== undefined && typeof ws.on === 'function' && typeof ws.off === 'function') {
       const raw = ws as { on: (e: string, f: (n: unknown) => void) => void; off: (e: string, f: (n: unknown) => void) => void }
@@ -1173,6 +1182,8 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.listenerCleanup.push({
       off: () => socket.ev.off('creds.update', onCreds),
     })
+    this.listenerCleanup.push({ off: () => socket.ev.off('groups.update', onGroupsUpdate) })
+    this.listenerCleanup.push({ off: () => socket.ev.off('group-participants.update', onParticipantsUpdate) })
   }
 
   private async handleConnectionUpdate(update: ConnectionUpdate): Promise<void> {
@@ -1284,6 +1295,8 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.authExhausted = false
     this.authGuard.reset()
     this.reconnectStrategy.reset()
+    /** Group events sent while offline never arrive, so nothing cached before this open can be trusted. */
+    this._group?.invalidateMetadata()
     const me = this.resolveMe()
     this.logStatus({ kind: 'connected', id: typeof me.id === 'string' ? me.id : '' })
     this.emit('connect', { sessionId: this.sessionId, me: me as ConnectionEventMap['connect']['me'] })
@@ -1299,7 +1312,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         prefixes: this.commandPrefixes,
         logger: this.logger,
         ...(this.citationConfig != null ? { citationConfig: this.citationConfig } : {}),
-        groupMetadata: (groupId) => this.group.metadata(groupId).catch(() => null),
+        groupMetadata: (groupId) => this.group.cachedMetadata(groupId).catch(() => null),
         receiverName: () => Promise.resolve(this.resolveMe().name ?? null),
         resolveQuoted: (id, remoteJid) => this.lookupQuoted(id, remoteJid),
         resolveLidToPn: (lid) => this.lidToPn(lid),

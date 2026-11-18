@@ -198,6 +198,7 @@ A few failures are plain `Error`s, not Zaileys classes. Match them by `message`:
 | `phoneNumber must be E.164 with country code`, `phoneNumber is required` | `validateE164()`. During login they're only logged — as `pairing-code request failed` — and no pairing code arrives. | Use 8–15 digits with the country code, such as `6281234567890`. |
 | `qr string is required` | `renderQrInTerminal()` with an empty string | Pass the `qrString` from the `qr` event. |
 | `chunk size must be positive` (`RangeError`) | `chunk()` with a size of 0 or less | Use a positive size. |
+| `reconnect.<option> must be …` (`RangeError`) | `new Client()` with a `reconnect` delay that is negative, `NaN`, or `Infinity`, or a `jitterFactor` outside 0 to 1 | Pass a finite number of milliseconds, `0` or more, and a `jitterFactor` from `0` to `1`. |
 | `Invalid file type: expected <kind>/*, got <mime>`, `Sticker creation failed: <reason>`, `Invalid media type: expected image or video` | `Media` methods | Check `msg.media.type` before converting — see [Receiving media](/messaging/receiving-media#when-a-download-fails). |
 | Baileys' download error, with `media download failed` in the log | `msg.media.buffer()` and `stream()` | Download as soon as the message arrives. |
 

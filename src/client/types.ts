@@ -42,11 +42,17 @@ export interface Logger {
   fatal(...args: unknown[]): void
 }
 
+/** Delays must be finite and `>= 0` (a `RangeError` otherwise) and are capped at 2^31-1 ms, Node's timer limit. */
 export interface ReconnectOptions {
+  /** Reconnect automatically after a non-fatal disconnect. Default `true`. */
   enabled?: boolean
+  /** Attempts before giving up. Default `Infinity`. */
   maxAttempts?: number
+  /** Delay before the first attempt; doubles on each attempt after. Default `3000`. */
   initialDelayMs?: number
+  /** Longest delay between attempts. Default `60000`. */
   maxDelayMs?: number
+  /** Random spread applied to each delay, from `0` to `1` (`0.2` is ±20%). Default `0.2`. */
   jitterFactor?: number
   /** Fixed backoff applied when the disconnect reason is `rate-limited` (429). Default `300000`. */
   rateLimitedDelayMs?: number

@@ -1,4 +1,5 @@
 import type { ReconnectOptions } from '../client/types.js'
+import { clampTimerDelay } from '../utils/timer.js'
 import { isFatalDisconnect, isRateLimited, type DisconnectReasonDomain } from './disconnect-reason.js'
 
 export interface ReconnectDecision {
@@ -25,16 +26,33 @@ const DEFAULTS = {
   rateLimitedDelayMs: 300000,
 } as const
 
+const assertDelayMs = (name: string, value: number): number => {
+  if (!Number.isFinite(value) || value < 0) {
+    throw new RangeError(`reconnect.${name} must be a finite number of milliseconds >= 0, got ${String(value)}`)
+  }
+  return value
+}
+
+const assertJitterFactor = (value: number): number => {
+  if (!Number.isFinite(value) || value < 0 || value > 1) {
+    throw new RangeError(`reconnect.jitterFactor must be a number from 0 to 1, got ${String(value)}`)
+  }
+  return value
+}
+
+/** Throws a RangeError naming the option when a delay is negative or non-finite or jitterFactor is outside 0-1. */
 export function createReconnectStrategy(
   options?: ReconnectOptions,
   deps?: ReconnectStrategyDeps,
 ): ReconnectStrategy {
   const enabled = options?.enabled ?? DEFAULTS.enabled
   const maxAttempts = options?.maxAttempts ?? DEFAULTS.maxAttempts
-  const initialDelayMs = options?.initialDelayMs ?? DEFAULTS.initialDelayMs
-  const maxDelayMs = options?.maxDelayMs ?? DEFAULTS.maxDelayMs
-  const jitterFactor = options?.jitterFactor ?? DEFAULTS.jitterFactor
-  const rateLimitedDelayMs = options?.rateLimitedDelayMs ?? DEFAULTS.rateLimitedDelayMs
+  const initialDelayMs = assertDelayMs('initialDelayMs', options?.initialDelayMs ?? DEFAULTS.initialDelayMs)
+  const maxDelayMs = clampTimerDelay(assertDelayMs('maxDelayMs', options?.maxDelayMs ?? DEFAULTS.maxDelayMs))
+  const jitterFactor = assertJitterFactor(options?.jitterFactor ?? DEFAULTS.jitterFactor)
+  const rateLimitedDelayMs = clampTimerDelay(
+    assertDelayMs('rateLimitedDelayMs', options?.rateLimitedDelayMs ?? DEFAULTS.rateLimitedDelayMs),
+  )
   const random = deps?.random ?? Math.random
 
   let attempts = 0
@@ -58,7 +76,7 @@ export function createReconnectStrategy(
     const base = Math.min(maxDelayMs, initialDelayMs * exponent)
     const jitter = 1 + (random() * 2 - 1) * jitterFactor
     const raw = base * jitter
-    const clamped = Math.min(maxDelayMs, Math.max(0, raw))
+    const clamped = Math.min(maxDelayMs, clampTimerDelay(raw))
     return { attempt: nextAttempt, delayMs: Math.round(clamped) }
   }
 

@@ -1,4 +1,3 @@
-import { Jimp } from 'jimp';
 import { BufferConverter, FFMPEG_CONSTANTS, getMediaLimits, type MediaInput } from './core.js';
 import { ffmpegTransform } from './transform.js';
 
@@ -200,9 +199,14 @@ class SharpImageProcessor {
   }
 }
 
+/** Jimp costs ~100 ms at import; bots that never touch images, or have sharp, should not pay it at startup. */
+let jimpModule: Promise<typeof import('jimp')> | undefined;
+const loadJimp = (): Promise<typeof import('jimp')> => (jimpModule ??= import('jimp'));
+
 class JimpImageProcessor {
   async thumbnail(buffer: Buffer): Promise<string> {
     const size = FFMPEG_CONSTANTS.THUMBNAIL.SIZE;
+    const { Jimp } = await loadJimp();
     const image = await Jimp.fromBuffer(assertDecodable(buffer));
 
     image.cover({ w: size, h: size });
@@ -212,6 +216,7 @@ class JimpImageProcessor {
 
   async resize(buffer: Buffer, width: number, height: number): Promise<Buffer> {
     assertSaneTarget(width, height);
+    const { Jimp } = await loadJimp();
     const image = await Jimp.fromBuffer(assertDecodable(buffer));
     image.cover({ w: width, h: height });
     const pngBuffer = await image.getBuffer('image/png');
@@ -222,6 +227,7 @@ class JimpImageProcessor {
     const buffer = await BufferConverter.toBuffer(input);
 
     try {
+      const { Jimp } = await loadJimp();
       const image = await Jimp.fromBuffer(assertDecodable(buffer));
       const jpegBuffer = await image.getBuffer('image/jpeg');
       return Buffer.from(jpegBuffer);
@@ -232,6 +238,7 @@ class JimpImageProcessor {
 
   async resizeForSticker(buffer: Buffer, quality: number, shape: string = 'default'): Promise<Buffer> {
     const size = FFMPEG_CONSTANTS.STICKER.SIZE;
+    const { Jimp } = await loadJimp();
     const image = await Jimp.fromBuffer(assertDecodable(buffer));
 
     image.contain({ w: size, h: size });

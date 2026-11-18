@@ -274,7 +274,7 @@ try {
 
 This prints `Could not schedule: scheduleAt requires a valid Date`.
 
-A scheduled send that fails when its time comes doesn't throw anywhere you can catch. It's logged as `scheduled send failed; re-arming for retry` and tried again after 30 seconds, then 60, 90, and 120 — each wait 30 seconds longer. After the fifth failure the job is dropped and logged as `scheduled send failed repeatedly; dropping the job`, so a job whose send keeps failing for longer than about five minutes, such as during an outage, is lost. Set `ZAILEYS_DEBUG=warn` to see it, since the built-in logger is silent by default. More in [Error handling](/data/error-handling).
+A scheduled send that fails when its time comes doesn't throw anywhere you can catch. It's logged as `scheduled send failed; re-arming for retry` and tried again after 30 seconds, then 60, 90, and 120 — each wait 30 seconds longer. After the fifth failure the job is dropped and logged as `scheduled send failed repeatedly; dropping the job`. A send that fails because the connection is closed, such as during an outage or a reconnect back-off, isn't counted: it's logged as `scheduled send skipped: client not connected; waiting for reconnect`, and the job stays pending and fires as soon as the client reconnects. Set `ZAILEYS_DEBUG=warn` to see it, since the built-in logger is silent by default. More in [Error handling](/data/error-handling).
 
 ## Next steps
 

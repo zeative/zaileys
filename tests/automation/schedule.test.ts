@@ -4,6 +4,7 @@ import {
   Scheduler,
   ZaileysAutomationError,
   type ScheduledContentSnapshot,
+  type SchedulerTimer,
 } from '../../src/automation/index.js'
 import type { MessageStore, ScheduledJobRecord } from '../../src/store/types.js'
 
@@ -285,5 +286,180 @@ describe('Scheduler', () => {
     await scheduler.scheduleAt(new Date(2000), (b) => b.to(JID).text('mixed'))
     await vi.advanceTimersByTimeAsync(2000)
     expect(sendSnapshot).toHaveBeenCalledTimes(1)
+  })
+})
+
+const manualClock = (): {
+  timer: SchedulerTimer
+  now: () => number
+  live: () => number
+  advance: (ms: number) => Promise<void>
+} => {
+  let current = 0
+  let seq = 0
+  const pending = new Map<number, { at: number; cb: () => void }>()
+  const flush = async (): Promise<void> => {
+    for (let i = 0; i < 50; i += 1) await Promise.resolve()
+  }
+  return {
+    timer: {
+      set: (cb, ms) => {
+        seq += 1
+        pending.set(seq, { at: current + ms, cb })
+        return seq
+      },
+      clear: (handle) => {
+        pending.delete(handle as number)
+      },
+    },
+    now: () => current,
+    live: () => pending.size,
+    advance: async (ms) => {
+      const target = current + ms
+      for (;;) {
+        let next: [number, { at: number; cb: () => void }] | undefined
+        for (const entry of pending) {
+          if (entry[1].at <= target && (next === undefined || entry[1].at < next[1].at)) next = entry
+        }
+        if (next === undefined) break
+        pending.delete(next[0])
+        current = next[1].at
+        next[1].cb()
+        await flush()
+      }
+      current = target
+      await flush()
+    },
+  }
+}
+
+const memoryJobStore = (): { store: Partial<MessageStore>; saved: ScheduledJobRecord[] } => {
+  const saved: ScheduledJobRecord[] = []
+  const store: Partial<MessageStore> = {
+    saveScheduledJob: vi.fn(async (job: ScheduledJobRecord) => {
+      saved.push(job)
+    }),
+    listScheduledJobs: vi.fn(async () => saved.slice()),
+    deleteScheduledJob: vi.fn(async (id: string) => {
+      const idx = saved.findIndex((job) => job.id === id)
+      if (idx >= 0) saved.splice(idx, 1)
+    }),
+  }
+  return { store, saved }
+}
+
+const closedSocketError = (): Error =>
+  Object.assign(new Error('Connection Closed'), { output: { statusCode: 428 } })
+
+describe('Scheduler — sends while the client is not connected', () => {
+  it('keeps the job pending through an outage longer than the retry budget', async () => {
+    const clock = manualClock()
+    const { store, saved } = memoryJobStore()
+    let connected = false
+    const sendSnapshot = vi.fn(async () => {
+      if (!connected) throw closedSocketError()
+    })
+    const scheduler = new Scheduler({
+      store: store as MessageStore,
+      sendSnapshot,
+      now: clock.now,
+      timer: clock.timer,
+    })
+    await scheduler.scheduleAt(new Date(1000), buildFor(JID))
+    await clock.advance(10 * 60_000)
+    expect(saved).toHaveLength(1)
+    expect(clock.live()).toBe(0)
+    connected = true
+    await scheduler.loadPending()
+    await clock.advance(0)
+    expect(sendSnapshot).toHaveBeenCalledTimes(2)
+    expect(saved).toHaveLength(0)
+  })
+
+  it('does not count a NOT_CONNECTED failure as an attempt', async () => {
+    const clock = manualClock()
+    const { store, saved } = memoryJobStore()
+    const sendSnapshot = vi.fn(async () => {
+      throw new ZaileysAutomationError('NOT_CONNECTED', 'client not connected')
+    })
+    const scheduler = new Scheduler({
+      store: store as MessageStore,
+      sendSnapshot,
+      now: clock.now,
+      timer: clock.timer,
+    })
+    await scheduler.scheduleAt(new Date(1000), buildFor(JID))
+    for (let i = 0; i < 8; i += 1) {
+      await scheduler.loadPending()
+      await clock.advance(60_000)
+    }
+    expect(sendSnapshot).toHaveBeenCalledTimes(8)
+    expect(saved).toHaveLength(1)
+  })
+
+  it('still drops a job after five ordinary send failures', async () => {
+    const clock = manualClock()
+    const { store, saved } = memoryJobStore()
+    const sendSnapshot = vi.fn(async () => {
+      throw new Error('bad payload')
+    })
+    const scheduler = new Scheduler({
+      store: store as MessageStore,
+      sendSnapshot,
+      now: clock.now,
+      timer: clock.timer,
+    })
+    await scheduler.scheduleAt(new Date(1000), buildFor(JID))
+    await clock.advance(10 * 60_000)
+    expect(sendSnapshot).toHaveBeenCalledTimes(5)
+    expect(saved).toHaveLength(0)
+  })
+})
+
+describe('Scheduler — dispose while a send is in flight', () => {
+  it('leaves no timer behind when the in-flight send fails after dispose', async () => {
+    const clock = manualClock()
+    const { store, saved } = memoryJobStore()
+    let rejectSend: (err: Error) => void = () => undefined
+    const sendSnapshot = vi.fn(
+      () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectSend = reject
+        }),
+    )
+    const scheduler = new Scheduler({
+      store: store as MessageStore,
+      sendSnapshot,
+      now: clock.now,
+      timer: clock.timer,
+    })
+    await scheduler.scheduleAt(new Date(1000), buildFor(JID))
+    await clock.advance(1000)
+    expect(sendSnapshot).toHaveBeenCalledTimes(1)
+    scheduler.dispose()
+    rejectSend(new Error('send failed'))
+    await clock.advance(0)
+    expect(clock.live()).toBe(0)
+    expect(saved).toHaveLength(1)
+  })
+
+  it('re-arms pending jobs when loadPending runs after dispose', async () => {
+    const clock = manualClock()
+    const { store, saved } = memoryJobStore()
+    const sendSnapshot = vi.fn(async () => undefined)
+    const scheduler = new Scheduler({
+      store: store as MessageStore,
+      sendSnapshot,
+      now: clock.now,
+      timer: clock.timer,
+    })
+    await scheduler.scheduleAt(new Date(1000), buildFor(JID))
+    scheduler.dispose()
+    expect(clock.live()).toBe(0)
+    await scheduler.loadPending()
+    expect(clock.live()).toBe(1)
+    await clock.advance(1000)
+    expect(sendSnapshot).toHaveBeenCalledTimes(1)
+    expect(saved).toHaveLength(0)
   })
 })

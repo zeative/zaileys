@@ -239,7 +239,7 @@ handle.cancel()
 | Evaluation | Content is captured immediately (media read now). Invalid `Date`, a builder that throws or sets nothing, albums, and interactive or relayed content reject with `SCHEDULE_INVALID` |
 | Past dates | Fire as soon as possible; delays past ~24.8 days are re-armed in chunks, so they don't fire early |
 | Pacing | `scheduleRateLimitPerSec` (default 1, `0` = off) smooths due backlogs; it doesn't affect other sends |
-| Failure at fire time | Logged `scheduled send failed; re-arming for retry`, retried after 30 s × attempt; after 5 failed attempts it logs `scheduled send failed repeatedly; dropping the job` and deletes it. An outage longer than ~5 minutes at fire time loses the job |
+| Failure at fire time | Logged `scheduled send failed; re-arming for retry`, retried after 30 s × attempt; after 5 failed attempts it logs `scheduled send failed repeatedly; dropping the job` and deletes it. A send on a closed connection isn't an attempt: it logs `scheduled send skipped: client not connected; waiting for reconnect` and the job fires after the client reconnects |
 | Persistence | Only stores implementing `saveScheduledJob` / `listScheduledJobs` / `deleteScheduledJob` survive a restart — of the built-ins, only Convex. Otherwise jobs live in memory and are re-armed on reconnect |
 | Handles | No list or cancel-by-id API: keep the handle |
 | Recurring | Not supported; schedule the next run yourself or use a job runner calling `client.send()` |

@@ -229,6 +229,7 @@ The logger is silent by default. `ZAILEYS_DEBUG=1` means `info`; it also accepts
 | `recordSent failed` | Sent message not saved to the message store; the send succeeded | Check the message store |
 | `media download failed`, `media stream download failed` | `msg.media.buffer()`/`stream()` failed, usually expired media | Download as soon as the message arrives |
 | `scheduled send failed; re-arming for retry`, `scheduled send failed repeatedly; dropping the job` | `scheduleAt()` send failing | Check connection and content |
+| `scheduled send skipped: client not connected; waiting for reconnect` | A job came due while the connection was closed; it stays pending | Nothing; it fires after the client reconnects |
 | `plugin: import failed; skipped`, `plugin: invalid shape (needs a name); skipped`, `plugin: duplicate name; skipped`, `plugin: setup failed; skipped` | Plugin not loaded | Default-export `definePlugin({ name, … })` |
 | `inbound pipeline: overloaded, shed messages waiting on LID resolution` | Inbound messages dropped under load | Reduce load or scale out sessions |
 | `autoDelete: store implements neither pruneMessages nor deleteMessage; sweeper disabled` | Custom store lacks pruning | Implement one, or `autoDelete: false` |

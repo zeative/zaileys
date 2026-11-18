@@ -7,6 +7,16 @@ type Listener = (...args: unknown[]) => void
 const encodeKey = (key: WAMessageKey): string =>
   `${key.remoteJid ?? ''}|${key.id ?? ''}|${key.fromMe ? 1 : 0}`
 
+export interface MemoryMessageStoreOptions {
+  /**
+   * Most messages kept; the oldest saved is dropped first. A message costs roughly 4 KB of heap, so the
+   * default holds about 40 MB. Pass `Infinity` to keep everything. Default 10 000.
+   */
+  maxMessages?: number
+}
+
+const DEFAULT_MAX_MESSAGES = 10_000
+
 export class MemoryMessageStore implements MessageStore {
   private readonly messages: Map<string, WAMessage> = new Map()
   private readonly messagesByJid: Map<string, Set<string>> = new Map()
@@ -16,11 +26,25 @@ export class MemoryMessageStore implements MessageStore {
   private boundSocket: BaileysSocketLike | undefined
   private readonly listeners: Map<string, Listener> = new Map()
   private closed = false
+  private readonly maxMessages: number
+
+  constructor(options: MemoryMessageStoreOptions = {}) {
+    const max = options.maxMessages ?? DEFAULT_MAX_MESSAGES
+    if (!(max >= 1)) {
+      throw new ZaileysStoreError(
+        'STORE_CONNECTION_FAILED',
+        `MemoryMessageStore: maxMessages must be 1 or more (or Infinity), got ${String(max)}`,
+      )
+    }
+    this.maxMessages = max
+  }
 
   async saveMessage(message: WAMessage): Promise<void> {
     this.assertOpen()
     const k = encodeKey(message.key)
+    const isNew = !this.messages.has(k)
     this.messages.set(k, structuredClone(message))
+    if (isNew && this.messages.size > this.maxMessages) this.evictOldest()
     const jid = message.key.remoteJid ?? ''
     let bucket = this.messagesByJid.get(jid)
     if (!bucket) {
@@ -164,6 +188,20 @@ export class MemoryMessageStore implements MessageStore {
     this.listeners.set('presence.update', presenceUpdate)
     for (const [event, handler] of this.listeners) {
       socket.ev.on(event, handler)
+    }
+  }
+
+  /** Maps keep insertion order, so the first key is the message saved longest ago. */
+  private evictOldest(): void {
+    const oldest = this.messages.keys().next()
+    if (oldest.done) return
+    const evicted = this.messages.get(oldest.value)
+    this.messages.delete(oldest.value)
+    const jid = evicted?.key.remoteJid ?? ''
+    const bucket = this.messagesByJid.get(jid)
+    if (bucket) {
+      bucket.delete(oldest.value)
+      if (bucket.size === 0) this.messagesByJid.delete(jid)
     }
   }
 

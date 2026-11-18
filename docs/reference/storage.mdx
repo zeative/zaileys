@@ -178,7 +178,7 @@ Each message store implements [`MessageStore`](#messagestore). All five support 
 
 | Store | `listMessages` default `limit` | Scheduled jobs | Notes |
 | --- | --- | --- | --- |
-| `MemoryMessageStore` | Everything | No | Emptied on restart |
+| `MemoryMessageStore` | Everything | No | Emptied on restart; keeps the latest 10,000 messages |
 | `SqliteMessageStore` | 100 | No | Tables `messages`, `chats`, `contacts`, `presence` |
 | `PostgresMessageStore` | 100 | No | Tables `zaileys_messages`, `zaileys_chats`, `zaileys_contacts`, `zaileys_presence` |
 | `RedisMessageStore` | 100 | No | Presence expires after 5 minutes; `clear()` deletes only message-store keys |
@@ -189,10 +189,12 @@ Each message store implements [`MessageStore`](#messagestore). All five support 
 ```ts
 import { MemoryMessageStore } from 'zaileys'
 
-const store = new MemoryMessageStore()
+const store = new MemoryMessageStore({ maxMessages: 10_000 })
 ```
 
-No options.
+<ParamField body="maxMessages" type="number" default="10000">
+  The most messages kept. Once the store is full, the message saved longest ago is dropped, so a busy bot can't run out of memory before [auto-delete](/bots/auto-delete) prunes it. A message takes about 4 KB, so the default uses around 40 MB. Pass `Infinity` to keep everything, or use a database store if you need a longer history. A value below 1 throws `STORE_CONNECTION_FAILED`.
+</ParamField>
 
 ### SqliteMessageStore
 

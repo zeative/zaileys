@@ -36,9 +36,6 @@ importers:
       lru-cache:
         specifier: ^11.2.7
         version: 11.2.7
-      node-webpmux:
-        specifier: ^3.2.1
-        version: 3.2.1
       pino:
         specifier: 10.3.1
         version: 10.3.1
@@ -2864,9 +2861,6 @@ packages:
   node-wav@0.0.2:
     resolution: {integrity: sha512-M6Rm/bbG6De/gKGxOpeOobx/dnGuP0dz40adqx38boqHhlWssBJZgLCPBNtb9NkrmnKYiV04xELq+R6PFOnoLA==}
     engines: {node: '>=4.4.0'}
-
-  node-webpmux@3.2.1:
-    resolution: {integrity: sha512-MKgpq9nFgo44pIVNx/umD3nkqb2E8oqQTfmstVsfNdx9uV4cX7a4LqA+d8AZd3v5tgJXwENKUFsXNP3bRLP8nQ==}
 
   object-assign@4.1.1:
     resolution: {integrity: sha512-rJgTQnkUnH1sFw8yT6VSU3zD3sWmu6sZhIseY8VX+GRu3P6F7Fu+JNDoXfklElbLJSnc3FUQHVe4cU5hj+BcUg==}
@@ -6345,8 +6339,6 @@ snapshots:
       semver: 7.7.4
 
   node-wav@0.0.2: {}
-
-  node-webpmux@3.2.1: {}
 
   object-assign@4.1.1: {}
 

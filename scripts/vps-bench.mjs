@@ -18,7 +18,7 @@ import path from 'node:path'
 
 const EXTERNAL = [
   'sharp', 'jimp', 'baileys', 'pino', 'lru-cache', 'file-type', 'better-sqlite3',
-  '@ffmpeg-installer/ffmpeg', '@ffprobe-installer/ffprobe', 'node-webpmux', 'audio-decode',
+  '@ffmpeg-installer/ffmpeg', '@ffprobe-installer/ffprobe', 'audio-decode',
 ]
 
 const MATRIX = [

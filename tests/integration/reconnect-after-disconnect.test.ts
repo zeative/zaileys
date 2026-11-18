@@ -106,6 +106,11 @@ describe('connect() works again after disconnect()', () => {
     sock.triggerConnectionUpdate({ connection: 'open' })
     await p
     await client.disconnect()
-    await expect(client.connect()).rejects.toThrow(/cannot be reopened/)
+    await expect(client.connect()).rejects.toMatchObject({
+      name: 'ZaileysConnectionError',
+      code: 'STORE_NOT_REOPENABLE',
+      message:
+        'this auth or message store adapter cannot be reopened after disconnect(); implement reopen() or create a new Client',
+    })
   })
 })

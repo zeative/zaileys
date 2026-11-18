@@ -1,6 +1,7 @@
 export * from './auth-adapter.js'
 export * from './auth-guard.js'
 export * from './disconnect-reason.js'
+export * from './errors.js'
 export * from './pairing-flow.js'
 export * from './qr-terminal.js'
 export * from './reconnect.js'

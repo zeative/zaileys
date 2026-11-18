@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { ZaileysConnectionError } from '../../src/connection/errors.js'
 import { printQrToTerminal, renderQrInTerminal } from '../../src/connection/qr-terminal.js'
 
 const SAMPLE_QR = '2@abc123,xyz789=='
@@ -13,6 +14,16 @@ describe('renderQrInTerminal', () => {
 
   it('rejects on empty string with helpful message', async () => {
     await expect(renderQrInTerminal('')).rejects.toThrow('qr string is required')
+  })
+
+  it('rejects with ZaileysConnectionError INVALID_OPTIONS', async () => {
+    const err = await renderQrInTerminal('').catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ZaileysConnectionError)
+    expect(err).toMatchObject({
+      code: 'INVALID_OPTIONS',
+      name: 'ZaileysConnectionError',
+      message: 'qr string is required',
+    })
   })
 
   it('rejects on whitespace-only string', async () => {

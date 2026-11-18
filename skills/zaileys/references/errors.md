@@ -9,6 +9,7 @@
 - ZaileysCommandError
 - ZaileysDomainError
 - ZaileysAutomationError
+- ZaileysConnectionError
 - ZaileysStoreError
 - Plain errors
 - Message text to meaning
@@ -58,6 +59,8 @@ Cause chains:
 | Command `HANDLER_ERROR`, `MIDDLEWARE_ERROR` | Whatever your handler or middleware threw |
 | Automation `SCHEDULE_INVALID` (`scheduled builder evaluation failed`), `PRESENCE_FAILED` | The builder or socket error |
 | Store errors | The driver error (`pg`, `redis`, `better-sqlite3`, `convex`, fs) |
+| Connection `CREDS_READ_FAILED` | Whatever a custom auth store's `readCreds()` threw |
+| Connection `PAIRING_FAILED` | Baileys' error from `requestPairingCode()` |
 | Cloud `REQUEST_FAILED` `graph request failed (network)` | The `fetch` error |
 
 `client.sendTemplate()`, `client.markRead()`, and `client.cloud.*` throw `ZaileysCloudError` directly, unwrapped.
@@ -127,9 +130,27 @@ Thrown before any request — on property access for modules (`client.group`), a
 | `TASK_FAILED` | Declared, never thrown | `broadcast()` never throws per recipient: failures land in `result.failed[].error`. |
 | `STORE_UNAVAILABLE` | Declared, never thrown | Store problems are `ZaileysStoreError`. |
 
+## ZaileysConnectionError
+
+Thrown by the connection lifecycle: `new Client()`, `connect()`, the pairing flow, and the exported reconnect, QR, and
+state-machine helpers. Still an `Error`, so `instanceof Error` checks keep working.
+
+| Code | Meaning and message | Fix |
+| --- | --- | --- |
+| `INVALID_OPTIONS` | `invalid sessionId "<id>": use 1-64 characters from A-Z a-z 0-9 _ -` (`new Client()`); `phoneNumber is required when authType is "pairing"` (`connect()`, or the `error` event with auto-connect); `phoneNumber must be E.164 with country code`, `phoneNumber is required` (pairing flow, only logged as `pairing-code request failed`, no event); `reconnect.<option> must be a finite number of milliseconds >= 0, got <v>`, `reconnect.jitterFactor must be a number from 0 to 1, got <v>` (`new Client()`); `qr string is required` (`renderQrInTerminal()`) | Rename the id and the `./.zaileys/auth/<old>` folder to match, or the session is lost. Phone numbers: 8–15 digits with country code, as a string; `+`, spaces, `-`, `()` are stripped. Delays: finite and `>= 0`. |
+| `CREDS_READ_FAILED` | `failed to read stored credentials; aborting connect to protect the session` — a custom store's `readCreds()` threw something other than `ZaileysStoreError` (those are rethrown unchanged); original on `cause` | Fix the store; don't delete the session. The abort is deliberate: a socket built without the stored creds can register a new device over a valid session. |
+| `CONNECT_ABORTED` | `disconnected before connect resolved` — `disconnect()` (or `authGuard` giving up) ran before `connect()` finished | Nothing broke; call `connect()` again to retry. |
+| `CONNECTION_CLOSED` | `connection closed (<reason>)` — the connection closed during `connect()` and won't reconnect | See Disconnect reasons. |
+| `SESSION_PROTECTED` | `WhatsApp asked to pair again while a registered session is stored; aborting to protect it` — on the `error` event, then disconnect | If the device really was unlinked, `await client.logout()` or delete the session, then restart. |
+| `STORE_NOT_REOPENABLE` | `this auth or message store adapter cannot be reopened after disconnect(); implement reopen() or create a new Client` — `connect()` after `disconnect()` with a custom store | Implement `reopen()` or build a new client. |
+| `PAIRING_FAILED` | `failed to request pairing code: <msg>`, original on `cause`; logged as `pairing-code request failed` | Check the number is on WhatsApp; don't loop — `authGuard` caps pairing at 3. |
+| `INVALID_STATE` | `invalid state transition: <from> -> <to>` from `createConnectionStateMachine()` | Check `canTransition()` first; the client never hits it on its own path. |
+
 ## ZaileysStoreError
 
 Surfaces mostly while connecting: `await client.connect()` rejects, or the automatic connect emits it on `error`.
+A store error during the credential read keeps its class; only other `readCreds()` failures become
+`ZaileysConnectionError` `CREDS_READ_FAILED`.
 
 | Code | Meaning and message | Fix |
 | --- | --- | --- |
@@ -142,17 +163,10 @@ Surfaces mostly while connecting: `await client.connect()` rejects, or the autom
 
 ## Plain errors
 
-Not zaileys classes — match on `message`.
+Not zaileys classes — match on `message`. Connection-lifecycle failures are `ZaileysConnectionError`, not plain.
 
 | Message | Where | Fix |
 | --- | --- | --- |
-| `invalid sessionId "<id>": use 1-64 characters from A-Z a-z 0-9 _ -` | `new Client()` | Rename the id and the `./.zaileys/auth/<old>` folder to match, or the session is lost. |
-| `phoneNumber is required when authType is "pairing"` | `connect()`; with auto-connect, the `error` event | Add `phoneNumber` as a string. |
-| `phoneNumber must be E.164 with country code`, `phoneNumber is required` | Pairing flow; only logged as `pairing-code request failed`, no event | 8–15 digits with country code; `+`, spaces, `-`, `()` are stripped. |
-| `failed to request pairing code: <msg>` | Pairing flow; logged the same way | Check the number is on WhatsApp; don't loop — `authGuard` caps pairing at 3. |
-| `WhatsApp asked to pair again while a registered session is stored; aborting to protect it` | `error` event, then disconnect | If the device really was unlinked, `await client.logout()` or delete the session, then restart. |
-| `connection closed (<reason>)`, `disconnected before connect resolved` | `await client.connect()` rejection | See Disconnect reasons. |
-| `this auth or message store adapter cannot be reopened after disconnect(); implement reopen() or create a new Client` | `connect()` after `disconnect()` with a custom store | Implement `reopen()` or build a new client. |
 | `zaileys: ctx.reply() requires a connected client`, `zaileys: ctx.react() requires a connected client` | Context actions on a context with no live client | Reply from within the event handler. |
 | `ffmpeg queue is full (<n> jobs waiting)`, `ffmpeg job waited more than <ms>ms for a slot` | Media conversion under load | Tune `media.maxConcurrentFfmpeg` / `maxQueuedFfmpeg` / `ffmpegQueueTimeoutMs`, or shed work. |
 | `FFmpeg timed out after 120000ms`, `FFmpeg exited with code <n>` | Media conversion | Corrupt input or unsupported codec. |
@@ -191,7 +205,7 @@ Not zaileys classes — match on `message`.
 | `unknown` | anything else | Yes; `willReconnect: false` when you called `disconnect()` | Kept |
 
 - Nothing reconnects when `reconnect.enabled` is `false`, `reconnect.maxAttempts` is used up, or `authGuard` already stopped the client.
-- `new Client()` throws a `RangeError` naming the option when a `reconnect` delay is negative or non-finite, or `jitterFactor` is outside 0 to 1. Delays above 2^31-1 ms (about 24.8 days) are capped there, because Node fires a longer `setTimeout` after 1 ms.
+- `new Client()` throws `ZaileysConnectionError` `INVALID_OPTIONS` naming the option when a `reconnect` delay is negative or non-finite, or `jitterFactor` is outside 0 to 1. Delays above 2^31-1 ms (about 24.8 days) are capped there, because Node fires a longer `setTimeout` after 1 ms.
 - Erasing is `quarantineCreds()` (the file store copies `creds.json` to `creds.revoked-<timestamp>.json`) followed by clearing signal keys and credentials. The backup is best effort: signal keys are gone, so restoring it rarely revives a session.
 - `session: { clearAuthOn: [...] }` replaces the erase set (default `['logged-out']`). It doesn't change reconnecting: `clearAuthOn: ['bad-session']` erases and then reconnects into a new QR.
 - `client.logout()` always backs up and erases; `client.disconnect()` never erases.
@@ -219,9 +233,9 @@ The logger is silent by default. `ZAILEYS_DEBUG=1` means `info`; it also accepts
 | `listener threw` | A synchronous `client.on()` handler threw; other handlers still ran | Fix the handler. Async rejections are not caught at all |
 | `inbound pipeline: handler for <event> threw`, `inbound pipeline: decoder threw` | One inbound message failed to decode | Report with the payload if repeatable |
 | `command dispatch failed` | Command failed and no `command-error` listener | Add `client.on('command-error', …)` |
-| `auto-connect failed` | Automatic connect rejected (also `error` event when listened) | Read the error; see Plain errors |
+| `auto-connect failed` | Automatic connect rejected (also `error` event when listened) | Read the error; usually a `ZaileysConnectionError` or `ZaileysStoreError` |
 | `auth attempts exhausted (<n>/<max> <kind>); stopping to avoid WhatsApp spam restriction — call connect() to retry` | Nobody scanned 5 QRs / used 3 pairing codes; `auth-exhausted` event fired and the client disconnected | Retry later with `client.connect()`, never with `authGuard` disabled |
-| `pairing-code request failed` | Pairing flow threw; `cause` holds the E.164 or request error | Fix `phoneNumber` |
+| `pairing-code request failed` | Pairing flow threw a `ZaileysConnectionError` (`INVALID_OPTIONS` for the number, `PAIRING_FAILED` for the request) | Fix `phoneNumber` |
 | `WhatsApp returned rate-limited (429); backing off before reconnect to avoid restriction` | 5-minute wait started | Don't restart to skip the wait — a restart is another login attempt while throttled |
 | `auth.creds.writeCreds failed` | Credential update not persisted (`STORE_WRITE_FAILED` on `cause`) | Fix disk or DB before the next restart, or the session breaks |
 | `failed to read stored credentials; aborting connect to protect the session` | Auth store read failed | Fix the store; don't delete the session |

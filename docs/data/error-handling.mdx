@@ -56,6 +56,7 @@ Every Zaileys error has:
 | `ZaileysCommandError` | Commands and middleware | `HANDLER_ERROR`, `DUPLICATE_COMMAND` |
 | `ZaileysAutomationError` | Broadcasts, scheduling, presence, and rate limits | `SCHEDULE_INVALID`, `PRESENCE_FAILED` |
 | `ZaileysStoreError` | Auth and message stores | `STORE_NOT_AVAILABLE`, `STORE_CONNECTION_FAILED` |
+| `ZaileysConnectionError` | `new Client()`, `connect()`, and pairing | `INVALID_OPTIONS`, `CREDS_READ_FAILED`, `CONNECTION_CLOSED` |
 | `ZaileysCloudError` | Cloud API requests | `AUTH`, `RATE_LIMITED`, `NOT_IMPLEMENTED` |
 | `ZaileysProviderError` | Web-only features used on the Cloud API | `UNSUPPORTED_ON_CLOUD` |
 
@@ -82,7 +83,9 @@ All of them are exported from `'zaileys'`. The [Errors reference](/reference/err
 | `STORE_NOT_AVAILABLE` | The database package for your store isn't installed. | Install it — see [Storage](/data/storage#when-storage-fails). |
 | `STORE_CONNECTION_FAILED` | The database couldn't be reached, or the store's options are wrong. | Check the URL and credentials; the driver error is on `error.cause`. |
 | `NOT_CONNECTED` | A group, profile, presence, or other module call ran before the client connected. | Call it from a handler, or after the `connect` event. |
-| `phoneNumber is required when authType is "pairing"` | You chose pairing-code login without `phoneNumber`. This one is a plain `Error`. | Add `phoneNumber: '6281234567890'` to the client options. |
+| `INVALID_OPTIONS` with `phoneNumber is required when authType is "pairing"` | You chose pairing-code login without `phoneNumber`. This one is a `ZaileysConnectionError`. | Add `phoneNumber: '6281234567890'` to the client options. |
+| `CREDS_READ_FAILED` | A custom auth store failed with something other than a `ZaileysStoreError` while `connect()` read the saved login, so it stopped instead of risking it. The original error is on `error.cause`. | Fix the store; don't delete the session. |
+| `CONNECTION_CLOSED` | The connection closed during `connect()` and won't be retried, such as `connection closed (logged-out)`. | Look up the reason in [Disconnect reasons](/whatsapp-web#disconnect-reasons). |
 
 ### Commands
 

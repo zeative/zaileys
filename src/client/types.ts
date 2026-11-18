@@ -42,7 +42,7 @@ export interface Logger {
   fatal(...args: unknown[]): void
 }
 
-/** Delays must be finite and `>= 0` (a `RangeError` otherwise) and are capped at 2^31-1 ms, Node's timer limit. */
+/** Delays must be finite and `>= 0` (`ZaileysConnectionError` `INVALID_OPTIONS` otherwise) and are capped at 2^31-1 ms, Node's timer limit. */
 export interface ReconnectOptions {
   /** Reconnect automatically after a non-fatal disconnect. Default `true`. */
   enabled?: boolean

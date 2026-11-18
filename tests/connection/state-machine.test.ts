@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { ConnectionState } from '../../src/client/types.js'
+import { ZaileysConnectionError } from '../../src/connection/errors.js'
 import { createConnectionStateMachine } from '../../src/connection/state-machine.js'
 
 describe('createConnectionStateMachine — initial state', () => {
@@ -105,6 +106,14 @@ describe('invalid transitions throw', () => {
       const fsm = createConnectionStateMachine(from)
       expect(() => fsm.transition(to)).toThrow(/invalid state transition/i)
       expect(() => fsm.transition(to)).toThrow(new RegExp(`${from}.*${to}`))
+      expect(() => fsm.transition(to)).toThrowError(ZaileysConnectionError)
+      expect(() => fsm.transition(to)).toThrow(
+        expect.objectContaining({
+          code: 'INVALID_STATE',
+          name: 'ZaileysConnectionError',
+          message: `invalid state transition: ${from} -> ${to}`,
+        }),
+      )
     })
   }
 })

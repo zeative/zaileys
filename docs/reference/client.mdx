@@ -116,9 +116,12 @@ Opens the connection. You only need it with `autoConnect: false` or after `disco
 
 **Rejects with:**
 
-- `Error` — `phoneNumber is required when authType is "pairing"`.
-- `Error` — `disconnected before connect resolved`, when `disconnect()` runs first (including after the [auth guard](/reference/client-options#authguardoptions) gives up).
-- `Error` — `connection closed (logged-out)` (or another reason), when the connection closes and won't reconnect.
+- `ZaileysConnectionError` `INVALID_OPTIONS` — `phoneNumber is required when authType is "pairing"`.
+- `ZaileysStoreError` — when the auth store fails while reading the saved login, such as `STORE_NOT_AVAILABLE` or `STORE_READ_FAILED`.
+- `ZaileysConnectionError` `CREDS_READ_FAILED` — `failed to read stored credentials; aborting connect to protect the session`, when a custom store's `readCreds()` throws anything else; the original is on `cause`.
+- `ZaileysConnectionError` `CONNECT_ABORTED` — `disconnected before connect resolved`, when `disconnect()` runs first (including after the [auth guard](/reference/client-options#authguardoptions) gives up).
+- `ZaileysConnectionError` `CONNECTION_CLOSED` — `connection closed (logged-out)` (or another reason), when the connection closes and won't reconnect.
+- `ZaileysConnectionError` `STORE_NOT_REOPENABLE` — when a custom store without `reopen()` is reconnected after `disconnect()`.
 - Cloud API: `ZaileysCloudError` `AUTH` — `cloud auth rejected (401) — check accessToken/phoneNumberId`; `REQUEST_FAILED` — `cloud health-check request failed` or `cloud health-check failed (500)`.
 
 ```ts
@@ -1414,6 +1417,7 @@ const names = await client.usernames(['115362955808779@lid', '234256710246613@li
 | `ZaileysDomainError` | `NOT_CONNECTED` and others | Module methods |
 | `ZaileysAutomationError` | `NOT_CONNECTED`, `PRESENCE_FAILED`, `SCHEDULE_INVALID`, `RATE_LIMIT_INVALID` | `presence`, `rejectCall`, `scheduleAt`, `broadcast` |
 | `ZaileysCommandError` | `DUPLICATE_COMMAND`, `INVALID_COMMAND_NAME` | `command` |
+| `ZaileysConnectionError` | `INVALID_OPTIONS`, `CREDS_READ_FAILED`, `CONNECT_ABORTED`, `CONNECTION_CLOSED`, `STORE_NOT_REOPENABLE` | `new Client()` with a bad `sessionId` or `reconnect` option; `connect` |
 
 Every code and how to fix it: [Errors](/reference/errors) and [Error handling](/data/error-handling).
 

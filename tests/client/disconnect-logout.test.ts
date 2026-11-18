@@ -316,9 +316,46 @@ describe('Client.disconnect — graceful teardown', () => {
     await vi.waitFor(() => expect(release).toBeDefined())
     await c.disconnect()
     release!()
-    await expect(connecting).rejects.toThrow('disconnected before connect resolved')
+    await expect(connecting).rejects.toMatchObject({
+      name: 'ZaileysConnectionError',
+      code: 'CONNECT_ABORTED',
+      message: 'disconnected before connect resolved',
+    })
     expect(makeWASocketMock).not.toHaveBeenCalled()
     expect(c.state).toBe('disconnected')
+  })
+
+  it('disconnect() before the socket opens rejects connect() with CONNECT_ABORTED', async () => {
+    const auth = memAuth()
+    const sock = createMockSocket({ user: { id: 'me' } })
+    makeWASocketMock.mockReturnValue(sock)
+    const c = new Client({ auth, qrTerminal: false, autoConnect: false })
+    const connecting = c.connect().catch((e: unknown) => e)
+    await vi.waitFor(() => expect(makeWASocketMock).toHaveBeenCalled())
+    await c.disconnect()
+    expect(await connecting).toMatchObject({
+      name: 'ZaileysConnectionError',
+      code: 'CONNECT_ABORTED',
+      message: 'disconnected before connect resolved',
+    })
+  })
+
+  it('a close that will not reconnect rejects a pending connect() with CONNECTION_CLOSED', async () => {
+    const auth = memAuth()
+    const sock = createMockSocket({ user: { id: 'me' } })
+    makeWASocketMock.mockReturnValue(sock)
+    const c = new Client({ auth, qrTerminal: false, reconnect: { enabled: false }, autoConnect: false })
+    const connecting = c.connect().catch((e: unknown) => e)
+    await vi.waitFor(() => expect(makeWASocketMock).toHaveBeenCalled())
+    sock.triggerConnectionUpdate({ connection: 'close', lastDisconnect: { error: boomErr(428) } })
+    const err = await connecting
+    expect(err).toBeInstanceOf(Error)
+    expect(err).toMatchObject({
+      name: 'ZaileysConnectionError',
+      code: 'CONNECTION_CLOSED',
+      message: 'connection closed (connection-closed)',
+    })
+    await c.disconnect()
   })
 
   it('disconnect() completes within 2 seconds', async () => {

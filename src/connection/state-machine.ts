@@ -1,4 +1,5 @@
 import type { ConnectionState } from '../client/types.js'
+import { ZaileysConnectionError } from './errors.js'
 
 export type StateTransitionListener = (prev: ConnectionState, next: ConnectionState) => void
 
@@ -33,7 +34,7 @@ export function createConnectionStateMachine(initial: ConnectionState = 'idle'):
     canTransition,
     transition(next: ConnectionState): void {
       if (!canTransition(next)) {
-        throw new Error(`invalid state transition: ${current} -> ${next}`)
+        throw new ZaileysConnectionError('INVALID_STATE', `invalid state transition: ${current} -> ${next}`)
       }
       const prev = current
       current = next

@@ -36,6 +36,7 @@ vi.mock('../../src/connection/qr-terminal.js', async () => {
 
 import { Client } from '../../src/client/client.js'
 import { MemoryAuthStore } from '../../src/auth/adapters/memory.js'
+import { ZaileysStoreError } from '../../src/types/store-error.js'
 
 const SELF = 'me@s.whatsapp.net'
 
@@ -234,7 +235,23 @@ describe('Client auto-connect — error surface', () => {
     expect(rejections).toHaveLength(0)
   })
 
-  it('emits error when readCreds rejects during auto-connect', async () => {
+  it('emits a ZaileysStoreError from readCreds unchanged during auto-connect', async () => {
+    const sock = createMockSocket({ user: { id: SELF } })
+    makeWASocketMock.mockReturnValue(sock)
+    const auth = new MemoryAuthStore()
+    const storeError = new ZaileysStoreError('STORE_NOT_AVAILABLE', 'pg is not installed. Run: pnpm add pg')
+    auth.creds.readCreds = vi.fn(async () => {
+      throw storeError
+    })
+    const c = new Client({ auth, qrTerminal: false })
+    const seen: Array<{ error: Error }> = []
+    c.on('error', (e) => seen.push(e))
+    await vi.waitFor(() => expect(seen).toHaveLength(1))
+    expect(seen[0]?.error).toBe(storeError)
+    expect(seen[0]?.error).toMatchObject({ name: 'ZaileysStoreError', code: 'STORE_NOT_AVAILABLE' })
+  })
+
+  it('emits CREDS_READ_FAILED when readCreds rejects with another error during auto-connect', async () => {
     const sock = createMockSocket({ user: { id: SELF } })
     makeWASocketMock.mockReturnValue(sock)
     const auth = new MemoryAuthStore()
@@ -245,7 +262,12 @@ describe('Client auto-connect — error surface', () => {
     const seen: Array<{ error: Error }> = []
     c.on('error', (e) => seen.push(e))
     await vi.waitFor(() => expect(seen).toHaveLength(1))
-    expect(seen[0]?.error.message).toBe('creds read failed')
+    expect(seen[0]?.error).toMatchObject({
+      name: 'ZaileysConnectionError',
+      code: 'CREDS_READ_FAILED',
+      message: 'failed to read stored credentials; aborting connect to protect the session',
+    })
+    expect((seen[0]?.error.cause as Error).message).toBe('creds read failed')
   })
 })
 

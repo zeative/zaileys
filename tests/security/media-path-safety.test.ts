@@ -73,6 +73,9 @@ describe('sessionId cannot escape the auth directory', () => {
     async (bad) => {
       const { Client } = await import('../../src/client/client.js')
       expect(() => new Client({ sessionId: bad, autoConnect: false })).toThrow(/invalid sessionId/)
+      expect(() => new Client({ sessionId: bad, autoConnect: false })).toThrow(
+        expect.objectContaining({ name: 'ZaileysConnectionError', code: 'INVALID_OPTIONS' }),
+      )
     },
   )
 

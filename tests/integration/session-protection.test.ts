@@ -21,6 +21,7 @@ vi.mock('baileys', () => ({
 
 import { Client } from '../../src/client/client.js'
 import { MemoryAuthStore } from '../../src/auth/adapters/memory.js'
+import { ZaileysStoreError } from '../../src/types/store-error.js'
 import type { AuthenticationCreds } from 'baileys'
 
 const REAL_CREDS = {
@@ -101,7 +102,31 @@ describe('session protection: credentials are loaded before the socket exists', 
 
     const p = c.connect()
     auth.reject(new Error('store unavailable'))
-    await expect(p).rejects.toThrow()
+    const err = await p.catch((e: unknown) => e)
+    expect(err).toMatchObject({
+      name: 'ZaileysConnectionError',
+      code: 'CREDS_READ_FAILED',
+      message: 'failed to read stored credentials; aborting connect to protect the session',
+    })
+    expect((err as Error).cause).toMatchObject({ message: 'store unavailable' })
+    expect(makeWASocketMock).not.toHaveBeenCalled()
+    expect(c.state).toBe('disconnected')
+  })
+
+  it('a ZaileysStoreError from readCreds is rethrown unchanged and creates no socket', async () => {
+    const sock = makeIntegrationSocket()
+    makeWASocketMock.mockReturnValue(sock)
+    const auth = new MemoryAuthStore()
+    const storeError = new ZaileysStoreError('STORE_READ_FAILED', 'failed to read creds')
+    auth.creds.readCreds = vi.fn(async () => {
+      throw storeError
+    })
+    const c = new Client({ auth, qrTerminal: false, autoConnect: false })
+
+    const err = await c.connect().catch((e: unknown) => e)
+    expect(err).toBe(storeError)
+    expect(err).toBeInstanceOf(ZaileysStoreError)
+    expect(err).toMatchObject({ code: 'STORE_READ_FAILED', message: 'failed to read creds' })
     expect(makeWASocketMock).not.toHaveBeenCalled()
     expect(c.state).toBe('disconnected')
   })
@@ -141,6 +166,11 @@ describe('session protection: a registered identity is never silently replaced',
     await new Promise((r) => setTimeout(r, 20))
     expect(qr).not.toHaveBeenCalled()
     expect(errors).toHaveBeenCalled()
+    expect(errors.mock.calls[0]?.[0].error).toMatchObject({
+      name: 'ZaileysConnectionError',
+      code: 'SESSION_PROTECTED',
+      message: 'WhatsApp asked to pair again while a registered session is stored; aborting to protect it',
+    })
     expect(auth.stored?.me).toEqual(REAL_CREDS.me)
     await p
     await c.disconnect().catch(() => undefined)

@@ -138,6 +138,15 @@ premium users become your own lists checked in the handler or in `client.use()` 
 
 Only entries that break code or change behaviour. Additive features are omitted.
 
+**4.19.0:** three behaviour changes. `client.broadcast()` defaults to one send per second, evenly spaced (was five
+per second, first five at once). Detect: `grep -rn "broadcast(" src`. Fix: pass `rateLimitPerSec: 5` where the old
+pace is needed. `MemoryMessageStore` keeps the latest 10,000 messages. Detect: `grep -rn "MemoryMessageStore\|store:"
+src` (no `store` option means the default). Fix: `new MemoryMessageStore({ maxMessages: Infinity })`, or a database
+store. An invalid `reconnect` option now throws `ZaileysConnectionError` `INVALID_OPTIONS` at construction (was a
+silent 1 ms reconnect loop). Detect: `grep -rn "reconnect:" src`. Fix: finite delays `>= 0`, `jitterFactor` 0 to 1.
+Connection errors are now `ZaileysConnectionError` with a `code`; messages are unchanged, so message matching keeps
+working.
+
 **4.18.0:** `message-status` now fires on WhatsApp Web as well as the Cloud API, decoded from Baileys acks. A
 handler written for Cloud runs on a linked device too. Detect: `grep -rn "message-status" src/`. Fix: check the
 handler doesn't assume `conversationId` or `error` — both stay Cloud-only and are absent on a linked device. If a

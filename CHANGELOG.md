@@ -1,5 +1,41 @@
 # zaileys
 
+## 4.19.0
+
+### Check before upgrading
+
+- `client.broadcast()` sends one message per second by default, evenly spaced, instead of five per second with the first five at once; pass `rateLimitPerSec: 5` for the old pace
+- `MemoryMessageStore` (the default store) keeps the latest 10,000 messages; pass `new MemoryMessageStore({ maxMessages: Infinity })` to keep everything
+- an invalid `reconnect` option (a negative, `NaN` or `Infinity` delay, or a `jitterFactor` outside 0 to 1) now throws `ZaileysConnectionError` `INVALID_OPTIONS` when the client is created
+
+### Minor Changes
+
+- throw `ZaileysConnectionError` with stable codes (`INVALID_OPTIONS`, `CREDS_READ_FAILED`, `CONNECT_ABORTED`, `CONNECTION_CLOSED`, `SESSION_PROTECTED`, `STORE_NOT_REOPENABLE`, `PAIRING_FAILED`, `INVALID_STATE`) from the connection lifecycle; messages are unchanged and store failures still surface as `ZaileysStoreError`
+- add `group.cachedMetadata()` and `group.invalidateMetadata()`; group sends and the inbound pipeline reuse a five-minute metadata cache refreshed by group events
+- add `cloud.requestTimeoutMs` (default 30 s) so a hung Graph API request can no longer block sends
+- add `maxMessages` to `MemoryMessageStore`
+
+### Patch Changes
+
+- overlapping `disconnect()` calls share one teardown instead of crashing the process
+- a plugin event method that rejects is logged instead of becoming an unhandled rejection
+- `disconnect()` during the credential read no longer leaves a logged-in socket behind
+- a close that will not reconnect stops the scheduler, presence timers, sweeper and plugin watcher, and `disconnect()` still closes the stores
+- plugins no longer load twice when the loader stops during start
+- command cooldowns are kept per client and for their full length, past one hour
+- scheduled messages stay pending through a connection outage instead of being dropped
+- `isTagMe` is true when an unresolved mention carries the bot's LID
+- received media whose url points at the `a.whatsapp.net` placeholder host downloads again
+- the message-retry and device caches survive reconnects and are bounded
+- reconnect at once on the first `restart-required` close after linking
+- cap reconnect and presence delays at the Node timer limit
+- Cloud media downloads are bounded by time and size across the whole body
+- stop waiting for the WhatsApp version lookup after 3 seconds
+- load `jimp` on first use, cutting about 90 ms from startup
+- write sticker EXIF with a built-in WebP writer instead of `node-webpmux`
+- send media warnings through the client logger instead of `console.warn`
+- drop the unused `async-mutex`, `nanospinner` and `valibot` dependencies, and patch vulnerable `sharp` and `music-metadata`
+
 ## 4.18.0
 
 ### Minor Changes

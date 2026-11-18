@@ -7,6 +7,39 @@ keywords: ["changelog", "release notes", "what's new", "versions", "breaking cha
 
 Every v4 release listed in the project's changelog, newest first. Releases without an entry aren't shown. Upgrading from v3? Start with [Migrating from v3](/releases/migration).
 
+<Update label="v4.19.0">
+  **Check before upgrading**
+
+  - `client.broadcast()` sends one message per second by default, evenly spaced from the first send. It used to send five per second with the first five at once. Pass `rateLimitPerSec: 5` to keep the old pace. [Broadcast & schedule](/bots/broadcast-and-schedule)
+  - `MemoryMessageStore`, the default store, keeps the latest 10,000 messages and drops the oldest first. Pass `maxMessages: Infinity` to keep everything, or use a database store for long history. [Storage](/reference/storage#memorymessagestore)
+  - An invalid `reconnect` option — a negative, `NaN`, or `Infinity` delay, or a `jitterFactor` outside 0 to 1 — now throws `INVALID_OPTIONS` when you create the client. [Client options](/reference/client-options)
+
+  **Added**
+
+  - `ZaileysConnectionError` with stable codes for connection failures, such as `CONNECT_ABORTED`, `PAIRING_FAILED`, and `SESSION_PROTECTED`. Messages are unchanged, and store failures still arrive as `ZaileysStoreError`. [Errors](/reference/errors)
+  - `client.group.cachedMetadata()` and `invalidateMetadata()`. Group sends now reuse a five-minute metadata cache that group events keep fresh, so a reply in a busy group skips a round trip. [Groups](/groups/groups#read-a-groups-details)
+  - `cloud.requestTimeoutMs` (default 30 s), so a hung Graph API request can't block sends. [Client options](/reference/client-options)
+
+  **Fixed**
+
+  - Calling `disconnect()` twice, or while the library was disconnecting after an auth failure, crashed the process.
+  - A plugin event method that rejected crashed the process.
+  - `disconnect()` during `connect()` could leave a second logged-in socket, which made WhatsApp replace the session in a loop.
+  - After a close that doesn't reconnect, timers and the plugin watcher kept running, so the process never exited.
+  - Scheduled messages were dropped after about five minutes offline.
+  - Cooldowns longer than an hour expired after an hour, and two clients in one process shared them.
+  - Some received stickers, voice notes, and images failed to download with `ENOTFOUND a.whatsapp.net`.
+  - `isTagMe` was `false` when the bot was mentioned by its LID.
+  - Auto-connect could hang when `raw.githubusercontent.com` was slow or blocked; it now falls back after 3 seconds.
+  - Cloud API media downloads could hang when the CDN stalled mid-file.
+
+  **Faster and lighter**
+
+  - About 90 ms off `import 'zaileys'`: `jimp` now loads on first use.
+  - Linking reconnects immediately after the QR scan instead of waiting 3 seconds.
+  - `node-webpmux`, `async-mutex`, `nanospinner`, and `valibot` are no longer dependencies.
+</Update>
+
 <Update label="v4.18.0">
   **Check before upgrading**
 

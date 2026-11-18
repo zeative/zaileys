@@ -32,7 +32,6 @@ git switch -c feat/my-change
 | ----------------------- | ------------------------------------------------------------- |
 | `pnpm build`            | Build dual ESM/CJS bundles + `.d.ts` via tsup                 |
 | `pnpm typecheck`        | Type-check with the native TypeScript 7 compiler (`tsgo`)     |
-| `pnpm typecheck:legacy` | Type-check with the classic `tsc` (fallback)                  |
 | `pnpm test`             | Run the full vitest suite once                                |
 | `pnpm test:watch`       | Run vitest in watch mode                                      |
 | `pnpm audit:comments`   | Enforce the zero-comment policy (see below)                   |
@@ -40,7 +39,7 @@ git switch -c feat/my-change
 | `pnpm size`             | Check bundle size budgets via size-limit                      |
 
 Run `pnpm test`, `pnpm typecheck`, `pnpm audit:comments`, and `pnpm audit:any` before
-opening a PR — these gates also run in CI.
+opening a PR — these gates also run in CI, on Node 20, 22, and 24.
 
 ## Tests
 
@@ -118,7 +117,8 @@ Docs-only or chore PRs may either add the `no-changeset` label or run
 2. Make your change with tests.
 3. Run `pnpm test`, `pnpm typecheck`, `pnpm audit:comments`, `pnpm audit:any`.
 4. Add a changeset (or `--empty` / `no-changeset` label for docs/chore).
-5. Open the PR against `v4`. CI runs lint, typecheck, tests, build, and bundle-size checks.
+5. Open the PR against `v4`. CI runs the comment and no-`any` audits, typecheck, tests, build, and
+   bundle-size checks.
 
 ## Releases & npm publishing
 

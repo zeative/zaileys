@@ -14,6 +14,31 @@ import {
 type Factory = () => Promise<MessageStore> | MessageStore
 type Cleanup = (store: MessageStore) => Promise<void> | void
 
+export interface MessageStoreContractOptions {
+  /**
+   * How session TTLs are proven. `clock` (default) fakes `Date` and jumps past the expiry, for adapters
+   * that compare against the bot's clock. `real` waits for a short TTL, for adapters whose server expires
+   * keys itself (Redis `PX`).
+   */
+  sessionTtl?: 'clock' | 'real'
+}
+
+type SessionStore = MessageStore &
+  Required<Pick<MessageStore, 'getSessionValue' | 'setSessionValue' | 'deleteSessionValue' | 'clearSession'>>
+
+const sessions = (store: MessageStore): SessionStore => {
+  expect(typeof store.getSessionValue).toBe('function')
+  expect(typeof store.setSessionValue).toBe('function')
+  expect(typeof store.deleteSessionValue).toBe('function')
+  expect(typeof store.clearSession).toBe('function')
+  return store as SessionStore
+}
+
+const expectCode = async (promise: Promise<unknown>, code: string): Promise<void> => {
+  await expect(promise).rejects.toBeInstanceOf(ZaileysStoreError)
+  await expect(promise).rejects.toMatchObject({ code })
+}
+
 const expectStoreClosed = async (promise: Promise<unknown>): Promise<void> => {
   await expect(promise).rejects.toBeInstanceOf(ZaileysStoreError)
   await expect(promise).rejects.toMatchObject({ code: 'STORE_CLOSED' })
@@ -27,7 +52,9 @@ export const runMessageStoreContract = (
   name: string,
   factory: Factory,
   cleanup?: Cleanup,
+  options: MessageStoreContractOptions = {},
 ): void => {
+  const ttlMode = options.sessionTtl ?? 'clock'
   describe(`MessageStore contract: ${name}`, () => {
     let store: MessageStore
 
@@ -349,6 +376,186 @@ export const runMessageStoreContract = (
         await store.saveMessage(m!)
         await store.deleteMessage(m!.key)
         expect(await store.getMessage(m!.key)).toBeUndefined()
+      })
+    })
+
+    describe('Group S — session values', () => {
+      const alice = '628111@s.whatsapp.net'
+      const bob = '628222@s.whatsapp.net'
+
+      it('S1: getSessionValue on a missing key returns undefined', async () => {
+        await expect(sessions(store).getSessionValue(alice, 'nope')).resolves.toBeUndefined()
+      })
+
+      it('S2: JSON values round-trip unchanged', async () => {
+        const s = sessions(store)
+        const values: Record<string, unknown> = {
+          object: { name: 'Ana', tags: ['a', 'b'], nested: { n: 1.5, ok: true, none: null } },
+          array: [1, 'two', { three: 3 }],
+          text: 'héllo 👋 "quoted" C:\\path\\to\nline',
+          number: 42,
+          zero: 0,
+          falsy: false,
+          nil: null,
+          empty: '',
+        }
+        for (const [key, value] of Object.entries(values)) await s.setSessionValue(alice, key, value)
+        for (const [key, value] of Object.entries(values)) {
+          await expect(s.getSessionValue(alice, key)).resolves.toEqual(value)
+        }
+      })
+
+      it('S3: keys with separators and glob characters are stored literally', async () => {
+        const s = sessions(store)
+        const keys = ['a:b', 'a', 'b:c', '*', 'x?y', '[z]', 'pct%2A', 'slash/ and space']
+        for (const key of keys) await s.setSessionValue(alice, key, key)
+        for (const key of keys) await expect(s.getSessionValue(alice, key)).resolves.toBe(key)
+        await s.setSessionValue('a:b', 'c', 'left')
+        await s.setSessionValue('a', 'b:c', 'right')
+        await expect(s.getSessionValue('a:b', 'c')).resolves.toBe('left')
+        await expect(s.getSessionValue('a', 'b:c')).resolves.toBe('right')
+      })
+
+      it('S4: setting again replaces the value', async () => {
+        const s = sessions(store)
+        await s.setSessionValue(alice, 'step', 1)
+        await s.setSessionValue(alice, 'step', { at: 2 })
+        await expect(s.getSessionValue(alice, 'step')).resolves.toEqual({ at: 2 })
+      })
+
+      it('S5: deleteSessionValue removes one key and ignores a missing one', async () => {
+        const s = sessions(store)
+        await s.setSessionValue(alice, 'keep', 'k')
+        await s.setSessionValue(alice, 'drop', 'd')
+        await s.deleteSessionValue(alice, 'drop')
+        await s.deleteSessionValue(alice, 'never-set')
+        await expect(s.getSessionValue(alice, 'drop')).resolves.toBeUndefined()
+        await expect(s.getSessionValue(alice, 'keep')).resolves.toBe('k')
+      })
+
+      it('S6: scopes are isolated, and clearSession empties only its own', async () => {
+        const s = sessions(store)
+        const prefixOfAlice = '62811@s.whatsapp.net'
+        await s.setSessionValue(alice, 'lang', 'id')
+        await s.setSessionValue(alice, 'cart', [1])
+        await s.setSessionValue(bob, 'lang', 'en')
+        await s.setSessionValue(prefixOfAlice, 'lang', 'jv')
+        await s.setSessionValue('a', 'k', 'a')
+        await s.setSessionValue('a:b', 'k', 'ab')
+        await expect(s.getSessionValue(bob, 'lang')).resolves.toBe('en')
+        await s.clearSession(alice)
+        await s.clearSession('*')
+        await s.clearSession('a')
+        await expect(s.getSessionValue(alice, 'lang')).resolves.toBeUndefined()
+        await expect(s.getSessionValue(alice, 'cart')).resolves.toBeUndefined()
+        await expect(s.getSessionValue(bob, 'lang')).resolves.toBe('en')
+        await expect(s.getSessionValue(prefixOfAlice, 'lang')).resolves.toBe('jv')
+        await expect(s.getSessionValue('a', 'k')).resolves.toBeUndefined()
+        await expect(s.getSessionValue('a:b', 'k')).resolves.toBe('ab')
+      })
+
+      it('S7: a value expires after its ttl', async () => {
+        const s = sessions(store)
+        if (ttlMode === 'real') {
+          await s.setSessionValue(alice, 'otp', '1234', 400)
+          await s.setSessionValue(alice, 'forever', 'f')
+          await expect(s.getSessionValue(alice, 'otp')).resolves.toBe('1234')
+          await vi.waitFor(async () => expect(await s.getSessionValue(alice, 'otp')).toBeUndefined(), {
+            timeout: 5_000,
+            interval: 50,
+          })
+          await expect(s.getSessionValue(alice, 'forever')).resolves.toBe('f')
+          return
+        }
+        vi.useFakeTimers({ toFake: ['Date'] })
+        try {
+          await s.setSessionValue(alice, 'otp', '1234', 60_000)
+          await s.setSessionValue(alice, 'forever', 'f')
+          vi.setSystemTime(Date.now() + 59_000)
+          await expect(s.getSessionValue(alice, 'otp')).resolves.toBe('1234')
+          vi.setSystemTime(Date.now() + 1_001)
+          await expect(s.getSessionValue(alice, 'otp')).resolves.toBeUndefined()
+          await expect(s.getSessionValue(alice, 'forever')).resolves.toBe('f')
+        } finally {
+          vi.useRealTimers()
+        }
+      })
+
+      it('S8: setting again without ttl makes the value permanent', async () => {
+        if (ttlMode === 'real') return
+        const s = sessions(store)
+        vi.useFakeTimers({ toFake: ['Date'] })
+        try {
+          await s.setSessionValue(alice, 'mode', 'temp', 1_000)
+          await s.setSessionValue(alice, 'mode', 'kept')
+          vi.setSystemTime(Date.now() + 10_000)
+          await expect(s.getSessionValue(alice, 'mode')).resolves.toBe('kept')
+        } finally {
+          vi.useRealTimers()
+        }
+      })
+
+      it('S9: a value up to 64 KB of JSON is accepted, one byte more is STORE_VALUE_TOO_LARGE', async () => {
+        const s = sessions(store)
+        const atLimit = 'x'.repeat(64 * 1024 - 2)
+        await s.setSessionValue(alice, 'big', atLimit)
+        await expect(s.getSessionValue(alice, 'big')).resolves.toBe(atLimit)
+        await expectCode(s.setSessionValue(alice, 'big', `${atLimit}x`), 'STORE_VALUE_TOO_LARGE')
+        await expectCode(s.setSessionValue(alice, 'wide', 'é'.repeat(40_000)), 'STORE_VALUE_TOO_LARGE')
+        await expect(s.getSessionValue(alice, 'big')).resolves.toBe(atLimit)
+        await expect(s.getSessionValue(alice, 'wide')).resolves.toBeUndefined()
+      })
+
+      it('S10: scope and key are 1-256 characters of well-formed text, otherwise STORE_INVALID_INPUT', async () => {
+        const s = sessions(store)
+        const max = 'k'.repeat(256)
+        await s.setSessionValue(max, max, 'ok')
+        await expect(s.getSessionValue(max, max)).resolves.toBe('ok')
+        await expectCode(s.setSessionValue(alice, '', 1), 'STORE_INVALID_INPUT')
+        await expectCode(s.setSessionValue('', 'k', 1), 'STORE_INVALID_INPUT')
+        await expectCode(s.setSessionValue(alice, `${max}k`, 1), 'STORE_INVALID_INPUT')
+        await expectCode(s.getSessionValue(`${max}k`, 'k'), 'STORE_INVALID_INPUT')
+        await expectCode(s.setSessionValue(alice, 'nul\u0000', 1), 'STORE_INVALID_INPUT')
+        await expectCode(s.setSessionValue(alice, 'lone\uD800', 1), 'STORE_INVALID_INPUT')
+        await expectCode(s.deleteSessionValue(alice, ''), 'STORE_INVALID_INPUT')
+        await expectCode(s.clearSession(''), 'STORE_INVALID_INPUT')
+      })
+
+      it('S11: values that are not JSON and bad ttls are STORE_INVALID_INPUT', async () => {
+        const s = sessions(store)
+        await expectCode(s.setSessionValue(alice, 'k', undefined), 'STORE_INVALID_INPUT')
+        await expectCode(s.setSessionValue(alice, 'k', () => 1), 'STORE_INVALID_INPUT')
+        await expectCode(s.setSessionValue(alice, 'k', 10n), 'STORE_INVALID_INPUT')
+        for (const ttl of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+          await expectCode(s.setSessionValue(alice, 'k', 1, ttl), 'STORE_INVALID_INPUT')
+        }
+        await expect(s.getSessionValue(alice, 'k')).resolves.toBeUndefined()
+      })
+
+      it('S12: clear() removes session values too', async () => {
+        const s = sessions(store)
+        await s.setSessionValue(alice, 'lang', 'id')
+        await store.clear()
+        await expect(s.getSessionValue(alice, 'lang')).resolves.toBeUndefined()
+      })
+
+      it('S13: 200 parallel writes across scopes all persist', async () => {
+        const s = sessions(store)
+        await Promise.all(
+          Array.from({ length: 200 }, (_, i) => s.setSessionValue(`${i % 20}@s.whatsapp.net`, `k${i}`, i)),
+        )
+        for (let i = 0; i < 200; i += 1) {
+          await expect(s.getSessionValue(`${i % 20}@s.whatsapp.net`, `k${i}`)).resolves.toBe(i)
+        }
+      }, 30_000)
+
+      it('S14: session methods reject with STORE_CLOSED after close', async () => {
+        const s = sessions(store)
+        await store.close()
+        await expectStoreClosed(s.getSessionValue(alice, 'k'))
+        await expectStoreClosed(s.setSessionValue(alice, 'k', 1))
+        await expectStoreClosed(s.deleteSessionValue(alice, 'k'))
+        await expectStoreClosed(s.clearSession(alice))
       })
     })
   })

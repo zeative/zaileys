@@ -2,6 +2,14 @@ import { BufferJSON } from 'baileys'
 import type { Chat, Contact, PresenceData, WAMessage, WAMessageKey } from 'baileys'
 import { ConvexKv, type ConvexKvOptions, type ConvexKvRow } from '../../types/convex.js'
 import { ZaileysStoreError } from '../../types/store-error.js'
+import {
+  assertSessionPart,
+  assertSessionTtl,
+  decodeSessionValue,
+  encodeSessionKeyPart,
+  encodeSessionValue,
+  SESSION_VALUE_MAX_BYTES,
+} from '../session.js'
 import type { BaileysSocketLike, MessageStore, MessageStoreListOptions, PruneOptions, ScheduledJobRecord } from '../types.js'
 
 export type ConvexMessageStoreOptions = ConvexKvOptions
@@ -13,9 +21,19 @@ const CHAT = 'chat:'
 const CONTACT = 'contact:'
 const PRESENCE = 'presence:'
 const JOB = 'job:'
+const SESSION = 'session:'
 
 /** Every key prefix this store owns. Anything outside this list is off-limits to `clear()`. */
-const MESSAGE_STORE_PREFIXES: readonly string[] = Object.freeze([MSG, CHAT, CONTACT, PRESENCE, JOB])
+const MESSAGE_STORE_PREFIXES: readonly string[] = Object.freeze([MSG, CHAT, CONTACT, PRESENCE, JOB, SESSION])
+
+/** Both parts are encoded, so `a:b`/`c` and `a`/`b:c` never share a key and one scope never prefixes another. */
+const sessionScopePrefix = (scope: string): string =>
+  `${SESSION}${encodeSessionKeyPart(assertSessionPart('scope', scope))}:`
+const sessionKey = (scope: string, key: string): string =>
+  `${sessionScopePrefix(scope)}${encodeSessionKeyPart(assertSessionPart('key', key))}`
+
+/** The deployed kv functions have no TTL, so the expiry rides in the row as `{"e":<ms>,"v":<value>}`. */
+const SESSION_ENVELOPE_OVERHEAD = 64
 
 const member = (key: WAMessageKey): string => `${key.id ?? ''}|${key.fromMe ? 1 : 0}`
 const msgKey = (key: WAMessageKey): string => `${MSG}${key.remoteJid ?? ''}:${member(key)}`
@@ -137,6 +155,43 @@ export class ConvexMessageStore implements MessageStore {
   async deleteScheduledJob(id: string): Promise<void> {
     this.assertOpen()
     await this.kv.del([`${JOB}${id}`])
+  }
+
+  async getSessionValue(scope: string, key: string): Promise<unknown> {
+    this.assertOpen()
+    const id = sessionKey(scope, key)
+    const raw = (await this.kv.get([id])).get(id)
+    if (raw === undefined) return undefined
+    const envelope = decodeSessionValue(raw, SESSION_VALUE_MAX_BYTES + SESSION_ENVELOPE_OVERHEAD) as
+      | { e?: unknown; v?: unknown }
+      | null
+    if (typeof envelope !== 'object' || envelope === null || !('v' in envelope)) {
+      throw new ZaileysStoreError('STORE_CORRUPTED', 'stored convex session value has no envelope')
+    }
+    if (typeof envelope.e === 'number' && envelope.e <= Date.now()) {
+      await this.kv.del([id])
+      return undefined
+    }
+    return envelope.v
+  }
+
+  async setSessionValue(scope: string, key: string, value: unknown, ttlMs?: number): Promise<void> {
+    this.assertOpen()
+    const id = sessionKey(scope, key)
+    const raw = encodeSessionValue(value)
+    const ttl = assertSessionTtl(ttlMs)
+    const expiry = ttl === undefined ? 'null' : String(Date.now() + ttl)
+    await this.kv.set([{ key: id, value: `{"e":${expiry},"v":${raw}}` }])
+  }
+
+  async deleteSessionValue(scope: string, key: string): Promise<void> {
+    this.assertOpen()
+    await this.kv.del([sessionKey(scope, key)])
+  }
+
+  async clearSession(scope: string): Promise<void> {
+    this.assertOpen()
+    await this.kv.clear(sessionScopePrefix(scope))
   }
 
   async deleteMessage(key: WAMessageKey): Promise<void> {

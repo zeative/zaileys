@@ -5,6 +5,8 @@ export type StoreErrorCode =
   | 'STORE_READ_FAILED'
   | 'STORE_CORRUPTED'
   | 'STORE_CLOSED'
+  | 'STORE_INVALID_INPUT'
+  | 'STORE_VALUE_TOO_LARGE'
 
 export class ZaileysStoreError extends Error {
   readonly code: StoreErrorCode

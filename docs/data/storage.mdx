@@ -128,7 +128,7 @@ There is no file-based message store. The database packages are optional: Zailey
     })
     ```
 
-    Both stores can share one file — the auth store uses the `auth_creds` and `auth_signal` tables, the message store uses `messages`, `chats`, `contacts`, and `presence`. Tables are created on first use. The database runs in WAL mode, so you'll also see `whatsapp.db-wal` and `whatsapp.db-shm` next to it.
+    Both stores can share one file — the auth store uses the `auth_creds` and `auth_signal` tables, the message store uses `messages`, `chats`, `contacts`, `presence`, and `session_values`. Tables are created on first use. The database runs in WAL mode, so you'll also see `whatsapp.db-wal` and `whatsapp.db-shm` next to it.
 
     <ParamField body="database" type="string | Buffer" required>
       Path to the database file, created if it doesn't exist.
@@ -176,7 +176,7 @@ There is no file-based message store. The database packages are optional: Zailey
     })
     ```
 
-    The tables `zaileys_auth_creds`, `zaileys_auth_signal`, `zaileys_messages`, `zaileys_chats`, `zaileys_contacts`, and `zaileys_presence` are created on first use.
+    The tables `zaileys_auth_creds`, `zaileys_auth_signal`, `zaileys_messages`, `zaileys_chats`, `zaileys_contacts`, `zaileys_presence`, and `zaileys_sessions` are created on first use.
 
     <ParamField body="connectionString" type="string">
       A Postgres URL, such as `postgres://bot:secret@db.internal:5432/whatsapp`. The store creates its own pool and closes it on disconnect.

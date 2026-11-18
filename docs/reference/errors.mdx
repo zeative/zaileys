@@ -2,7 +2,7 @@
 title: "Errors"
 description: "Every Zaileys error class and code: when it's thrown, the exact message, what cause holds, and how to fix it."
 icon: "octagon-alert"
-keywords: ["error codes", "ZaileysBuilderError", "ZaileysCloudError", "ZaileysProviderError", "UNSUPPORTED_ON_CLOUD", "SEND_FAILED", "NOT_IMPLEMENTED", "client not connected", "ZaileysStoreError", "STORE_NOT_AVAILABLE", "ZaileysCommandError", "ZaileysConnectionError", "CREDS_READ_FAILED", "error.cause"]
+keywords: ["error codes", "ZaileysBuilderError", "ZaileysCloudError", "ZaileysProviderError", "UNSUPPORTED_ON_CLOUD", "SEND_FAILED", "NOT_IMPLEMENTED", "client not connected", "ZaileysStoreError", "STORE_NOT_AVAILABLE", "STORE_VALUE_TOO_LARGE", "STORE_INVALID_INPUT", "ZaileysCommandError", "ZaileysConnectionError", "CREDS_READ_FAILED", "error.cause"]
 ---
 
 This page lists every error Zaileys throws, grouped by class, with the code, the message you'll see, and how to fix it.
@@ -194,7 +194,9 @@ These usually surface when the client connects: `await client.connect()` rejects
 | `STORE_CONNECTION_FAILED` | The database couldn't be opened, reached, or migrated | `failed to open sqlite database at <path>`, `failed to connect to redis at <url>`, `provided redis client is not open (call await client.connect() first)`, `failed to migrate sqlite schema`, `failed to migrate auth schema` | Check the path, URL, credentials, and network. The driver's error is on `cause`. |
 | `STORE_READ_FAILED` | A read failed | `redis read failed`, `failed to read creds`, `failed to read <file>`, … | See `cause`. |
 | `STORE_WRITE_FAILED` | A write failed | `redis write failed`, `failed to write signal rows`, `failed to write <file>`, … | Check disk space and permissions; see `cause`. |
-| `STORE_CORRUPTED` | A SQLite row couldn't be parsed | `failed to parse sqlite blob` | Delete the damaged database and link again. |
+| `STORE_CORRUPTED` | A SQLite row couldn't be parsed, or a stored session value is invalid or over 64 KB | `failed to parse sqlite blob`, `failed to parse stored session value`, `stored session value is larger than <n> bytes` | Delete the damaged database and link again; for a session value, delete that key. |
+| `STORE_INVALID_INPUT` | A session key, scope, value, or `ttl` can't be stored | `session key must be 1-256 characters of well-formed text without NUL, got …`, `session value must be JSON-serialisable, got undefined; use delete() to remove a key`, `session ttl must be a positive, finite number of milliseconds …`, `client.session() needs a user JID or a phone number, got …` | Fix the argument. Nothing was written. See [Remember things per user](/bots/commands#remember-things-per-user). |
+| `STORE_VALUE_TOO_LARGE` | A session value is over 64 KB as JSON | `session value is <n> bytes as JSON; the limit is 65536 (64 KB)` | Save less, such as an ID instead of the whole object. The old value stays. |
 | `STORE_CLOSED` | A store was used after the client closed it | `<StoreName> is closed`, such as `SqliteAuthStore is closed` | Create a new `Client` with new store instances. |
 
 ## Cause chains

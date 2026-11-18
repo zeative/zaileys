@@ -114,8 +114,9 @@ import {
   createConnectionStateMachine,
   type ConnectionStateMachine,
 } from '../connection/state-machine.js'
-import type { BaileysSocketLike, MessageStore } from '../store/types.js'
+import type { BaileysSocketLike, MessageStore, SessionHandle } from '../store/types.js'
 import { MemoryMessageStore } from '../store/adapters/memory.js'
+import { SessionScopes } from '../store/session.js'
 import { adoptLogger } from '../utils/logger.js'
 import { configureMediaLoading, getMediaLoadingDefaults } from '../builder/media-loader.js'
 import { configureMediaLimits } from '../media/ffmpeg/core.js'
@@ -298,6 +299,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private readonly socketCaches = createSocketCaches()
   private pendingDisconnectReason: DisconnectReasonDomain | undefined
   private readonly usernameCache: Map<string, string> = new Map()
+  private _sessions?: SessionScopes
   private _group?: GroupModule
   private _privacy?: PrivacyModule
   private _newsletter?: NewsletterModule
@@ -1020,6 +1022,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         }
         await this.edit(lastSentKey).text(content)
       },
+      session: this.session(msg.senderId),
       ask: (question: string, options?: AskOptions): Promise<MessageContext> =>
         this.askInContext(msg, reply, question, options),
     }
@@ -1057,6 +1060,12 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       }
       throw err
     }
+  }
+
+  /** The same per-user values as `ctx.session`, for code outside commands; `jid` may be a phone number. */
+  session(jid: string): SessionHandle {
+    this._sessions ??= new SessionScopes(this.store, this.logger)
+    return this._sessions.handle(jid)
   }
 
   private detachCommands(): void {

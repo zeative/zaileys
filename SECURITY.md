@@ -92,6 +92,12 @@ auth store, jadi membersihkan riwayat chat ikut menghapus sesi.
 - **Perbandingan identitas sadar namespace.** LID (`@lid`) tidak pernah cocok dengan nomor telepon
   (`@s.whatsapp.net`) meski digitnya sama. Berlaku untuk `citation.banned`, `citation.authors`,
   guard admin grup, dan allow list `autoRejectCall`.
+- **Nilai `ctx.session` dibatasi.** Tiap nilai maksimal 64 KB JSON dan scope/key 1-256 karakter, dicek
+  sebelum ditulis (`STORE_VALUE_TOO_LARGE`, `STORE_INVALID_INPUT`). Nilai disimpan di tabel/key milik
+  message store sendiri (`session_values`, `zaileys_sessions`, `<namespace>:session:*`, `session:*`),
+  tidak pernah di samping key auth. Scope dan key di-URL-encode di Redis dan Convex, jadi
+  `clearSession()` tidak bisa melebar ke scope lain lewat glob. Penyimpanan di memori dibatasi
+  10 000 nilai / 32 MiB. Scope LID dan nomor telepon tidak pernah digabung.
 - **Media dari input user.** String biasa masih diperlakukan sebagai path lokal, tapi path yang
   resolve ke dalam direktori auth ditolak — jadi bot yang meneruskan teks user tidak bisa dipaksa
   mengirim `creds.json`-nya sendiri. Alamat privat/loopback/link-local diblokir, ada batas ukuran

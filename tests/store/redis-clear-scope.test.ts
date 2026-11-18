@@ -53,6 +53,7 @@ const STORE_KEYS = [
   'zaileys:chats-archived',
   'zaileys:contacts',
   'zaileys:presence:628@s.whatsapp.net',
+  'zaileys:session:628%40s.whatsapp.net:lang',
 ]
 
 describe('RedisMessageStore.clear() key scope', () => {
@@ -83,5 +84,31 @@ describe('RedisMessageStore.clear() key scope', () => {
     for (const bad of ['*', 'tenant*', 'a?b', 'a[0-9]']) {
       expect(() => new RedisMessageStore({ client: fakeRedis([]).client as never, namespace: bad })).toThrow()
     }
+  })
+})
+
+describe('RedisMessageStore.clearSession() key scope', () => {
+  const SESSION_KEYS = [
+    'zaileys:session:628%40s.whatsapp.net:lang',
+    'zaileys:session:628%40s.whatsapp.net:cart',
+    'zaileys:session:6281%40s.whatsapp.net:lang',
+    'zaileys:session:628%40lid:lang',
+  ]
+
+  it('deletes only the one scope, never another scope, a store key, or an auth key', async () => {
+    const fake = fakeRedis([...SESSION_KEYS, ...STORE_KEYS, ...AUTH_KEYS])
+    const store = new RedisMessageStore({ client: fake.client as never })
+    await store.clearSession('628@s.whatsapp.net')
+    expect(fake.deleted.sort()).toEqual(SESSION_KEYS.slice(0, 2).sort())
+    expect(fake.scanned).toEqual(['zaileys:session:628%40s.whatsapp.net:*'])
+  })
+
+  it('encodes glob characters in the scope, so `*` clears nothing but its own scope', async () => {
+    const fake = fakeRedis([...SESSION_KEYS, ...STORE_KEYS, ...AUTH_KEYS])
+    const store = new RedisMessageStore({ client: fake.client as never })
+    await store.clearSession('*')
+    await store.clearSession('[0-9]?')
+    expect(fake.deleted).toEqual([])
+    expect(fake.scanned).toEqual(['zaileys:session:%2A:*', 'zaileys:session:%5B0-9%5D%3F:*'])
   })
 })

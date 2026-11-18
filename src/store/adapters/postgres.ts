@@ -3,6 +3,12 @@ import { BufferJSON } from 'baileys'
 import type { PgPoolClientLike, PgPoolCtorLike, PgPoolLike } from '../../types/optional-clients.js'
 import { ZaileysStoreError } from '../../types/store-error.js'
 import { assertTablePrefix, prefixPgPool, tableRewriter } from '../../types/table-prefix.js'
+import {
+  assertSessionPart,
+  assertSessionTtl,
+  decodeSessionValue,
+  encodeSessionValue,
+} from '../session.js'
 import type { BaileysSocketLike, MessageStore, MessageStoreListOptions, PruneOptions } from '../types.js'
 
 export interface PostgresMessageStoreOptions {
@@ -18,6 +24,7 @@ const STORE_TABLES = [
   'zaileys_chats',
   'zaileys_contacts',
   'zaileys_presence',
+  'zaileys_sessions',
   'zaileys_chats_archived_idx',
   'zaileys_messages_jid_ts_idx',
 ] as const
@@ -48,6 +55,7 @@ const MIGRATIONS: readonly string[] = [
   'CREATE INDEX IF NOT EXISTS zaileys_chats_archived_idx ON zaileys_chats(archived) WHERE archived = true',
   'CREATE TABLE IF NOT EXISTS zaileys_contacts (jid text PRIMARY KEY, data jsonb NOT NULL)',
   'CREATE TABLE IF NOT EXISTS zaileys_presence (jid text PRIMARY KEY, data jsonb NOT NULL, updated_at timestamptz NOT NULL DEFAULT now())',
+  'CREATE TABLE IF NOT EXISTS zaileys_sessions (scope text NOT NULL, name text NOT NULL, data text NOT NULL, expires_at bigint, PRIMARY KEY(scope, name))',
 ]
 
 const reviveJson = <T>(value: unknown): T => {
@@ -351,6 +359,71 @@ export class PostgresMessageStore implements MessageStore {
     }
   }
 
+  /** Expiry is compared against the bot's clock, not the server's, so every adapter ages values the same way. */
+  async getSessionValue(scope: string, key: string): Promise<unknown> {
+    const pool = await this.ensureReady()
+    assertSessionPart('scope', scope)
+    assertSessionPart('key', key)
+    let row: { data: string; expires_at: string | number | null } | undefined
+    try {
+      const res = await pool.query<{ data: string; expires_at: string | number | null }>(
+        'SELECT data, expires_at FROM zaileys_sessions WHERE scope = $1 AND name = $2',
+        [scope, key],
+      )
+      row = res.rows[0]
+    } catch (err) {
+      throw new ZaileysStoreError('STORE_READ_FAILED', 'failed to read session value', { cause: err })
+    }
+    if (!row) return undefined
+    if (row.expires_at !== null && Number(row.expires_at) <= Date.now()) {
+      await this.deleteSessionValue(scope, key)
+      return undefined
+    }
+    return decodeSessionValue(row.data)
+  }
+
+  async setSessionValue(scope: string, key: string, value: unknown, ttlMs?: number): Promise<void> {
+    const pool = await this.ensureReady()
+    assertSessionPart('scope', scope)
+    assertSessionPart('key', key)
+    const raw = encodeSessionValue(value)
+    const ttl = assertSessionTtl(ttlMs)
+    const now = Date.now()
+    try {
+      await pool.query(
+        'DELETE FROM zaileys_sessions WHERE scope = $1 AND expires_at IS NOT NULL AND expires_at <= $2',
+        [scope, now],
+      )
+      await pool.query(
+        'INSERT INTO zaileys_sessions(scope, name, data, expires_at) VALUES ($1, $2, $3, $4) ON CONFLICT (scope, name) DO UPDATE SET data = EXCLUDED.data, expires_at = EXCLUDED.expires_at',
+        [scope, key, raw, ttl === undefined ? null : now + ttl],
+      )
+    } catch (err) {
+      throw new ZaileysStoreError('STORE_WRITE_FAILED', 'failed to save session value', { cause: err })
+    }
+  }
+
+  async deleteSessionValue(scope: string, key: string): Promise<void> {
+    const pool = await this.ensureReady()
+    assertSessionPart('scope', scope)
+    assertSessionPart('key', key)
+    try {
+      await pool.query('DELETE FROM zaileys_sessions WHERE scope = $1 AND name = $2', [scope, key])
+    } catch (err) {
+      throw new ZaileysStoreError('STORE_WRITE_FAILED', 'failed to delete session value', { cause: err })
+    }
+  }
+
+  async clearSession(scope: string): Promise<void> {
+    const pool = await this.ensureReady()
+    assertSessionPart('scope', scope)
+    try {
+      await pool.query('DELETE FROM zaileys_sessions WHERE scope = $1', [scope])
+    } catch (err) {
+      throw new ZaileysStoreError('STORE_WRITE_FAILED', 'failed to clear session', { cause: err })
+    }
+  }
+
   bind(socket: BaileysSocketLike): void {
     this.assertOpen()
     this.boundSocket = socket
@@ -420,6 +493,7 @@ export class PostgresMessageStore implements MessageStore {
       await client.query('DELETE FROM zaileys_chats')
       await client.query('DELETE FROM zaileys_contacts')
       await client.query('DELETE FROM zaileys_presence')
+      await client.query('DELETE FROM zaileys_sessions')
       await client.query('COMMIT')
     } catch (err) {
       if (client) {

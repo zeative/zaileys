@@ -43,7 +43,7 @@ export interface RedisClientLike {
   connect(): Promise<unknown>
   quit(): Promise<unknown>
   get(key: string): Promise<string | null>
-  set(key: string, value: string, options?: { EX?: number }): Promise<unknown>
+  set(key: string, value: string, options?: { EX?: number } | { PX?: number }): Promise<unknown>
   del(keys: string | string[]): Promise<number>
   mGet(keys: string[]): Promise<Array<string | null>>
   hGet(key: string, field: string): Promise<string | null | undefined>

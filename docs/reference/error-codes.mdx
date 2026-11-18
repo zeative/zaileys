@@ -31,7 +31,7 @@ Each code belongs to an error class, and the class tells you where it came from.
 | `ZaileysCommandError` | [`ASK_CANCELLED`](#ask_cancelled) · [`ASK_LIMIT`](#ask_limit) · [`ASK_TIMEOUT`](#ask_timeout) · [`DUPLICATE_COMMAND`](#duplicate_command) · [`HANDLER_ERROR`](#handler_error) · [`INVALID_COMMAND_NAME`](#invalid_command_name) · [`INVALID_OPTIONS`](#invalid_options) · [`MIDDLEWARE_ERROR`](#middleware_error) · [`NOT_CONNECTED`](#not_connected) · [`NO_SENT_MESSAGE`](#no_sent_message) |
 | `ZaileysDomainError` | [`GROUP_NOT_FOUND`](#group_not_found) · [`INVALID_PARTICIPANT`](#invalid_participant) · [`NEWSLETTER_NOT_FOUND`](#newsletter_not_found) · [`NOT_CONNECTED`](#not_connected) · [`OPERATION_FAILED`](#operation_failed) |
 | `ZaileysAutomationError` | [`NOT_CONNECTED`](#not_connected) · [`PRESENCE_FAILED`](#presence_failed) · [`QUEUE_FULL`](#queue_full) · [`QUEUE_TIMEOUT`](#queue_timeout) · [`RATE_LIMIT_INVALID`](#rate_limit_invalid) · [`SCHEDULE_INVALID`](#schedule_invalid) · [`STORE_UNAVAILABLE`](#store_unavailable) · [`TASK_FAILED`](#task_failed) |
-| `ZaileysStoreError` | [`STORE_CLOSED`](#store_closed) · [`STORE_CONNECTION_FAILED`](#store_connection_failed) · [`STORE_CORRUPTED`](#store_corrupted) · [`STORE_NOT_AVAILABLE`](#store_not_available) · [`STORE_READ_FAILED`](#store_read_failed) · [`STORE_WRITE_FAILED`](#store_write_failed) |
+| `ZaileysStoreError` | [`STORE_CLOSED`](#store_closed) · [`STORE_CONNECTION_FAILED`](#store_connection_failed) · [`STORE_CORRUPTED`](#store_corrupted) · [`STORE_INVALID_INPUT`](#store_invalid_input) · [`STORE_NOT_AVAILABLE`](#store_not_available) · [`STORE_READ_FAILED`](#store_read_failed) · [`STORE_VALUE_TOO_LARGE`](#store_value_too_large) · [`STORE_WRITE_FAILED`](#store_write_failed) |
 
 ### ASK_CANCELLED
 
@@ -265,9 +265,15 @@ Each code belongs to an error class, and the class tells you where it came from.
 
 ### STORE_CORRUPTED
 
-`ZaileysStoreError`. A SQLite row couldn't be parsed.
+`ZaileysStoreError`. A SQLite row couldn't be parsed, or a stored session value isn't valid JSON or is larger than 64 KB — something wrote it around the store.
 
-**Do this:** delete the damaged database file and link the device again. [Storage](/data/storage)
+**Do this:** delete the damaged database file and link the device again. For a session value, delete that key with `ctx.session.delete()`. [Storage](/data/storage)
+
+### STORE_INVALID_INPUT
+
+`ZaileysStoreError`. A session call got something it can't store: a key or scope that's empty, over 256 characters, or contains NUL; a value that isn't JSON (`undefined`, a function, a `BigInt`); a `ttl` that isn't a positive, finite number of milliseconds; or a `client.session()` argument that isn't a user JID or phone number. Nothing is written.
+
+**Do this:** fix the argument the message names. To remove a value, call `delete(key)` instead of saving `undefined`. [Remember things per user](/bots/commands#remember-things-per-user)
 
 ### STORE_NOT_AVAILABLE
 
@@ -292,6 +298,12 @@ Each code belongs to an error class, and the class tells you where it came from.
 `ZaileysAutomationError`. Declared in the type, but the current release never throws it. Not to be confused with [`STORE_NOT_AVAILABLE`](#store_not_available), which is a real `ZaileysStoreError`.
 
 **Do this:** match on `STORE_NOT_AVAILABLE` instead.
+
+### STORE_VALUE_TOO_LARGE
+
+`ZaileysStoreError`. `ctx.session.set()`, `client.session().set()`, or a store's `setSessionValue()` got a value over 64 KB (65,536 bytes) as UTF-8 JSON. The message gives the size. Nothing is written, and the old value stays.
+
+**Do this:** save less — an ID or a summary instead of the whole object — and keep large data in your own database. [Session values](/reference/storage#session-values)
 
 ### STORE_WRITE_FAILED
 

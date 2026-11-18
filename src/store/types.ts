@@ -21,6 +21,23 @@ export type ScheduledJobRecord = {
   payload: unknown
 }
 
+/** Options for `SessionHandle.set()`. */
+export interface SessionSetOptions {
+  /** Milliseconds until the value expires and reads return `undefined`. Default none: kept until deleted. */
+  ttl?: number
+}
+
+/** Small JSON values kept for one user (or any JID) in the message store's own session space. */
+export interface SessionHandle {
+  /** The saved value, or `undefined` when it was never set, was deleted, or has expired. */
+  get<T = unknown>(key: string): Promise<T | undefined>
+  /** Save a JSON-serialisable value of at most 64 KB; saving again replaces it and its TTL. */
+  set(key: string, value: unknown, options?: SessionSetOptions): Promise<void>
+  delete(key: string): Promise<void>
+  /** Remove every value in this scope. */
+  clear(): Promise<void>
+}
+
 export interface BaileysSocketLike {
   ev: {
     on: (event: string, handler: (...args: unknown[]) => void) => void
@@ -50,4 +67,12 @@ export interface MessageStore {
   deleteScheduledJob?(id: string): Promise<void>
   deleteMessage?(key: WAMessageKey): Promise<void>
   pruneMessages?(opts: PruneOptions): Promise<number>
+  /** One session value, or `undefined` when missing or expired. Optional; backs `ctx.session`. */
+  getSessionValue?(scope: string, key: string): Promise<unknown>
+  /** Save a JSON value under `scope`/`key`, replacing any earlier value and TTL; `ttlMs` expires it. Optional. */
+  setSessionValue?(scope: string, key: string, value: unknown, ttlMs?: number): Promise<void>
+  /** Remove one session value. Optional. */
+  deleteSessionValue?(scope: string, key: string): Promise<void>
+  /** Remove every session value in `scope`, and nothing else. Optional. */
+  clearSession?(scope: string): Promise<void>
 }

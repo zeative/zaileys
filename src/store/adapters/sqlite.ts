@@ -2,6 +2,12 @@ import { BufferJSON } from 'baileys'
 import type { Chat, Contact, PresenceData, WAMessage, WAMessageKey } from 'baileys'
 import { ZaileysStoreError } from '../../types/store-error.js'
 import { assertTablePrefix, prefixSqliteDb, tableRewriter } from '../../types/table-prefix.js'
+import {
+  assertSessionPart,
+  assertSessionTtl,
+  decodeSessionValue,
+  encodeSessionValue,
+} from '../session.js'
 import type { BaileysSocketLike, MessageStore, MessageStoreListOptions, PruneOptions } from '../types.js'
 
 type RunResult = { changes: number }
@@ -32,7 +38,7 @@ export interface SqliteMessageStoreOptions {
   tablePrefix?: string
 }
 
-const STORE_TABLES = ['messages', 'chats', 'contacts', 'presence', 'messages_by_jid_ts'] as const
+const STORE_TABLES = ['messages', 'chats', 'contacts', 'presence', 'messages_by_jid_ts', 'session_values'] as const
 
 let cachedDriver: RawDriverCtor | null = null
 
@@ -73,6 +79,12 @@ type PreparedSet = {
   readonly deleteMessage: DatabaseStatement
   readonly pruneByAge: DatabaseStatement
   readonly pruneByAgeChat: DatabaseStatement
+  readonly getSession: DatabaseStatement
+  readonly upsertSession: DatabaseStatement
+  readonly deleteSession: DatabaseStatement
+  readonly clearSessionScope: DatabaseStatement
+  readonly purgeExpiredSessions: DatabaseStatement
+  readonly clearSessions: DatabaseStatement
 }
 
 const encodeBlob = (value: unknown): Buffer => {
@@ -229,6 +241,59 @@ export class SqliteMessageStore implements MessageStore {
     return removed
   }
 
+  async getSessionValue(scope: string, key: string): Promise<unknown> {
+    const prep = await this.ensureReady()
+    assertSessionPart('scope', scope)
+    assertSessionPart('key', key)
+    const row = this.runSession('read', () => prep.getSession.get(scope, key)) as
+      | { data: string; expires_at: number | bigint | null }
+      | undefined
+    if (!row) return undefined
+    if (row.expires_at !== null && Number(row.expires_at) <= Date.now()) {
+      this.runSession('write', () => prep.deleteSession.run(scope, key))
+      return undefined
+    }
+    return decodeSessionValue(row.data)
+  }
+
+  async setSessionValue(scope: string, key: string, value: unknown, ttlMs?: number): Promise<void> {
+    const prep = await this.ensureReady()
+    assertSessionPart('scope', scope)
+    assertSessionPart('key', key)
+    const raw = encodeSessionValue(value)
+    const ttl = assertSessionTtl(ttlMs)
+    const now = Date.now()
+    this.runSession('write', () => {
+      prep.purgeExpiredSessions.run(scope, now)
+      prep.upsertSession.run(scope, key, raw, ttl === undefined ? null : now + ttl)
+    })
+  }
+
+  async deleteSessionValue(scope: string, key: string): Promise<void> {
+    const prep = await this.ensureReady()
+    assertSessionPart('scope', scope)
+    assertSessionPart('key', key)
+    this.runSession('write', () => prep.deleteSession.run(scope, key))
+  }
+
+  async clearSession(scope: string): Promise<void> {
+    const prep = await this.ensureReady()
+    assertSessionPart('scope', scope)
+    this.runSession('write', () => prep.clearSessionScope.run(scope))
+  }
+
+  private runSession<T>(kind: 'read' | 'write', fn: () => T): T {
+    try {
+      return fn()
+    } catch (err) {
+      throw new ZaileysStoreError(
+        kind === 'read' ? 'STORE_READ_FAILED' : 'STORE_WRITE_FAILED',
+        `failed to ${kind} sqlite session value`,
+        { cause: err },
+      )
+    }
+  }
+
   bind(socket: BaileysSocketLike): void {
     if (this.closed) {
       throw new ZaileysStoreError('STORE_CLOSED', 'SqliteMessageStore is closed')
@@ -273,6 +338,7 @@ export class SqliteMessageStore implements MessageStore {
       prep.clearChats.run()
       prep.clearContacts.run()
       prep.clearPresence.run()
+      prep.clearSessions.run()
     })
     tx()
   }
@@ -351,7 +417,8 @@ export class SqliteMessageStore implements MessageStore {
          CREATE INDEX IF NOT EXISTS messages_by_jid_ts ON messages(remote_jid, timestamp DESC);
          CREATE TABLE IF NOT EXISTS chats (jid TEXT PRIMARY KEY, archived INTEGER NOT NULL DEFAULT 0, data BLOB NOT NULL) WITHOUT ROWID;
          CREATE TABLE IF NOT EXISTS contacts (jid TEXT PRIMARY KEY, data BLOB NOT NULL) WITHOUT ROWID;
-         CREATE TABLE IF NOT EXISTS presence (jid TEXT PRIMARY KEY, data BLOB NOT NULL) WITHOUT ROWID;`,
+         CREATE TABLE IF NOT EXISTS presence (jid TEXT PRIMARY KEY, data BLOB NOT NULL) WITHOUT ROWID;
+         CREATE TABLE IF NOT EXISTS session_values (scope TEXT NOT NULL, name TEXT NOT NULL, data TEXT NOT NULL, expires_at INTEGER, PRIMARY KEY(scope, name)) WITHOUT ROWID;`,
       )
     } catch (err) {
       db.close()
@@ -398,6 +465,17 @@ export class SqliteMessageStore implements MessageStore {
       ),
       pruneByAge: db.prepare('DELETE FROM messages WHERE timestamp < ?'),
       pruneByAgeChat: db.prepare('DELETE FROM messages WHERE timestamp < ? AND remote_jid = ?'),
+      getSession: db.prepare('SELECT data, expires_at FROM session_values WHERE scope = ? AND name = ?'),
+      upsertSession: db.prepare(
+        `INSERT INTO session_values(scope, name, data, expires_at) VALUES(?, ?, ?, ?)
+         ON CONFLICT(scope, name) DO UPDATE SET data = excluded.data, expires_at = excluded.expires_at`,
+      ),
+      deleteSession: db.prepare('DELETE FROM session_values WHERE scope = ? AND name = ?'),
+      clearSessionScope: db.prepare('DELETE FROM session_values WHERE scope = ?'),
+      purgeExpiredSessions: db.prepare(
+        'DELETE FROM session_values WHERE scope = ? AND expires_at IS NOT NULL AND expires_at <= ?',
+      ),
+      clearSessions: db.prepare('DELETE FROM session_values'),
     }
   }
 }

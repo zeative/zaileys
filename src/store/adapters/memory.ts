@@ -1,5 +1,6 @@
 import type { Chat, Contact, PresenceData, WAMessage, WAMessageKey } from 'baileys'
 import { ZaileysStoreError } from '../../types/store-error.js'
+import { MemorySessionValues } from '../session.js'
 import type { BaileysSocketLike, MessageStore, MessageStoreListOptions, PruneOptions } from '../types.js'
 
 type Listener = (...args: unknown[]) => void
@@ -13,6 +14,13 @@ export interface MemoryMessageStoreOptions {
    * default holds about 40 MB. Pass `Infinity` to keep everything. Default 10 000.
    */
   maxMessages?: number
+  /** Most session values kept across every user; the least recently written is dropped first. Default 10 000. */
+  maxSessionValues?: number
+  /**
+   * Most JSON characters, keys included, kept across every session value; the least recently written is
+   * dropped first. At least 65 536 (one full value). Default 32 MiB.
+   */
+  maxSessionBytes?: number
 }
 
 const DEFAULT_MAX_MESSAGES = 10_000
@@ -28,6 +36,7 @@ export class MemoryMessageStore implements MessageStore {
   private closed = false
   private readonly maxMessages: number
   private evictCursor: MapIterator<string> | undefined
+  private readonly sessions: MemorySessionValues
 
   constructor(options: MemoryMessageStoreOptions = {}) {
     const max = options.maxMessages ?? DEFAULT_MAX_MESSAGES
@@ -38,6 +47,10 @@ export class MemoryMessageStore implements MessageStore {
       )
     }
     this.maxMessages = max
+    this.sessions = new MemorySessionValues({
+      ...(options.maxSessionValues === undefined ? {} : { maxValues: options.maxSessionValues }),
+      ...(options.maxSessionBytes === undefined ? {} : { maxBytes: options.maxSessionBytes }),
+    })
   }
 
   async saveMessage(message: WAMessage): Promise<void> {
@@ -250,8 +263,29 @@ export class MemoryMessageStore implements MessageStore {
     return removed
   }
 
+  async getSessionValue(scope: string, key: string): Promise<unknown> {
+    this.assertOpen()
+    return this.sessions.get(scope, key)
+  }
+
+  async setSessionValue(scope: string, key: string, value: unknown, ttlMs?: number): Promise<void> {
+    this.assertOpen()
+    await this.sessions.set(scope, key, value, ttlMs)
+  }
+
+  async deleteSessionValue(scope: string, key: string): Promise<void> {
+    this.assertOpen()
+    await this.sessions.delete(scope, key)
+  }
+
+  async clearSession(scope: string): Promise<void> {
+    this.assertOpen()
+    await this.sessions.clearScope(scope)
+  }
+
   async clear(): Promise<void> {
     this.assertOpen()
+    this.sessions.clearAll()
     this.messages.clear()
     this.evictCursor = undefined
     this.messagesByJid.clear()

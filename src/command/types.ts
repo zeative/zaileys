@@ -2,6 +2,7 @@ import type { WAMessageKey } from 'baileys'
 import type { MessageContext } from '../events/context.js'
 import type { MessageBuilder, TextOptions } from '../builder/builder.js'
 import type { Client as ZaileysClient } from '../client/client.js'
+import type { SessionHandle } from '../store/types.js'
 
 export type CommandPrefix = string | string[]
 
@@ -27,6 +28,11 @@ export interface CommandContext extends MessageContext {
   edit(content: string): Promise<void>
   /** Replies `question`, then resolves with the sender's next message here. Uncaught ask errors end the command quietly. */
   ask(question: string, options?: AskOptions): Promise<MessageContext>
+  /**
+   * Small JSON values remembered for the sender across commands and restarts, kept in the message store.
+   * Scoped to `senderId` without its device suffix; a sender known only by LID gets a scope of its own.
+   */
+  session: SessionHandle
 }
 
 /** Options for `client.waitForMessage()`. */

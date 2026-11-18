@@ -1,5 +1,5 @@
 export { runAuthStoreContract } from './auth-store.contract.js'
-export { runMessageStoreContract } from './message-store.contract.js'
+export { runMessageStoreContract, type MessageStoreContractOptions } from './message-store.contract.js'
 export {
   assertSignalEquals,
   sampleChat,

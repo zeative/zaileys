@@ -2,6 +2,13 @@ import { BufferJSON } from 'baileys'
 import type { Chat, Contact, PresenceData, WAMessage, WAMessageKey } from 'baileys'
 import type { RedisClientLike } from '../../types/optional-clients.js'
 import { ZaileysStoreError } from '../../types/store-error.js'
+import {
+  assertSessionPart,
+  assertSessionTtl,
+  decodeSessionValue,
+  encodeSessionKeyPart,
+  encodeSessionValue,
+} from '../session.js'
 import type { BaileysSocketLike, MessageStore, MessageStoreListOptions, PruneOptions } from '../types.js'
 
 export interface RedisMessageStoreOptions {
@@ -33,6 +40,7 @@ const MESSAGE_STORE_KEY_FAMILIES: readonly string[] = Object.freeze([
   'chats',
   'chats-archived',
   'contacts',
+  'session:*',
 ])
 
 /** A glob metacharacter in the namespace would widen every SCAN pattern into a database-wide sweep. */
@@ -252,6 +260,43 @@ export class RedisMessageStore implements MessageStore {
     return JSON.parse(raw, BufferJSON.reviver) as PresenceData
   }
 
+  async getSessionValue(scope: string, key: string): Promise<unknown> {
+    this.assertOpen()
+    const id = this.sessionKey(scope, key)
+    const client = await this.ensureReady()
+    const raw = await this.runRead(() => client.get(id))
+    return raw == null ? undefined : decodeSessionValue(raw)
+  }
+
+  /** Expiry is Redis' own `PX`, so an expired value is gone server-side without a sweep. */
+  async setSessionValue(scope: string, key: string, value: unknown, ttlMs?: number): Promise<void> {
+    this.assertOpen()
+    const id = this.sessionKey(scope, key)
+    const raw = encodeSessionValue(value)
+    const ttl = assertSessionTtl(ttlMs)
+    const client = await this.ensureReady()
+    await this.runWrite(() => (ttl === undefined ? client.set(id, raw) : client.set(id, raw, { PX: ttl })))
+  }
+
+  async deleteSessionValue(scope: string, key: string): Promise<void> {
+    this.assertOpen()
+    const id = this.sessionKey(scope, key)
+    const client = await this.ensureReady()
+    await this.runWrite(() => client.del(id))
+  }
+
+  async clearSession(scope: string): Promise<void> {
+    this.assertOpen()
+    const match = `${this.sessionScopePrefix(scope)}*`
+    const client = await this.ensureReady()
+    let cursor = 0
+    do {
+      const result = await this.runRead(() => client.scan(cursor, { MATCH: match, COUNT: SCAN_BATCH }))
+      cursor = Number(result.cursor)
+      if (result.keys.length > 0) await this.runWrite(() => client.del(result.keys))
+    } while (cursor !== 0)
+  }
+
   bind(socket: BaileysSocketLike): void {
     this.assertOpen()
     if (this.boundSocket && this.boundSocket.ev.off) {
@@ -425,6 +470,15 @@ export class RedisMessageStore implements MessageStore {
 
   private presenceKey(jid: string): string {
     return `${this.namespace}:presence:${jid}`
+  }
+
+  /** Both parts are encoded, so `a:b`/`c` and `a`/`b:c` never share a key and a scope never globs another. */
+  private sessionScopePrefix(scope: string): string {
+    return `${this.namespace}:session:${encodeSessionKeyPart(assertSessionPart('scope', scope))}:`
+  }
+
+  private sessionKey(scope: string, key: string): string {
+    return `${this.sessionScopePrefix(scope)}${encodeSessionKeyPart(assertSessionPart('key', key))}`
   }
 
   private async ensureReady(): Promise<RedisClientLike> {

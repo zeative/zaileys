@@ -59,6 +59,7 @@ Signature blocks show each member as it's declared on the class. What each const
 | [`use()`](#use) | `this` | WhatsApp Web |
 | [`unuse()`](#unuse) | `this` | WhatsApp Web |
 | [`waitForMessage()`](#waitformessage) | `Promise<MessageContext>` | Both |
+| [`session()`](#session) | `SessionHandle` | Both |
 | **Automation** | | |
 | [`broadcast()`](#broadcast) | `Promise<BroadcastResult>` | WhatsApp Web |
 | [`scheduleAt()`](#scheduleat) | `Promise<ScheduleHandle>` | WhatsApp Web |
@@ -1255,6 +1256,27 @@ client.on('text', async (msg) => {
   await code.reply('Code received.')
 })
 ```
+
+### `session()`
+
+```ts Signature
+import type { SessionHandle } from 'zaileys'
+
+interface Client {
+  session(jid: string): SessionHandle
+}
+```
+
+The per-user values that commands read as `ctx.session`, for code outside a command — a `message` listener, a webhook, a scheduled job. `jid` is a user JID or a phone number; the device suffix is dropped, and a LID is its own scope, never merged with a phone number. Values live in the [message store](/reference/storage#session-values).
+
+<ProviderSupport web={true} cloud={true} />
+
+```ts
+await client.session('628123456789').set('tier', 'gold', { ttl: 30 * 24 * 60 * 60_000 })
+const tier = await client.session('628123456789@s.whatsapp.net').get<string>('tier')
+```
+
+`tier` is `'gold'` for the next 30 days. Guide: [Remember things per user](/bots/commands#remember-things-per-user).
 
 ## Automation
 

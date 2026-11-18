@@ -3,7 +3,7 @@ title: "Storage adapters"
 sidebarTitle: "Storage"
 description: "Constructor options for every auth store and message store, the peer package each needs, and the interfaces for writing your own adapter."
 icon: "database"
-keywords: ["AuthStoreBundle", "MessageStore", "FileAuthStore", "SqliteAuthStore", "PostgresMessageStore", "RedisAuthStore", "ConvexMessageStore", "custom adapter", "storage interface", "pruneMessages", "BufferJSON", "cacheSignal"]
+keywords: ["AuthStoreBundle", "MessageStore", "FileAuthStore", "SqliteAuthStore", "PostgresMessageStore", "RedisAuthStore", "ConvexMessageStore", "custom adapter", "storage interface", "pruneMessages", "BufferJSON", "cacheSignal", "setSessionValue", "getSessionValue", "clearSession", "zaileys_sessions", "session values"]
 ---
 
 import { Term } from "/snippets/glossary.jsx"
@@ -174,14 +174,14 @@ const auth = makeCacheableAuthStore(new SqliteAuthStore({ database: './whatsapp.
 
 ## Message stores
 
-Each message store implements [`MessageStore`](#messagestore). All five support `deleteMessage()` and `pruneMessages()`, so [auto-delete](/bots/auto-delete) works with any of them. Only `ConvexMessageStore` persists [scheduled messages](/bots/broadcast-and-schedule).
+Each message store implements [`MessageStore`](#messagestore). All five support `deleteMessage()` and `pruneMessages()`, so [auto-delete](/bots/auto-delete) works with any of them, and all five keep [session values](#session-values) for `ctx.session`. Only `ConvexMessageStore` persists [scheduled messages](/bots/broadcast-and-schedule).
 
 | Store | `listMessages` default `limit` | Scheduled jobs | Notes |
 | --- | --- | --- | --- |
 | `MemoryMessageStore` | Everything | No | Emptied on restart; keeps the latest 10,000 messages |
-| `SqliteMessageStore` | 100 | No | Tables `messages`, `chats`, `contacts`, `presence` |
-| `PostgresMessageStore` | 100 | No | Tables `zaileys_messages`, `zaileys_chats`, `zaileys_contacts`, `zaileys_presence` |
-| `RedisMessageStore` | 100 | No | Presence expires after 5 minutes; `clear()` deletes only message-store keys |
+| `SqliteMessageStore` | 100 | No | Tables `messages`, `chats`, `contacts`, `presence`, `session_values` |
+| `PostgresMessageStore` | 100 | No | Tables `zaileys_messages`, `zaileys_chats`, `zaileys_contacts`, `zaileys_presence`, `zaileys_sessions` |
+| `RedisMessageStore` | 100 | No | Presence expires after 5 minutes; `clear()` deletes only message-store keys, session values included |
 | `ConvexMessageStore` | Everything | Yes | Shares the `zaileys_kv` table with the auth store |
 
 ### MemoryMessageStore
@@ -194,6 +194,12 @@ const store = new MemoryMessageStore({ maxMessages: 10_000 })
 
 <ParamField body="maxMessages" type="number" default="10000">
   The most messages kept. Once the store is full, the message saved longest ago is dropped, so a busy bot can't run out of memory before [auto-delete](/bots/auto-delete) prunes it. A message takes about 4 KB, so the default uses around 40 MB. Pass `Infinity` to keep everything, or use a database store if you need a longer history. A value below 1 throws `STORE_CONNECTION_FAILED`.
+</ParamField>
+<ParamField body="maxSessionValues" type="number" default="10000">
+  The most [session values](#session-values) kept, across every user. Once full, the value written longest ago is dropped. A value below 1 throws `STORE_CONNECTION_FAILED`.
+</ParamField>
+<ParamField body="maxSessionBytes" type="number" default="33554432">
+  The most JSON characters, keys included, kept across every session value (32 MiB). Once full, the values written longest ago are dropped. A value below 65,536 — one full-size value — throws `STORE_CONNECTION_FAILED`.
 </ParamField>
 
 ### SqliteMessageStore
@@ -346,8 +352,40 @@ Optional methods — leave them out and the feature that needs them turns off:
 | `deleteMessage` | `(key: WAMessageKey) => Promise<void>` | Auto-delete without `pruneMessages`: Zaileys walks your chats with `listChats()` and deletes one by one. |
 | `reopen` | `() => Promise<void>` | `client.connect()` after `client.disconnect()`, which closed the store. |
 | `saveScheduledJob`, `listScheduledJobs`, `deleteScheduledJob` | `(job: ScheduledJobRecord) => Promise<void>`, `() => Promise<ScheduledJobRecord[]>`, `(id: string) => Promise<void>` | Scheduled messages that survive a restart. |
+| `getSessionValue`, `setSessionValue`, `deleteSessionValue`, `clearSession` | See [Session values](#session-values) | `ctx.session` and `client.session()` that survive a restart. |
 
 With neither `pruneMessages` nor `deleteMessage`, auto-delete logs a warning and stays off.
+
+### Session values
+
+The four session methods back [`ctx.session`](/bots/commands#remember-things-per-user) and `client.session(jid)`. A scope is one user — the client passes the sender's JID without its device suffix, such as `628123456789@s.whatsapp.net` or `1234567890@lid` — and a key is your own name, such as `lang`.
+
+| Method | Signature | What it does |
+| --- | --- | --- |
+| `getSessionValue` | `(scope: string, key: string) => Promise<unknown>` | The value, or `undefined` when it's missing or expired. |
+| `setSessionValue` | `(scope: string, key: string, value: unknown, ttlMs?: number) => Promise<void>` | Saves a JSON value, replacing the old value and its expiry. Without `ttlMs`, it's kept until deleted. |
+| `deleteSessionValue` | `(scope: string, key: string) => Promise<void>` | Removes one value. |
+| `clearSession` | `(scope: string) => Promise<void>` | Removes every value in this scope, and nothing else. |
+
+Every built-in store checks the same limits before writing:
+
+| Limit | Value | Otherwise |
+| --- | --- | --- |
+| Value | JSON-serialisable, at most 64 KB (65,536 bytes) as UTF-8 JSON | `STORE_INVALID_INPUT`, or `STORE_VALUE_TOO_LARGE` when it's too big |
+| Scope and key | 1–256 characters, no NUL, no unpaired surrogate | `STORE_INVALID_INPUT` |
+| `ttlMs` | A positive, finite number of milliseconds | `STORE_INVALID_INPUT` |
+
+Where each store keeps them — always in the message store's own space, never in the auth store's tables or keys:
+
+| Store | Where | How values expire |
+| --- | --- | --- |
+| `MemoryMessageStore` | In memory, bounded by [`maxSessionValues` and `maxSessionBytes`](#memorymessagestore); emptied on restart | Checked on read |
+| `SqliteMessageStore` | Table `session_values` (`scope`, `name`, `data`, `expires_at`), renamed by `tablePrefix` | Checked on read against the bot's clock; expired rows are removed on read and when the scope is written |
+| `PostgresMessageStore` | Table `zaileys_sessions` (`scope`, `name`, `data`, `expires_at`), renamed by `tablePrefix` | Same as SQLite |
+| `RedisMessageStore` | One string key per value, `<namespace>:session:<scope>:<key>`, with scope and key URL-encoded | Redis' own `PX` expiry |
+| `ConvexMessageStore` | `zaileys_kv` rows with the key `session:<scope>:<key>`, URL-encoded, the expiry stored alongside the value | Checked on read; expired rows are removed on read |
+
+`clear()` removes session values along with messages, chats, contacts, and presence. A custom store without the four methods still works: the client keeps session values in a bounded in-memory map, logs one warning naming the store, and forgets them on restart.
 
 <ResponseField name="PruneOptions" type="{ olderThan?: number; maxPerChat?: number; chatFilter?: (jid: string) => boolean }">
   `olderThan` — delete messages with a `messageTimestamp` strictly older than this, in Unix **seconds**. `maxPerChat` — keep only the newest N per chat. `chatFilter` — only prune chats whose JID passes.

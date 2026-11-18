@@ -118,6 +118,20 @@ senders keep their own budget. Non-command messages are never counted. Counts li
 | `ctx.edit(text)` | Edits the **last `ctx.reply()`** of this invocation. Messages sent with `ctx.send()` don't count. Throws `NO_SENT_MESSAGE` before a reply; uses `client.edit()`, so WhatsApp Web only |
 | `ctx.ask(question, options?)` | Replies `question` like `ctx.reply()`, then resolves with the sender's next message in this chat. See below |
 | `ctx.client` | The client, for handlers in other files |
+| `ctx.session` | Per-sender JSON values in the message store: `get<T>(key)`, `set(key, value, { ttl? })` (ms), `delete(key)`, `clear()`. Survives restarts on a database store; `client.session(jidOrPhone)` is the same handle outside commands |
+
+```ts
+client.command('lang', async (ctx) => {
+  if (ctx.args[0]) await ctx.session.set('lang', ctx.args[0])
+  const lang = (await ctx.session.get<string>('lang')) ?? 'en'
+  await ctx.reply(`Language: ${lang}`)
+})
+```
+
+The session scope is the sender without the device suffix, so every device of one person shares it; a
+LID-only sender gets a scope of its own (a LID is never merged with a phone number). Values are JSON, at most
+64 KB each (`STORE_VALUE_TOO_LARGE`); keys are 1-256 characters (`STORE_INVALID_INPUT`). Keep large or
+relational data in your own database and store only an ID here.
 
 ## Ask and wait for an answer
 
@@ -346,6 +360,8 @@ const client: Client = new Client({
 | `HANDLER_ERROR` | `ZaileysCommandError` | The handler threw; original on `error.cause` | Listen to `command-error` |
 | `MIDDLEWARE_ERROR` | `ZaileysCommandError` | A middleware threw, or called `next()` twice | Call `next()` at most once |
 | `NO_SENT_MESSAGE` | `ZaileysCommandError` | `ctx.edit()` before any `ctx.reply()` | Reply first |
+| `STORE_VALUE_TOO_LARGE` | `ZaileysStoreError` | `ctx.session.set()` value over 64 KB as JSON | Store an ID or summary |
+| `STORE_INVALID_INPUT` | `ZaileysStoreError` | Session key empty or over 256 chars, value not JSON, bad `ttl` | Fix the argument; remove with `delete(key)` |
 | `NOT_CONNECTED` | `ZaileysCommandError` | Declared but not thrown by the command layer; offline sends from a handler fail with `ZaileysBuilderError` `INVALID_OPTIONS` | Check `client.state === 'connected'` |
 | `RATE_LIMIT_INVALID` | `ZaileysAutomationError` | Broadcast or `RateLimiter` rate ≤ 0 | Use a positive rate |
 | `SCHEDULE_INVALID` | `ZaileysAutomationError` | See Scheduled sends | Valid `Date`, `.to()`, one text or media message |

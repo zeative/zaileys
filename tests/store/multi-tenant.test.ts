@@ -40,6 +40,21 @@ describe('several sessions on one Postgres database', () => {
     await expect(s1.getChat('only-in-bot1@s.whatsapp.net')).resolves.toBeDefined()
   })
 
+  it('keeps session values in the store’s own prefixed table, apart from auth', async () => {
+    const pool = memPool()
+    const auth = new PostgresAuthStore({ pool, tablePrefix: 'bot1_' })
+    await auth.creds.writeCreds({ ...sampleCreds(), registered: true } as never)
+    const s1 = new PostgresMessageStore({ pool, tablePrefix: 'bot1_' })
+    const s2 = new PostgresMessageStore({ pool, tablePrefix: 'bot2_' })
+    await s1.setSessionValue('628@s.whatsapp.net', 'lang', 'id')
+    await expect(s2.getSessionValue('628@s.whatsapp.net', 'lang')).resolves.toBeUndefined()
+    const rows = await pool.query('SELECT scope, name, data FROM bot1_zaileys_sessions')
+    expect(rows.rows).toEqual([{ scope: '628@s.whatsapp.net', name: 'lang', data: '"id"' }])
+    await s1.clearSession('628@s.whatsapp.net')
+    await s1.clear()
+    expect((await auth.creds.readCreds())?.registered).toBe(true)
+  })
+
   it('without a prefix it still uses the original table names, so existing data is read', async () => {
     const pool = memPool()
     await pool.query('CREATE TABLE IF NOT EXISTS zaileys_auth_creds (id text PRIMARY KEY, data jsonb NOT NULL)')
@@ -68,6 +83,11 @@ describe('several sessions in one SQLite file', () => {
       const m2 = new SqliteMessageStore({ database: file, tablePrefix: 'bot2_' })
       await m1.saveChat(sampleChat('x@s.whatsapp.net'))
       await expect(m2.getChat('x@s.whatsapp.net')).resolves.toBeUndefined()
+      await m1.setSessionValue('x@s.whatsapp.net', 'lang', 'id')
+      await expect(m2.getSessionValue('x@s.whatsapp.net', 'lang')).resolves.toBeUndefined()
+      await m1.clearSession('x@s.whatsapp.net')
+      await m1.clear()
+      expect((await a1.creds.readCreds())?.registered).toBe(true)
       await a1.signal.close()
       await a2.signal.close()
       await m1.close()

@@ -5,6 +5,7 @@
 - Two stores, two jobs
 - Auth stores
 - Message stores
+- Per-user session values
 - Missing drivers and store errors
 - Where the default session lives
 - Why a restart asks for a new QR
@@ -20,7 +21,7 @@
 | Option | Holds | Default | Losing it means |
 | --- | --- | --- | --- |
 | `auth` (`AuthStoreBundle`: `creds` + `signal`) | Login credentials and Signal keys — full account access | `new FileAuthStore({ basePath: './.zaileys/auth/<sessionId>' })` | A new QR or pairing code |
-| `store` (`MessageStore`) | Messages, chats, contacts, presence; scheduled jobs on Convex | `new MemoryMessageStore()` | `msg.replied()`, `forward()`, `downloadMedia()` and Baileys retries can't find older messages |
+| `store` (`MessageStore`) | Messages, chats, contacts, presence, `ctx.session` values; scheduled jobs on Convex | `new MemoryMessageStore()` | `msg.replied()`, `forward()`, `downloadMedia()` and Baileys retries can't find older messages |
 
 Pair any auth store with any message store. The Cloud API ignores `auth`; `store` still records messages
 there. Nothing is encrypted at rest: anyone with the files or rows can use the account.
@@ -50,9 +51,9 @@ it cuts database round-trips per message.
 
 | Class | Options | `listMessages` default limit | Notes |
 | --- | --- | --- | --- |
-| `MemoryMessageStore` | `maxMessages` (default 10 000, oldest dropped first; `Infinity` for no cap) | all | Capped at ~40 MB by default; auto-delete still prunes by age; empty after restart |
-| `SqliteMessageStore` | `{ database, readonly?, tablePrefix? }` | 100 | Tables `messages`, `chats`, `contacts`, `presence` |
-| `PostgresMessageStore` | `{ connectionString?, pool?, max?, tablePrefix? }` | 100 | Tables `zaileys_messages`, `zaileys_chats`, `zaileys_contacts`, `zaileys_presence` |
+| `MemoryMessageStore` | `maxMessages` (default 10 000, oldest dropped first; `Infinity` for no cap), `maxSessionValues` (default 10 000), `maxSessionBytes` (default 32 MiB, min 65 536) | all | Capped at ~40 MB by default; auto-delete still prunes by age; empty after restart |
+| `SqliteMessageStore` | `{ database, readonly?, tablePrefix? }` | 100 | Tables `messages`, `chats`, `contacts`, `presence`, `session_values` |
+| `PostgresMessageStore` | `{ connectionString?, pool?, max?, tablePrefix? }` | 100 | Tables `zaileys_messages`, `zaileys_chats`, `zaileys_contacts`, `zaileys_presence`, `zaileys_sessions` |
 | `RedisMessageStore` | `{ url?, client?, namespace? }` | 100 | Presence keys expire after 300 s; `clear()` only deletes its own key families |
 | `ConvexMessageStore` | `{ url?, client?, namespace? }` | all | The only built-in store that persists `scheduleAt()` jobs |
 
@@ -60,6 +61,32 @@ There is no file-based message store. The message store is read through `client.
 (`listMessages(jid, { limit, before })`, `getMessage(key)`, `listChats()`, `getContact(jid)`,
 `getPresence(jid)`); timestamps are Unix **seconds**. Never hand one store instance to two clients: messages
 carry no account field.
+
+## Per-user session values
+
+`ctx.session` and `client.session(jid)` keep small JSON values per user in the message store, through four
+optional `MessageStore` methods: `getSessionValue(scope, key)`, `setSessionValue(scope, key, value, ttlMs?)`,
+`deleteSessionValue(scope, key)`, `clearSession(scope)`. Every built-in store has them, always in its own
+space and never next to the auth keys:
+
+| Store | Where session values live | Expiry |
+| --- | --- | --- |
+| `MemoryMessageStore` | In memory, capped by `maxSessionValues` / `maxSessionBytes` (oldest write dropped first) | Checked on read; gone on restart |
+| `SqliteMessageStore` | Table `session_values` (prefixed by `tablePrefix`) | `expires_at` against the bot's clock, checked on read |
+| `PostgresMessageStore` | Table `zaileys_sessions` (prefixed by `tablePrefix`) | `expires_at` against the bot's clock, checked on read |
+| `RedisMessageStore` | Keys `<namespace>:session:<scope>:<key>`, scope and key URL-encoded | Native `PX` |
+| `ConvexMessageStore` | `zaileys_kv` rows `session:<scope>:<key>`, URL-encoded, expiry inside the value | Checked on read |
+
+- Limits, enforced by every store before writing: a value is JSON-serialisable and at most 64 KB of UTF-8
+  JSON (`STORE_VALUE_TOO_LARGE`); scope and key are 1-256 characters without NUL, and `ttl` is a positive
+  number of milliseconds (`STORE_INVALID_INPUT`). Nothing is written when a check fails.
+- The scope is the sender's JID without the device suffix (`c.us` becomes `s.whatsapp.net`). A phone number
+  and a LID are never merged: a sender known only by LID has a separate scope, so a value saved under their
+  phone number isn't visible there until WhatsApp reveals the number.
+- `store.clear()` removes session values too. `ConvexAuthStore.clear()` wipes its whole namespace, session
+  rows included, if the message store shares it — another reason to give them different namespaces.
+- A custom store without the four methods still works: the client keeps the values in a bounded in-memory
+  map, logs one warning naming the store, and loses them on restart.
 
 ## Missing drivers and store errors
 

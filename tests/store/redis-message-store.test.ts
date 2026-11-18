@@ -50,6 +50,7 @@ describe.skipIf(!REDIS_URL)('RedisMessageStore — contract suite', () => {
     async (store) => {
       await store.clear().catch(() => undefined)
     },
+    { sessionTtl: 'real' },
   )
 })
 
@@ -137,6 +138,26 @@ describe.skipIf(!REDIS_URL)('RedisMessageStore — adapter specifics', () => {
     await new Promise((resolve) => setImmediate(resolve))
     const list = await store.listMessages('bind@s.whatsapp.net')
     expect(list.length).toBe(1)
+    await store.clear()
+    await store.close()
+  })
+
+  it('MR6: session values live under <namespace>:session: with a native PX expiry', async () => {
+    const ns = freshNs()
+    const store = new RedisMessageStore({ url: REDIS_URL!, namespace: ns })
+    await store.setSessionValue('628@s.whatsapp.net', 'otp', '1234', 60_000)
+    await store.setSessionValue('628@s.whatsapp.net', 'lang', 'id')
+    const { createClient } = await import('redis')
+    const client = createClient({ url: REDIS_URL! })
+    await client.connect()
+    const otpTtl = await client.pTTL(`${ns}:session:628%40s.whatsapp.net:otp`)
+    expect(otpTtl).toBeGreaterThan(55_000)
+    expect(otpTtl).toBeLessThanOrEqual(60_000)
+    await expect(client.pTTL(`${ns}:session:628%40s.whatsapp.net:lang`)).resolves.toBe(-1)
+    await expect(client.get(`${ns}:session:628%40s.whatsapp.net:lang`)).resolves.toBe('"id"')
+    await store.setSessionValue('628@s.whatsapp.net', 'otp', '5678')
+    await expect(client.pTTL(`${ns}:session:628%40s.whatsapp.net:otp`)).resolves.toBe(-1)
+    await client.quit()
     await store.clear()
     await store.close()
   })

@@ -225,6 +225,9 @@ Every field and method of the [message context](/reference/message-context) — 
 <ResponseField name="ask(question, options?)" type="(question: string, options?: AskOptions) => Promise<MessageContext>">
   Replies `question` like `reply()`, then resolves with the sender's next message in this chat, through [`client.waitForMessage()`](/reference/client#waitformessage). `options` takes `timeout` (default `60000` ms), `filter`, and `timeoutMessage` (replied on timeout; default none). Rejects `ASK_TIMEOUT` or `ASK_CANCELLED`, which end the command quietly when uncaught: no `command-error`, no error log. The answer is not run as a command. Guide: [Ask a question and wait for the answer](/bots/commands#ask-a-question-and-wait-for-the-answer).
 </ResponseField>
+<ResponseField name="session" type="SessionHandle">
+  Small JSON values remembered for the sender, kept in the message store: `get<T>(key)`, `set(key, value, { ttl? })`, `delete(key)`, `clear()`. Scoped to `senderId` without its device suffix; a LID-only sender has a scope of its own. `client.session(jid)` returns the same handle outside a command. See [Remember things per user](/bots/commands#remember-things-per-user).
+</ResponseField>
 
 ```ts
 client.command('weather', async (ctx) => {

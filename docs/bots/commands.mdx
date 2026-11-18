@@ -2,7 +2,7 @@
 title: "Commands"
 description: "Answer /help, /price, and other commands — with aliases, arguments, flags, guards like cooldowns and admin-only, and a generated help menu."
 icon: "square-terminal"
-keywords: ["commands", "command handler", "prefix", "commandPrefix", "bot commands", "slash command", "aliases", "arguments", "flags", "cooldown", "admin only", "flood protection", "commandFlood", "spam", "help menu", "command-blocked", "command-error", "command-not-found"]
+keywords: ["commands", "command handler", "prefix", "commandPrefix", "bot commands", "slash command", "aliases", "arguments", "flags", "cooldown", "admin only", "flood protection", "commandFlood", "spam", "help menu", "command-blocked", "command-error", "command-not-found", "ctx.session", "client.session", "per-user state", "remember user"]
 ---
 
 import { ProviderSupport } from "/snippets/provider-support.jsx"
@@ -22,6 +22,7 @@ A command is a message that starts with a prefix, like `/ping` or `!weather Jaka
 | Read what was typed | [`ctx.args`, `ctx.flags`, `ctx.json`](#read-arguments-and-flags) | `/remind "call mom" --at=18:00` arrives already split |
 | Answer | [`ctx.reply()`, `ctx.send()`, `ctx.react()`, `ctx.edit()`](#answer-from-a-command) | Replies quote the command message |
 | Ask and wait for the answer | [`ctx.ask('What is your name?')`](#ask-a-question-and-wait-for-the-answer) | Resolves with the user's next message |
+| Remember things per user | [`ctx.session.get()`, `ctx.session.set()`](#remember-things-per-user) | Small values that survive restarts, kept in the message store |
 | Build a help menu | [`client.commands()`](#build-a-help-menu) | Every command with its description and usage |
 | Handle problems | [`command-blocked`, `command-error`, `command-not-found`](#handle-blocked-failed-and-unknown-commands) | You decide what the user sees |
 | Remove a command | [`client.unregisterCommand('ping')`](#remove-a-command) | The name and its aliases stop working |
@@ -251,6 +252,9 @@ The sender sees a ⏳ reaction on their message, a reply that changes from `Buil
 <ResponseField name="edit(content)" type="Promise<void>">
   Changes the text of the last message this handler sent with `ctx.reply()`. Throws `NO_SENT_MESSAGE` if the handler hasn't replied yet.
 </ResponseField>
+<ResponseField name="session" type="SessionHandle">
+  Small values remembered for the sender. See [Remember things per user](#remember-things-per-user).
+</ResponseField>
 
 In a chat with disappearing messages turned on, `ctx.reply()` uses the command message's timer and `ctx.send()` uses the chat's timer, so your answers disappear along with the conversation.
 
@@ -301,6 +305,44 @@ client.on('text', async (msg) => {
 ```
 
 `waitForMessage()` takes `chat` (required), `from`, `timeout`, `filter`, and an `AbortSignal` as `signal`. Leave out `from` to accept anyone in the chat. Your bot's own messages never count unless `from` is the bot's own JID and `ignoreMe` is `false`.
+
+## Remember things per user
+
+`ctx.session` keeps small values for the person who sent the command — a language, a cart, a step in a sign-up — and they're still there on the next command and after a restart:
+
+```ts
+client.command('lang', async (ctx) => {
+  const choice = ctx.args[0]
+  if (choice) {
+    await ctx.session.set('lang', choice)
+    await ctx.reply(`Saved. I'll answer in ${choice}.`)
+    return
+  }
+  const lang = (await ctx.session.get<string>('lang')) ?? 'en'
+  await ctx.reply(`Your language is ${lang}. Change it with /lang id`)
+})
+
+client.command('otp', async (ctx) => {
+  await ctx.session.set('otp', '4821', { ttl: 5 * 60_000 })
+  await ctx.reply('Your code is 4821. It expires in 5 minutes.')
+})
+```
+
+`/lang id` answers `Saved. I'll answer in id.`, and a later `/lang` answers `Your language is id. Change it with /lang id` — in a DM or a group, from the phone or a linked laptop.
+
+| Method | What it does |
+| --- | --- |
+| `get<T>(key)` | The saved value, or `undefined` if it was never set, was deleted, or expired |
+| `set(key, value, { ttl? })` | Saves a JSON value, replacing the old one and its timer. `ttl` is in milliseconds; leave it out to keep the value until you delete it |
+| `delete(key)` | Removes one value |
+| `clear()` | Removes everything saved for this user |
+
+- **Where it lives.** In your [message store](/reference/storage#session-values), in its own table or keys — never next to the login. With a database store it survives restarts; with the default `MemoryMessageStore` it's emptied on restart and keeps at most 10,000 values.
+- **Who it belongs to.** The sender's `ctx.senderId` without the device suffix, so every device of one person shares it. A sender WhatsApp shows only by LID, with no phone number, gets a scope of its own: Zaileys never merges a LID with a phone number it can't prove is the same person.
+- **Limits.** A value must be JSON (no functions, `undefined`, `BigInt`, or class instances you need back) and at most 64 KB as JSON. A key is 1–256 characters. Breaking either throws a `ZaileysStoreError`: `STORE_VALUE_TOO_LARGE` or `STORE_INVALID_INPUT`.
+- **Outside a command.** `client.session(jid)` returns the same handle for any user JID or phone number, for example from a `message` listener or a scheduled job: `await client.session('628123456789').get('lang')`.
+
+A custom store without the [session methods](/reference/storage#session-values) still works: Zaileys keeps the values in memory, logs one warning naming the store, and forgets them on restart.
 
 ## Run a command from a caption
 
@@ -491,6 +533,8 @@ client.on('text', async (msg) => {
 | `ASK_CANCELLED` | The wait was replaced by a newer one for the same person and chat, its `signal` aborted, or the client disconnected. Ends a command quietly. | Nothing to fix. Catch it if you need to clean up. |
 | `ASK_LIMIT` | 1,000 waits were already pending on this client. | Use shorter timeouts so waits finish sooner. |
 | `INVALID_OPTIONS` | `waitForMessage()` got a `chat` or `from` that isn't a JID, or a `timeout` that isn't a positive number. | The message names the option and the value it got. |
+| `STORE_VALUE_TOO_LARGE` | `ctx.session.set()` got a value over 64 KB as JSON. | Save less, such as an ID instead of the whole object. |
+| `STORE_INVALID_INPUT` | A session key was empty or over 256 characters, the value isn't JSON, or `ttl` isn't a positive number. | Fix the key, value, or `ttl` named in the message. |
 
 Check the code on a caught error:
 

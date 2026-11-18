@@ -1,4 +1,4 @@
-import { jidNormalizedUser, type WAContextInfo, type WAMessage, type WAMessageKey } from 'baileys'
+import type { WAContextInfo, WAMessage, WAMessageKey } from 'baileys'
 import type { TextOptions } from '../../builder/builder.js'
 import {
   buildMessageContext,
@@ -20,6 +20,7 @@ import {
   extractQuoted,
   extractSender,
   isGroupJid,
+  normalizedUserJid,
   safeNumber,
   unwrap,
 } from './_shared.js'
@@ -695,7 +696,7 @@ export const rawMentionsOf = (msg: WAMessage): string[] =>
 
 const normalizeJid = (jid: string): string => {
   try {
-    return jidNormalizedUser(jid)
+    return normalizedUserJid(jid)
   } catch {
     return jid
   }
@@ -906,7 +907,7 @@ export const decodeSticker = (msg: WAMessage, ctx: DecodeContext): MessageContex
 
 const normalizedEquals = (a: string, b: string): boolean => {
   try {
-    return jidNormalizedUser(a) === jidNormalizedUser(b)
+    return normalizedUserJid(a) === normalizedUserJid(b)
   } catch {
     return a === b
   }

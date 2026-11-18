@@ -14,12 +14,16 @@ export {
   getDevice,
 } from 'baileys'
 
+const isPlainJid = (jid: string): boolean => jid.indexOf('@') >= 0 && jid.indexOf(':') < 0 && jid.indexOf('_') < 0
+
 /**
  * Same principal, same namespace. baileys' `areJidsSameUser` compares only the local part, so
  * `12345@lid` and `12345@s.whatsapp.net` collide there — two different address spaces that both
  * hold digits. Device suffixes (`:12`) are ignored, as they should be.
  */
 export const sameUser = (a: string, b: string): boolean => {
+  /** A jid with no device or agent decodes to exactly its own user and server, so equality settles it. */
+  if (isPlainJid(a) && isPlainJid(b)) return a === b && a.indexOf('@') > 0
   const left = jidDecode(a)
   const right = jidDecode(b)
   if (left === undefined || right === undefined) return false

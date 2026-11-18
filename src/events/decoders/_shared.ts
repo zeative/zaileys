@@ -19,9 +19,18 @@ export interface ExtractedMentions {
   mentionAll: boolean
 }
 
+/**
+ * `jidNormalizedUser` without the decode/encode round trip when it would return its input unchanged: a jid
+ * with no device (`:`), no agent (`_`) and no legacy `@c.us` server. Called many times per inbound message.
+ */
+export const normalizedUserJid = (jid: string): string =>
+  jid.indexOf('@') >= 0 && jid.indexOf(':') < 0 && jid.indexOf('_') < 0 && !jid.endsWith('@c.us')
+    ? jid
+    : jidNormalizedUser(jid)
+
 export const extractJid = (remoteJid: string | undefined | null): string | null => {
   if (typeof remoteJid !== 'string' || remoteJid.length === 0) return null
-  return jidNormalizedUser(remoteJid)
+  return normalizedUserJid(remoteJid)
 }
 
 const nonEmpty = (value: string | undefined | null): string | undefined =>

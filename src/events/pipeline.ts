@@ -46,8 +46,7 @@ import {
   rawMentionsOf,
   type DecodeContext,
 } from './decoders/messages.js'
-import { isLidJid } from './decoders/_shared.js'
-import { jidNormalizedUser } from 'baileys'
+import { isLidJid, normalizedUserJid } from './decoders/_shared.js'
 import {
   decodeDelete,
   decodeEdit,
@@ -210,7 +209,7 @@ export function attachInboundPipeline(
   const normLid = (jid: string | null | undefined): string | null => {
     if (typeof jid !== 'string' || jid.length === 0) return null
     let n: string
-    try { n = jidNormalizedUser(jid) } catch { n = jid }
+    try { n = normalizedUserJid(jid) } catch { n = jid }
     return isLidJid(n) ? n : null
   }
 
@@ -241,7 +240,7 @@ export function attachInboundPipeline(
         const pn = await raceTimeout(Promise.resolve(resolve(lid)), MENTION_RESOLVE_TIMEOUT_MS)
         if (pn == null || pn.length === 0) return null
         let normalized = pn
-        try { normalized = jidNormalizedUser(pn) } catch { normalized = pn }
+        try { normalized = normalizedUserJid(pn) } catch { normalized = pn }
         lidCache.set(lid, normalized)
         return normalized
       } catch (err) {

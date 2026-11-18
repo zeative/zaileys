@@ -1,6 +1,6 @@
-import { jidDecode, jidNormalizedUser, type WAMessage, type WAMessageKey } from 'baileys'
+import { jidDecode, type WAMessage, type WAMessageKey } from 'baileys'
 import { Readable } from 'node:stream'
-import { asRecord, GROUP_STATUS_FIELDS, isGroupJid, wrapperChainHas } from './decoders/_shared.js'
+import { asRecord, GROUP_STATUS_FIELDS, isGroupJid, normalizedUserJid, wrapperChainHas } from './decoders/_shared.js'
 import type { SenderInfo } from './types.js'
 import type { TextOptions } from '../builder/builder.js'
 import { matchesUser, sameUser } from '../utils/jid.js'
@@ -482,9 +482,9 @@ export const buildMessageContext = (input: BuildContextInput): MessageContext =>
     input.lidMap != null && jid.endsWith('@lid') ? (input.lidMap.get(jid) ?? jid) : jid
   const senderId = toPn(input.sender.pn ?? input.sender.jid)
   const roomId = isGroup
-    ? (remoteJid ? jidNormalizedUser(remoteJid) : null)
+    ? (remoteJid ? normalizedUserJid(remoteJid) : null)
     : input.key.fromMe === true && remoteJid
-      ? toPn(jidNormalizedUser(remoteJid))
+      ? toPn(normalizedUserJid(remoteJid))
       : senderId
 
   const ctx: MessageContext = {
@@ -493,7 +493,7 @@ export const buildMessageContext = (input: BuildContextInput): MessageContext =>
     channelId: input.channelId,
     chatId: input.key.id ?? '',
     chatType: input.chatType,
-    receiverId: input.receiverId ? toPn(jidNormalizedUser(input.receiverId)) : input.receiverId,
+    receiverId: input.receiverId ? toPn(normalizedUserJid(input.receiverId)) : input.receiverId,
     roomId,
     senderId,
     senderLid: input.sender.lid ?? null,

@@ -243,6 +243,15 @@ describe('Client.disconnect — graceful teardown', () => {
     expect(auth.__wipeCreds).toBe(0)
   })
 
+  it('overlapping disconnect() calls share one teardown instead of throwing', async () => {
+    const auth = memAuth()
+    const { c, sock } = await connectAndOpen(auth)
+    await expect(Promise.all([c.disconnect(), c.disconnect()])).resolves.toEqual([undefined, undefined])
+    expect(c.state).toBe('disconnected')
+    expect(sock.end).toHaveBeenCalledTimes(1)
+    expect(auth.__closeSignal).toBe(1)
+  })
+
   it('disconnect() completes within 2 seconds', async () => {
     const auth = memAuth()
     const { c } = await connectAndOpen(auth)

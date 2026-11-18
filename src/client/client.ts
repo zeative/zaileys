@@ -259,6 +259,8 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private readonly chatExpiration = new Map<string, number>()
   private _socket: BaileysSocket | undefined
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined
+  /** Lets overlapping `disconnect()` calls, including the library's own, share one teardown. */
+  private disconnectInflight: Promise<void> | undefined
   private listenerCleanup: SocketCleanup[] = []
   private inboundHandle: InboundPipelineHandle | undefined
   private connectResolve: (() => void) | undefined
@@ -721,7 +723,15 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
 
   async disconnect(): Promise<void> {
     if (this._provider === 'cloud') return this.disconnectCloud()
+    if (this.disconnectInflight) return this.disconnectInflight
     if (this.machine.state === 'idle' || this.machine.state === 'disconnected') return
+    this.disconnectInflight = this.teardown().finally(() => {
+      this.disconnectInflight = undefined
+    })
+    return this.disconnectInflight
+  }
+
+  private async teardown(): Promise<void> {
     this.machine.transition('disconnecting')
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)

@@ -90,6 +90,8 @@ describe('automation smoke roundtrip', () => {
           sent.push(jid)
           return { text: () => ({ then: (r: (v: unknown) => void) => r({ key: { id: jid } }) }) } as never
         },
+        now: () => 0,
+        sleep: async () => undefined,
       },
     )
     expect(result.sent).toHaveLength(2)

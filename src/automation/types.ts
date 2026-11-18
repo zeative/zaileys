@@ -19,6 +19,7 @@ export type TaskQueueOptions = {
 }
 
 export type BroadcastOptions = {
+  /** Sends per second, spaced evenly with no initial burst. Default 1. */
   rateLimitPerSec?: number
   retry?: RetryPolicy
   onProgress?: (done: number, total: number, jid: string, ok: boolean) => void

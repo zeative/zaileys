@@ -164,7 +164,7 @@ const result = await client.broadcast(recipients, (b) => b.text(text), {
 ```
 
 - `broadcast()` sends to one recipient at a time, in list order. Each person gets an ordinary one-to-one message — it doesn't create a WhatsApp broadcast list.
-- `rateLimitPerSec: 1` means one message per second, so 300 subscribers take about five minutes. The default is 5.
+- `rateLimitPerSec: 1` means one message per second, so 300 subscribers take about five minutes. This is also the default.
 - `retry` tries a failed send again after 5 seconds, then 10 seconds. Only then does it land in `result.failed`.
 - One failure never stops the rest, and `broadcast()` doesn't reject because of it — check `result.failed` instead.
 

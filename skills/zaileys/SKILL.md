@@ -132,7 +132,7 @@ Run one process per session: two processes on one session kick each other off.
 
 `authGuard` stops after 5 QR codes or 3 pairing codes, and `operationGuard` spaces out group, community, and
 channel operations. Both are on by default; `{ enabled: false }` is how login loops get numbers restricted.
-Send to many chats with `client.broadcast(jids, (b) => b.text('…'))`, which paces sends (5/s by default),
+Send to many chats with `client.broadcast(jids, (b) => b.text('…'))`, which paces sends (1/s by default),
 instead of a `for` loop over `client.send()`.
 
 ### The Cloud API is a different runtime

@@ -10,6 +10,8 @@ export type BroadcastDeps = {
   sleep?: (ms: number) => Promise<void>
 }
 
+const DEFAULT_BROADCAST_PER_SEC = 1
+
 const toError = (value: unknown): Error =>
   value instanceof Error ? value : new Error(typeof value === 'string' ? value : String(value))
 
@@ -24,11 +26,12 @@ export async function runBroadcast(
     return result
   }
 
-  const perSec = options.rateLimitPerSec ?? 5
+  const perSec = options.rateLimitPerSec ?? DEFAULT_BROADCAST_PER_SEC
   const clock: RateLimiterClock = {}
   if (deps.now) clock.now = deps.now
   if (deps.sleep) clock.sleep = deps.sleep
-  const limiter = deps.limiter ?? new RateLimiter({ perSec }, clock)
+  /** A burst of identical messages to many chats is what gets accounts restricted, so sends stay evenly spaced. */
+  const limiter = deps.limiter ?? new RateLimiter({ perSec, burst: 1 }, clock)
 
   const retry = options.retry
   const queueClock = deps.sleep ? { sleep: deps.sleep } : {}

@@ -370,7 +370,7 @@ WhatsApp watches for accounts that act like bots. Zaileys turns on these protect
 | Login budget | `authGuard` | On | Stops after 5 QR codes or 3 pairing codes ([above](#limit-login-attempts)). |
 | Group, community, and channel actions | `operationGuard` | On | Queues these actions and spaces them out. The call waits instead of failing. |
 | Presence updates | `presence` | On, 1 second | Drops a repeated typing, recording, or online update for the same chat within the window. |
-| Broadcasts | `rateLimitPerSec` on `broadcast()` | 5 per second | Paces bulk sends. See [Broadcast & schedule](/bots/broadcast-and-schedule). |
+| Broadcasts | `rateLimitPerSec` on `broadcast()` | 1 per second, evenly spaced | Paces bulk sends. See [Broadcast & schedule](/bots/broadcast-and-schedule). |
 | Scheduled messages | `scheduleRateLimitPerSec` | 1 per second | Paces a backlog of scheduled messages so they don't all go out at once. |
 
 It also connects without marking the account as online, so the bot doesn't appear online just because it's running.

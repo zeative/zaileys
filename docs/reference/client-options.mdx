@@ -193,6 +193,8 @@ Every field is optional. `new Client()` on its own connects to WhatsApp Web with
 
 The delay before attempt *n* is `initialDelayMs × 2^(n−1)`, randomized by ±`jitterFactor`, and never more than `maxDelayMs`. The attempt count resets after every successful connection.
 
+Every delay must be a finite number of milliseconds, `0` or more, and `jitterFactor` must be between `0` and `1`; otherwise `new Client()` throws a `RangeError` that names the option. Delays are capped at 2,147,483,647 ms (about 24.8 days), the longest wait Node's `setTimeout` honours — a larger value would otherwise fire after 1 ms and reconnect in a tight loop.
+
 `logged-out`, `connection-replaced`, and `forbidden` disconnects never reconnect. The one exception: a `logged-out` that arrives right after a successful connection is retried twice, 3 seconds apart, before the saved login is cleared — WhatsApp sometimes sends a false one.
 
 <ParamField body="reconnect.enabled" type="boolean" default="true">

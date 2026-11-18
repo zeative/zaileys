@@ -310,3 +310,48 @@ describe('createReconnectStrategy — restart-required fast path', () => {
     expect(s.next('connection-lost')).toEqual({ attempt: 1, delayMs: 1000 })
   })
 })
+
+describe('createReconnectStrategy — Node timer ceiling', () => {
+  const TIMER_MAX = 2_147_483_647
+
+  it('caps an exponential delay at the Node setTimeout maximum when maxDelayMs exceeds it', () => {
+    const s = createReconnectStrategy({ initialDelayMs: 1_000_000_000, maxDelayMs: 10_000_000_000, jitterFactor: 0 })
+    s.next('connection-lost')
+    s.next('connection-lost')
+    expect(s.next('connection-lost')?.delayMs).toBe(TIMER_MAX)
+  })
+
+  it('caps rateLimitedDelayMs at the Node setTimeout maximum', () => {
+    const s = createReconnectStrategy({ rateLimitedDelayMs: 3_000_000_000 })
+    expect(s.next('rate-limited')?.delayMs).toBe(TIMER_MAX)
+  })
+
+  it('caps an initialDelayMs above the Node maximum when it is also the cap', () => {
+    const s = createReconnectStrategy({ initialDelayMs: 5_000_000_000, maxDelayMs: 5_000_000_000, jitterFactor: 0 })
+    expect(s.next('connection-lost')?.delayMs).toBe(TIMER_MAX)
+  })
+})
+
+describe('createReconnectStrategy — option validation', () => {
+  const bad = [Number.NaN, -1, Number.POSITIVE_INFINITY]
+  for (const key of ['initialDelayMs', 'maxDelayMs', 'rateLimitedDelayMs'] as const) {
+    for (const value of bad) {
+      it(`throws RangeError naming reconnect.${key} when it is ${value}`, () => {
+        expect(() => createReconnectStrategy({ [key]: value })).toThrowError(RangeError)
+        expect(() => createReconnectStrategy({ [key]: value })).toThrowError(`reconnect.${key}`)
+      })
+    }
+  }
+
+  for (const value of [Number.NaN, -0.1, 1.5]) {
+    it(`throws RangeError naming reconnect.jitterFactor when it is ${value}`, () => {
+      expect(() => createReconnectStrategy({ jitterFactor: value })).toThrowError(RangeError)
+      expect(() => createReconnectStrategy({ jitterFactor: value })).toThrowError('reconnect.jitterFactor')
+    })
+  }
+
+  it('accepts zero delays and a zero jitter factor', () => {
+    const s = createReconnectStrategy({ initialDelayMs: 0, maxDelayMs: 0, rateLimitedDelayMs: 0, jitterFactor: 0 })
+    expect(s.next('connection-lost')).toEqual({ attempt: 1, delayMs: 0 })
+  })
+})

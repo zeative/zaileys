@@ -191,6 +191,7 @@ Not zaileys classes — match on `message`.
 | `unknown` | anything else | Yes; `willReconnect: false` when you called `disconnect()` | Kept |
 
 - Nothing reconnects when `reconnect.enabled` is `false`, `reconnect.maxAttempts` is used up, or `authGuard` already stopped the client.
+- `new Client()` throws a `RangeError` naming the option when a `reconnect` delay is negative or non-finite, or `jitterFactor` is outside 0 to 1. Delays above 2^31-1 ms (about 24.8 days) are capped there, because Node fires a longer `setTimeout` after 1 ms.
 - Erasing is `quarantineCreds()` (the file store copies `creds.json` to `creds.revoked-<timestamp>.json`) followed by clearing signal keys and credentials. The backup is best effort: signal keys are gone, so restoring it rarely revives a session.
 - `session: { clearAuthOn: [...] }` replaces the erase set (default `['logged-out']`). It doesn't change reconnecting: `clearAuthOn: ['bad-session']` erases and then reconnects into a new QR.
 - `client.logout()` always backs up and erases; `client.disconnect()` never erases.

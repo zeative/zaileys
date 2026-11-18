@@ -110,7 +110,7 @@ In the current release, these features depend on the WhatsApp Web connection. On
 | Plugins | Never loaded | Register the handlers directly in your code |
 | `client.broadcast()` | Throws `INVALID_OPTIONS` with `client not connected` | Loop over the recipients with `client.send()` (example below), or `client.sendTemplate()` for people outside the 24-hour window |
 | `client.scheduleAt()` | The message is saved, but the send fails when it's due | Call `client.send()` from your own scheduler, such as a cron job or a queue |
-| Auto-delete | Never starts | Old messages stay in the message store until you remove them |
+| Auto-delete | Never starts | Old messages stay in the message store until you remove them. The default memory store still keeps only the latest 10,000 |
 | `client.forward()` | Throws `INVALID_OPTIONS` with `client not connected` | Send the content again with `client.send()` |
 
 Answer commands from a `text` handler:

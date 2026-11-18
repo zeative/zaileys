@@ -60,8 +60,8 @@ The bot now survives restarts and redeploys without a new QR code, and remembers
 <ParamField body="auth" type="AuthStoreBundle" default="files in ./.zaileys/auth/<sessionId>">
   Where the login and encryption keys are saved. Auth stores exist for files, SQLite, Redis, Postgres, and Convex.
 </ParamField>
-<ParamField body="store" type="MessageStore" default="in memory">
-  Where messages, chats, and contacts are kept. `msg.replied()`, `client.forward()`, poll results, and scheduled messages read from it. Message stores exist for memory, SQLite, Redis, Postgres, and Convex — there's no file message store.
+<ParamField body="store" type="MessageStore" default="in memory, latest 10,000 messages">
+  Where messages, chats, contacts, and per-user `ctx.session` values are kept. `msg.replied()`, `client.forward()`, poll results, and scheduled messages read from it. Message stores exist for memory, SQLite, Redis, Postgres, and Convex — there's no file message store.
 </ParamField>
 <ParamField body="cacheSignal" type="boolean" default="true">
   Keep encryption keys in memory in front of `auth`, so the store isn't read on every message. Turn it off only if your adapter already caches.
@@ -621,7 +621,7 @@ const client = new Client({
 | `cloud` | — | [Run on the Cloud API](#run-on-the-cloud-api) |
 | `sessionId` | `'default'` | [Run several numbers](#run-several-numbers) |
 | `auth` | files in `./.zaileys/auth/<sessionId>` | [Keep sessions in a database](#keep-sessions-in-a-database) |
-| `store` | in memory | [Keep sessions in a database](#keep-sessions-in-a-database) |
+| `store` | in memory, latest 10,000 messages | [Keep sessions in a database](#keep-sessions-in-a-database) |
 | `cacheSignal` | `true` | [Keep sessions in a database](#keep-sessions-in-a-database) |
 | `authType` | `'qr'` | [Log in with a pairing code](#log-in-with-a-pairing-code) |
 | `phoneNumber` | — | [Log in with a pairing code](#log-in-with-a-pairing-code) |

@@ -39,7 +39,7 @@ const client = new Client({
   Where the <Term id="session" /> — login credentials and encryption keys — is kept. Not used on the Cloud API.
 </ParamField>
 <ParamField body="store" type="MessageStore" default="new MemoryMessageStore()">
-  Where messages, chats, contacts, and presence are kept. Read it back through `client.store`.
+  Where messages, chats, contacts, presence, and [session values](#session-values) are kept. Read it back through `client.store`.
 </ParamField>
 <ParamField body="cacheSignal" type="boolean" default="true">
   Wraps the auth store's key reads and writes in Baileys' in-memory cache (`makeCacheableAuthStore`), so a database store isn't queried for every encrypted message. Set `false` to talk to the store directly.

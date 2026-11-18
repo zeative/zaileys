@@ -291,7 +291,7 @@ Prefer no routing code? Create one Meta app per number instead, each with its ow
 
 ## Plan resources
 
-- **Memory grows with each account.** Every connected client keeps its own connection, key cache, and message store. With the default memory message store, history grows until [auto-delete](/bots/auto-delete) removes messages older than 30 days. With many accounts, use a database message store — see [Storage](/data/storage).
+- **Memory grows with each account.** Every connected client keeps its own connection, key cache, and message store. With the default memory message store, each client keeps up to 10,000 messages (about 40 MB), and [auto-delete](/bots/auto-delete) removes messages older than 30 days. With many accounts, use a database message store — see [Storage](/data/storage).
 - **Limits are per number.** WhatsApp's rate limits and ban risk apply to each number separately, and `broadcast()` rate-limits per client. Ten accounts broadcasting at once are ten numbers at risk. Keep a risky outreach number apart from your main support number.
 - **One process or several?** One process is simplest, but one crash stops every account. Running a process per account (with PM2, systemd, or one container each) isolates them, at the cost of more to deploy. Either way, keep each account's storage separate.
 

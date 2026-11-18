@@ -130,7 +130,7 @@ Cleanup never keeps your process running on its own, and it skips a run if the p
     No. It only removes Zaileys' local copy. Everyone in the chat still sees every message.
   </Accordion>
   <Accordion title="My bot's memory keeps growing. Will this help?">
-    With the default in-memory store, the bot holds up to 30 days of messages. Lower `maxAgeMs`, set `maxPerChat`, or move to a database store — see [Storage](/data/storage).
+    With the default in-memory store, the bot holds up to 30 days of messages, and never more than the latest 10,000 (about 40 MB). Lower `maxAgeMs`, set `maxPerChat`, or move to a database store — see [Storage](/data/storage).
   </Accordion>
   <Accordion title="Is anything deleted the moment the bot starts?">
     No. The first cleanup runs one `intervalMs` (60 seconds by default) after the connection opens.

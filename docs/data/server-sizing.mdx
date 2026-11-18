@@ -34,7 +34,7 @@ A bot handling text settles at **50–65 MB** of resident memory and stays there
 
 ### Message history
 
-The default `MemoryMessageStore` keeps every stored message in the bot's own memory for 30 days, so its size follows your traffic. `SqliteMessageStore` keeps the same history on disk, and the bot's memory stays flat no matter how much history piles up. On any server with 512 MB or less, keep history on disk:
+The default `MemoryMessageStore` keeps up to the latest 10,000 stored messages in the bot's own memory — about 40 MB — and drops the oldest first. `SqliteMessageStore` keeps the same history on disk, and the bot's memory stays flat no matter how much history piles up. On any server with 512 MB or less, keep history on disk:
 
 ```ts bot.ts
 import { Client, SqliteAuthStore, SqliteMessageStore } from 'zaileys'

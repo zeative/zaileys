@@ -17,9 +17,9 @@ Zaileys saves two things for you: the WhatsApp login, so a restart doesn't ask f
 |  | Auth store | Message store |
 | --- | --- | --- |
 | Client option | `auth` | `store` |
-| What it holds | The <Term id="session" />: login credentials and encryption keys | Messages, chats, contacts, and presence |
+| What it holds | The <Term id="session" />: login credentials and encryption keys | Messages, chats, contacts, presence, and per-user [session values](/reference/storage#session-values) |
 | When it's written | When you link the device, and whenever WhatsApp rotates keys | As messages and chat updates arrive |
-| Default | `FileAuthStore`, in `./.zaileys/auth/<sessionId>` | `MemoryMessageStore` — emptied on every restart |
+| Default | `FileAuthStore`, in `./.zaileys/auth/<sessionId>` | `MemoryMessageStore` — the latest 10,000 messages, emptied on every restart |
 | If you lose it | You scan a new QR code | Older messages can't be forwarded or looked up |
 
 This is what `new Client()` uses when you pass nothing:
@@ -59,7 +59,7 @@ The two are independent: pair any auth store with any message store. Zaileys rea
 There is no file-based message store. The database packages are optional: Zaileys loads one the first time its store is used, so a missing package fails with `STORE_NOT_AVAILABLE` when the client connects — never at install time.
 
 <Note>
-  **On a small server, keep message history out of RAM.** The default `MemoryMessageStore` holds every stored message in the bot's own memory, for 30 days unless you change it — and a busy bot's history grows with every message it receives. `SqliteMessageStore` keeps the same history on disk: one extra package, no database server to run. If you stay on the memory store, shorten the window with [`autoDelete.maxAgeMs`](#prune-old-messages-automatically).
+  **On a small server, keep message history out of RAM.** The default `MemoryMessageStore` holds up to the latest 10,000 messages in the bot's own memory — about 40 MB — and drops the oldest first. `SqliteMessageStore` keeps the same history on disk: one extra package, no database server to run. If you stay on the memory store, lower `maxMessages` ([options](/reference/storage#memorymessagestore)) or shorten the window with [`autoDelete.maxAgeMs`](#prune-old-messages-automatically).
 </Note>
 
 ## Set up an adapter
@@ -95,7 +95,7 @@ There is no file-based message store. The database packages are optional: Zailey
   </Tab>
   <Tab title="Memory">
 
-    Everything stays in memory and disappears when the process exits. Nothing to install, no options.
+    Everything stays in memory and disappears when the process exits. Nothing to install. `MemoryMessageStore` keeps the latest 10,000 messages; its options are in the [Storage reference](/reference/storage#memorymessagestore).
 
     ```ts bot.ts
     import { Client, MemoryAuthStore, MemoryMessageStore } from 'zaileys'

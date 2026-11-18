@@ -40,7 +40,7 @@ Where memory goes:
 | Consumer | Cost | Lever |
 | --- | --- | --- |
 | Idle text bot | 50–65 MB RSS, flat | — |
-| `MemoryMessageStore` (the default) | Grows with traffic for 30 days | `SqliteMessageStore` keeps RSS flat; or lower `autoDelete.maxAgeMs` |
+| `MemoryMessageStore` (the default) | Up to ~40 MB: the latest 10 000 messages, oldest dropped first | `SqliteMessageStore` keeps RSS flat; or lower `maxMessages` or `autoDelete.maxAgeMs` |
 | Video re-encode (`new Media(file).video.toMp4()`) | ~121 MB at 720p, ~235 MB at 1080p, per job, independent of length | `media.maxConcurrentFfmpeg` |
 | Video thumbnail / `send().audio()` (always transcoded to Opus) | ~51–89 MB / ~18 MB | same |
 | `sharp` | ~70 MB once when loaded; full-resolution JPEG of a 48 MP photo +305 MB | `media.maxImagePixels` |

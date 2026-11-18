@@ -104,7 +104,7 @@ Every field is optional. `new Client()` on its own connects to WhatsApp Web with
 | [`session`](#session) | `SessionSafetyOptions` | only a logout deletes the session | WhatsApp Web |
 | [`watchdog`](#watchdog) | `boolean \| WatchdogOptions` | off | WhatsApp Web |
 | [`auth`](#storage) | `AuthStoreBundle` | files in `./.zaileys/auth/<sessionId>` | WhatsApp Web |
-| [`store`](#storage) | `MessageStore` | `MemoryMessageStore` | Both |
+| [`store`](#storage) | `MessageStore` | `MemoryMessageStore`, latest 10,000 messages | Both |
 | [`cacheSignal`](#storage) | `boolean` | `true` | WhatsApp Web |
 | [`ignoreMe`](#incoming-messages-and-commands) | `boolean` | `true` | Both |
 | [`commandPrefix`](#incoming-messages-and-commands) | `string \| string[]` | none — commands off | WhatsApp Web |
@@ -263,7 +263,7 @@ client.on('reconnecting', ({ attempt, delayMs, reason }) => {
 </ParamField>
 
 <ParamField body="store" type="MessageStore" default="new MemoryMessageStore()">
-  Where messages, chats, contacts, and — when the adapter supports it — scheduled messages are kept. Zaileys reads it to resolve quoted messages, resend a message WhatsApp asks for again, `forward()`, and `downloadMedia()`. The default lives in memory and is empty after a restart. Adapters: `memory`, `sqlite`, `redis`, `postgres`, `convex`. Both providers. [Storage](/data/storage)
+  Where messages, chats, contacts, [session values](/reference/storage#session-values) for `ctx.session`, and — when the adapter supports it — scheduled messages are kept. Zaileys reads it to resolve quoted messages, resend a message WhatsApp asks for again, `forward()`, and `downloadMedia()`. The default lives in memory, keeps the latest 10,000 messages, and is empty after a restart. Adapters: `memory`, `sqlite`, `redis`, `postgres`, `convex`. Both providers. [Storage](/data/storage)
 </ParamField>
 
 <ParamField body="cacheSignal" type="boolean" default="true">

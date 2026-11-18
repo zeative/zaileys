@@ -75,8 +75,8 @@ Each customer gets an ordinary one-to-one message from your number. `broadcast()
 <ParamField body="build" type="(b: MessageBuilder) => MessageBuilder" required>
   Sets the content on a builder that's already addressed to one recipient. Return the builder, like `(b) => b.text('Hello')`.
 </ParamField>
-<ParamField body="rateLimitPerSec" type="number" default="5">
-  The most sends per second. The first `rateLimitPerSec` sends go out at once, then they settle into a steady pace. Must be above 0, or the call rejects with `RATE_LIMIT_INVALID`.
+<ParamField body="rateLimitPerSec" type="number" default="1">
+  Sends per second, spaced evenly: at `2`, one message goes out every 500 ms, starting with the first. Must be above 0, or the call rejects with `RATE_LIMIT_INVALID`.
 </ParamField>
 <ParamField body="retry" type="{ maxRetries: number; backoffMs: (attempt: number) => number }">
   Retries each failed send up to `maxRetries` times, waiting `backoffMs(attempt)` milliseconds before each try. `attempt` starts at 1. No retries by default.

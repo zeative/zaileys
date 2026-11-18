@@ -124,7 +124,7 @@ describe('Client automation — presence', () => {
 describe('Client automation — broadcast', () => {
   it('sends to every jid and reports them as sent', async () => {
     const { client, sock } = await connected()
-    const result = await client.broadcast([A, B], (b) => b.text('hi'))
+    const result = await client.broadcast([A, B], (b) => b.text('hi'), { rateLimitPerSec: 1000 })
     expect(sock.sendMessage).toHaveBeenCalledTimes(2)
     expect(result.sent).toHaveLength(2)
     expect(result.failed).toHaveLength(0)
@@ -136,7 +136,7 @@ describe('Client automation — broadcast', () => {
       if (jid === B) throw new Error('blocked')
       return { key: { remoteJid: jid, id: 'x', fromMe: true } }
     })
-    const result = await client.broadcast([A, B], (b) => b.text('hi'))
+    const result = await client.broadcast([A, B], (b) => b.text('hi'), { rateLimitPerSec: 1000 })
     expect(result.sent).toEqual([A])
     expect(result.failed).toHaveLength(1)
     expect(result.failed[0]?.jid).toBe(B)
@@ -145,7 +145,7 @@ describe('Client automation — broadcast', () => {
   it('reports progress per recipient', async () => {
     const { client } = await connected()
     const onProgress = vi.fn()
-    await client.broadcast([A, B], (b) => b.text('hi'), { onProgress })
+    await client.broadcast([A, B], (b) => b.text('hi'), { onProgress, rateLimitPerSec: 1000 })
     expect(onProgress).toHaveBeenCalledTimes(2)
   })
 

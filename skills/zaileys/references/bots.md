@@ -202,8 +202,8 @@ access — load only trusted files. Details: https://zaileys.kejaa.id/bots/plugi
 ## Broadcast
 
 `client.broadcast(jids, build, { rateLimitPerSec, retry, onProgress })` sends one-to-one messages (not a
-WhatsApp broadcast list) sequentially through a token bucket: the first `rateLimitPerSec` (default 5) go at once,
-then one per `1/rate` s.
+WhatsApp broadcast list) sequentially, evenly spaced at one per `1/rateLimitPerSec` s (default 1/s), with no
+initial burst.
 
 ```ts
 const recipients = ['6281111111111@s.whatsapp.net', '120363041234567890@g.us']

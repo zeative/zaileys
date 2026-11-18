@@ -22,6 +22,9 @@ const flush = async (): Promise<void> => {
   }
 }
 
+/** Lets outcome tests skip real pacing; the pacing tests drive their own clock. */
+const instantClock = { now: () => 0, sleep: async (): Promise<void> => undefined }
+
 const sendToFor = (outcomeFor: (jid: string, call: number) => SendOutcome) => {
   const calls: string[] = []
   const counts = new Map<string, number>()
@@ -44,7 +47,7 @@ const allOk = (): SendOutcome => ({ ok: true })
 describe('runBroadcast basic outcomes', () => {
   it('returns empty result for empty jids without invoking sendTo', async () => {
     const { sendTo, build, calls } = sendToFor(allOk)
-    const result = await runBroadcast([], build, { sendTo })
+    const result = await runBroadcast([], build, { sendTo, ...instantClock })
     expect(result).toEqual({ sent: [], failed: [] })
     expect(calls).toHaveLength(0)
   })
@@ -52,7 +55,7 @@ describe('runBroadcast basic outcomes', () => {
   it('sends to every jid on the happy path', async () => {
     const jids = ['a@s.whatsapp.net', 'b@s.whatsapp.net', 'c@s.whatsapp.net']
     const { sendTo, build } = sendToFor(allOk)
-    const result = await runBroadcast(jids, build, { sendTo })
+    const result = await runBroadcast(jids, build, { sendTo, ...instantClock })
     expect(result.sent).toEqual(jids)
     expect(result.failed).toEqual([])
   })
@@ -62,21 +65,21 @@ describe('runBroadcast basic outcomes', () => {
     const { sendTo, build } = sendToFor((jid) =>
       jid === 'j3@s.whatsapp.net' ? { ok: false, error: new Error('x') } : { ok: true },
     )
-    const result = await runBroadcast(jids, build, { sendTo })
+    const result = await runBroadcast(jids, build, { sendTo, ...instantClock })
     expect(result.sent.length + result.failed.length).toBe(jids.length)
   })
 
   it('calls sendTo once per jid with a fresh builder', async () => {
     const jids = ['a@s.whatsapp.net', 'b@s.whatsapp.net']
     const { sendTo, build, calls } = sendToFor(allOk)
-    await runBroadcast(jids, build, { sendTo })
+    await runBroadcast(jids, build, { sendTo, ...instantClock })
     expect(calls).toEqual(jids)
   })
 
   it('preserves jid order in the sent array', async () => {
     const jids = ['z@s.whatsapp.net', 'a@s.whatsapp.net', 'm@s.whatsapp.net']
     const { sendTo, build } = sendToFor(allOk)
-    const result = await runBroadcast(jids, build, { sendTo })
+    const result = await runBroadcast(jids, build, { sendTo, ...instantClock })
     expect(result.sent).toEqual(jids)
   })
 })
@@ -87,7 +90,7 @@ describe('runBroadcast failure isolation', () => {
     const { sendTo, build } = sendToFor((jid) =>
       jid === 'j2@s.whatsapp.net' ? { ok: false, error: new Error('boom') } : { ok: true },
     )
-    const result = await runBroadcast(jids, build, { sendTo })
+    const result = await runBroadcast(jids, build, { sendTo, ...instantClock })
     expect(result.sent).toEqual(['j0@s.whatsapp.net', 'j1@s.whatsapp.net', 'j3@s.whatsapp.net', 'j4@s.whatsapp.net'])
     expect(result.failed).toEqual([{ jid: 'j2@s.whatsapp.net', error: expect.any(Error) }])
   })
@@ -95,21 +98,21 @@ describe('runBroadcast failure isolation', () => {
   it('records the exact error per failed recipient', async () => {
     const err = new Error('specific-cause')
     const { sendTo, build } = sendToFor(() => ({ ok: false, error: err }))
-    const result = await runBroadcast(['a@s.whatsapp.net'], build, { sendTo })
+    const result = await runBroadcast(['a@s.whatsapp.net'], build, { sendTo, ...instantClock })
     expect(result.failed[0]!.error).toBe(err)
   })
 
   it('does not throw when all recipients fail', async () => {
     const jids = ['a@s.whatsapp.net', 'b@s.whatsapp.net']
     const { sendTo, build } = sendToFor(() => ({ ok: false, error: new Error('all') }))
-    const result = await runBroadcast(jids, build, { sendTo })
+    const result = await runBroadcast(jids, build, { sendTo, ...instantClock })
     expect(result.sent).toEqual([])
     expect(result.failed.map((f) => f.jid)).toEqual(jids)
   })
 
   it('normalises a non-Error rejection into an Error', async () => {
     const { sendTo, build } = sendToFor(() => ({ ok: false, error: 'string-reason' as unknown as Error }))
-    const result = await runBroadcast(['a@s.whatsapp.net'], build, { sendTo })
+    const result = await runBroadcast(['a@s.whatsapp.net'], build, { sendTo, ...instantClock })
     expect(result.failed[0]!.error).toBeInstanceOf(Error)
     expect(result.failed[0]!.error.message).toBe('string-reason')
   })
@@ -120,7 +123,7 @@ describe('runBroadcast progress callback', () => {
     const jids = Array.from({ length: 4 }, (_, i) => `j${i}@s.whatsapp.net`)
     const { sendTo, build } = sendToFor(allOk)
     const calls: Array<[number, number, string, boolean]> = []
-    await runBroadcast(jids, build, { sendTo }, { onProgress: (d, t, j, ok) => calls.push([d, t, j, ok]) })
+    await runBroadcast(jids, build, { sendTo, ...instantClock }, { onProgress: (d, t, j, ok) => calls.push([d, t, j, ok]) })
     expect(calls).toHaveLength(4)
   })
 
@@ -128,7 +131,7 @@ describe('runBroadcast progress callback', () => {
     const jids = Array.from({ length: 3 }, (_, i) => `j${i}@s.whatsapp.net`)
     const { sendTo, build } = sendToFor(allOk)
     const calls: Array<[number, number, string, boolean]> = []
-    await runBroadcast(jids, build, { sendTo }, { onProgress: (d, t, j, ok) => calls.push([d, t, j, ok]) })
+    await runBroadcast(jids, build, { sendTo, ...instantClock }, { onProgress: (d, t, j, ok) => calls.push([d, t, j, ok]) })
     expect(calls.map((c) => c[0])).toEqual([1, 2, 3])
     expect(calls.every((c) => c[1] === 3)).toBe(true)
   })
@@ -139,7 +142,7 @@ describe('runBroadcast progress callback', () => {
       jid === 'b@s.whatsapp.net' ? { ok: false, error: new Error('x') } : { ok: true },
     )
     const flags: boolean[] = []
-    await runBroadcast(jids, build, { sendTo }, { onProgress: (_d, _t, _j, ok) => flags.push(ok) })
+    await runBroadcast(jids, build, { sendTo, ...instantClock }, { onProgress: (_d, _t, _j, ok) => flags.push(ok) })
     expect(flags).toEqual([true, false, true])
   })
 
@@ -147,13 +150,13 @@ describe('runBroadcast progress callback', () => {
     const jids = ['a@s.whatsapp.net', 'b@s.whatsapp.net']
     const { sendTo, build } = sendToFor(allOk)
     const seen: string[] = []
-    await runBroadcast(jids, build, { sendTo }, { onProgress: (_d, _t, jid) => seen.push(jid) })
+    await runBroadcast(jids, build, { sendTo, ...instantClock }, { onProgress: (_d, _t, jid) => seen.push(jid) })
     expect(seen).toEqual(jids)
   })
 
   it('tolerates a missing onProgress callback', async () => {
     const { sendTo, build } = sendToFor(allOk)
-    await expect(runBroadcast(['a@s.whatsapp.net'], build, { sendTo })).resolves.toBeDefined()
+    await expect(runBroadcast(['a@s.whatsapp.net'], build, { sendTo, ...instantClock })).resolves.toBeDefined()
   })
 })
 
@@ -197,7 +200,7 @@ describe('runBroadcast retry integration', () => {
   it('performs exactly one attempt with no retry policy', async () => {
     vi.useRealTimers()
     const { sendTo, build, counts } = sendToFor(() => ({ ok: false, error: new Error('once') }))
-    const result = await runBroadcast(['a@s.whatsapp.net'], build, { sendTo })
+    const result = await runBroadcast(['a@s.whatsapp.net'], build, { sendTo, ...instantClock })
     expect(result.failed).toHaveLength(1)
     expect(counts.get('a@s.whatsapp.net')).toBe(1)
   })
@@ -259,10 +262,14 @@ describe('runBroadcast rate-limit pacing', () => {
     expect(nowMs).toBeGreaterThan(0)
   })
 
-  it('defaults to 5/sec when rateLimitPerSec is omitted', async () => {
+  it('defaults to one send per second with no initial burst', async () => {
     const jids = Array.from({ length: 6 }, (_, i) => `j${i}@s.whatsapp.net`)
     let nowMs = 0
-    const { sendTo, build } = sendToFor(allOk)
+    const sentAt: number[] = []
+    const { sendTo, build } = sendToFor(() => {
+      sentAt.push(nowMs)
+      return { ok: true }
+    })
     const promise = runBroadcast(jids, build, {
       sendTo,
       now: () => nowMs,
@@ -273,7 +280,26 @@ describe('runBroadcast rate-limit pacing', () => {
     await vi.runAllTimersAsync()
     const result = await promise
     expect(result.sent).toHaveLength(6)
-    expect(nowMs).toBeGreaterThan(0)
+    expect(sentAt).toEqual([0, 1000, 2000, 3000, 4000, 5000])
+  })
+
+  it('paces an explicit rateLimitPerSec evenly instead of bursting the first sends', async () => {
+    const jids = Array.from({ length: 3 }, (_, i) => `j${i}@s.whatsapp.net`)
+    let nowMs = 0
+    const sentAt: number[] = []
+    const { sendTo, build } = sendToFor(() => {
+      sentAt.push(nowMs)
+      return { ok: true }
+    })
+    const promise = runBroadcast(
+      jids,
+      build,
+      { sendTo, now: () => nowMs, sleep: async (ms) => { nowMs += ms } },
+      { rateLimitPerSec: 4 },
+    )
+    await vi.runAllTimersAsync()
+    await promise
+    expect(sentAt).toEqual([0, 250, 500])
   })
 })
 

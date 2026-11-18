@@ -251,7 +251,7 @@ describe('SC#4 — broadcast pacing + progress + retry + outcomes (AUTO-01, AUTO
   it('reaches every recipient and reports per-recipient outcomes', async () => {
     const { client, sock } = await connected()
     const targets = jids(20)
-    const result = await client.broadcast(targets, (b) => b.text('hi'))
+    const result = await client.broadcast(targets, (b) => b.text('hi'), { rateLimitPerSec: 1000 })
     expect(sock.sendMessage).toHaveBeenCalledTimes(20)
     expect(result.sent).toHaveLength(20)
     expect(result.failed).toHaveLength(0)
@@ -260,7 +260,7 @@ describe('SC#4 — broadcast pacing + progress + retry + outcomes (AUTO-01, AUTO
   it('fires the progress callback once per recipient', async () => {
     const { client } = await connected()
     const onProgress = vi.fn()
-    await client.broadcast(jids(20), (b) => b.text('hi'), { onProgress })
+    await client.broadcast(jids(20), (b) => b.text('hi'), { onProgress, rateLimitPerSec: 1000 })
     expect(onProgress).toHaveBeenCalledTimes(20)
   })
 
@@ -283,7 +283,7 @@ describe('SC#4 — broadcast pacing + progress + retry + outcomes (AUTO-01, AUTO
       if (jid === 'u1@s.whatsapp.net') throw new Error('blocked')
       return { key: { remoteJid: jid, id: 'x', fromMe: true } }
     })
-    const result = await client.broadcast(targets, (b) => b.text('hi'))
+    const result = await client.broadcast(targets, (b) => b.text('hi'), { rateLimitPerSec: 1000 })
     expect(result.failed).toHaveLength(1)
     expect(result.failed[0]?.jid).toBe('u1@s.whatsapp.net')
     expect(result.sent).toHaveLength(19)

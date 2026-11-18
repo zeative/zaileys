@@ -171,6 +171,20 @@ describe('Client — non-fatal disconnect schedules reconnect', () => {
     await c.disconnect()
   })
 
+  it('serves group metadata to the socket from a cache that group events invalidate', async () => {
+    const { c, sock } = await connectAndOpen(memAuth())
+    const config = makeWASocketMock.mock.calls[0]![0] as { cachedGroupMetadata: (jid: string) => Promise<unknown> }
+    await config.cachedGroupMetadata('g@g.us')
+    await config.cachedGroupMetadata('g@g.us')
+    expect(sock.groupMetadata).toHaveBeenCalledTimes(1)
+    sock.ev.emit('group-participants.update', { id: 'g@g.us', participants: [], action: 'add' })
+    await config.cachedGroupMetadata('g@g.us')
+    sock.ev.emit('groups.update', [{ id: 'g@g.us', subject: 'renamed' }])
+    await config.cachedGroupMetadata('g@g.us')
+    expect(sock.groupMetadata).toHaveBeenCalledTimes(3)
+    await c.disconnect()
+  })
+
   it('reconnect.maxAttempts caps retries', async () => {
     vi.useFakeTimers()
     const auth = memAuth()

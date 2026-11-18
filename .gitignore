@@ -64,3 +64,6 @@ docs/search-index.json
 # claude plugin eval run output
 /evals/results/
 /.eval-deps/
+
+# Local agent worktrees
+.claude/worktrees/

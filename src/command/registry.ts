@@ -1,4 +1,5 @@
 import { ZaileysCommandError } from './errors.js'
+import { CooldownTracker } from './guards.js'
 import type {
   CommandDefinition,
   CommandGuards,
@@ -42,6 +43,8 @@ const metaOf = (spec: CommandSpec): CommandMeta & CommandGuards => {
 }
 
 export class CommandRegistry {
+  /** Cooldowns of the commands in this registry, kept apart from every other registry's. */
+  readonly cooldowns = new CooldownTracker()
   private readonly paths = new Map<string, CommandDefinition>()
   private readonly defs: CommandDefinition[] = []
   private maxDepth = 1

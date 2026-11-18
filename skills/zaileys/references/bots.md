@@ -57,7 +57,7 @@ client.command(
 | --- | --- |
 | `group` / `private` | Checked first; blocked as `group-only` / `private-only` |
 | `admin` | Implies `group`. Fetches the group's metadata on **every** run (no cache) and compares the sender namespace-aware; a failed lookup counts as not admin. It checks the sender, not the bot |
-| `cooldown` (seconds) | Per command per sender, in a process-wide LRU (10 000 entries, 1-hour TTL): lost on restart, and anything above 3600 s effectively caps at an hour |
+| `cooldown` (seconds) | Per command per sender, in an LRU each client owns (10 000 entries, each kept for its own cooldown): two clients never share it, a long cooldown such as 86 400 s holds for the full day, and a restart clears it |
 
 Guards run before middleware. `client.commands()` returns every command's `name`, `aliases`, and metadata for
 a help menu (skip `hidden: true`). `client.unregisterCommand(anyName)` removes the command and its aliases.

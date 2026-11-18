@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CommandRegistry } from '../../src/command/registry.js'
-import { checkGuards, resetCooldowns } from '../../src/command/guards.js'
+import { checkGuards, CooldownTracker, resetCooldowns } from '../../src/command/guards.js'
 import type { CommandContext } from '../../src/command/types.js'
 
 const noop = (): void => undefined
@@ -128,5 +128,46 @@ describe('guards', () => {
   it('does not start a cooldown for a call that was blocked anyway', async () => {
     await checkGuards({ admin: true, cooldown: 10 }, ctxOf(), deps(false, 1_000))
     expect(await checkGuards({ cooldown: 10 }, ctxOf(), deps(true, 1_500))).toBeNull()
+  })
+})
+
+describe('cooldown tracker', () => {
+  const HOUR_MS = 60 * 60 * 1000
+  const withTracker = (cooldowns: CooldownTracker, now: number) => ({ ...deps(true, now), cooldowns })
+
+  it('still blocks a 24-hour cooldown two hours later', async () => {
+    const cooldowns = new CooldownTracker()
+    expect(await checkGuards({ cooldown: 86_400 }, ctxOf(), withTracker(cooldowns, 0))).toBeNull()
+    const block = await checkGuards({ cooldown: 86_400 }, ctxOf(), withTracker(cooldowns, 2 * HOUR_MS))
+    expect(block).toEqual({ reason: 'cooldown', retryIn: 22 * 60 * 60 })
+  })
+
+  it('lets the call through once a 24-hour cooldown has passed', async () => {
+    const cooldowns = new CooldownTracker()
+    await checkGuards({ cooldown: 86_400 }, ctxOf(), withTracker(cooldowns, 0))
+    expect(await checkGuards({ cooldown: 86_400 }, ctxOf(), withTracker(cooldowns, 24 * HOUR_MS))).toBeNull()
+  })
+
+  it('keeps two trackers apart', async () => {
+    const first = new CooldownTracker()
+    const second = new CooldownTracker()
+    await checkGuards({ cooldown: 60 }, ctxOf(), withTracker(first, 1_000))
+    expect(await checkGuards({ cooldown: 60 }, ctxOf(), withTracker(second, 2_000))).toBeNull()
+    expect(await checkGuards({ cooldown: 60 }, ctxOf(), withTracker(first, 2_000))).toMatchObject({
+      reason: 'cooldown',
+    })
+  })
+
+  it('evicts the oldest sender once it holds max entries', async () => {
+    const cooldowns = new CooldownTracker({ max: 2 })
+    for (const sender of ['a', 'b', 'c']) {
+      await checkGuards({ cooldown: 60 }, ctxOf({ senderId: sender }), withTracker(cooldowns, 1_000))
+    }
+    expect(cooldowns.size).toBe(2)
+    expect(await checkGuards({ cooldown: 60 }, ctxOf({ senderId: 'a' }), withTracker(cooldowns, 2_000))).toBeNull()
+  })
+
+  it('gives every command registry its own tracker', () => {
+    expect(new CommandRegistry().cooldowns).not.toBe(new CommandRegistry().cooldowns)
   })
 })

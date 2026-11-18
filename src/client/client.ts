@@ -108,6 +108,7 @@ import { MemoryMessageStore } from '../store/adapters/memory.js'
 import { adoptLogger } from '../utils/logger.js'
 import { configureMediaLoading, getMediaLoadingDefaults } from '../builder/media-loader.js'
 import { configureMediaLimits } from '../media/ffmpeg/core.js'
+import { configureMediaLogger } from '../media/ffmpeg/log.js'
 import { sameUser } from '../utils/jid.js'
 import {
   attachInboundPipeline,
@@ -331,6 +332,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.baileysExtra = options.baileys ?? {}
     this.auth = options.auth ?? new FileAuthStore({ basePath: `./.zaileys/auth/${this.sessionId}` })
     applyMediaOptions(options.media, this.auth)
+    configureMediaLogger(this.logger)
     this.store = options.store ?? new MemoryMessageStore()
     this.reconnectStrategy = createReconnectStrategy(this.reconnectOptions)
     this.authGuard = createAuthGuard(options.authGuard)

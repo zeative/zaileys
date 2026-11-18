@@ -1,4 +1,5 @@
 import { BufferConverter, FFMPEG_CONSTANTS, getMediaLimits, type MediaInput } from './core.js';
+import { mediaWarn } from './log.js';
 import { ffmpegTransform } from './transform.js';
 
 interface SharpInstance {
@@ -273,7 +274,7 @@ async function getProcessor(): Promise<SharpImageProcessor | JimpImageProcessor>
   if (sharpModule) {
     _processor = new SharpImageProcessor(sharpModule);
   } else {
-    console.warn('\x1b[33m%s\x1b[0m', '[media-process] Jimp is slow. For faster performance, run: npm install sharp');
+    mediaWarn({}, 'sharp is not installed; processing images with jimp, which is slower. Install sharp for faster media');
     _processor = new JimpImageProcessor();
   }
 

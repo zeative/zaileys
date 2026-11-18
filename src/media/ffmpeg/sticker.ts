@@ -1,4 +1,5 @@
 import { BufferConverter, FFMPEG_CONSTANTS, MimeValidator, detectFileType, generateId, type MediaInput } from './core.js';
+import { mediaWarn } from './log.js';
 import { ffmpegTransform } from './transform.js';
 import { ImageProcessor } from './image.js';
 import { VideoProcessor } from './video.js';
@@ -110,7 +111,10 @@ export class StickerProcessor {
       try {
         duration = Math.min(await VideoProcessor.duration(tempIn), FFMPEG_CONSTANTS.STICKER.MAX_DURATION);
       } catch {
-        console.warn('Using default duration:', FFMPEG_CONSTANTS.STICKER.MAX_DURATION);
+        mediaWarn(
+          { durationSeconds: FFMPEG_CONSTANTS.STICKER.MAX_DURATION },
+          'could not probe the animation length; using the sticker maximum',
+        );
       }
       /**
        * No frame-sync option: `-vsync` is gone from ffmpeg 7+ (exit 8) and `-fps_mode` is missing from

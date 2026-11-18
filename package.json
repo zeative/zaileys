@@ -93,7 +93,7 @@
     "pg-mem": "^3.0.14",
     "redis": "^4.7.0",
     "satori": "^0.33.4",
-    "sharp": "^0.35.4",
+    "sharp": "^0.35.5",
     "size-limit": "^12.1.0",
     "tsup": "^8.5.1",
     "tsx": "^4.21.0",
@@ -144,7 +144,8 @@
       "better-sqlite3"
     ],
     "overrides": {
-      "protobufjs": "^7.6.5"
+      "protobufjs": "^7.6.5",
+      "music-metadata": "^11.16.1"
     }
   },
   "exports": {

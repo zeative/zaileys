@@ -32,6 +32,25 @@ describe('cloud provider config validation', () => {
     expect(c.provider).toBe('cloud')
   })
 
+  for (const requestTimeoutMs of [0, -1, Number.NaN, Number.POSITIVE_INFINITY]) {
+    it(`throws CONFIG naming cloud.requestTimeoutMs when it is ${requestTimeoutMs}`, () => {
+      const make = () =>
+        new Client({ provider: 'cloud', cloud: { ...validCloud, requestTimeoutMs }, autoConnect: false })
+      expect(make).toThrowError(ZaileysCloudError)
+      expect(make).toThrowError('cloud.requestTimeoutMs')
+      try {
+        make()
+      } catch (err) {
+        expect((err as ZaileysCloudError).code).toBe('CONFIG')
+      }
+    })
+  }
+
+  it('accepts a positive cloud.requestTimeoutMs', () => {
+    const c = new Client({ provider: 'cloud', cloud: { ...validCloud, requestTimeoutMs: 5_000 }, autoConnect: false })
+    expect(c.provider).toBe('cloud')
+  })
+
   it('default provider is baileys and constructs unaffected', () => {
     const c = new Client({ auth: new MemoryAuthStore(), autoConnect: false, qrTerminal: false })
     expect(c.provider).toBe('baileys')

@@ -20,6 +20,11 @@ export interface CloudOptions {
   apiVersion?: string
   /** Override the Graph API origin (tests / proxies). */
   baseUrl?: string
+  /**
+   * Milliseconds before a Graph API request is aborted with `REQUEST_FAILED`; a timed-out request
+   * is not retried because it may already have reached Meta. Default `30000`.
+   */
+  requestTimeoutMs?: number
 }
 
 export function validateCloudOptions(cloud: CloudOptions | undefined): CloudOptions {
@@ -28,6 +33,13 @@ export function validateCloudOptions(cloud: CloudOptions | undefined): CloudOpti
   }
   if (typeof cloud.phoneNumberId !== 'string' || cloud.phoneNumberId.length === 0) {
     throw new ZaileysCloudError('CONFIG', "provider 'cloud' requires cloud.phoneNumberId")
+  }
+  const timeout = cloud.requestTimeoutMs
+  if (timeout !== undefined && (!Number.isFinite(timeout) || timeout <= 0)) {
+    throw new ZaileysCloudError(
+      'CONFIG',
+      `cloud.requestTimeoutMs must be a finite number of milliseconds above 0, got ${String(timeout)}`,
+    )
   }
   return cloud
 }

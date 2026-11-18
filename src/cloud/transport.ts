@@ -7,6 +7,8 @@ import {
   createGraphClient,
   DEFAULT_GRAPH_BASE_URL,
   DEFAULT_GRAPH_VERSION,
+  requestTimeoutError,
+  resolveRequestTimeoutMs,
   type GraphClient,
 } from './graph-client.js'
 import { basePayload, synthesizeSentMessage, translateOutbound } from './translate/outbound.js'
@@ -80,14 +82,24 @@ export class CloudTransport implements Transport {
 
   /** Health check: token+phoneNumberId must resolve the phone-number node. No retry — a bad token never heals. */
   async connect(): Promise<CloudMe> {
+    const timeoutMs = resolveRequestTimeoutMs(this.options)
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), timeoutMs)
     let res: Response
+    let body: { id?: string; verified_name?: string }
     try {
       res = await fetch(this.url(this.options.phoneNumberId), {
         method: 'GET',
         headers: { Authorization: `Bearer ${this.options.accessToken}` },
+        signal: controller.signal,
       })
+      body = (await res.json().catch(() => ({}))) as { id?: string; verified_name?: string }
+      if (controller.signal.aborted) throw controller.signal.reason
     } catch (err) {
+      if (controller.signal.aborted) throw requestTimeoutError('cloud health-check', timeoutMs, err)
       throw new ZaileysCloudError('REQUEST_FAILED', 'cloud health-check request failed', { cause: err })
+    } finally {
+      clearTimeout(timer)
     }
     if (res.status === 401 || res.status === 403) {
       throw new ZaileysCloudError('AUTH', `cloud auth rejected (${res.status}) — check accessToken/phoneNumberId`)
@@ -95,7 +107,6 @@ export class CloudTransport implements Transport {
     if (!res.ok) {
       throw new ZaileysCloudError('REQUEST_FAILED', `cloud health-check failed (${res.status})`)
     }
-    const body = (await res.json().catch(() => ({}))) as { id?: string; verified_name?: string }
     return {
       id: body.id ?? this.options.phoneNumberId,
       ...(body.verified_name ? { name: body.verified_name } : {}),

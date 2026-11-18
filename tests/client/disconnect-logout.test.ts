@@ -252,6 +252,21 @@ describe('Client.disconnect — graceful teardown', () => {
     expect(auth.__closeSignal).toBe(1)
   })
 
+  it('disconnect() during the credential read stops connect() from opening a socket', async () => {
+    const auth = memAuth()
+    let release: (() => void) | undefined
+    auth.creds.readCreds = () => new Promise((resolve) => { release = () => resolve(undefined) })
+    makeWASocketMock.mockReturnValue(createMockSocket({ user: { id: 'me' } }))
+    const c = new Client({ auth, qrTerminal: false, autoConnect: false })
+    const connecting = c.connect()
+    await vi.waitFor(() => expect(release).toBeDefined())
+    await c.disconnect()
+    release!()
+    await expect(connecting).rejects.toThrow('disconnected before connect resolved')
+    expect(makeWASocketMock).not.toHaveBeenCalled()
+    expect(c.state).toBe('disconnected')
+  })
+
   it('disconnect() completes within 2 seconds', async () => {
     const auth = memAuth()
     const { c } = await connectAndOpen(auth)

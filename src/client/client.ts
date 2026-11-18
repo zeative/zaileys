@@ -577,6 +577,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     }
     this.machine.transition('connecting')
     this.connectAttemptSeq += 1
+    const attempt = this.connectAttemptSeq
     this.pairingRequested = false
     this.openedThisRun = false
     if (!fromReconnect) this.logStatus({ kind: 'connecting', sessionId: this.sessionId })
@@ -598,6 +599,10 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       if (this.machine.canTransition('disconnected')) this.machine.transition('disconnected')
       this.logger.error(error, 'failed to read stored credentials; aborting connect to protect the session')
       throw error
+    }
+    /** A disconnect() during the read already closed the stores; a socket now would outlive it. */
+    if (attempt !== this.connectAttemptSeq || this.state !== 'connecting') {
+      throw new Error('disconnected before connect resolved')
     }
     this.credsLoadedAtConnect = Boolean(loaded)
     const creds = Object.assign({} as AuthenticationCreds, loaded ?? initAuthCreds())

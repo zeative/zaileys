@@ -293,7 +293,7 @@ The `reason` on `disconnect` and `reconnecting` is one of:
 | `connection-replaced` | 440 | Another connection opened with the same session. | Stops, and keeps the session — the next start reconnects without a new QR code. |
 | `forbidden` | 403 | WhatsApp refused access to the account. | Stops, and keeps the session. |
 | `bad-session` | 500 | WhatsApp closed the connection with a generic error. | Reconnects with the saved session. |
-| `restart-required` | 515 | WhatsApp wants a fresh connection. It's normal right after you link a device. | Reconnects. |
+| `restart-required` | 515 | WhatsApp wants a fresh connection. It's normal right after you link a device. | Reconnects at once the first time, then with the usual backoff. |
 | `rate-limited` | 429 | WhatsApp is throttling this account. | Waits `rateLimitedDelayMs` (5 minutes), then reconnects. |
 | `connection-closed`, `connection-lost`, `multi-device-mismatch`, `unavailable-service` | 428, 408, 411, 503 | A network or server problem. | Reconnects with the usual waits. |
 | `unknown` | — | Any other reason, including you calling `disconnect()`. | Reconnects, unless you closed the connection yourself. |

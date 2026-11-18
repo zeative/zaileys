@@ -38,6 +38,7 @@ export function createReconnectStrategy(
   const random = deps?.random ?? Math.random
 
   let attempts = 0
+  let restartFastPathUsed = false
 
   const next = (reason: DisconnectReasonDomain): ReconnectDecision | null => {
     if (!enabled) return null
@@ -47,6 +48,11 @@ export function createReconnectStrategy(
     attempts = nextAttempt
     if (isRateLimited(reason)) {
       return { attempt: nextAttempt, delayMs: rateLimitedDelayMs }
+    }
+    /** WhatsApp sends 515 right after pairing and asks for an immediate restart; a repeat falls back to backoff. */
+    if (reason === 'restart-required' && !restartFastPathUsed) {
+      restartFastPathUsed = true
+      return { attempt: nextAttempt, delayMs: 0 }
     }
     const exponent = Math.pow(2, nextAttempt - 1)
     const base = Math.min(maxDelayMs, initialDelayMs * exponent)
@@ -58,6 +64,7 @@ export function createReconnectStrategy(
 
   const reset = (): void => {
     attempts = 0
+    restartFastPathUsed = false
   }
 
   return {

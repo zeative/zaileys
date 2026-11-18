@@ -30,11 +30,8 @@ export default defineConfig({
     'pino',
     'libsignal',
     'qrcode-terminal',
-    'nanospinner',
     'audio-decode',
     'lru-cache',
-    'async-mutex',
-    'valibot',
     'sharp',
   ],
 

@@ -870,14 +870,42 @@ export const decodeMessage = (msg: WAMessage, ctx: DecodeContext): MessageContex
   return buildContext(msg, ctx, chatType, text, media)
 }
 
-export const decodeText = (msg: WAMessage, ctx: DecodeContext): MessageContext | null => {
+/** The mutable fields are copied, so a listener editing one event's payload can't reach another's. */
+const copyContext = (source: MessageContext): MessageContext => ({
+  ...source,
+  mentions: [...source.mentions],
+  links: [...source.links],
+  mentionedGroups: [...source.mentionedGroups],
+  ...(source.ad !== undefined ? { ad: { ...source.ad } } : {}),
+  ...(source.business !== undefined ? { business: { ...source.business } } : {}),
+})
+
+/**
+ * `previous` is the `message` payload for the same message. When the text payload would be built from the
+ * same inputs, it is copied instead: building a context is the most expensive step per inbound message.
+ */
+export const decodeText = (
+  msg: WAMessage,
+  ctx: DecodeContext,
+  previous?: MessageContext | null,
+): MessageContext | null => {
   const content = asRecord(msg.message)
   if (content == null) return null
   const inner = unwrap(content)
   const body = bodyText(inner)
   const media = structuredMedia(inner) ?? undefined
   if (body === null && media === undefined) return null
-  return buildContext(msg, ctx, chatTypeOf(msg.message), body ?? '', media)
+  const chatType = chatTypeOf(msg.message)
+  if (
+    previous != null &&
+    media === undefined &&
+    previous.media === undefined &&
+    previous.text === (body ?? '') &&
+    previous.chatType === chatType
+  ) {
+    return copyContext(previous)
+  }
+  return buildContext(msg, ctx, chatType, body ?? '', media)
 }
 
 const decodeMedia = <K extends MediaKind>(

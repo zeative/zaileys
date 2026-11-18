@@ -993,3 +993,53 @@ describe('group status envelope', () => {
     expect(decodeMention(msg, ctx)).not.toBeNull()
   })
 })
+
+describe('decodeText reusing the message payload', () => {
+  const snapshot = (value: unknown): string =>
+    JSON.stringify(value, (_k, v: unknown) => (typeof v === 'function' ? 'fn' : v))
+
+  const samples: WAMessage[] = [
+    base({ message: { conversation: 'hello' } }),
+    base({ message: { extendedTextMessage: { text: 'hi @628333 see https://example.com', contextInfo: { mentionedJid: ['628333@s.whatsapp.net'] } } } }),
+    base({
+      key: { remoteJid: GROUP, fromMe: false, id: 'G1', participant: '628444@s.whatsapp.net' },
+      message: { extendedTextMessage: { text: 'reply', contextInfo: { stanzaId: 'Q1', participant: '628555@s.whatsapp.net', quotedMessage: { conversation: 'orig' } } } },
+    } as never),
+    base({ message: { ephemeralMessage: { message: { conversation: 'disappearing' } } } } as never),
+  ]
+
+  it('produces exactly what building it from scratch produces', () => {
+    for (const msg of samples) {
+      const fresh = decodeText(msg, ctx as never)
+      const reused = decodeText(msg, ctx as never, decodeMessage(msg, ctx as never))
+      expect(snapshot(reused)).toBe(snapshot(fresh))
+    }
+  })
+
+  it('returns a separate object whose arrays a message listener cannot reach', () => {
+    const msg = samples[1]!
+    const message = decodeMessage(msg, ctx as never)!
+    const text = decodeText(msg, ctx as never, message)!
+    expect(text).not.toBe(message)
+    message.mentions.push('injected@s.whatsapp.net')
+    message.links.length = 0
+    expect(text.mentions).toEqual(['628333@s.whatsapp.net'])
+    expect(text.links).toEqual(['https://example.com'])
+  })
+
+  it('keeps reply working on the copied payload', async () => {
+    const reply = vi.fn(async () => ({ id: 'SENT' }))
+    const msg = base({ message: { conversation: 'hi' } })
+    const withReply = { selfJid: SELF, reply } as never
+    const text = decodeText(msg, withReply, decodeMessage(msg, withReply))
+    await text!.reply('ok')
+    expect(reply).toHaveBeenCalledWith('628222@s.whatsapp.net', 'ok', undefined, msg)
+  })
+
+  it('builds its own payload when the message payload carries media', () => {
+    const msg = base({ message: { imageMessage: { caption: 'pic', mimetype: 'image/jpeg' } } } as never)
+    const message = decodeMessage(msg, ctx as never)
+    const text = decodeText(msg, ctx as never, message)
+    expect(snapshot(text)).toBe(snapshot(decodeText(msg, ctx as never)))
+  })
+})

@@ -193,8 +193,11 @@ export function attachInboundPipeline(
   }
 
   const runMessage = (msg: WAMessage, msgCtx: DecodeContext): void => {
-    tryEmit(() => decodeMessage(msg, msgCtx), (p) => client.emit('message', p))
-    tryEmit(() => decodeText(msg, msgCtx), (p) => client.emit('text', p))
+    /** Both payloads are built before either event fires, so the text copy never sees a `message` listener's edits. */
+    const message = tryDecode(() => decodeMessage(msg, msgCtx))
+    const text = tryDecode(() => decodeText(msg, msgCtx, message))
+    if (message !== null) client.emit('message', message)
+    if (text !== null) client.emit('text', text)
     tryEmit(() => decodeImage(msg, msgCtx), (p) => client.emit('image', p))
     tryEmit(() => decodeVideo(msg, msgCtx), (p) => client.emit('video', p))
     tryEmit(() => decodeAudio(msg, msgCtx), (p) => client.emit('audio', p))
@@ -355,16 +358,18 @@ export function attachInboundPipeline(
     return map.size > 0 ? map : undefined
   }
 
-  const tryEmit = <T>(decode: () => T | null, emit: (payload: T) => void): void => {
-    let payload: T | null
+  const tryDecode = <T>(decode: () => T | null): T | null => {
     try {
-      payload = decode()
+      return decode() ?? null
     } catch (err) {
       ctx.logger?.warn(err, 'inbound pipeline: decoder threw')
-      return
+      return null
     }
-    if (payload === null || payload === undefined) return
-    emit(payload)
+  }
+
+  const tryEmit = <T>(decode: () => T | null, emit: (payload: T) => void): void => {
+    const payload = tryDecode(decode)
+    if (payload !== null) emit(payload)
   }
 
   subscribe('messages.upsert', (raw) => {

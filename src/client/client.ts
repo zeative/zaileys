@@ -96,6 +96,7 @@ import { createAuthGuard, type AuthGuard } from '../connection/auth-guard.js'
 import { createPairingFlow } from '../connection/pairing-flow.js'
 import { printQrToTerminal } from '../connection/qr-terminal.js'
 import { createReconnectStrategy, type ReconnectStrategy } from '../connection/reconnect.js'
+import { createSocketCaches } from '../connection/socket-caches.js'
 import {
   createConnectionStateMachine,
   type ConnectionStateMachine,
@@ -274,6 +275,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private postOpenLogoutRetries = 0
   private disconnectEmittedFor = 0
   private connectAttemptSeq = 0
+  private readonly socketCaches = createSocketCaches()
   private pendingDisconnectReason: DisconnectReasonDomain | undefined
   private readonly usernameCache: Map<string, string> = new Map()
   private _group?: GroupModule
@@ -612,6 +614,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       markOnlineOnConnect: false,
       syncFullHistory: false,
       qrTimeout: QR_DEFAULT_TTL_MS,
+      ...this.socketCaches,
       ...(this.waVersion ? { version: this.waVersion } : {}),
       ...this.baileysExtra,
       auth: { creds, keys },

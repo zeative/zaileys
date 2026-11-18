@@ -153,6 +153,24 @@ describe('Client — non-fatal disconnect schedules reconnect', () => {
     }
   })
 
+  it('hands every reconnect socket the same retry and device caches', async () => {
+    const auth = memAuth()
+    const first = createMockSocket({ user: { id: 'me' } })
+    const second = createMockSocket({ user: { id: 'me' } })
+    makeWASocketMock.mockReturnValueOnce(first).mockReturnValueOnce(second)
+    const c = new Client({ auth, qrTerminal: false, reconnect: { initialDelayMs: 1, jitterFactor: 0 }, autoConnect: false })
+    const p = c.connect()
+    first.triggerConnectionUpdate({ connection: 'open' })
+    await p
+    first.triggerConnectionUpdate({ connection: 'close', lastDisconnect: { error: boomErr(428) } })
+    await vi.waitFor(() => expect(makeWASocketMock).toHaveBeenCalledTimes(2))
+    const [a, b] = makeWASocketMock.mock.calls.map((call) => call[0] as Record<string, unknown>)
+    expect(a!['msgRetryCounterCache']).toBeDefined()
+    expect(b!['msgRetryCounterCache']).toBe(a!['msgRetryCounterCache'])
+    expect(b!['userDevicesCache']).toBe(a!['userDevicesCache'])
+    await c.disconnect()
+  })
+
   it('reconnect.maxAttempts caps retries', async () => {
     vi.useFakeTimers()
     const auth = memAuth()

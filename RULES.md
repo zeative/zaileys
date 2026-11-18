@@ -229,7 +229,7 @@ Bots run for months on small servers. Code must not degrade over time.
 - **Optional integrations are optional peers** (`pg`, `redis`, `better-sqlite3`, `convex`), loaded lazily,
   typed through structural `*Like` interfaces.
 - **ESM-only packages are loaded with dynamic `import()`** so the CJS bundle keeps working.
-- **Bundle budget is 260 KB** for each of `dist/index.mjs` and `dist/index.cjs` (`pnpm size`).
+- **Bundle budget is 300 KB** of minified code for each of `dist/index.mjs` and `dist/index.cjs` (`pnpm size`). Startup cost matters more than bytes: load heavy or optional packages with dynamic `import()` on first use.
 - Use pnpm only. Do not commit a `package-lock.json` or `yarn.lock`.
 
 ---

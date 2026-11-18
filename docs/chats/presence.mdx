@@ -49,7 +49,7 @@ Presence methods need a live connection, so call them from a handler or the `con
       The chat to show it in — a person's or a group's <Term id="jid" />.
     </ParamField>
     <ParamField body="ms" type="number">
-      Clear the indicator after this many milliseconds. Leave it out to keep it on until you clear it yourself — see the next section.
+      Clear the indicator after this many milliseconds. Leave it out to keep it on until you clear it yourself — see the next section. Values above 2,147,483,647 ms (about 24.8 days, Node's timer limit) are capped there.
     </ParamField>
 
   </Tab>

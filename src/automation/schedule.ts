@@ -3,10 +3,9 @@ import { DisconnectReason, type AnyMessageContent, type MiscMessageGenerationOpt
 import { MessageBuilder, type BuilderSocketLike } from '../builder/builder.js'
 import type { MessageStore, ScheduledJobRecord } from '../store/types.js'
 import type { Logger } from '../client/types.js'
+import { MAX_TIMER_DELAY_MS } from '../utils/timer.js'
 import { ZaileysAutomationError } from './errors.js'
 
-/** Node clamps anything above this to 1ms, firing the job immediately. */
-const MAX_TIMER_DELAY_MS = 2_147_483_000
 const MAX_SEND_ATTEMPTS = 5
 const RETRY_BACKOFF_MS = 30_000
 

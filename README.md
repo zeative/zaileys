@@ -33,6 +33,7 @@
 
 <div align="center">
 
+[What's new](#whats-new) &nbsp;•&nbsp;
 [Quick start](#quick-start) &nbsp;•&nbsp;
 [Providers](#two-providers-one-api) &nbsp;•&nbsp;
 [Why Zaileys](#why-zaileys) &nbsp;•&nbsp;
@@ -52,6 +53,20 @@
 > This README is a **high-level overview**. The complete API reference, guides, and recipes live in the documentation site at **<https://zaileys.kejaa.id>**. Runnable code lives in [`examples/`](./examples).
 
 ---
+
+## What's new
+
+**v4.20** — conversations and per-user state, built in:
+
+- 💬 **`ctx.ask()`** — ask a question and `await` the same person's answer; a sign-up form is a few lines. [Guide](https://zaileys.kejaa.id/bots/commands#ask-a-question-and-wait-for-the-answer)
+- 🧠 **`ctx.session`** — remember small values per user (language, cart, a code with a `ttl`) in the store you already use. [Guide](https://zaileys.kejaa.id/bots/commands#remember-things-per-user)
+- 🛡️ **Flood protection** — each sender gets 20 commands a minute by default, so one spammer can't flood your bot. [Guide](https://zaileys.kejaa.id/bots/commands#flood-protection)
+- 🩺 **Watchdog** *(experimental, opt-in)* — reconnects a session that silently stops receiving. [Guide](https://zaileys.kejaa.id/whatsapp-web)
+- ⚡ About 12% less CPU per inbound message.
+
+**v4.19** — faster startup (about 28% quicker `import`), group metadata cached for sends, evenly paced broadcasts, a capped default store, typed connection errors, and four fewer dependencies.
+
+See the [changelog](https://zaileys.kejaa.id/releases/changelog) for everything, including what to check before upgrading.
 
 ## Quick start
 

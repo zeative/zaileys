@@ -64,7 +64,7 @@ pnpm audit:comments
 pnpm audit:any src
 pnpm exec vitest run          # full suite; known flaky tests are listed in section 9
 pnpm build
-pnpm size                     # 260 KB budget per bundle
+pnpm size                     # 300 KB budget per bundle
 pnpm skill:check
 pnpm docs:check
 pnpm docs:errors:check

@@ -164,6 +164,14 @@ describe('isTagMeOf', () => {
   it('returns false for empty mentions', () => {
     expect(isTagMeOf('628111@s.whatsapp.net', [])).toBe(false)
   })
+
+  it('returns true when an unresolved mention carries the self LID', () => {
+    expect(isTagMeOf('628111:3@s.whatsapp.net', ['27999@lid'], '27999:3@lid')).toBe(true)
+  })
+
+  it('never matches a LID mention against the self phone number', () => {
+    expect(isTagMeOf('628111@s.whatsapp.net', ['628111@lid'])).toBe(false)
+  })
 })
 
 describe('makeCitation', () => {

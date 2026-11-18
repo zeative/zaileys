@@ -3,7 +3,7 @@ import { Readable } from 'node:stream'
 import { asRecord, GROUP_STATUS_FIELDS, isGroupJid, wrapperChainHas } from './decoders/_shared.js'
 import type { SenderInfo } from './types.js'
 import type { TextOptions } from '../builder/builder.js'
-import { matchesUser } from '../utils/jid.js'
+import { matchesUser, sameUser } from '../utils/jid.js'
 
 export type ChatType =
   | 'text'
@@ -314,6 +314,7 @@ export interface BuildContextInput {
   channelId: string
   receiverId: string
   selfJid: string
+  selfLid?: string
   text: string
   chatType: ChatType
   sender: SenderInfo
@@ -408,21 +409,11 @@ export const isPrefixOf = (text: string, prefixes: string[]): boolean => {
   return prefixes.some((p) => p.length > 0 && text.startsWith(p))
 }
 
-export const isTagMeOf = (selfJid: string, mentions: string[]): boolean => {
+/** An unresolved mention keeps its LID, so the self LID is checked as well; namespaces never cross. */
+export const isTagMeOf = (selfJid: string, mentions: string[], selfLid?: string): boolean => {
   if (mentions.length === 0) return false
-  let normalizedSelf: string
-  try {
-    normalizedSelf = jidNormalizedUser(selfJid)
-  } catch {
-    normalizedSelf = selfJid
-  }
-  return mentions.some((m) => {
-    try {
-      return jidNormalizedUser(m) === normalizedSelf
-    } catch {
-      return m === selfJid
-    }
-  })
+  const isSelf = (m: string, self: string): boolean => m === self || sameUser(m, self)
+  return mentions.some((m) => isSelf(m, selfJid) || (selfLid != null && isSelf(m, selfLid)))
 }
 
 export const makeCitation = (
@@ -524,7 +515,7 @@ export const buildMessageContext = (input: BuildContextInput): MessageContext =>
     isOld: input.isOld === true,
     isQuestion: isQuestionOf(input.text),
     isPrefix: isPrefixOf(input.text, input.prefixes),
-    isTagMe: isTagMeOf(input.selfJid, input.mentions),
+    isTagMe: isTagMeOf(input.selfJid, input.mentions, input.selfLid),
     isEdited: flags.isEdited,
     isDeleted: flags.isDeleted,
     isPinned: flags.isPinned,

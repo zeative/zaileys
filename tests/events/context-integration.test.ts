@@ -572,4 +572,33 @@ describe('context-integration: links extraction', () => {
     const ctx = seen.mock.calls[0]?.[0] as MessageContext
     expect(ctx.isTagMe).toBe(true)
   })
+
+  it('isTagMe true on the mention event when an unresolved mention carries the self LID', () => {
+    const client = new TypedEventEmitter<ClientEventMap>()
+    const socket = makeInboundSocket({ user: { id: SELF_JID } })
+    attachInboundPipeline(
+      client,
+      socket as unknown as Parameters<typeof attachInboundPipeline>[1],
+      { selfJid: SELF_JID, selfLid: '27999@lid', channelId: SESSION_ID },
+    )
+    const mentioned = vi.fn()
+    client.on('mention', mentioned)
+    socket.triggerMessagesUpsert({
+      messages: [
+        textMsg({
+          key: { remoteJid: GROUP, id: 'T2', fromMe: false, participant: SENDER_PN },
+          message: {
+            extendedTextMessage: {
+              text: 'hey @27999',
+              contextInfo: { mentionedJid: ['27999@lid'] },
+            },
+          },
+        }),
+      ],
+      type: 'notify',
+    })
+    expect(mentioned).toHaveBeenCalledTimes(1)
+    const ctx = mentioned.mock.calls[0]?.[0] as MessageContext
+    expect(ctx.isTagMe).toBe(true)
+  })
 })

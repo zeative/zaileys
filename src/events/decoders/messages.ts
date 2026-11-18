@@ -785,6 +785,7 @@ const buildContext = (
     channelId,
     receiverId,
     selfJid: ctx.selfJid,
+    ...(ctx.selfLid != null ? { selfLid: ctx.selfLid } : {}),
     text: syncedText,
     chatType,
     sender,

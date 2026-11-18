@@ -1,5 +1,6 @@
 import { ZaileysAutomationError } from './errors.js'
 import { LRUCache } from 'lru-cache'
+import { clampTimerDelay } from '../utils/timer.js'
 
 export type WAPresence = 'unavailable' | 'available' | 'composing' | 'recording' | 'paused'
 
@@ -74,6 +75,7 @@ export class PresenceModule {
   /**
    * Resolves the socket when the timer fires rather than capturing it, so a reconnect does not get
    * a burst of presence updates aimed at a dead socket. Handles are tracked so dispose() can cancel.
+   * The delay is clamped because Node fires anything above 2^31-1 ms after 1 ms.
    */
   private scheduleClear(jid: string, ms: number): void {
     if (this.getSocket() === undefined) return
@@ -86,7 +88,7 @@ export class PresenceModule {
       } catch {
         return
       }
-    }, ms)
+    }, clampTimerDelay(ms))
     if (typeof timer.unref === 'function') timer.unref()
     this.pendingClears.add(timer)
   }
@@ -106,11 +108,13 @@ export class PresenceModule {
     await this.update('unavailable')
   }
 
+  /** Shows typing in `jid`; with `ms`, sends `paused` after that long, capped at 2^31-1 ms. */
   async typing(jid: string, ms?: number): Promise<void> {
     await this.update('composing', jid)
     if (ms !== undefined) this.scheduleClear(jid, ms)
   }
 
+  /** Shows recording in `jid`; with `ms`, sends `paused` after that long, capped at 2^31-1 ms. */
   async recording(jid: string, ms?: number): Promise<void> {
     await this.update('recording', jid)
     if (ms !== undefined) this.scheduleClear(jid, ms)

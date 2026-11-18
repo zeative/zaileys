@@ -273,7 +273,7 @@ const client: Client = new Client({
   the same namespace-aware matching as `citation`; a throwing predicate counts as not allowed. Reject manually
   with `client.rejectCall(call)` (Web only).
 - `presence` throttling (on, 1 s) silently drops a repeated `typing`/`recording`/`online` for the same chat
-  inside the window. `client.presence.typing(jid, ms)` sends `paused` after `ms`.
+  inside the window. `client.presence.typing(jid, ms)` sends `paused` after `ms`, capped at 2^31-1 ms.
 
 ## Error codes
 

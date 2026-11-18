@@ -103,6 +103,22 @@ describe('PresenceModule', () => {
     await expect(presence.typing(JID, 500)).resolves.toBeUndefined()
     await vi.advanceTimersByTimeAsync(500)
   })
+
+  it('typing(jid, ms) above the Node timer limit does not clear after 1 ms', async () => {
+    const spy = vi.spyOn(globalThis, 'setTimeout')
+    await presence.typing(JID, 2 ** 31 + 1000)
+    expect(spy.mock.calls.at(-1)?.[1]).toBe(2 ** 31 - 1)
+    await vi.advanceTimersByTimeAsync(1000)
+    expect(socket.sendPresenceUpdate).not.toHaveBeenCalledWith('paused', JID)
+    spy.mockRestore()
+  })
+
+  it('recording(jid, ms) above the Node timer limit is capped at 2^31-1 ms', async () => {
+    const spy = vi.spyOn(globalThis, 'setTimeout')
+    await presence.recording(JID, Number.POSITIVE_INFINITY)
+    expect(spy.mock.calls.at(-1)?.[1]).toBe(2 ** 31 - 1)
+    spy.mockRestore()
+  })
 })
 
 describe('PresenceModule — throttle', () => {

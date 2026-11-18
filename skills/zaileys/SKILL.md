@@ -152,7 +152,8 @@ instead of a `for` loop over `client.send()`.
 ### Errors carry a code
 
 Every zaileys error class (`ZaileysBuilderError`, `ZaileysCloudError`, `ZaileysProviderError`,
-`ZaileysCommandError`, `ZaileysDomainError`, `ZaileysAutomationError`, `ZaileysStoreError`) has a `code`, and
+`ZaileysCommandError`, `ZaileysDomainError`, `ZaileysAutomationError`, `ZaileysConnectionError`,
+`ZaileysStoreError`) has a `code`, and
 wrapped failures keep the original in `error.cause`. Branch on `instanceof` and `code`, not on message text.
 Set `ZAILEYS_DEBUG=1` to see logs that are silent by default (failed handlers, failed commands).
 

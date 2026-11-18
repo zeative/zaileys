@@ -1,4 +1,5 @@
 import type { BaileysSocket } from '../client/types.js'
+import { ZaileysConnectionError } from './errors.js'
 
 export interface PairingFlowOptions {
   phoneNumber: string
@@ -27,14 +28,14 @@ export function normalizePhoneNumber(raw: string): string {
 
 export function validateE164(raw: string): string {
   if (!raw || typeof raw !== 'string' || !raw.trim()) {
-    throw new Error('phoneNumber is required')
+    throw new ZaileysConnectionError('INVALID_OPTIONS', 'phoneNumber is required')
   }
   const normalized = normalizePhoneNumber(raw)
   if (!/^\d+$/.test(normalized)) {
-    throw new Error('phoneNumber must be E.164 with country code')
+    throw new ZaileysConnectionError('INVALID_OPTIONS', 'phoneNumber must be E.164 with country code')
   }
   if (normalized.length < MIN_E164_DIGITS || normalized.length > MAX_E164_DIGITS) {
-    throw new Error('phoneNumber must be E.164 with country code')
+    throw new ZaileysConnectionError('INVALID_OPTIONS', 'phoneNumber must be E.164 with country code')
   }
   return normalized
 }
@@ -50,7 +51,7 @@ export function createPairingFlow(options: PairingFlowOptions): PairingFlow {
         code = await socket.requestPairingCode(normalized)
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err)
-        throw new Error(`failed to request pairing code: ${msg}`)
+        throw new ZaileysConnectionError('PAIRING_FAILED', `failed to request pairing code: ${msg}`, { cause: err })
       }
       return { code, expiresAt: Date.now() + ttlMs }
     },

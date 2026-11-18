@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { DisconnectReasonDomain } from '../../src/connection/disconnect-reason.js'
+import { ZaileysConnectionError } from '../../src/connection/errors.js'
 import { createReconnectStrategy } from '../../src/connection/reconnect.js'
 
 const NON_FATAL: DisconnectReasonDomain[] = [
@@ -336,17 +337,27 @@ describe('createReconnectStrategy — option validation', () => {
   const bad = [Number.NaN, -1, Number.POSITIVE_INFINITY]
   for (const key of ['initialDelayMs', 'maxDelayMs', 'rateLimitedDelayMs'] as const) {
     for (const value of bad) {
-      it(`throws RangeError naming reconnect.${key} when it is ${value}`, () => {
-        expect(() => createReconnectStrategy({ [key]: value })).toThrowError(RangeError)
-        expect(() => createReconnectStrategy({ [key]: value })).toThrowError(`reconnect.${key}`)
+      it(`throws INVALID_OPTIONS naming reconnect.${key} when it is ${value}`, () => {
+        expect(() => createReconnectStrategy({ [key]: value })).toThrowError(ZaileysConnectionError)
+        expect(() => createReconnectStrategy({ [key]: value })).toThrowError(
+          `reconnect.${key} must be a finite number of milliseconds >= 0, got ${String(value)}`,
+        )
+        expect(() => createReconnectStrategy({ [key]: value })).toThrow(
+          expect.objectContaining({ code: 'INVALID_OPTIONS', name: 'ZaileysConnectionError' }),
+        )
       })
     }
   }
 
   for (const value of [Number.NaN, -0.1, 1.5]) {
-    it(`throws RangeError naming reconnect.jitterFactor when it is ${value}`, () => {
-      expect(() => createReconnectStrategy({ jitterFactor: value })).toThrowError(RangeError)
-      expect(() => createReconnectStrategy({ jitterFactor: value })).toThrowError('reconnect.jitterFactor')
+    it(`throws INVALID_OPTIONS naming reconnect.jitterFactor when it is ${value}`, () => {
+      expect(() => createReconnectStrategy({ jitterFactor: value })).toThrowError(ZaileysConnectionError)
+      expect(() => createReconnectStrategy({ jitterFactor: value })).toThrowError(
+        `reconnect.jitterFactor must be a number from 0 to 1, got ${String(value)}`,
+      )
+      expect(() => createReconnectStrategy({ jitterFactor: value })).toThrow(
+        expect.objectContaining({ code: 'INVALID_OPTIONS', name: 'ZaileysConnectionError' }),
+      )
     })
   }
 

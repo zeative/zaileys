@@ -2,7 +2,7 @@
 title: "Errors"
 description: "Every Zaileys error class and code: when it's thrown, the exact message, what cause holds, and how to fix it."
 icon: "octagon-alert"
-keywords: ["error codes", "ZaileysBuilderError", "ZaileysCloudError", "ZaileysProviderError", "UNSUPPORTED_ON_CLOUD", "SEND_FAILED", "NOT_IMPLEMENTED", "client not connected", "ZaileysStoreError", "STORE_NOT_AVAILABLE", "ZaileysCommandError", "error.cause"]
+keywords: ["error codes", "ZaileysBuilderError", "ZaileysCloudError", "ZaileysProviderError", "UNSUPPORTED_ON_CLOUD", "SEND_FAILED", "NOT_IMPLEMENTED", "client not connected", "ZaileysStoreError", "STORE_NOT_AVAILABLE", "ZaileysCommandError", "ZaileysConnectionError", "CREDS_READ_FAILED", "error.cause"]
 ---
 
 This page lists every error Zaileys throws, grouped by class, with the code, the message you'll see, and how to fix it.
@@ -21,6 +21,7 @@ This page lists every error Zaileys throws, grouped by class, with the code, the
 | [`ZaileysCommandError`](#zaileyscommanderror) | `CommandErrorCode` | `client.command()`, command handlers, middleware |
 | [`ZaileysDomainError`](#zaileysdomainerror) | `DomainErrorCode` | `client.group`, `privacy`, `newsletter`, `community`, `profile`, `chat`, `contact`, `business` |
 | [`ZaileysAutomationError`](#zaileysautomationerror) | `AutomationErrorCode` | Scheduling, presence, call rejection, rate limiters |
+| [`ZaileysConnectionError`](#zaileysconnectionerror) | `ConnectionErrorCode` | `new Client()`, `connect()`, the pairing flow, the reconnect and state-machine helpers |
 | [`ZaileysStoreError`](#zaileysstoreerror) | `StoreErrorCode` | Auth and message stores |
 
 Every class and every code type is exported from `'zaileys'`.
@@ -144,9 +145,42 @@ When WhatsApp itself rejects a module call — for example, adding a member who 
 | `QUEUE_TIMEOUT` | A task in a `TaskQueue` ran longer than `taskTimeoutMs` (default 120 s) | `task exceeded <ms>ms` | Look for a send stuck on a dead connection; raise `taskTimeoutMs` only for tasks that are legitimately slow. |
 | `TASK_FAILED`, `STORE_UNAVAILABLE` | Declared, not thrown by the current release | — | — |
 
+## ZaileysConnectionError
+
+Thrown by the connection lifecycle: creating the client, connecting, pairing, and the exported reconnect, QR, and state-machine helpers.
+
+| Code | Thrown when | Message | How to fix it |
+| --- | --- | --- | --- |
+| `INVALID_OPTIONS` | `new Client()` with a `sessionId` outside `/^[A-Za-z0-9_-]{1,64}$/` | `invalid sessionId "<id>": use 1-64 characters from A-Z a-z 0-9 _ -` | Rename the ID, and rename the `./.zaileys/auth/<old>` folder to match or the session is lost. |
+| `INVALID_OPTIONS` | `connect()` (or the `error` event) with `authType: 'pairing'` and no `phoneNumber` | `phoneNumber is required when authType is "pairing"` | Add `phoneNumber`, country code first. |
+| `INVALID_OPTIONS` | `validateE164()` or `createPairingFlow()` with a bad number. During login they're only logged — as `pairing-code request failed` — and no pairing code arrives. | `phoneNumber must be E.164 with country code`, `phoneNumber is required` | Use 8–15 digits with the country code, such as `6281234567890`. |
+| `INVALID_OPTIONS` | `new Client()` with a `reconnect` delay that is negative, `NaN`, or `Infinity`, or a `jitterFactor` outside 0 to 1 | `reconnect.<option> must be a finite number of milliseconds >= 0, got <value>`, `reconnect.jitterFactor must be a number from 0 to 1, got <value>` | Pass a finite number of milliseconds, `0` or more, and a `jitterFactor` from `0` to `1`. |
+| `INVALID_OPTIONS` | `renderQrInTerminal()` or `printQrToTerminal()` with an empty string | `qr string is required` | Pass the `qrString` from the `qr` event. |
+| `CREDS_READ_FAILED` | A custom auth store's `readCreds()` failed during `connect()` with something other than a `ZaileysStoreError` (those are rethrown unchanged) | `failed to read stored credentials; aborting connect to protect the session` — the original on `cause` | Fix the store's `readCreds()`. Don't delete the session. |
+| `CONNECT_ABORTED` | `disconnect()` ran before `connect()` finished, including after the [auth guard](/reference/client-options#authguardoptions) gave up | `disconnected before connect resolved` | Nothing is broken; call `connect()` again when you want to retry. |
+| `CONNECTION_CLOSED` | The connection closed during `connect()` and won't be retried | `connection closed (<reason>)`, such as `connection closed (logged-out)` | Look up the reason in [Disconnect reasons](/whatsapp-web#disconnect-reasons). |
+| `SESSION_PROTECTED` | WhatsApp asked to pair again while a linked session is stored. Emitted on the `error` event, then the client disconnects. | `WhatsApp asked to pair again while a registered session is stored; aborting to protect it` | If the device really was unlinked, call `client.logout()` and link again. |
+| `STORE_NOT_REOPENABLE` | `connect()` after `disconnect()` with a custom auth or message store that has no `reopen()` | `this auth or message store adapter cannot be reopened after disconnect(); implement reopen() or create a new Client` | Implement `reopen()`, or create a new `Client`. |
+| `PAIRING_FAILED` | WhatsApp refused the pairing-code request. During login it's only logged as `pairing-code request failed`. | `failed to request pairing code: <reason>` — the original on `cause` | Check the number is on WhatsApp; don't retry in a loop. |
+| `INVALID_STATE` | `createConnectionStateMachine()` was asked for a transition it doesn't allow | `invalid state transition: <from> -> <to>` | Call `canTransition()` first. |
+
+```ts
+import { ZaileysConnectionError } from 'zaileys'
+
+try {
+  await client.connect()
+} catch (error) {
+  if (error instanceof ZaileysConnectionError && error.code === 'CREDS_READ_FAILED') {
+    console.error('Auth store unreadable, session left untouched:', error.cause)
+  } else {
+    throw error
+  }
+}
+```
+
 ## ZaileysStoreError
 
-These usually surface when the client connects: `await client.connect()` rejects, or — with the default `autoConnect` — the client emits them on the `error` event.
+These usually surface when the client connects: `await client.connect()` rejects, or — with the default `autoConnect` — the client emits them on the `error` event. They keep their class even when they happen while `connect()` reads the saved login.
 
 | Code | Thrown when | Message | How to fix it |
 | --- | --- | --- | --- |
@@ -169,6 +203,8 @@ Errors wrap each other, and `cause` keeps the original:
 | `ZaileysBuilderError` `MEDIA_LOAD_FAILED` | The network or file-system error, or the HTTP status as a number |
 | `ZaileysCommandError` `HANDLER_ERROR` or `MIDDLEWARE_ERROR` | What your code threw |
 | `ZaileysStoreError` | The database driver's error |
+| `ZaileysConnectionError` `CREDS_READ_FAILED` | What a custom auth store's `readCreds()` threw |
+| `ZaileysConnectionError` `PAIRING_FAILED` | Baileys' error from the pairing-code request |
 
 Check the wrapped Cloud API code like this:
 
@@ -194,11 +230,7 @@ A few failures are plain `Error`s, not Zaileys classes. Match them by `message`:
 
 | Message | Where | How to fix it |
 | --- | --- | --- |
-| `phoneNumber is required when authType is "pairing"` | `connect()` (or the `error` event) with `authType: 'pairing'` and no `phoneNumber` | Add `phoneNumber`, country code first. |
-| `phoneNumber must be E.164 with country code`, `phoneNumber is required` | `validateE164()`. During login they're only logged — as `pairing-code request failed` — and no pairing code arrives. | Use 8–15 digits with the country code, such as `6281234567890`. |
-| `qr string is required` | `renderQrInTerminal()` with an empty string | Pass the `qrString` from the `qr` event. |
 | `chunk size must be positive` (`RangeError`) | `chunk()` with a size of 0 or less | Use a positive size. |
-| `reconnect.<option> must be …` (`RangeError`) | `new Client()` with a `reconnect` delay that is negative, `NaN`, or `Infinity`, or a `jitterFactor` outside 0 to 1 | Pass a finite number of milliseconds, `0` or more, and a `jitterFactor` from `0` to `1`. |
 | `Invalid file type: expected <kind>/*, got <mime>`, `Sticker creation failed: <reason>`, `Invalid media type: expected image or video` | `Media` methods | Check `msg.media.type` before converting — see [Receiving media](/messaging/receiving-media#when-a-download-fails). |
 | Baileys' download error, with `media download failed` in the log | `msg.media.buffer()` and `stream()` | Download as soon as the message arrives. |
 

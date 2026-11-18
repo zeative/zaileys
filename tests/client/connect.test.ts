@@ -163,7 +163,11 @@ describe('Client.connect — pairing', () => {
 
   it('pairing without phoneNumber throws on connect', async () => {
     const c = new Client({ auth: memAuth(), authType: 'pairing', autoConnect: false })
-    await expect(c.connect()).rejects.toThrow(/phoneNumber/)
+    await expect(c.connect()).rejects.toMatchObject({
+      name: 'ZaileysConnectionError',
+      code: 'INVALID_OPTIONS',
+      message: 'phoneNumber is required when authType is "pairing"',
+    })
   })
 })
 

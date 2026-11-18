@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
+import { ZaileysConnectionError } from '../../src/connection/errors.js'
 import {
   createPairingFlow,
   normalizePhoneNumber,
@@ -28,6 +29,19 @@ describe('validateE164', () => {
 
   it('rejects empty string', () => {
     expect(() => validateE164('')).toThrow('phoneNumber is required')
+  })
+
+  it('throws ZaileysConnectionError INVALID_OPTIONS with the unchanged messages', () => {
+    for (const [input, message] of [
+      ['', 'phoneNumber is required'],
+      ['081234', 'phoneNumber must be E.164 with country code'],
+      ['+1-555-CALL', 'phoneNumber must be E.164 with country code'],
+    ] as const) {
+      expect(() => validateE164(input)).toThrowError(ZaileysConnectionError)
+      expect(() => validateE164(input)).toThrow(
+        expect.objectContaining({ code: 'INVALID_OPTIONS', name: 'ZaileysConnectionError', message }),
+      )
+    }
   })
 })
 
@@ -104,6 +118,24 @@ describe('createPairingFlow.requestCode — error path', () => {
       }),
     }
     await expect(flow.requestCode(socket)).rejects.toThrow(/failed to request pairing code.*boom/)
+  })
+
+  it('throws PAIRING_FAILED with the socket error on cause', async () => {
+    const flow = createPairingFlow({ phoneNumber: '628123456789' })
+    const root = new Error('boom')
+    const socket = {
+      requestPairingCode: vi.fn(async () => {
+        throw root
+      }),
+    }
+    const err = await flow.requestCode(socket).catch((e: unknown) => e)
+    expect(err).toBeInstanceOf(ZaileysConnectionError)
+    expect(err).toMatchObject({
+      code: 'PAIRING_FAILED',
+      name: 'ZaileysConnectionError',
+      message: 'failed to request pairing code: boom',
+    })
+    expect((err as ZaileysConnectionError).cause).toBe(root)
   })
 
   it('handles non-Error throw values gracefully', async () => {

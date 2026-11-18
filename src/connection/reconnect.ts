@@ -1,5 +1,6 @@
 import type { ReconnectOptions } from '../client/types.js'
 import { clampTimerDelay } from '../utils/timer.js'
+import { ZaileysConnectionError } from './errors.js'
 import { isFatalDisconnect, isRateLimited, type DisconnectReasonDomain } from './disconnect-reason.js'
 
 export interface ReconnectDecision {
@@ -28,19 +29,25 @@ const DEFAULTS = {
 
 const assertDelayMs = (name: string, value: number): number => {
   if (!Number.isFinite(value) || value < 0) {
-    throw new RangeError(`reconnect.${name} must be a finite number of milliseconds >= 0, got ${String(value)}`)
+    throw new ZaileysConnectionError(
+      'INVALID_OPTIONS',
+      `reconnect.${name} must be a finite number of milliseconds >= 0, got ${String(value)}`,
+    )
   }
   return value
 }
 
 const assertJitterFactor = (value: number): number => {
   if (!Number.isFinite(value) || value < 0 || value > 1) {
-    throw new RangeError(`reconnect.jitterFactor must be a number from 0 to 1, got ${String(value)}`)
+    throw new ZaileysConnectionError(
+      'INVALID_OPTIONS',
+      `reconnect.jitterFactor must be a number from 0 to 1, got ${String(value)}`,
+    )
   }
   return value
 }
 
-/** Throws a RangeError naming the option when a delay is negative or non-finite or jitterFactor is outside 0-1. */
+/** Throws INVALID_OPTIONS naming the option when a delay is negative or non-finite or jitterFactor is outside 0-1. */
 export function createReconnectStrategy(
   options?: ReconnectOptions,
   deps?: ReconnectStrategyDeps,

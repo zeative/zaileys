@@ -208,8 +208,8 @@ Here `debug`, `info`, and `fatal` become no-ops, so only warnings and errors are
 | `DEFAULT_CLEAR_AUTH_REASONS` | `readonly DisconnectReasonDomain[]` | `['logged-out']` — the only reason that deletes the saved session by default. |
 | `isRateLimited` | `(reason) => boolean` | `true` for `'rate-limited'`. |
 | `normalizePhoneNumber` | `(raw: string) => string` | The number without spaces, dashes, parentheses, and `+`. |
-| `validateE164` | `(raw: string) => string` | The normalized number, or throws `phoneNumber must be E.164 with country code` unless it's 8–15 digits. |
-| `renderQrInTerminal` | `(qrString: string) => Promise<string>` | The QR code as terminal text. |
+| `validateE164` | `(raw: string) => string` | The normalized number, or throws `ZaileysConnectionError` `INVALID_OPTIONS` (`phoneNumber must be E.164 with country code`) unless it's 8–15 digits. |
+| `renderQrInTerminal` | `(qrString: string) => Promise<string>` | The QR code as terminal text. Rejects with `ZaileysConnectionError` `INVALID_OPTIONS` (`qr string is required`) for an empty string. |
 | `printQrToTerminal` | `(qrString: string, write?: (s: string) => void) => Promise<void>` | Renders the QR code and writes it (to stdout by default). |
 
 Show the QR code with your own message instead of the built-in one:
@@ -231,7 +231,7 @@ Check a number before asking for a <Term id="pairing-code" />:
 import { validateE164 } from 'zaileys'
 
 validateE164('+62 812-3456-7890') // '6281234567890'
-validateE164('0812')              // throws Error: phoneNumber must be E.164 with country code
+validateE164('0812')              // throws ZaileysConnectionError: phoneNumber must be E.164 with country code
 ```
 
 ## Commands and plugins

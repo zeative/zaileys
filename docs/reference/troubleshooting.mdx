@@ -40,7 +40,7 @@ The `[zaileys] …` status lines are separate from `ZAILEYS_DEBUG`. Turn them of
 
 ### `phoneNumber is required when authType is "pairing"`
 
-You set `authType: 'pairing'` without `phoneNumber`, so Zaileys can't request a <Term id="pairing-code" />. `connect()` rejects with this plain `Error` before it opens a connection.
+You set `authType: 'pairing'` without `phoneNumber`, so Zaileys can't request a <Term id="pairing-code" />. `connect()` rejects with a `ZaileysConnectionError` (code `INVALID_OPTIONS`) before it opens a connection.
 
 With the default automatic connect, nothing is printed — not even `Connecting to WhatsApp`. The error only reaches the `error` event, or the logs when `ZAILEYS_DEBUG` is set.
 

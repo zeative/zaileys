@@ -93,6 +93,8 @@ import {
   type DisconnectReasonDomain,
 } from '../connection/disconnect-reason.js'
 import { createAuthGuard, type AuthGuard } from '../connection/auth-guard.js'
+import { ZaileysConnectionError } from '../connection/errors.js'
+import { ZaileysStoreError } from '../types/store-error.js'
 import { createPairingFlow } from '../connection/pairing-flow.js'
 import { printQrToTerminal } from '../connection/qr-terminal.js'
 import { createReconnectStrategy, type ReconnectStrategy } from '../connection/reconnect.js'
@@ -228,7 +230,8 @@ const applyMediaOptions = (media: MediaOptions | undefined, auth: AuthStoreBundl
 
 const assertSafeSessionId = (sessionId: string): string => {
   if (!SESSION_ID_PATTERN.test(sessionId)) {
-    throw new Error(
+    throw new ZaileysConnectionError(
+      'INVALID_OPTIONS',
       `invalid sessionId ${JSON.stringify(sessionId)}: use 1-64 characters from A-Z a-z 0-9 _ -`,
     )
   }
@@ -568,7 +571,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   async connect(): Promise<void> {
     if (this._provider === 'cloud') return this.connectCloud()
     if (this.authType === 'pairing' && !this.phoneNumber) {
-      throw new Error('phoneNumber is required when authType is "pairing"')
+      throw new ZaileysConnectionError('INVALID_OPTIONS', 'phoneNumber is required when authType is "pairing"')
     }
     if (this.machine.state === 'connecting' || this.machine.state === 'connected') {
       return
@@ -613,12 +616,15 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err))
       if (this.machine.canTransition('disconnected')) this.machine.transition('disconnected')
-      this.logger.error(error, 'failed to read stored credentials; aborting connect to protect the session')
-      throw error
+      const message = 'failed to read stored credentials; aborting connect to protect the session'
+      this.logger.error(error, message)
+      /** Store errors keep their class so code branching on STORE_* codes from connect() still matches. */
+      if (err instanceof ZaileysStoreError) throw err
+      throw new ZaileysConnectionError('CREDS_READ_FAILED', message, { cause: err })
     }
     /** A disconnect() during the read already closed the stores; a socket now would outlive it. */
     if (attempt !== this.connectAttemptSeq || this.state !== 'connecting') {
-      throw new Error('disconnected before connect resolved')
+      throw new ZaileysConnectionError('CONNECT_ABORTED', 'disconnected before connect resolved')
     }
     this.credsLoadedAtConnect = Boolean(loaded)
     const creds = Object.assign({} as AuthenticationCreds, loaded ?? initAuthCreds())
@@ -817,7 +823,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       this.disconnectEmittedFor = this.connectAttemptSeq
       this.emit('disconnect', { sessionId: this.sessionId, reason, willReconnect: false })
     }
-    this.rejectPendingConnect(new Error('disconnected before connect resolved'))
+    this.rejectPendingConnect(new ZaileysConnectionError('CONNECT_ABORTED', 'disconnected before connect resolved'))
   }
 
   async logout(): Promise<void> {
@@ -1220,7 +1226,8 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
      * again would overwrite a working session. Stop instead, and keep the stored creds intact.
      */
     if (this.creds?.registered === true) {
-      const error = new Error(
+      const error = new ZaileysConnectionError(
+        'SESSION_PROTECTED',
         'WhatsApp asked to pair again while a registered session is stored; aborting to protect it',
       )
       this.logger.error({ sessionId: this.sessionId }, error.message)
@@ -1602,7 +1609,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       if (this.machine.canTransition('disconnected')) {
         this.machine.transition('disconnected')
       }
-      this.rejectPendingConnect(new Error(`connection closed (${reason})`))
+      this.rejectPendingConnect(new ZaileysConnectionError('CONNECTION_CLOSED', `connection closed (${reason})`))
     }
   }
 
@@ -1614,7 +1621,8 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     const signalReopen = this.auth.signal.reopen
     const storeReopen = this.store.reopen
     if (typeof signalReopen !== 'function' || typeof storeReopen !== 'function') {
-      throw new Error(
+      throw new ZaileysConnectionError(
+        'STORE_NOT_REOPENABLE',
         'this auth or message store adapter cannot be reopened after disconnect(); implement reopen() or create a new Client',
       )
     }

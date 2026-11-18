@@ -16,5 +16,12 @@ export {
   type FloodGuardLimits,
   type FloodVerdict,
 } from './flood-guard.js'
+export {
+  ConversationRegistry,
+  DEFAULT_MAX_PENDING_WAITS,
+  DEFAULT_WAIT_TIMEOUT_MS,
+  type ConversationRegistryOptions,
+  type ConversationTimer,
+} from './conversation.js'
 export { attachCommandDispatcher } from './dispatcher.js'
 export type { DispatcherDeps, DispatcherHandle, ResolvedCommand } from './dispatcher.js'

@@ -18,7 +18,7 @@ This page lists every error Zaileys throws, grouped by class, with the code, the
 | [`ZaileysBuilderError`](#zaileysbuildererror) | `BuilderErrorCode` | `client.send()`, `msg.reply()`, `ctx.reply()`, edits, deletes, forwards, pins, `loadMedia()` |
 | [`ZaileysCloudError`](#zaileysclouderror) | `CloudErrorCode` | The Cloud API client: connecting, `client.cloud`, templates, media downloads |
 | [`ZaileysProviderError`](#zaileysprovidererror) | `'UNSUPPORTED_ON_CLOUD'` | WhatsApp Web-only features called with `provider: 'cloud'` |
-| [`ZaileysCommandError`](#zaileyscommanderror) | `CommandErrorCode` | `client.command()`, command handlers, middleware |
+| [`ZaileysCommandError`](#zaileyscommanderror) | `CommandErrorCode` | `client.command()`, command handlers, middleware, `ctx.ask()`, `client.waitForMessage()` |
 | [`ZaileysDomainError`](#zaileysdomainerror) | `DomainErrorCode` | `client.group`, `privacy`, `newsletter`, `community`, `profile`, `chat`, `contact`, `business` |
 | [`ZaileysAutomationError`](#zaileysautomationerror) | `AutomationErrorCode` | Scheduling, presence, call rejection, rate limiters |
 | [`ZaileysConnectionError`](#zaileysconnectionerror) | `ConnectionErrorCode` | `new Client()`, `connect()`, the pairing flow, the reconnect and state-machine helpers |
@@ -118,6 +118,10 @@ To avoid it, check `client.provider` before calling a Web-only feature.
 | `HANDLER_ERROR` | Your command handler threw | `command handler failed` — the original on `cause` | Fix the handler. Delivered through `command-error`. |
 | `MIDDLEWARE_ERROR` | A middleware threw, or called `next()` twice | `middleware threw during execution` (original on `cause`), `next() called multiple times` | Call `next()` exactly once. |
 | `NO_SENT_MESSAGE` | `ctx.edit()` before any `ctx.reply()` | `ctx.edit requires a prior ctx.reply` | Reply first, then edit. |
+| `ASK_TIMEOUT` | `ctx.ask()` or `client.waitForMessage()` got no matching message within `timeout` (default 60 s) | `waitForMessage() got no matching message within <ms> ms; raise timeout or catch ASK_TIMEOUT` | Raise `timeout`, or catch it. Uncaught in a handler it ends the command quietly; `timeoutMessage` tells the user. |
+| `ASK_CANCELLED` | A newer wait for the same chat and sender, an aborted `signal`, or `disconnect()` | `waitForMessage() was cancelled: <why>` | Nothing to fix. Uncaught in a handler it ends the command quietly. |
+| `ASK_LIMIT` | 1,000 waits already pending on the client | `waitForMessage() already has 1000 waits pending; let some finish or cancel them first` | Shorter timeouts, or abort waits you no longer need. |
+| `INVALID_OPTIONS` | `client.waitForMessage()` with a bad option | `waitForMessage() requires chat to be a JID such as 628xx@s.whatsapp.net or 1203xx@g.us, got "<v>"`, `waitForMessage() requires timeout to be a positive number of milliseconds or Infinity, got <v>` | Pass `msg.roomId` as `chat`, `msg.senderId` as `from`, and a positive `timeout`. |
 | `NOT_CONNECTED` | Declared, not thrown by the current release | — | — |
 
 Details are in the [Commands reference](/reference/commands#errors).

@@ -222,6 +222,9 @@ Every field and method of the [message context](/reference/message-context) — 
 <ResponseField name="edit(content)" type="(content: string) => Promise<void>">
   Replaces the text of the last message this handler sent with `ctx.reply()`. Throws `NO_SENT_MESSAGE` (`ctx.edit requires a prior ctx.reply`) before the first reply. Messages sent with `ctx.send()` aren't tracked.
 </ResponseField>
+<ResponseField name="ask(question, options?)" type="(question: string, options?: AskOptions) => Promise<MessageContext>">
+  Replies `question` like `reply()`, then resolves with the sender's next message in this chat, through [`client.waitForMessage()`](/reference/client#waitformessage). `options` takes `timeout` (default `60000` ms), `filter`, and `timeoutMessage` (replied on timeout; default none). Rejects `ASK_TIMEOUT` or `ASK_CANCELLED`, which end the command quietly when uncaught: no `command-error`, no error log. The answer is not run as a command. Guide: [Ask a question and wait for the answer](/bots/commands#ask-a-question-and-wait-for-the-answer).
+</ResponseField>
 
 ```ts
 client.command('weather', async (ctx) => {
@@ -345,6 +348,10 @@ Every error here is a `ZaileysCommandError`. See [Errors](/reference/errors#zail
 | `HANDLER_ERROR` | Your handler threw | `command handler failed` |
 | `MIDDLEWARE_ERROR` | A middleware threw, or called `next()` twice | `middleware threw during execution`, `next() called multiple times` |
 | `NO_SENT_MESSAGE` | `ctx.edit()` before any `ctx.reply()` | `ctx.edit requires a prior ctx.reply` |
+| `ASK_TIMEOUT` | `ctx.ask()` or `waitForMessage()` got no matching message in time. Ends a command quietly | `waitForMessage() got no matching message within <ms> ms; raise timeout or catch ASK_TIMEOUT` |
+| `ASK_CANCELLED` | A newer wait for the same chat and sender, an aborted `signal`, or `disconnect()`. Ends a command quietly | `waitForMessage() was cancelled: <why>` |
+| `ASK_LIMIT` | 1,000 waits already pending on the client | `waitForMessage() already has 1000 waits pending; let some finish or cancel them first` |
+| `INVALID_OPTIONS` | `waitForMessage()` with a `chat` or `from` that isn't a JID, or a `timeout` that isn't positive | `waitForMessage() requires timeout to be a positive number of milliseconds or Infinity, got 0` |
 | `NOT_CONNECTED` | Declared, not thrown by the current release | — |
 
 ## Lower-level exports
@@ -358,7 +365,8 @@ The building blocks the client uses internally. You don't need them to write com
 | `checkGuards` | `(guards: CommandGuards, ctx: CommandContext, deps) => Promise<GuardBlock \| null>` | Checks guards; `null` means the command may run. |
 | `resetCooldowns` | `() => void` | Clears every cooldown in the process. |
 | `FloodGuard` | `new FloodGuard(options?: CommandFloodOptions)` | The per-sender command budget behind `commandFlood`: `take(senderId, now)` returns `null` or `{ retryIn, notice? }`. |
-| `attachCommandDispatcher` | `(deps: DispatcherDeps) => DispatcherHandle` | Wires a registry to a message source. |
+| `attachCommandDispatcher` | `(deps: DispatcherDeps) => DispatcherHandle` | Wires a registry to a message source. Pass `isAwaited` to skip messages that answered a wait. |
+| `ConversationRegistry` | `new ConversationRegistry({ maxPending?, now?, timer? })` | The waits behind `waitForMessage()`: `wait(options)`, `offer(msg)` (returns whether it answered one), `cancelAll()`, `size`. `maxPending` defaults to `DEFAULT_MAX_PENDING_WAITS` (1000); `timeout` defaults to `DEFAULT_WAIT_TIMEOUT_MS` (60000). Inject `now` and `timer` to test without waiting. |
 
 ```ts
 import { resetCooldowns } from 'zaileys'

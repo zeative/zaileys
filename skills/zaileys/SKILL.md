@@ -45,7 +45,7 @@ Topic references — open the one the task touches:
 | WhatsApp Web vs Cloud API, what runs where, moving between them | [references/providers.md](references/providers.md) |
 | Sending: builder, media, buttons and lists, edits, reactions, JIDs | [references/messaging.md](references/messaging.md) |
 | Receiving: events, message context, downloading media | [references/receiving.md](references/receiving.md) |
-| Commands, middleware, plugins, broadcast, scheduling, auto-delete | [references/bots.md](references/bots.md) |
+| Commands, multi-step questions (`ctx.ask`), middleware, plugins, broadcast, scheduling, auto-delete | [references/bots.md](references/bots.md) |
 | Groups, communities, channels | [references/groups-and-channels.md](references/groups-and-channels.md) |
 | Cloud API setup, webhook, templates, 24-hour window, Meta limits | [references/cloud-api.md](references/cloud-api.md) |
 | Auth and message stores, sessions, multiple accounts | [references/storage-and-sessions.md](references/storage-and-sessions.md) |

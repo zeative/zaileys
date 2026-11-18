@@ -106,6 +106,10 @@ Thrown before any request — on property access for modules (`client.group`), a
 | `HANDLER_ERROR` | `command handler failed`, original on `cause` | Delivered to `command-error`; with no listener only logged as `command dispatch failed` (silent without `ZAILEYS_DEBUG`). |
 | `MIDDLEWARE_ERROR` | `middleware threw during execution`, `next() called multiple times` | Call `next()` exactly once per middleware. |
 | `NO_SENT_MESSAGE` | `ctx.edit requires a prior ctx.reply` | Reply first, then edit. |
+| `ASK_TIMEOUT` | `waitForMessage() got no matching message within <ms> ms; …` from `ctx.ask()` or `client.waitForMessage()` (default 60 000 ms) | Raise `timeout` or catch it. Uncaught in a command handler it ends the command quietly (no `command-error`, no error log); `ctx.ask(q, { timeoutMessage })` tells the user. |
+| `ASK_CANCELLED` | `waitForMessage() was cancelled: <why>`: a newer wait for the same chat and sender replaced it, its `signal` aborted, or the client disconnected (also at once when already disconnected) | Nothing to fix; ends a command quietly like `ASK_TIMEOUT`. Catch it only to clean up. |
+| `ASK_LIMIT` | `waitForMessage() already has 1000 waits pending; …` | Shorter timeouts, or abort waits you no longer need. Reported like any handler failure. |
+| `INVALID_OPTIONS` | `waitForMessage() requires chat to be a JID …`, `… from to be a user JID …`, `… timeout to be a positive number of milliseconds or Infinity, got <v>`, `… filter to be a function` | Pass `msg.roomId ?? msg.senderId` as `chat`, `msg.senderId` as `from`. |
 | `NOT_CONNECTED` | Declared in the union, never thrown by the current source | Nothing to handle; exhaustive `switch` needs the case. |
 
 ## ZaileysDomainError

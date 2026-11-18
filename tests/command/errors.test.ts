@@ -66,8 +66,12 @@ describe('ZaileysCommandError', () => {
       'MIDDLEWARE_ERROR',
       'NO_SENT_MESSAGE',
       'NOT_CONNECTED',
+      'INVALID_OPTIONS',
+      'ASK_TIMEOUT',
+      'ASK_CANCELLED',
+      'ASK_LIMIT',
     ]
-    expect(codes).toHaveLength(6)
+    expect(codes).toHaveLength(10)
   })
 
   it('code field is typed as CommandErrorCode', () => {

@@ -2,6 +2,7 @@ import type { Logger } from '../client/types.js'
 import type { MessageContext } from '../events/context.js'
 import { ZaileysCommandError } from './errors.js'
 import type { FloodGuard } from './flood-guard.js'
+import { isConversationEnd } from './conversation.js'
 import { checkGuards, type GuardBlock } from './guards.js'
 import { runMiddleware } from './middleware.js'
 import { parseCommand } from './parser.js'
@@ -32,6 +33,8 @@ export interface DispatcherDeps {
   flood?: FloodGuard
   /** Clock for the flood guard and cooldowns. Defaults to `Date.now`. */
   now?: () => number
+  /** Return `true` when the message answered a pending `waitForMessage()`; it is then not run as a command. */
+  isAwaited?: (msg: MessageContext) => boolean
 }
 
 export interface DispatcherHandle {
@@ -46,6 +49,7 @@ export function attachCommandDispatcher(deps: DispatcherDeps): DispatcherHandle 
   const now = deps.now ?? (() => Date.now())
 
   const handle = (msg: MessageContext): void => {
+    if (deps.isAwaited?.(msg) === true) return
     const parsed = parseCommand(msg.text, deps.prefixes)
     if (!parsed.matched) return
     const resolution = deps.registry.resolve(parsed)
@@ -88,6 +92,11 @@ export function attachCommandDispatcher(deps: DispatcherDeps): DispatcherHandle 
     }
 
     void run().catch((err) => {
+      /** An unanswered or cancelled `ctx.ask()` is how a conversation ends, not a handler bug. */
+      if (isConversationEnd(err)) {
+        deps.logger.debug({ command: ctx.command, code: (err as ZaileysCommandError).code }, 'command conversation ended')
+        return
+      }
       const wrapped =
         err instanceof ZaileysCommandError
           ? err

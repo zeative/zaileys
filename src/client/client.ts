@@ -38,7 +38,9 @@ import {
   attachCommandDispatcher,
   CommandRegistry,
   createFloodGuard,
+  ConversationRegistry,
   ZaileysCommandError,
+  type AskOptions,
   type CommandContext,
   type CommandHandler,
   type CommandSpec,
@@ -47,6 +49,7 @@ import {
   type Middleware,
   type RegisteredCommand,
   type ResolvedCommand,
+  type WaitForMessageOptions,
 } from '../command/index.js'
 import { applyGroupStatusWrap } from '../builder/status-wrap.js'
 import { rememberCallerInfo } from '../events/call-metadata.js'
@@ -310,6 +313,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private readonly citationConfig: CitationConfig | undefined
   private readonly ignoreMe: boolean
   private commandDispatcher: DispatcherHandle | undefined
+  private _conversation?: ConversationRegistry
   private _presence?: PresenceModule
   private _scheduler?: Scheduler
   private readonly autoDeleteOptions: AutoDeleteOptions | undefined
@@ -339,6 +343,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.statusLog = options.statusLog ?? true
     if (this.statusLog) suppressLibsignalNoise()
     this.on('message', (msg) => this.rememberChatExpiration(msg))
+    this.on('message', (msg) => void this._conversation?.offer(msg))
     this.reconnectOptions = options.reconnect ?? {}
     this.baileysExtra = options.baileys ?? {}
     this.auth = options.auth ?? new FileAuthStore({ basePath: `./.zaileys/auth/${this.sessionId}` })
@@ -761,6 +766,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     if (this.machine.state === 'idle' || this.machine.state === 'disconnected') return
     if (this.machine.canTransition('disconnecting')) this.machine.transition('disconnecting')
     await this.cloudTransport?.disconnect()
+    this._conversation?.cancelAll()
     this.machine.transition('disconnected')
     this.emit('disconnect', { sessionId: this.sessionId, reason: 'unknown', willReconnect: false })
   }
@@ -800,6 +806,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.pluginRegistry = undefined
     this._scheduler?.dispose()
     this._presence?.dispose()
+    this._conversation?.cancelAll()
     for (const c of this.listenerCleanup) c.off()
     this.listenerCleanup = []
     await loader?.stop().catch(() => undefined)
@@ -904,6 +911,16 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     return this
   }
 
+  /** Next matching inbound message in `chat`. Rejects `ASK_TIMEOUT`, `ASK_CANCELLED`, or `ASK_LIMIT` past 1000 waits. */
+  waitForMessage(options: WaitForMessageOptions): Promise<MessageContext> {
+    if (this.machine.state === 'disconnecting' || this.machine.state === 'disconnected') {
+      return Promise.reject(
+        new ZaileysCommandError('ASK_CANCELLED', 'waitForMessage() was cancelled: the client is disconnected'),
+      )
+    }
+    return (this._conversation ??= new ConversationRegistry()).wait(options)
+  }
+
   private attachCommandsIfReady(): void {
     if (this.commandDispatcher) return
     if (this.commandPrefixes.length === 0) return
@@ -926,6 +943,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         return () => this.off('message', wrapped)
       },
       buildContext: (resolved, msg) => this.buildCommandContext(resolved, msg),
+      isAwaited: (msg) => this._conversation?.offer(msg) === true,
       isAdmin: (groupJid, senderJid) => this.isGroupAdmin(groupJid, senderJid),
       onError: (error, ctx) => {
         if (this.listenerCount('command-error') === 0) return false
@@ -979,6 +997,12 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
 
   private buildCommandContext(resolved: ResolvedCommand, msg: MessageContext): CommandContext {
     let lastSentKey: WAMessageKey | undefined
+    const reply = async (content: string, opts?: TextOptions): Promise<WAMessageKey> => {
+      const target = msg.message().key.remoteJid ?? msg.roomId ?? msg.senderId
+      const key = await this.replyWithSameLifetime(target, content, opts, msg.message())
+      lastSentKey = key
+      return key
+    }
     return {
       ...msg,
       raw: resolved.raw,
@@ -988,12 +1012,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       json: resolved.json,
       client: this,
       send: (to?: string) => this.send(to ?? msg.roomId ?? msg.senderId),
-      reply: async (content: string, opts?: TextOptions): Promise<WAMessageKey> => {
-        const target = msg.message().key.remoteJid ?? msg.roomId ?? msg.senderId
-        const key = await this.replyWithSameLifetime(target, content, opts, msg.message())
-        lastSentKey = key
-        return key
-      },
+      reply,
       react: (emoji: string): Promise<WAMessageKey> => this.react(msg.message().key, emoji),
       edit: async (content: string): Promise<void> => {
         if (lastSentKey === undefined) {
@@ -1001,6 +1020,42 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         }
         await this.edit(lastSentKey).text(content)
       },
+      ask: (question: string, options?: AskOptions): Promise<MessageContext> =>
+        this.askInContext(msg, reply, question, options),
+    }
+  }
+
+  /** The wait starts before the question is sent, so an answer typed while it is in flight still counts. */
+  private async askInContext(
+    msg: MessageContext,
+    reply: (content: string) => Promise<WAMessageKey>,
+    question: string,
+    options: AskOptions = {},
+  ): Promise<MessageContext> {
+    const stop = new AbortController()
+    const answer = this.waitForMessage({
+      chat: msg.roomId ?? msg.senderId,
+      from: msg.senderId,
+      signal: stop.signal,
+      ...(options.timeout === undefined ? {} : { timeout: options.timeout }),
+      ...(options.filter === undefined ? {} : { filter: options.filter }),
+    })
+    /** Handled at once, so a rejection while the question is still sending never counts as unhandled. */
+    answer.catch(() => undefined)
+    try {
+      await reply(question)
+    } catch (err) {
+      stop.abort()
+      throw err
+    }
+    try {
+      return await answer
+    } catch (err) {
+      const timeoutMessage = options.timeoutMessage
+      if (timeoutMessage !== undefined && err instanceof ZaileysCommandError && err.code === 'ASK_TIMEOUT') {
+        await reply(timeoutMessage).catch((sendErr: unknown) => this.logger.warn(sendErr, 'ctx.ask timeoutMessage failed'))
+      }
+      throw err
     }
   }
 

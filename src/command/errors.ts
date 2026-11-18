@@ -6,6 +6,9 @@ export type CommandErrorCode =
   | 'MIDDLEWARE_ERROR'
   | 'NO_SENT_MESSAGE'
   | 'NOT_CONNECTED'
+  | 'ASK_TIMEOUT'
+  | 'ASK_CANCELLED'
+  | 'ASK_LIMIT'
 
 export class ZaileysCommandError extends Error {
   readonly code: CommandErrorCode

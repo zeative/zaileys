@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 import { attachCommandDispatcher, type DispatcherDeps } from '../../src/command/dispatcher.js'
 import { FloodGuard } from '../../src/command/flood-guard.js'
+import { ZaileysCommandError } from '../../src/command/errors.js'
 import { CommandRegistry } from '../../src/command/registry.js'
 import type { CommandContext, Middleware } from '../../src/command/types.js'
 import type { MessageContext } from '../../src/events/context.js'
@@ -482,5 +483,50 @@ describe('attachCommandDispatcher — flood guard', () => {
     await emitText(h, 'hello')
     await emitText(h, '/ping')
     expect(handler).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('attachCommandDispatcher — conversations', () => {
+  it('does not run a command for a message that answered a pending wait', async () => {
+    const h = makeHarness()
+    const handler = vi.fn()
+    h.registry.register('daftar', handler)
+    attachCommandDispatcher({ ...h.deps, isAwaited: (m) => m.text === '/daftar' })
+    await emitText(h, '/daftar')
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('runs the command when the message answered no wait', async () => {
+    const h = makeHarness()
+    const handler = vi.fn()
+    h.registry.register('daftar', handler)
+    attachCommandDispatcher({ ...h.deps, isAwaited: () => false })
+    await emitText(h, '/daftar')
+    expect(handler).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['ASK_TIMEOUT', 'ASK_CANCELLED'] as const)(
+    'ends quietly when the handler rejects %s: no error log and no onError',
+    async (code) => {
+      const h = makeHarness()
+      const onError = vi.fn(() => true)
+      h.registry.register('daftar', () => {
+        throw new ZaileysCommandError(code, 'conversation over')
+      })
+      attachCommandDispatcher({ ...h.deps, onError })
+      await emitText(h, '/daftar')
+      expect(onError).not.toHaveBeenCalled()
+      expect(h.logger.error).not.toHaveBeenCalled()
+    },
+  )
+
+  it('still reports ASK_LIMIT as a failure', async () => {
+    const h = makeHarness()
+    h.registry.register('daftar', () => {
+      throw new ZaileysCommandError('ASK_LIMIT', 'too many')
+    })
+    attachCommandDispatcher(h.deps)
+    await emitText(h, '/daftar')
+    expect(h.logger.error).toHaveBeenCalled()
   })
 })

@@ -58,6 +58,7 @@ Signature blocks show each member as it's declared on the class. What each const
 | [`commands()`](#commands) | `RegisteredCommand[]` | WhatsApp Web |
 | [`use()`](#use) | `this` | WhatsApp Web |
 | [`unuse()`](#unuse) | `this` | WhatsApp Web |
+| [`waitForMessage()`](#waitformessage) | `Promise<MessageContext>` | Both |
 | **Automation** | | |
 | [`broadcast()`](#broadcast) | `Promise<BroadcastResult>` | WhatsApp Web |
 | [`scheduleAt()`](#scheduleat) | `Promise<ScheduleHandle>` | WhatsApp Web |
@@ -1209,6 +1210,52 @@ client.use(logCommands)
 client.unuse(logCommands)
 ```
 
+### `waitForMessage()`
+
+```ts Signature
+import type { MessageContext, WaitForMessageOptions } from 'zaileys'
+
+interface Client {
+  waitForMessage(options: WaitForMessageOptions): Promise<MessageContext>
+}
+```
+
+Resolves with the next inbound message in a chat that matches. Only messages that arrive after the call count; history, edits, deletes, and status posts never do. A message that answers a wait is not run as a command, but `text` and `message` listeners still get it. Inside a command, [`ctx.ask()`](/bots/commands#ask-a-question-and-wait-for-the-answer) sends the question and waits in one call.
+
+<ProviderSupport web={true} cloud={true} />
+
+<ParamField body="chat" type="string" required>
+  The chat to listen in: a group JID, or the user JID of a one-to-one chat. Pass `msg.roomId`.
+</ParamField>
+<ParamField body="from" type="string">
+  Only accept messages from this sender. Matched against both the sender's phone-number JID and LID, ignoring device suffixes; a LID never matches a phone number. Default: anyone in the chat. Your bot's own messages only count when `from` is the bot's own JID (and `ignoreMe` is `false`).
+</ParamField>
+<ParamField body="timeout" type="number" default="60000">
+  Milliseconds to wait before rejecting with `ASK_TIMEOUT`. `Infinity` waits until answered or cancelled.
+</ParamField>
+<ParamField body="filter" type="(msg: MessageContext) => boolean">
+  Return `false` to skip a message and keep waiting. If it throws, the wait rejects with that error.
+</ParamField>
+<ParamField body="signal" type="AbortSignal">
+  Aborting rejects the wait with `ASK_CANCELLED`.
+</ParamField>
+
+**Rejects:** `ZaileysCommandError` `ASK_TIMEOUT` when nothing matched in time; `ASK_CANCELLED` when `signal` aborts, a newer wait for the same chat and sender replaces this one, or the client disconnects (also right away if it is already disconnected); `ASK_LIMIT` when 1,000 waits are already pending on this client; `INVALID_OPTIONS` when `chat` or `from` isn't a JID or `timeout` isn't a positive number.
+
+```ts
+client.on('text', async (msg) => {
+  if (msg.text !== 'pin') return
+  await msg.reply('Send the 4-digit code from the app.')
+  const code = await client.waitForMessage({
+    chat: msg.roomId ?? msg.senderId,
+    from: msg.senderId,
+    filter: (m) => /^\d{4}$/.test(m.text),
+    timeout: 120_000,
+  })
+  await code.reply('Code received.')
+})
+```
+
 ## Automation
 
 ### `broadcast()`
@@ -1417,6 +1464,7 @@ const names = await client.usernames(['115362955808779@lid', '234256710246613@li
 | `ZaileysDomainError` | `NOT_CONNECTED` and others | Module methods |
 | `ZaileysAutomationError` | `NOT_CONNECTED`, `PRESENCE_FAILED`, `SCHEDULE_INVALID`, `RATE_LIMIT_INVALID` | `presence`, `rejectCall`, `scheduleAt`, `broadcast` |
 | `ZaileysCommandError` | `DUPLICATE_COMMAND`, `INVALID_COMMAND_NAME` | `command` |
+| `ZaileysCommandError` | `ASK_TIMEOUT`, `ASK_CANCELLED`, `ASK_LIMIT`, `INVALID_OPTIONS` | `waitForMessage` |
 | `ZaileysConnectionError` | `INVALID_OPTIONS`, `CREDS_READ_FAILED`, `CONNECT_ABORTED`, `CONNECTION_CLOSED`, `STORE_NOT_REOPENABLE` | `new Client()` with a bad `sessionId` or `reconnect` option; `connect` |
 
 Every code and how to fix it: [Errors](/reference/errors) and [Error handling](/data/error-handling).

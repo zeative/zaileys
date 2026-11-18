@@ -2,7 +2,7 @@
 title: "Error code lookup"
 description: "Every error code Zaileys and the Cloud API can hand you, one entry each: what it means, what to do, and where the full explanation lives."
 icon: "text-search"
-keywords: ["error code", "error codes", "lookup", "SEND_FAILED", "STORE_NOT_AVAILABLE", "UNSUPPORTED_ON_CLOUD", "MEDIA_LOAD_FAILED", "INVALID_OPTIONS", "ZaileysConnectionError", "CONNECTION_CLOSED", "CONNECT_ABORTED", "CREDS_READ_FAILED", "SESSION_PROTECTED", "EMPTY_CONTENT", "NOT_CONNECTED", "NOT_IMPLEMENTED", "RATE_LIMITED", "REQUEST_FAILED", "HANDLER_ERROR", "MIDDLEWARE_ERROR", "SCHEDULE_INVALID", "STORE_CONNECTION_FAILED", "131047", "132000", "133010", "130429", "131056", "190", "graph error", "meta error code", "what does this error mean"]
+keywords: ["error code", "error codes", "lookup", "SEND_FAILED", "STORE_NOT_AVAILABLE", "UNSUPPORTED_ON_CLOUD", "MEDIA_LOAD_FAILED", "INVALID_OPTIONS", "ZaileysConnectionError", "CONNECTION_CLOSED", "CONNECT_ABORTED", "CREDS_READ_FAILED", "SESSION_PROTECTED", "EMPTY_CONTENT", "NOT_CONNECTED", "NOT_IMPLEMENTED", "RATE_LIMITED", "REQUEST_FAILED", "HANDLER_ERROR", "MIDDLEWARE_ERROR", "ASK_TIMEOUT", "ASK_CANCELLED", "SCHEDULE_INVALID", "STORE_CONNECTION_FAILED", "131047", "132000", "133010", "130429", "131056", "190", "graph error", "meta error code", "what does this error mean"]
 ---
 
 You have a code and you want the answer, not a tour. Every code is its own entry below, so you can link straight to one.
@@ -28,10 +28,28 @@ Each code belongs to an error class, and the class tells you where it came from.
 | `ZaileysCloudError` | [`AUTH`](#auth) · [`CONFIG`](#config) · [`NOT_IMPLEMENTED`](#not_implemented) · [`RATE_LIMITED`](#rate_limited) · [`REQUEST_FAILED`](#request_failed) |
 | `ZaileysProviderError` | [`UNSUPPORTED_ON_CLOUD`](#unsupported_on_cloud) |
 | `ZaileysConnectionError` | [`CONNECTION_CLOSED`](#connection_closed) · [`CONNECT_ABORTED`](#connect_aborted) · [`CREDS_READ_FAILED`](#creds_read_failed) · [`INVALID_OPTIONS`](#invalid_options) · [`INVALID_STATE`](#invalid_state) · [`PAIRING_FAILED`](#pairing_failed) · [`SESSION_PROTECTED`](#session_protected) · [`STORE_NOT_REOPENABLE`](#store_not_reopenable) |
-| `ZaileysCommandError` | [`DUPLICATE_COMMAND`](#duplicate_command) · [`HANDLER_ERROR`](#handler_error) · [`INVALID_COMMAND_NAME`](#invalid_command_name) · [`INVALID_OPTIONS`](#invalid_options) · [`MIDDLEWARE_ERROR`](#middleware_error) · [`NOT_CONNECTED`](#not_connected) · [`NO_SENT_MESSAGE`](#no_sent_message) |
+| `ZaileysCommandError` | [`ASK_CANCELLED`](#ask_cancelled) · [`ASK_LIMIT`](#ask_limit) · [`ASK_TIMEOUT`](#ask_timeout) · [`DUPLICATE_COMMAND`](#duplicate_command) · [`HANDLER_ERROR`](#handler_error) · [`INVALID_COMMAND_NAME`](#invalid_command_name) · [`INVALID_OPTIONS`](#invalid_options) · [`MIDDLEWARE_ERROR`](#middleware_error) · [`NOT_CONNECTED`](#not_connected) · [`NO_SENT_MESSAGE`](#no_sent_message) |
 | `ZaileysDomainError` | [`GROUP_NOT_FOUND`](#group_not_found) · [`INVALID_PARTICIPANT`](#invalid_participant) · [`NEWSLETTER_NOT_FOUND`](#newsletter_not_found) · [`NOT_CONNECTED`](#not_connected) · [`OPERATION_FAILED`](#operation_failed) |
 | `ZaileysAutomationError` | [`NOT_CONNECTED`](#not_connected) · [`PRESENCE_FAILED`](#presence_failed) · [`QUEUE_FULL`](#queue_full) · [`QUEUE_TIMEOUT`](#queue_timeout) · [`RATE_LIMIT_INVALID`](#rate_limit_invalid) · [`SCHEDULE_INVALID`](#schedule_invalid) · [`STORE_UNAVAILABLE`](#store_unavailable) · [`TASK_FAILED`](#task_failed) |
 | `ZaileysStoreError` | [`STORE_CLOSED`](#store_closed) · [`STORE_CONNECTION_FAILED`](#store_connection_failed) · [`STORE_CORRUPTED`](#store_corrupted) · [`STORE_NOT_AVAILABLE`](#store_not_available) · [`STORE_READ_FAILED`](#store_read_failed) · [`STORE_WRITE_FAILED`](#store_write_failed) |
+
+### ASK_CANCELLED
+
+`ZaileysCommandError`. A `ctx.ask()` or `client.waitForMessage()` stopped waiting before an answer came: a newer wait for the same chat and sender replaced it, its `signal` aborted, or the client disconnected. The message says which, after `waitForMessage() was cancelled:`. Left uncaught in a command handler, it ends the command quietly — no `command-error`, no error log.
+
+**Do this:** nothing is broken. Catch it only if you need to clean up when the conversation is abandoned. [Commands](/bots/commands#ask-a-question-and-wait-for-the-answer)
+
+### ASK_LIMIT
+
+`ZaileysCommandError`. 1,000 waits from `ctx.ask()` or `client.waitForMessage()` were already pending on this client, so the new one was refused instead of growing memory without bound.
+
+**Do this:** use a shorter `timeout` so unanswered questions finish sooner, or cancel waits you no longer need with an `AbortSignal`. [Commands](/bots/commands#ask-a-question-and-wait-for-the-answer)
+
+### ASK_TIMEOUT
+
+`ZaileysCommandError`. Nobody sent a matching message within the `timeout` of `ctx.ask()` or `client.waitForMessage()` — 60 seconds by default. Left uncaught in a command handler, it ends the command quietly; pass `timeoutMessage` to `ctx.ask()` to tell the user.
+
+**Do this:** raise `timeout`, or catch it to answer the user. If answers arrive but don't count, check your `filter`. [Commands](/bots/commands#ask-a-question-and-wait-for-the-answer)
 
 ### AUTH
 
@@ -103,9 +121,9 @@ Each code belongs to an error class, and the class tells you where it came from.
 
 **Do this:** the message names the option and the accepted values. [Full entry](/reference/errors#zaileysconnectionerror)
 
-`ZaileysCommandError` uses it for `commandFlood`: `maxCommands` or `windowMs` that isn't a positive integer, or an empty `notice`.
+`ZaileysCommandError` uses it for `commandFlood` (`maxCommands` or `windowMs` that isn't a positive integer, or an empty `notice`) and for `client.waitForMessage()` (a `chat` or `from` that isn't a JID, or a `timeout` that isn't a positive number of milliseconds).
 
-**Do this:** pass positive integers, or `commandFlood: false` to turn flood protection off. [Flood protection](/bots/commands#flood-protection)
+**Do this:** pass positive integers to `commandFlood`, or `false` to turn flood protection off ([Flood protection](/bots/commands#flood-protection)); pass `msg.roomId` as `chat` and `msg.senderId` as `from` to `waitForMessage()` ([Commands](/bots/commands#ask-a-question-and-wait-for-the-answer)).
 
 ### INVALID_PARTICIPANT
 

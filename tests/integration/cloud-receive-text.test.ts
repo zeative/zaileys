@@ -89,6 +89,22 @@ describe('integration: cloud receive text', () => {
   })
 })
 
+describe('integration: cloud waitForMessage', () => {
+  it('resolves with the next webhook message from the sender', async () => {
+    const c = await connectedClient()
+    const wait = c.waitForMessage({ chat: '628111000222@s.whatsapp.net', from: '628111000222@s.whatsapp.net' })
+    await c.webhook()(post(fixture))
+    await expect(wait).resolves.toMatchObject({ text: 'halo bot', senderId: '628111000222@s.whatsapp.net' })
+  })
+
+  it('disconnect() rejects a pending wait with ASK_CANCELLED', async () => {
+    const c = await connectedClient()
+    const wait = c.waitForMessage({ chat: '628111000222@s.whatsapp.net' })
+    await c.disconnect()
+    await expect(wait).rejects.toMatchObject({ code: 'ASK_CANCELLED' })
+  })
+})
+
 describe('integration: cloud webhook without connect()', () => {
   it('webhook() dispatches events even if connect() was never called', async () => {
     // no health-check fetch — construct only, never connect

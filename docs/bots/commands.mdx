@@ -21,6 +21,7 @@ A command is a message that starts with a prefix, like `/ping` or `!weather Jaka
 | Stop one person flooding the bot | [`new Client({ commandFlood: { maxCommands, windowMs } })`](#flood-protection) | On by default: 20 commands a minute per sender |
 | Read what was typed | [`ctx.args`, `ctx.flags`, `ctx.json`](#read-arguments-and-flags) | `/remind "call mom" --at=18:00` arrives already split |
 | Answer | [`ctx.reply()`, `ctx.send()`, `ctx.react()`, `ctx.edit()`](#answer-from-a-command) | Replies quote the command message |
+| Ask and wait for the answer | [`ctx.ask('What is your name?')`](#ask-a-question-and-wait-for-the-answer) | Resolves with the user's next message |
 | Build a help menu | [`client.commands()`](#build-a-help-menu) | Every command with its description and usage |
 | Handle problems | [`command-blocked`, `command-error`, `command-not-found`](#handle-blocked-failed-and-unknown-commands) | You decide what the user sees |
 | Remove a command | [`client.unregisterCommand('ping')`](#remove-a-command) | The name and its aliases stop working |
@@ -253,6 +254,54 @@ The sender sees a ⏳ reaction on their message, a reply that changes from `Buil
 
 In a chat with disappearing messages turned on, `ctx.reply()` uses the command message's timer and `ctx.send()` uses the chat's timer, so your answers disappear along with the conversation.
 
+## Ask a question and wait for the answer
+
+`ctx.ask(question)` replies with the question, quoting the command message, and waits for the same person's next message in the same chat. It returns that message, so a sign-up form is a few lines of ordinary `await`:
+
+```ts
+client.command('daftar', async (ctx) => {
+  const name = await ctx.ask('What is your name?')
+  const age = await ctx.ask('How old are you? Send a number.', {
+    filter: (m) => /^\d{1,3}$/.test(m.text.trim()),
+    timeout: 120_000,
+    timeoutMessage: 'No answer, so I stopped. Send /daftar to start again.',
+  })
+  await ctx.reply(`Registered ${name.text}, age ${age.text}.`)
+})
+```
+
+The user sends `/daftar`, answers `Budi`, then `twenty` (ignored by the filter) and `20`, and gets `Registered Budi, age 20.` Someone else typing in the same group never counts as the answer.
+
+| Option | Default | What it does |
+| --- | --- | --- |
+| `timeout` | `60000` | Milliseconds to wait before giving up with `ASK_TIMEOUT`. |
+| `filter` | accepts every message | Return `false` to ignore a message and keep waiting. |
+| `timeoutMessage` | none | Replied, quoting the command message, when the wait times out. |
+
+How the wait behaves:
+
+- **An answer is not a command.** A message that answers a question is not run as a command, even when it starts with the prefix, so typing `/daftar` as the answer doesn't start the form again. `text` and `message` listeners still get it. A message the `filter` rejects runs as a command as usual.
+- **Timing out or cancelling ends the command quietly.** If you don't catch `ASK_TIMEOUT` or `ASK_CANCELLED`, the handler stops there with no `command-error` and nothing logged as an error. Catch them yourself to do something else.
+- **One question per person per chat.** A new `ctx.ask()` for the same person in the same chat cancels the older one with `ASK_CANCELLED`. `client.disconnect()` cancels every pending question the same way.
+- **At most 1,000 waits per client.** One more rejects with `ASK_LIMIT`, which is reported like any other handler failure.
+
+`ctx.ask()` is built on `client.waitForMessage()`, which you can call anywhere, including on the Cloud API where commands don't run:
+
+```ts
+client.on('text', async (msg) => {
+  if (msg.text !== 'feedback') return
+  await msg.reply('What should we improve?')
+  try {
+    const answer = await client.waitForMessage({ chat: msg.roomId ?? msg.senderId, from: msg.senderId, timeout: 300_000 })
+    await answer.reply('Thanks, noted!')
+  } catch {
+    await msg.reply('No feedback received.')
+  }
+})
+```
+
+`waitForMessage()` takes `chat` (required), `from`, `timeout`, `filter`, and an `AbortSignal` as `signal`. Leave out `from` to accept anyone in the chat. Your bot's own messages never count unless `from` is the bot's own JID and `ignoreMe` is `false`.
+
 ## Run a command from a caption
 
 Commands also run when they're the caption of a photo or video. `ctx.text` holds the caption, and `ctx.media` holds the file:
@@ -438,6 +487,10 @@ client.on('text', async (msg) => {
 | `HANDLER_ERROR` | Your handler threw. Delivered through `command-error`. | Read `error.cause` for the original error. |
 | `MIDDLEWARE_ERROR` | A middleware threw, or called `next()` more than once. | See [Middleware](/bots/middleware#stop-a-command). |
 | `NO_SENT_MESSAGE` | `ctx.edit()` ran before any `ctx.reply()` in the same handler. | Reply first, then edit. |
+| `ASK_TIMEOUT` | Nobody answered `ctx.ask()` or `waitForMessage()` in time. Ends a command quietly. | Raise `timeout`, or catch it to say something. `timeoutMessage` does that for you. |
+| `ASK_CANCELLED` | The wait was replaced by a newer one for the same person and chat, its `signal` aborted, or the client disconnected. Ends a command quietly. | Nothing to fix. Catch it if you need to clean up. |
+| `ASK_LIMIT` | 1,000 waits were already pending on this client. | Use shorter timeouts so waits finish sooner. |
+| `INVALID_OPTIONS` | `waitForMessage()` got a `chat` or `from` that isn't a JID, or a `timeout` that isn't a positive number. | The message names the option and the value it got. |
 
 Check the code on a caught error:
 

@@ -8,6 +8,7 @@
 - Flood protection
 - Arguments and flags
 - The command context
+- Ask and wait for an answer
 - Blocked, failed, and unknown commands
 - Middleware
 - Owners and banned users
@@ -115,7 +116,37 @@ senders keep their own budget. Non-command messages are never counted. Counts li
 | `ctx.send(to?)` | Builder to `to`, else `roomId ?? senderId`; inherits the chat's disappearing timer |
 | `ctx.react(emoji)` | Reacts to the command message |
 | `ctx.edit(text)` | Edits the **last `ctx.reply()`** of this invocation. Messages sent with `ctx.send()` don't count. Throws `NO_SENT_MESSAGE` before a reply; uses `client.edit()`, so WhatsApp Web only |
+| `ctx.ask(question, options?)` | Replies `question` like `ctx.reply()`, then resolves with the sender's next message in this chat. See below |
 | `ctx.client` | The client, for handlers in other files |
+
+## Ask and wait for an answer
+
+`ctx.ask()` is `ctx.reply(question)` plus `client.waitForMessage({ chat: ctx.roomId ?? ctx.senderId, from: ctx.senderId })`.
+Write multi-step flows as plain `await`s instead of hand-rolled per-user state maps:
+
+```ts
+client.command('daftar', async (ctx) => {
+  const name = await ctx.ask('What is your name?')
+  const age = await ctx.ask('How old are you?', {
+    filter: (m) => /^\d{1,3}$/.test(m.text.trim()),
+    timeoutMessage: 'No answer, send /daftar to start again.',
+  })
+  await ctx.reply(`Registered ${name.text}, ${age.text}`)
+})
+```
+
+| Rule | Why it matters |
+| --- | --- |
+| The answer is not run as a command | Answering `/daftar` doesn't restart the flow; `text`/`message` listeners still get it. A message the `filter` rejects is dispatched as usual |
+| `ASK_TIMEOUT` (default `timeout` 60 000 ms) and `ASK_CANCELLED` end a command quietly | No `command-error`, no error log; catch them only to clean up. `timeoutMessage` is replied on timeout |
+| One wait per chat + sender | A newer `ctx.ask()`/`waitForMessage()` for the same pair cancels the older one with `ASK_CANCELLED` |
+| `disconnect()` cancels every pending wait | Waits survive an automatic reconnect, not an explicit `disconnect()` or a fatal close |
+| At most 1 000 pending waits per client | One more rejects `ASK_LIMIT`; keep timeouts short |
+| `from` matches PN and LID with `sameUser()` | A LID never satisfies a phone-number JID; the bot's own messages count only when `from` is the bot and `ignoreMe: false` |
+| Only fresh messages count | History sync, edits, deletes, and status posts never answer a wait |
+
+`client.waitForMessage({ chat, from?, timeout?, filter?, signal? })` works on both providers, so on the Cloud API
+use it from a `text` handler where commands don't run.
 
 ## Blocked, failed, and unknown commands
 

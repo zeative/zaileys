@@ -25,6 +25,32 @@ export interface CommandContext extends MessageContext {
   reply(content: string, opts?: TextOptions): Promise<WAMessageKey>
   react(emoji: string): Promise<WAMessageKey>
   edit(content: string): Promise<void>
+  /** Replies `question`, then resolves with the sender's next message here. Uncaught ask errors end the command quietly. */
+  ask(question: string, options?: AskOptions): Promise<MessageContext>
+}
+
+/** Options for `client.waitForMessage()`. */
+export interface WaitForMessageOptions {
+  /** Chat to listen in: a group JID, or the user JID of a one-to-one chat (`ctx.roomId`). */
+  chat: string
+  /** Only accept messages from this sender, matched with `sameUser()` against its PN and LID. Default any sender. */
+  from?: string
+  /** Milliseconds to wait before rejecting `ASK_TIMEOUT`. `Infinity` waits until answered or cancelled. Default 60 000. */
+  timeout?: number
+  /** Return `false` to skip a message and keep waiting. A throw rejects the wait with that error. Default accepts all. */
+  filter?: (msg: MessageContext) => boolean
+  /** Aborting rejects the wait with `ASK_CANCELLED`. Default none. */
+  signal?: AbortSignal
+}
+
+/** Options for `ctx.ask()`. */
+export interface AskOptions {
+  /** Milliseconds to wait for the answer before rejecting `ASK_TIMEOUT`. Default 60 000. */
+  timeout?: number
+  /** Return `false` to ignore a message and keep waiting; it then runs as a command. Default accepts all. */
+  filter?: (msg: MessageContext) => boolean
+  /** Replied, quoting the command message, when the wait times out. Default none. */
+  timeoutMessage?: string
 }
 
 export type CommandHandler = (ctx: CommandContext) => Promise<void> | void

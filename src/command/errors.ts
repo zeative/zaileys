@@ -1,6 +1,7 @@
 export type CommandErrorCode =
   | 'DUPLICATE_COMMAND'
   | 'INVALID_COMMAND_NAME'
+  | 'INVALID_OPTIONS'
   | 'HANDLER_ERROR'
   | 'MIDDLEWARE_ERROR'
   | 'NO_SENT_MESSAGE'

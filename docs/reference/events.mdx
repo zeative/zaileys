@@ -679,11 +679,11 @@ WhatsApp Web only, and only when `commandPrefix` is set. Details are in the [Com
 <ResponseField name="command" type="string">
   The command's name (the real name, even when an alias was typed).
 </ResponseField>
-<ResponseField name="reason" type="'group-only' | 'private-only' | 'admin-only' | 'cooldown'">
-  Which guard stopped it.
+<ResponseField name="reason" type="'group-only' | 'private-only' | 'admin-only' | 'cooldown' | 'flood'">
+  Which guard stopped it. `'flood'` means the sender went over the [`commandFlood`](/bots/commands#flood-protection) limit.
 </ResponseField>
 <ResponseField name="retryIn" type="number | undefined">
-  Seconds until the sender may retry, rounded up. Only when `reason` is `'cooldown'`.
+  Seconds until the sender may retry, rounded up. Only when `reason` is `'cooldown'` or `'flood'`.
 </ResponseField>
 <ResponseField name="ctx" type="CommandContext">
   The command context, so you can `ctx.reply()`.

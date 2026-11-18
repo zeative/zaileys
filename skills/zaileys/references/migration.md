@@ -138,6 +138,11 @@ premium users become your own lists checked in the handler or in `client.use()` 
 
 Only entries that break code or change behaviour. Additive features are omitted.
 
+**4.20.0:** command flood protection is on by default: one sender may run 20 commands per 60 s across every chat;
+the rest emit `command-blocked` with the new reason `flood` instead of running. Detect: `grep -rn "command-blocked\|
+new Client(" src`. Fix: pass `commandFlood: { maxCommands, windowMs }` for bots one account drives hard, or
+`commandFlood: false` for the old unlimited behaviour; an exhaustive `switch (reason)` needs a `'flood'` case.
+
 **4.19.0:** three behaviour changes. `client.broadcast()` defaults to one send per second, evenly spaced (was five
 per second, first five at once). Detect: `grep -rn "broadcast(" src`. Fix: pass `rateLimitPerSec: 5` where the old
 pace is needed. `MemoryMessageStore` keeps the latest 10,000 messages. Detect: `grep -rn "MemoryMessageStore\|store:"

@@ -37,11 +37,13 @@ import {
 import {
   attachCommandDispatcher,
   CommandRegistry,
+  createFloodGuard,
   ZaileysCommandError,
   type CommandContext,
   type CommandHandler,
   type CommandSpec,
   type DispatcherHandle,
+  type FloodGuard,
   type Middleware,
   type RegisteredCommand,
   type ResolvedCommand,
@@ -304,6 +306,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private commandRegistry?: CommandRegistry
   private readonly commandMiddleware: Middleware[] = []
   private readonly commandPrefixes: string[]
+  private readonly commandFlood: FloodGuard | undefined
   private readonly citationConfig: CitationConfig | undefined
   private readonly ignoreMe: boolean
   private commandDispatcher: DispatcherHandle | undefined
@@ -351,6 +354,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     const schedulePerSec = options.scheduleRateLimitPerSec ?? 1
     this.scheduleLimiter = schedulePerSec > 0 ? new RateLimiter({ perSec: schedulePerSec }) : undefined
     this.commandPrefixes = normalizePrefixes(options.commandPrefix)
+    this.commandFlood = createFloodGuard(options.commandFlood)
     this.citationConfig = options.citation
     this.ignoreMe = options.ignoreMe ?? true
     this.autoRejectCall = new AutoRejectCallModule(
@@ -911,6 +915,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       middleware: this.commandMiddleware,
       prefixes: this.commandPrefixes,
       logger: this.logger,
+      ...(this.commandFlood ? { flood: this.commandFlood } : {}),
       /**
        * `message` rather than `text`: a command is just as often a media caption (`.sticker` on a
        * photo), and the `text` event deliberately excludes captions.

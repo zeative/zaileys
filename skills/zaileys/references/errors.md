@@ -102,6 +102,7 @@ Thrown before any request — on property access for modules (`client.group`), a
 | --- | --- | --- |
 | `DUPLICATE_COMMAND` | `command "<name>" is already registered` (name or alias) | Rename, or `client.unregisterCommand()` the old one first. |
 | `INVALID_COMMAND_NAME` | `command spec must not be empty`, `empty command segment in spec` | Non-empty names; no `\|\|` in the spec. |
+| `INVALID_OPTIONS` | `new Client()` with a bad `commandFlood`: `commandFlood.<maxCommands\|windowMs> must be a positive integer, got <v>`, `commandFlood.notice must be a non-empty string or false, got <v>`, `commandFlood must be an options object or false, got <v>` | Positive integers, a non-empty `notice`, or `commandFlood: false` to turn flood protection off. |
 | `HANDLER_ERROR` | `command handler failed`, original on `cause` | Delivered to `command-error`; with no listener only logged as `command dispatch failed` (silent without `ZAILEYS_DEBUG`). |
 | `MIDDLEWARE_ERROR` | `middleware threw during execution`, `next() called multiple times` | Call `next()` exactly once per middleware. |
 | `NO_SENT_MESSAGE` | `ctx.edit requires a prior ctx.reply` | Reply first, then edit. |

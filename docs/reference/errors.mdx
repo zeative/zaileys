@@ -114,6 +114,7 @@ To avoid it, check `client.provider` before calling a Web-only feature.
 | --- | --- | --- | --- |
 | `DUPLICATE_COMMAND` | `client.command()` with a name or alias that's taken | `command "<name>" is already registered` | Rename it, or `unregisterCommand()` the old one first. |
 | `INVALID_COMMAND_NAME` | An empty spec or alias | `command spec must not be empty`, `empty command segment in spec` | Give every name at least one character; no `\|\|`. |
+| `INVALID_OPTIONS` | `new Client()` with a bad `commandFlood` | `commandFlood.<option> must be a positive integer, got <v>`, `commandFlood.notice must be a non-empty string or false, got <v>`, `commandFlood must be an options object or false, got <v>` | Positive integers for `maxCommands` and `windowMs`, a non-empty `notice`, or `commandFlood: false`. |
 | `HANDLER_ERROR` | Your command handler threw | `command handler failed` — the original on `cause` | Fix the handler. Delivered through `command-error`. |
 | `MIDDLEWARE_ERROR` | A middleware threw, or called `next()` twice | `middleware threw during execution` (original on `cause`), `next() called multiple times` | Call `next()` exactly once. |
 | `NO_SENT_MESSAGE` | `ctx.edit()` before any `ctx.reply()` | `ctx.edit requires a prior ctx.reply` | Reply first, then edit. |

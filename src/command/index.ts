@@ -10,5 +10,11 @@ export {
   type CooldownTrackerOptions,
   type GuardBlock,
 } from './guards.js'
+export {
+  createFloodGuard,
+  FloodGuard,
+  type FloodGuardLimits,
+  type FloodVerdict,
+} from './flood-guard.js'
 export { attachCommandDispatcher } from './dispatcher.js'
 export type { DispatcherDeps, DispatcherHandle, ResolvedCommand } from './dispatcher.js'

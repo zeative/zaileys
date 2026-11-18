@@ -21,6 +21,7 @@ Every option is optional. `new Client()` alone gives you a bot that logs in with
 | [Show the QR code in your own app](#show-the-qr-code-in-your-own-app) | `qrTerminal` |
 | [Connect on your own schedule](#connect-on-your-own-schedule) | `autoConnect` |
 | [Change the command prefix](#change-the-command-prefix) | `commandPrefix` |
+| [Limit how fast one person runs commands](#limit-how-fast-one-person-runs-commands) | `commandFlood` |
 | [React to your own messages](#react-to-your-own-messages) | `ignoreMe` |
 | [Mark owners and banned users](#mark-owners-and-banned-users) | `citation` |
 | [Tune reconnects](#tune-reconnects) | `reconnect` |
@@ -188,6 +189,25 @@ Both `/ping` and `!ping` now answer `pong`.
 </ParamField>
 
 Command names, arguments, and guards are in [Commands](/bots/commands). Commands and middleware need the WhatsApp Web connection, so they don't run on the Cloud API.
+
+## Limit how fast one person runs commands
+
+Each sender can run 20 commands per 60 seconds, across every chat, before the bot stops running their commands until the window ends. It's on by default. Tune it, or pass `false` to turn it off:
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client({
+  commandPrefix: '/',
+  commandFlood: { maxCommands: 40, windowMs: 60_000, notice: 'Slow down a little, please.' },
+})
+```
+
+<ParamField body="commandFlood" type="{ maxCommands?: number; windowMs?: number; notice?: string | false } | false" default="{ maxCommands: 20, windowMs: 60000 }">
+  `maxCommands` and `windowMs` are positive integers. `notice` is replied once per window to a sender who goes over; by default nothing is sent. Blocked commands emit `command-blocked` with reason `flood`. Messages that aren't commands are never counted.
+</ParamField>
+
+Details are in [Flood protection](/bots/commands#flood-protection).
 
 ## React to your own messages
 
@@ -608,6 +628,7 @@ const client = new Client({
 | `qrTerminal` | `true` | [Show the QR code in your own app](#show-the-qr-code-in-your-own-app) |
 | `autoConnect` | `true` | [Connect on your own schedule](#connect-on-your-own-schedule) |
 | `commandPrefix` | none — commands off | [Change the command prefix](#change-the-command-prefix) |
+| `commandFlood` | on, 20 commands per 60 s per sender | [Limit how fast one person runs commands](#limit-how-fast-one-person-runs-commands) |
 | `ignoreMe` | `true` | [React to your own messages](#react-to-your-own-messages) |
 | `citation` | — | [Mark owners and banned users](#mark-owners-and-banned-users) |
 | `reconnect` | on | [Tune reconnects](#tune-reconnects) |

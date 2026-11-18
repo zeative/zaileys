@@ -294,3 +294,39 @@ describe('Client command framework — ctx helpers', () => {
     expect(threw).toBe(true)
   })
 })
+
+describe('Client command framework — flood guard over the socket', () => {
+  const burst = (sock: MockSocket, content: string, count: number): Promise<void> => {
+    const messages = Array.from({ length: count }, (_, i) => ({
+      ...textMsg(content),
+      key: { remoteJid: SENDER, fromMe: false, id: `FLOOD${i}` },
+    }))
+    sock.ev.emit('messages.upsert', { type: 'notify', messages })
+    return new Promise((r) => setTimeout(r, 20))
+  }
+
+  it('blocks the 21st command in a minute and replies the notice once', async () => {
+    const { client, sock } = await connected({ commandPrefix: '/', commandFlood: { notice: 'Slow down' } })
+    const handler = vi.fn()
+    const blocked = vi.fn()
+    client.on('command-blocked', blocked)
+    client.command('ping', handler)
+    await burst(sock, '/ping', 25)
+    expect(handler).toHaveBeenCalledTimes(20)
+    expect(blocked).toHaveBeenCalledTimes(5)
+    expect(blocked.mock.calls.every((call) => (call[0] as { reason: string }).reason === 'flood')).toBe(true)
+    const notices = sock.sendMessage.mock.calls.filter(
+      (call) => (call[1] as { text?: string } | undefined)?.text === 'Slow down',
+    )
+    expect(notices).toHaveLength(1)
+    expect(notices[0]?.[0]).toBe(SENDER)
+  })
+
+  it('runs every command when commandFlood is false', async () => {
+    const { client, sock } = await connected({ commandPrefix: '/', commandFlood: false })
+    const handler = vi.fn()
+    client.command('ping', handler)
+    await burst(sock, '/ping', 25)
+    expect(handler).toHaveBeenCalledTimes(25)
+  })
+})

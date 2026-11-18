@@ -5,7 +5,7 @@ const COOLDOWN_MAX_ENTRIES = 10_000
 
 export interface GuardBlock {
   reason: CommandBlockedReason
-  /** Seconds left before the sender may retry. Only set for `cooldown`. */
+  /** Seconds left before the sender may retry. Only set for `cooldown` and `flood`. */
   retryIn?: number
 }
 

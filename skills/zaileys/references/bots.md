@@ -5,6 +5,7 @@
 - WhatsApp Web only
 - Turn commands on
 - Register commands
+- Flood protection
 - Arguments and flags
 - The command context
 - Blocked, failed, and unknown commands
@@ -59,8 +60,37 @@ client.command(
 | `admin` | Implies `group`. Fetches the group's metadata on **every** run (no cache) and compares the sender namespace-aware; a failed lookup counts as not admin. It checks the sender, not the bot |
 | `cooldown` (seconds) | Per command per sender, in an LRU each client owns (10 000 entries, each kept for its own cooldown): two clients never share it, a long cooldown such as 86 400 s holds for the full day, and a restart clears it |
 
-Guards run before middleware. `client.commands()` returns every command's `name`, `aliases`, and metadata for
+Guards run after the flood check and before middleware. `client.commands()` returns every command's `name`, `aliases`, and metadata for
 a help menu (skip `hidden: true`). `client.unregisterCommand(anyName)` removes the command and its aliases.
+
+## Flood protection
+
+`commandFlood` caps how many commands one sender runs per window, counted across every chat and every command.
+It is **on by default** at 20 commands per 60 000 ms, so a spammer can't make the bot reply in bursts or load a
+small server. The check runs before guards, middleware, and the handler; a command over the limit doesn't run
+and emits `command-blocked` with reason `flood` and `retryIn` (seconds until that sender's window ends).
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({
+  commandPrefix: '/',
+  commandFlood: { maxCommands: 40, windowMs: 60_000, notice: 'Too many commands, try again in a minute.' },
+})
+```
+
+| Option | Default | Behaviour |
+| --- | --- | --- |
+| `maxCommands` | `20` | Positive integer; commands allowed per sender per window |
+| `windowMs` | `60000` | Positive integer; fixed window that starts at the sender's first command and resets when it ends |
+| `notice` | `false` | Replied once per window on the first blocked command, never once per flooded message |
+| `commandFlood: false` | — | Turns it off |
+
+Keyed like `sameUser()`: a sender's devices share one budget, a LID and a phone number never merge, and other
+senders keep their own budget. Non-command messages are never counted. Counts live in an LRU each client owns
+(10 000 senders), so a restart clears them. A bad value throws `ZaileysCommandError` `INVALID_OPTIONS` from
+`new Client()`. Bots that legitimately see heavy use from one account (an owner running scripts) raise
+`maxCommands` rather than turning it off.
 
 ## Arguments and flags
 
@@ -89,7 +119,7 @@ a help menu (skip `hidden: true`). `client.unregisterCommand(anyName)` removes t
 
 ## Blocked, failed, and unknown commands
 
-zaileys never answers these by itself, and the default logger is silent, so a throwing handler vanishes unless
+zaileys never answers these by itself (except `commandFlood.notice` when set), and the default logger is silent, so a throwing handler vanishes unless
 something listens. The dispatcher catches every handler and middleware failure, wraps it in
 `ZaileysCommandError` (`HANDLER_ERROR`, or `MIDDLEWARE_ERROR` as thrown), and either emits `command-error` —
 listening takes ownership — or logs `command dispatch failed`, visible only with `ZAILEYS_DEBUG=error` or a
@@ -105,7 +135,8 @@ client.on('command-error', ({ command, error, ctx }) => {
 })
 
 client.on('command-blocked', ({ reason, retryIn, ctx }) => {
-  const text = reason === 'cooldown' ? `Wait ${retryIn}s and try again.` : `Not allowed here (${reason}).`
+  const text =
+    reason === 'cooldown' || reason === 'flood' ? `Wait ${retryIn}s and try again.` : `Not allowed here (${reason}).`
   ctx.reply(text).catch(() => undefined)
 })
 ```

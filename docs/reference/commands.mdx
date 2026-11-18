@@ -39,9 +39,10 @@ For each message, in order:
 
 1. **Parse.** The text must start with one of your prefixes, tried in the order you listed them. The first word after it is the command name, lowercased.
 2. **Match.** Zaileys picks the longest registered name that matches the first words — `/note add milk` runs `note add` before `note`. No match emits [`command-not-found`](#command-not-found), only while something listens.
-3. **Guards.** `group`/`private`, then `admin`, then `cooldown`. A blocked command emits [`command-blocked`](#command-blocked) and stops.
-4. **Middleware**, in the order you added it, then **your handler**.
-5. **Errors** from middleware or the handler emit [`command-error`](#command-error), or are logged when nothing listens.
+3. **Flood check.** A sender over the `commandFlood` limit (20 commands per 60 s by default, counted across every chat) is blocked with reason `'flood'`. See [Flood protection](/bots/commands#flood-protection).
+4. **Guards.** `group`/`private`, then `admin`, then `cooldown`. A blocked command emits [`command-blocked`](#command-blocked) and stops.
+5. **Middleware**, in the order you added it, then **your handler**.
+6. **Errors** from middleware or the handler emit [`command-error`](#command-error), or are logged when nothing listens.
 
 ## client.command()
 
@@ -316,6 +317,7 @@ The command events. Full payload fields are in the [Events catalog](/reference/e
 | `'private-only'` | `private: true` in a group |
 | `'admin-only'` | `admin: true` and the sender isn't a group admin |
 | `'cooldown'` | `cooldown` hasn't run out — `retryIn` holds the seconds left, rounded up |
+| `'flood'` | The sender ran more than `commandFlood.maxCommands` commands in the window — `retryIn` holds the seconds until it ends |
 
 ```ts
 client.on('command-blocked', async ({ reason, ctx }) => {
@@ -339,6 +341,7 @@ Every error here is a `ZaileysCommandError`. See [Errors](/reference/errors#zail
 | --- | --- | --- |
 | `DUPLICATE_COMMAND` | A name or alias is already registered | `command "ping" is already registered` |
 | `INVALID_COMMAND_NAME` | The spec is empty, or has an empty alias | `command spec must not be empty`, `empty command segment in spec` |
+| `INVALID_OPTIONS` | `new Client()` got a `commandFlood` limit that isn't a positive integer, or an empty `notice` | `commandFlood.maxCommands must be a positive integer, got 0` |
 | `HANDLER_ERROR` | Your handler threw | `command handler failed` |
 | `MIDDLEWARE_ERROR` | A middleware threw, or called `next()` twice | `middleware threw during execution`, `next() called multiple times` |
 | `NO_SENT_MESSAGE` | `ctx.edit()` before any `ctx.reply()` | `ctx.edit requires a prior ctx.reply` |
@@ -354,6 +357,7 @@ The building blocks the client uses internally. You don't need them to write com
 | `runMiddleware` | `(chain: Middleware[], ctx: CommandContext, final: () => Promise<void> \| void) => Promise<void>` | Runs a middleware chain, then `final`. |
 | `checkGuards` | `(guards: CommandGuards, ctx: CommandContext, deps) => Promise<GuardBlock \| null>` | Checks guards; `null` means the command may run. |
 | `resetCooldowns` | `() => void` | Clears every cooldown in the process. |
+| `FloodGuard` | `new FloodGuard(options?: CommandFloodOptions)` | The per-sender command budget behind `commandFlood`: `take(senderId, now)` returns `null` or `{ retryIn, notice? }`. |
 | `attachCommandDispatcher` | `(deps: DispatcherDeps) => DispatcherHandle` | Wires a registry to a message source. |
 
 ```ts

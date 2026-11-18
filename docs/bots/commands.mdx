@@ -2,7 +2,7 @@
 title: "Commands"
 description: "Answer /help, /price, and other commands — with aliases, arguments, flags, guards like cooldowns and admin-only, and a generated help menu."
 icon: "square-terminal"
-keywords: ["commands", "command handler", "prefix", "commandPrefix", "bot commands", "slash command", "aliases", "arguments", "flags", "cooldown", "admin only", "help menu", "command-blocked", "command-error", "command-not-found"]
+keywords: ["commands", "command handler", "prefix", "commandPrefix", "bot commands", "slash command", "aliases", "arguments", "flags", "cooldown", "admin only", "flood protection", "commandFlood", "spam", "help menu", "command-blocked", "command-error", "command-not-found"]
 ---
 
 import { ProviderSupport } from "/snippets/provider-support.jsx"
@@ -18,6 +18,7 @@ A command is a message that starts with a prefix, like `/ping` or `!weather Jaka
 | Turn commands on | [`new Client({ commandPrefix: '/' })`](#turn-on-commands) | Messages starting with `/` are checked for a command |
 | Add a command | [`client.command('ping', handler)`](#add-a-command) | `/ping` runs `handler` |
 | Describe it and limit who can run it | [`client.command({ name, admin, cooldown }, handler)`](#limit-who-can-run-a-command) | Blocked attempts emit `command-blocked` instead |
+| Stop one person flooding the bot | [`new Client({ commandFlood: { maxCommands, windowMs } })`](#flood-protection) | On by default: 20 commands a minute per sender |
 | Read what was typed | [`ctx.args`, `ctx.flags`, `ctx.json`](#read-arguments-and-flags) | `/remind "call mom" --at=18:00` arrives already split |
 | Answer | [`ctx.reply()`, `ctx.send()`, `ctx.react()`, `ctx.edit()`](#answer-from-a-command) | Replies quote the command message |
 | Build a help menu | [`client.commands()`](#build-a-help-menu) | Every command with its description and usage |
@@ -141,7 +142,32 @@ A group admin who sends `/kick @Budi` removes Budi. Anyone else, or the same adm
   Seconds the same person must wait before running this command again. The wait counts from their last run that got through, and attempts blocked by another guard don't start it. Each client keeps its own cooldowns in memory, for up to 10,000 sender and command pairs, so a restart clears them.
 </ParamField>
 
-Guards run in this order: `group` or `private`, then `admin`, then `cooldown`. They all run before [middleware](/bots/middleware).
+Guards run in this order: `group` or `private`, then `admin`, then `cooldown`. They all run before [middleware](/bots/middleware), and after [flood protection](#flood-protection).
+
+## Flood protection
+
+Every client caps how many commands one person can run, so a spammer can't make your bot reply in bursts or load a small server. It's on by default: **20 commands per sender per 60 seconds**, counted across every chat and every command together. The 21st command in that minute doesn't run — it emits [`command-blocked`](#tell-people-why-a-command-was-blocked) with reason `flood` and `retryIn`, the seconds until that sender's window ends.
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client({
+  commandPrefix: '/',
+  commandFlood: { maxCommands: 10, windowMs: 30_000, notice: 'Too many commands. Try again in a moment.' },
+})
+```
+
+<ParamField body="commandFlood.maxCommands" type="number" default="20">
+  Commands one sender may run per window. A positive integer.
+</ParamField>
+<ParamField body="commandFlood.windowMs" type="number" default="60000">
+  Window length in milliseconds. The count starts over when the sender's window ends. A positive integer.
+</ParamField>
+<ParamField body="commandFlood.notice" type="string | false" default="false">
+  Text replied to the sender on their first blocked command, at most once per window — never once per flooded message. By default nothing is sent.
+</ParamField>
+
+Pass `commandFlood: false` to turn it off. Messages that aren't commands are never counted or blocked, and other senders keep their own budget, so one person flooding a group never locks anyone else out. A sender's devices share one budget. Counts are kept in memory for up to 10,000 senders, so a restart clears them. A value that isn't a positive integer makes `new Client()` throw `ZaileysCommandError` with code `INVALID_OPTIONS`.
 
 ## Read arguments and flags
 
@@ -292,7 +318,7 @@ Each entry has `name`, `aliases`, and every field from [the command object](#lim
 
 ## Handle blocked, failed, and unknown commands
 
-Zaileys never answers these on its own. It emits an event, so the wording — and the language — stay yours.
+Zaileys never answers these on its own — the one exception is [`commandFlood.notice`](#flood-protection), when you set it. It emits an event, so the wording — and the language — stay yours.
 
 ### Tell people why a command was blocked
 
@@ -303,6 +329,7 @@ client.on('command-blocked', async ({ reason, retryIn, ctx }) => {
     'private-only': 'Send this command to me in a private chat.',
     'admin-only': 'Only group admins can use this command.',
     cooldown: `Please wait ${retryIn} seconds before trying again.`,
+    flood: `You're sending commands too fast. Try again in ${retryIn} seconds.`,
   }
   await ctx.reply(messages[reason])
 })
@@ -311,11 +338,11 @@ client.on('command-blocked', async ({ reason, retryIn, ctx }) => {
 <ResponseField name="command" type="string">
   The command that was blocked.
 </ResponseField>
-<ResponseField name="reason" type="'group-only' | 'private-only' | 'admin-only' | 'cooldown'">
-  Which guard stopped it: a group command in a private chat, a private command in a group, a sender who isn't a group admin, or a cooldown that hasn't run out.
+<ResponseField name="reason" type="'group-only' | 'private-only' | 'admin-only' | 'cooldown' | 'flood'">
+  Which guard stopped it: a group command in a private chat, a private command in a group, a sender who isn't a group admin, a cooldown that hasn't run out, or a sender over the [flood limit](#flood-protection).
 </ResponseField>
 <ResponseField name="retryIn" type="number">
-  Seconds left, rounded up. Only set when `reason` is `cooldown`.
+  Seconds left, rounded up. Only set when `reason` is `cooldown` or `flood`.
 </ResponseField>
 <ResponseField name="ctx" type="CommandContext">
   The full command context, so you can `ctx.reply()`.
@@ -390,6 +417,9 @@ client.on('text', async (msg) => {
   <Accordion title="Can an argument contain spaces?">
     Yes — wrap it in double or single quotes: `/say "good morning everyone"` gives `ctx.args` as `['good morning everyone']`.
   </Accordion>
+  <Accordion title="Why did the bot stop answering one person's commands?">
+    They likely ran more than 20 commands in a minute and hit [flood protection](#flood-protection). Their commands run again when the window ends. Raise `commandFlood.maxCommands` if your bot expects heavy use, or listen for `command-blocked` with reason `flood` to tell them.
+  </Accordion>
   <Accordion title="Does a cooldown survive a restart?">
     No. Cooldowns are kept in memory and reset when the process restarts.
   </Accordion>
@@ -404,6 +434,7 @@ client.on('text', async (msg) => {
 | --- | --- | --- |
 | `DUPLICATE_COMMAND` | `client.command()` got a name or alias that's already registered. | Rename one of them, or remove the old one with `unregisterCommand()` first. |
 | `INVALID_COMMAND_NAME` | The name is empty, or an alias is empty (two pipes in a row). | Give every name at least one character. |
+| `INVALID_OPTIONS` | `commandFlood.maxCommands` or `windowMs` isn't a positive integer, or `notice` is an empty string. | Pass positive integers, a non-empty `notice`, or `commandFlood: false`. |
 | `HANDLER_ERROR` | Your handler threw. Delivered through `command-error`. | Read `error.cause` for the original error. |
 | `MIDDLEWARE_ERROR` | A middleware threw, or called `next()` more than once. | See [Middleware](/bots/middleware#stop-a-command). |
 | `NO_SENT_MESSAGE` | `ctx.edit()` ran before any `ctx.reply()` in the same handler. | Reply first, then edit. |

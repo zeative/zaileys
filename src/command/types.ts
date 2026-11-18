@@ -67,7 +67,17 @@ export interface RegisteredCommand extends CommandMeta, CommandGuards {
   aliases: string[]
 }
 
-export type CommandBlockedReason = 'group-only' | 'private-only' | 'admin-only' | 'cooldown'
+export type CommandBlockedReason = 'group-only' | 'private-only' | 'admin-only' | 'cooldown' | 'flood'
+
+/** Per-sender command budget, counted across every chat. A command past it emits `command-blocked` with `flood`. */
+export interface CommandFloodOptions {
+  /** Commands one sender may run per window. Positive integer. Default `20`. */
+  maxCommands?: number
+  /** Window length in milliseconds; the count starts over when it ends. Positive integer. Default `60000`. */
+  windowMs?: number
+  /** Text replied to the sender on their first blocked command, at most once per window. Default `false` (silent). */
+  notice?: string | false
+}
 
 export interface CommandDefinition {
   name: string

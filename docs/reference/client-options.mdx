@@ -2,7 +2,7 @@
 title: "ClientOptions"
 description: "Every field of ClientOptions and its nested option types, with the exact type, default, and provider each one applies to."
 icon: "sliders-horizontal"
-keywords: ["client options", "ClientOptions", "new Client options", "configuration reference", "defaults", "reconnect options", "authGuard", "operationGuard", "autoDelete", "cloud options", "sessionId", "commandPrefix"]
+keywords: ["client options", "ClientOptions", "new Client options", "configuration reference", "defaults", "reconnect options", "authGuard", "operationGuard", "autoDelete", "cloud options", "sessionId", "commandPrefix", "commandFlood"]
 ---
 
 import { Term } from "/snippets/glossary.jsx"
@@ -33,6 +33,7 @@ Every field is optional. `new Client()` on its own connects to WhatsApp Web with
 
       ignoreMe: true,
       commandPrefix: ['/', '!'],
+      commandFlood: { maxCommands: 20, windowMs: 60_000 },
       citation: { authors: ['6281234567890@s.whatsapp.net'] },
       plugins: { dir: './plugins', watch: false },
 
@@ -107,6 +108,7 @@ Every field is optional. `new Client()` on its own connects to WhatsApp Web with
 | [`cacheSignal`](#storage) | `boolean` | `true` | WhatsApp Web |
 | [`ignoreMe`](#incoming-messages-and-commands) | `boolean` | `true` | Both |
 | [`commandPrefix`](#incoming-messages-and-commands) | `string \| string[]` | none — commands off | WhatsApp Web |
+| [`commandFlood`](#commandfloodoptions) | `CommandFloodOptions \| false` | on, 20 commands per 60 s per sender | WhatsApp Web |
 | [`citation`](#citationconfig) | `CitationConfig` | — | Both |
 | [`plugins`](#pluginsoptions) | `PluginsOptions` | — (no plugins) | WhatsApp Web |
 | [`authGuard`](#authguardoptions) | `AuthGuardOptions` | on | WhatsApp Web |
@@ -357,6 +359,33 @@ client.on('text', async (msg) => {
 <ParamField body="scheduleRateLimitPerSec" type="number" default="1">
   The most scheduled messages sent per second, so a backlog that comes due at once — after a restart, for example — goes out gradually. `0` turns the limit off. WhatsApp Web only. [Pace a backlog of scheduled messages](/bots/broadcast-and-schedule#pace-a-backlog-of-scheduled-messages)
 </ParamField>
+
+<ParamField body="commandFlood" type="CommandFloodOptions | false" default="{ maxCommands: 20, windowMs: 60000 }">
+  Caps how many commands one sender can run per window, across every chat and command, so a spammer can't make the bot reply in bursts. A command over the limit doesn't run and emits `command-blocked` with reason `flood` and `retryIn`. Messages that aren't commands are never affected. On by default; `false` turns it off. WhatsApp Web only. [Flood protection](/bots/commands#flood-protection)
+</ParamField>
+
+### CommandFloodOptions
+
+<ParamField body="commandFlood.maxCommands" type="number" default="20">
+  Commands one sender may run per window. A positive integer.
+</ParamField>
+<ParamField body="commandFlood.windowMs" type="number" default="60000">
+  Window length in milliseconds. A sender's count starts over when their window ends. A positive integer.
+</ParamField>
+<ParamField body="commandFlood.notice" type="string | false" default="false">
+  Text replied to the sender on their first blocked command, at most once per window. By default nothing is sent.
+</ParamField>
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({
+  commandPrefix: '/',
+  commandFlood: { maxCommands: 10, windowMs: 30_000, notice: 'Too many commands. Try again in a moment.' },
+})
+```
+
+Each sender's devices share one budget, and every other sender keeps their own. Counts live in memory for up to 10,000 senders. A value that isn't a positive integer, or an empty `notice`, makes `new Client()` throw `ZaileysCommandError` `INVALID_OPTIONS`.
 
 ### AuthGuardOptions
 
@@ -617,6 +646,7 @@ const client = new Client({
 | `ZaileysCloudError` `CONFIG`: `provider 'cloud' requires cloud.phoneNumberId` | `new Client()` with `provider: 'cloud'` and no phone number ID | Pass `cloud.phoneNumberId` from **WhatsApp → API Setup** in the Meta dashboard. |
 | `ZaileysCloudError` `AUTH`: `cloud auth rejected (401) — check accessToken/phoneNumberId` | Connecting on the Cloud API with a wrong or expired token (401 or 403) | Generate a new token and check the phone number ID. |
 | `Error`: `phoneNumber is required when authType is "pairing"` | `connect()` — or auto-connect — with `authType: 'pairing'` and no `phoneNumber` | Add `phoneNumber`, country code first, digits only. |
+| `ZaileysCommandError` `INVALID_OPTIONS`: `commandFlood.maxCommands must be a positive integer, got 0` | `new Client()` with a `commandFlood` limit that isn't a positive integer, or an empty `notice` | Pass positive integers, or `commandFlood: false` to turn it off. |
 | `auth-exhausted` event, then a disconnect | Too many QR or pairing codes without a completed login (`authGuard`) | Finish linking on the phone, then call `client.connect()` again. |
 
 Every error class and code is in [Errors](/reference/errors).

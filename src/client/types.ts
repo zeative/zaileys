@@ -7,7 +7,7 @@ import type { PresenceThrottleOptions } from '../automation/presence.js'
 import type { AuthGuardOptions } from '../connection/auth-guard.js'
 import type { DisconnectReasonDomain } from '../connection/disconnect-reason.js'
 import type { WatchdogOptions } from '../connection/watchdog.js'
-import type { CommandBlockedReason, CommandContext } from '../command/types.js'
+import type { CommandBlockedReason, CommandContext, CommandFloodOptions } from '../command/types.js'
 import type { CitationConfig, MessageContext } from '../events/context.js'
 import type { InboundEventMap } from '../events/types.js'
 import type { MessageStore } from '../store/types.js'
@@ -104,6 +104,8 @@ export interface ClientOptions {
   autoConnect?: boolean
   statusLog?: boolean
   commandPrefix?: string | string[]
+  /** Per-sender command flood guard. ON by default at 20 commands per 60000 ms per sender; `false` disables it. */
+  commandFlood?: CommandFloodOptions | false
   citation?: CitationConfig
   ignoreMe?: boolean
   /** Bounds QR/pairing regeneration to avoid spam restriction. ON by default; `{ enabled: false }` to opt out. */
@@ -141,11 +143,11 @@ export type ConnectionEventMap = {
   reconnecting: { sessionId: string; attempt: number; delayMs: number; reason: DisconnectReasonDomain }
   'auth-exhausted': { sessionId: string; kind: ConnectionAuthType; attempts: number; max: number }
   error: { sessionId: string; error: Error }
-  /** A command matched but a guard stopped it. zaileys sends nothing — reply here if you want to. */
+  /** A command matched but a guard stopped it. zaileys sends nothing but `commandFlood.notice` — reply here. */
   'command-blocked': {
     command: string
     reason: CommandBlockedReason
-    /** Seconds until the sender may retry. Only present when `reason` is `cooldown`. */
+    /** Seconds until the sender may retry. Only present when `reason` is `cooldown` or `flood`. */
     retryIn?: number
     ctx: CommandContext
   }

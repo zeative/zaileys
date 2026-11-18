@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events'
 import { describe, expect, it, vi } from 'vitest'
 import { attachCommandDispatcher, type DispatcherDeps } from '../../src/command/dispatcher.js'
+import { FloodGuard } from '../../src/command/flood-guard.js'
 import { CommandRegistry } from '../../src/command/registry.js'
 import type { CommandContext, Middleware } from '../../src/command/types.js'
 import type { MessageContext } from '../../src/events/context.js'
@@ -386,5 +387,100 @@ describe('attachCommandDispatcher — detach', () => {
     handle.detach()
     expect(() => handle.detach()).not.toThrow()
     expect(h.emitter.listenerCount('text')).toBe(0)
+  })
+})
+
+describe('attachCommandDispatcher — flood guard', () => {
+  const flooded = (options: ConstructorParameters<typeof FloodGuard>[0], clock: { t: number }) => {
+    const h = makeHarness()
+    const onBlocked = vi.fn()
+    h.deps.flood = new FloodGuard(options)
+    h.deps.now = () => clock.t
+    h.deps.onBlocked = onBlocked
+    return { h, onBlocked }
+  }
+
+  it('blocks the command past the limit with reason flood and retryIn', async () => {
+    const clock = { t: 0 }
+    const { h, onBlocked } = flooded({ maxCommands: 2, windowMs: 30_000 }, clock)
+    const handler = vi.fn()
+    h.registry.register('ping', handler)
+    attachCommandDispatcher(h.deps)
+    await emitText(h, '/ping')
+    await emitText(h, '/ping')
+    await emitText(h, '/ping')
+    expect(handler).toHaveBeenCalledTimes(2)
+    expect(onBlocked).toHaveBeenCalledTimes(1)
+    expect(onBlocked.mock.calls[0]?.[0]).toEqual({ reason: 'flood', retryIn: 30 })
+  })
+
+  it('stops a flooded command before middleware and guards run', async () => {
+    const clock = { t: 0 }
+    const mw = vi.fn(async (_ctx: CommandContext, next: () => Promise<void>) => next())
+    const { h, onBlocked } = flooded({ maxCommands: 1 }, clock)
+    h.middleware.push(mw)
+    h.registry.register({ name: 'kick', group: true }, vi.fn())
+    attachCommandDispatcher(h.deps)
+    await emitText(h, '/kick')
+    await emitText(h, '/kick')
+    expect(mw).not.toHaveBeenCalled()
+    expect(onBlocked.mock.calls.map((call) => (call[0] as { reason: string }).reason)).toEqual([
+      'group-only',
+      'flood',
+    ])
+  })
+
+  it('runs commands again once the injected clock passes the window', async () => {
+    const clock = { t: 0 }
+    const { h } = flooded({ maxCommands: 1, windowMs: 1_000 }, clock)
+    const handler = vi.fn()
+    h.registry.register('ping', handler)
+    attachCommandDispatcher(h.deps)
+    await emitText(h, '/ping')
+    await emitText(h, '/ping')
+    clock.t = 1_000
+    await emitText(h, '/ping')
+    expect(handler).toHaveBeenCalledTimes(2)
+  })
+
+  it('replies the notice once per window, never per flooded message', async () => {
+    const clock = { t: 0 }
+    const { h } = flooded({ maxCommands: 1, notice: 'pelan-pelan' }, clock)
+    h.registry.register('ping', vi.fn())
+    attachCommandDispatcher(h.deps)
+    for (let i = 0; i < 5; i += 1) await emitText(h, '/ping')
+    const replies = h.contexts.flatMap((ctx) => (ctx.reply as ReturnType<typeof vi.fn>).mock.calls)
+    expect(replies).toEqual([['pelan-pelan']])
+  })
+
+  it('logs a failed notice instead of throwing', async () => {
+    const clock = { t: 0 }
+    const { h } = flooded({ maxCommands: 1, notice: 'pelan-pelan' }, clock)
+    const build = h.deps.buildContext
+    h.deps.buildContext = (resolved, message) => {
+      const ctx = build(resolved, message)
+      ctx.reply = vi.fn(async () => {
+        throw new Error('offline')
+      })
+      return ctx
+    }
+    h.registry.register('ping', vi.fn())
+    attachCommandDispatcher(h.deps)
+    await emitText(h, '/ping')
+    await emitText(h, '/ping')
+    expect(h.logger.warn).toHaveBeenCalledWith(expect.any(Error), 'command flood notice failed')
+    expect(h.logger.error).not.toHaveBeenCalled()
+  })
+
+  it('does not count prefixed text that matches no command', async () => {
+    const clock = { t: 0 }
+    const { h } = flooded({ maxCommands: 1 }, clock)
+    const handler = vi.fn()
+    h.registry.register('ping', handler)
+    attachCommandDispatcher(h.deps)
+    await emitText(h, '/nope')
+    await emitText(h, 'hello')
+    await emitText(h, '/ping')
+    expect(handler).toHaveBeenCalledTimes(1)
   })
 })

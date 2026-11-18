@@ -116,6 +116,11 @@ auth store, jadi membersihkan riwayat chat ikut menghapus sesi.
   sekali. Pesan yang masuk antrean hanya me-resolve pengirimnya. Kalau antrean penuh, pesan dibuang
   dan dicatat — **tidak pernah** diproses dengan identitas yang belum ter-resolve, supaya banjir pesan
   tidak bisa dipakai untuk melewati ban list.
+- **Banjir command per pengirim.** `commandFlood` aktif secara default: satu pengirim maksimal 20 command
+  per 60 detik di semua chat. Command berikutnya tidak dijalankan dan memicu `command-blocked` dengan
+  reason `flood`; `notice` (opsional) dikirim paling banyak sekali per window. Kunci pengirim mengikuti
+  `sameUser()` (suffix device digabung, LID dan nomor telepon tidak pernah disatukan) dan disimpan di LRU
+  10.000 pengirim. Pesan biasa tidak terpengaruh. Matikan dengan `commandFlood: false`.
 - **`connect()` setelah `disconnect()`.** `disconnect()` tetap menutup store (supaya proses bisa exit),
   dan `connect()` berikutnya membuka kembali lewat `reopen()` opsional yang dimiliki semua adapter
   bawaan. Adapter kustom tanpa `reopen()` mendapat pesan error yang menjelaskan.

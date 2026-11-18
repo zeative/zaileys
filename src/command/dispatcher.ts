@@ -1,6 +1,7 @@
 import type { Logger } from '../client/types.js'
 import type { MessageContext } from '../events/context.js'
 import { ZaileysCommandError } from './errors.js'
+import type { FloodGuard } from './flood-guard.js'
 import { checkGuards, type GuardBlock } from './guards.js'
 import { runMiddleware } from './middleware.js'
 import { parseCommand } from './parser.js'
@@ -27,6 +28,10 @@ export interface DispatcherDeps {
   /** Return `true` to claim the failure; otherwise the dispatcher logs it. */
   onError?: (error: unknown, ctx: CommandContext) => boolean
   onNotFound?: (name: string, msg: MessageContext) => void
+  /** Per-sender command budget, checked before guards, middleware and the handler. Omit to run unlimited. */
+  flood?: FloodGuard
+  /** Clock for the flood guard and cooldowns. Defaults to `Date.now`. */
+  now?: () => number
 }
 
 export interface DispatcherHandle {
@@ -37,6 +42,8 @@ export function attachCommandDispatcher(deps: DispatcherDeps): DispatcherHandle 
   if (deps.prefixes.length === 0) {
     return { detach() {} }
   }
+
+  const now = deps.now ?? (() => Date.now())
 
   const handle = (msg: MessageContext): void => {
     const parsed = parseCommand(msg.text, deps.prefixes)
@@ -56,10 +63,21 @@ export function attachCommandDispatcher(deps: DispatcherDeps): DispatcherHandle 
     }
     const ctx = deps.buildContext(resolved, msg)
 
+    /** Counted synchronously, so a burst that arrives in one tick cannot slip past the limit. */
+    const flooded = deps.flood?.take(ctx.senderId, now()) ?? null
+
     const run = async (): Promise<void> => {
+      if (flooded !== null) {
+        deps.onBlocked?.({ reason: 'flood', retryIn: flooded.retryIn }, ctx)
+        const notice = flooded.notice
+        if (notice !== undefined) {
+          await ctx.reply(notice).catch((err: unknown) => deps.logger.warn(err, 'command flood notice failed'))
+        }
+        return
+      }
       const block = await checkGuards(resolution.def.meta, ctx, {
         isAdmin: deps.isAdmin ?? (async () => false),
-        now: () => Date.now(),
+        now,
         cooldowns: deps.registry.cooldowns,
       })
       if (block !== null) {

@@ -64,7 +64,12 @@ const wireHandlers = (plugin: Plugin, ctx: PluginContext): void => {
     const handler = methods[camel(event)]
     if (typeof handler !== 'function') continue
     ctx.on(event, (payload) => {
-      void (handler as (p: unknown, c: PluginContext) => unknown)(payload, ctx)
+      const result = (handler as (p: unknown, c: PluginContext) => unknown)(payload, ctx)
+      if (result instanceof Promise) {
+        result.catch((err: unknown) => {
+          ctx.logger?.error({ err, name: plugin.name, event }, 'plugin: event handler failed')
+        })
+      }
     })
   }
 }

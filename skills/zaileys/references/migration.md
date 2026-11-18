@@ -142,6 +142,8 @@ Only entries that break code or change behaviour. Additive features are omitted.
 the rest emit `command-blocked` with the new reason `flood` instead of running. Detect: `grep -rn "command-blocked\|
 new Client(" src`. Fix: pass `commandFlood: { maxCommands, windowMs }` for bots one account drives hard, or
 `commandFlood: false` for the old unlimited behaviour; an exhaustive `switch (reason)` needs a `'flood'` case.
+`store.clear()` now also removes `ctx.session` values. Detect: `grep -rn "\.clear()" src`. Fix: call
+`deleteMessage()`/`pruneMessages()` instead when only chat history should go.
 
 **4.19.0:** three behaviour changes. `client.broadcast()` defaults to one send per second, evenly spaced (was five
 per second, first five at once). Detect: `grep -rn "broadcast(" src`. Fix: pass `rateLimitPerSec: 5` where the old

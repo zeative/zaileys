@@ -1,5 +1,25 @@
 # zaileys
 
+## 4.20.0
+
+### Check before upgrading
+
+- command flood protection is on by default: one sender may run 20 commands per minute across every chat, and further commands emit `command-blocked` with the new reason `'flood'`; pass `commandFlood: false` for the old unlimited behaviour, and add a `'flood'` case to any exhaustive `switch (reason)`
+- `store.clear()` now also removes `ctx.session` values
+
+### Minor Changes
+
+- add `ctx.ask()` and `client.waitForMessage()` for multi-step conversations: ask a question and await the same user's next message, with a `timeout` (default 60 s), a `filter` and an optional `timeoutMessage`; an answer is never run as a command, and an unanswered question ends the command quietly
+- add `ctx.session` and `client.session(jid)` for small persistent per-user values (JSON, up to 64 KB, optional `ttl`), stored by every built-in message store in its own table or keys; new `ZaileysStoreError` codes `STORE_VALUE_TOO_LARGE` and `STORE_INVALID_INPUT`
+- add `commandFlood: { maxCommands, windowMs, notice }` to tune the per-sender command budget, with `notice` replied at most once per window
+- add an experimental, opt-in `watchdog` that reconnects a WhatsApp Web session which stops receiving while its socket stays open; off by default, credentials never touched
+
+### Patch Changes
+
+- build the message context once and copy it for the `text` event, cutting about 12% of inbound CPU time
+- skip the jid decode round trip for jids that are already normalised
+- evict from one long-lived iterator so a full `MemoryMessageStore` saves in constant time
+
 ## 4.19.0
 
 ### Check before upgrading

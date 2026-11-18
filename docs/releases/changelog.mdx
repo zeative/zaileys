@@ -7,6 +7,25 @@ keywords: ["changelog", "release notes", "what's new", "versions", "breaking cha
 
 Every v4 release listed in the project's changelog, newest first. Releases without an entry aren't shown. Upgrading from v3? Start with [Migrating from v3](/releases/migration).
 
+<Update label="v4.20.0">
+  **Check before upgrading**
+
+  - Commands are protected against floods by default: one sender may run 20 commands per minute across every chat. Further commands don't run; they emit `command-blocked` with the new reason `'flood'`. Pass `commandFlood: false` for the old unlimited behaviour, and add a `'flood'` case to any exhaustive `switch (reason)`. [Flood protection](/bots/commands#flood-protection)
+  - `store.clear()` also removes the values saved with `ctx.session`. [Storage](/reference/storage#session-values)
+
+  **Added**
+
+  - `ctx.ask()` asks a question and waits for the same person's next message in that chat, so a sign-up form is a few lines. An answer is never run as a command, and a question nobody answers ends the command quietly. [Ask a question and wait for the answer](/bots/commands#ask-a-question-and-wait-for-the-answer)
+  - `client.waitForMessage()`, the primitive behind `ctx.ask()`, for any listener on both providers. [Client](/reference/client#waitformessage)
+  - `ctx.session` and `client.session(jid)` keep small values per user — a language, a cart, a code with a `ttl` — in the message store you already use, so they survive restarts. [Remember things per user](/bots/commands#remember-things-per-user)
+  - `commandFlood` to tune the per-sender command budget and the optional `notice`, replied at most once per window. [Flood protection](/bots/commands#flood-protection)
+  - An experimental `watchdog` option that reconnects a WhatsApp Web session that stops receiving while its socket stays open. Off by default. [WhatsApp Web](/whatsapp-web)
+
+  **Faster**
+
+  - Inbound messages cost about 12% less CPU: the message context is built once for `message` and `text`, already-normalised JIDs skip a decode, and a full memory store saves in constant time.
+</Update>
+
 <Update label="v4.19.0">
   **Check before upgrading**
 

@@ -1,6 +1,6 @@
 # Zaileys v4 — Dependency Justification
 
-**Last audit:** 2026-06-01
+**Last audit:** 2026-11-18
 **Policy:** Every dependency MUST be justified here. If it cannot be justified, it is removed from `package.json`.
 
 Zaileys v4 is a **single package** (no workspaces). Media processing that used to live in
@@ -8,7 +8,7 @@ Zaileys v4 is a **single package** (no workspaces). Media processing that used t
 
 ## Runtime dependencies (`dependencies`)
 
-### baileys — `^7.0.0-rc13`
+### baileys — `^7.0.0-rc14`
 Core WhatsApp Web (multi-device) protocol; every WA operation delegates here. `rc13` patches the
 message-spoofing vulnerability **CVE-2026-48063** and adds TC tokens / album / LID support.
 Consumers: `src/connection`, `src/auth`, `src/store`, `src/events`, `src/builder`.
@@ -27,35 +27,30 @@ Magic-byte media-type detection. **ESM-only** — loaded via dynamic `import()` 
 `detectFileType`) so the CJS bundle never top-level-`require()`s it (keeps Bun/Deno/Node<22
 working). Consumers: `src/media`, `src/builder/media-loader.ts`.
 
-### jimp — `^1.6.0`
-Pure-JS image processing (thumbnail, resize, sticker shaping). The default media path; if the
-optional `sharp` accelerator is installed it is used instead. Consumers: `src/media/ffmpeg/image.ts`.
+### jimp — `^1.6.1`
+Pure-JS image processing (thumbnail, resize, sticker shaping) when `sharp` is not installed, loaded with
+dynamic `import()` on first use so startup does not pay for it. Also an optional peer of baileys, which
+uses it for media thumbnails. Consumers: `src/media/ffmpeg/image.ts`.
 
 ### node-webpmux — `^3.2.1`
 Reads/writes WebP EXIF to embed sticker-pack metadata. Consumers: `src/media/ffmpeg/sticker.ts`.
 
 ### audio-decode — `^2.2.3`
-Decodes audio metadata for PTT/voice notes (waveform + duration). Consumers: `src/media/ffmpeg/audio.ts`.
-
-### async-mutex — `^0.5.0`
-Locking for concurrent writes in the storage adapters; matches Baileys' own upstream usage.
-Consumers: `src/auth`, `src/store`, `src/automation`.
+Not imported by zaileys itself: it is an optional peer of baileys, which decodes audio with it to draw the
+waveform on voice notes. Declared here so voice notes keep their waveform without users installing it.
 
 ### lru-cache — `^11.2.7`
-LRU layer over the signal-key store (`makeCacheableSignalKeyStore` pattern). Consumers: `src/auth`.
+Bounded, TTL-aware caches for everything keyed by remote input: rate-limit buckets, presence, pipeline
+lookups, command cooldowns, group metadata, and the retry/device caches handed to baileys. Also a direct
+dependency of baileys, so it adds nothing to the install. Consumers: `src/automation`, `src/events`,
+`src/command`, `src/connection`, `src/domain`.
 
-### pino — `^10.x`
-Logger interface accepted by the Baileys socket config. Consumers: `src/utils/logger.ts`, `src/connection`.
+### pino — `10.3.1`
+The default logger, and the logger shape the baileys socket config expects. Also a direct dependency of
+baileys. Consumers: `src/utils/logger.ts`.
 
 ### qrcode-terminal — `^0.12.0`
 Renders the login QR in the terminal (rc13 `wa.me/settings/linked_devices#` format). Consumers: `src/connection`.
-
-### nanospinner — `^1.2.2`
-Lightweight connection-lifecycle spinner, gated by `process.stdout.isTTY` (silent on servers). Consumers: `src/connection`.
-
-### valibot — `^1.2.0`
-Tiny (~1kb) tree-shakable runtime schema validation for `Client` options and builder arguments.
-Consumers: `src/client`, `src/builder`.
 
 ## Optional peer dependencies (storage)
 
@@ -92,6 +87,7 @@ Real Postgres/Redis integration runs only when `DATABASE_URL` / `REDIS_URL` are 
 - **figlet**, **gradient-string** — ASCII banner removed; v4 is silent-by-default.
 - **radashi** — single helper inlined.
 - **@zaileys/media-process** workspace — media inlined into `src/media`.
+- **async-mutex**, **nanospinner**, **valibot** (4.19) — never imported by `src/`; baileys ships its own `async-mutex`.
 
 ## Audit checklist
 - [x] Every `dependencies` key in `package.json` has a `###` entry above

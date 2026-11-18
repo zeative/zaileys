@@ -20,7 +20,7 @@ import { Term } from "/snippets/glossary.jsx"
 
 | To | Call | What happens |
 | --- | --- | --- |
-| Send one message to many chats | [`client.broadcast(jids, (b) => b.text('…'))`](#send-one-message-to-many-chats) | Sent one by one, 5 per second by default |
+| Send one message to many chats | [`client.broadcast(jids, (b) => b.text('…'))`](#send-one-message-to-many-chats) | Sent one by one, 1 per second by default |
 | Retry failed sends | [`{ retry: { maxRetries, backoffMs } }`](#retry-failed-sends) | Each recipient gets extra attempts |
 | Send different text to each person | [`RateLimiter` and `client.send()`](#send-different-text-to-each-person) | Your own loop, with the same pacing |
 | Send at a set time | [`client.scheduleAt(date, (b) => b.to(jid).text('…'))`](#send-a-message-later) | Sent when the time comes |
@@ -67,7 +67,7 @@ Each customer gets an ordinary one-to-one message from your number. `broadcast()
 - **Call it once connected** — inside `connect`, as above, or any time after. Before that, it rejects with `client not connected`.
 - **Anything you can send works.** The callback runs once per recipient with a builder already addressed to them, so `(b) => b.image('./flyer.jpg', { caption: 'Weekend sale' })` or a poll works the same way.
 - **Recipients** can be people or groups (`…@g.us`). See [Addresses & JIDs](/concepts/jids). Duplicates aren't removed, so a number listed twice gets the message twice.
-- **Sends go one at a time**, in list order. With the default of 5 per second, the first 5 go out immediately and then one every 0.2 seconds, so 500 recipients take about 100 seconds.
+- **Sends go one at a time**, in list order, evenly spaced. With the default of 1 per second, 500 recipients take about 8 minutes; pass `rateLimitPerSec` to change the pace.
 
 <ParamField body="jids" type="string[]" required>
   The chats to send to. An empty list resolves right away with nothing sent.

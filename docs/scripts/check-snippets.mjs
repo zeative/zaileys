@@ -73,7 +73,7 @@ writeFileSync(
         typeRoots: [join(ROOT, 'node_modules', '@types')],
         paths: { zaileys: [join(ROOT, 'src', 'index.ts')], '~/*': [join(ROOT, 'src', '*')] },
       },
-      // src ships ambient shims for optional deps (sharp, node-webpmux) that imports alone don't pull in.
+      // src ships ambient shims for optional deps (sharp) that imports alone don't pull in.
       include: ['*.ts', join(DOCS, 'scripts', 'prelude.d.ts'), join(ROOT, 'src', '**', '*.d.ts')],
     },
     null,

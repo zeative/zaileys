@@ -141,9 +141,11 @@ Upgrading from the four earlier skills (`zaileys-assist`, `-scaffold`, `-debug`,
 - **Typed events** — `on('text' | 'image' | 'reaction' | 'button-click' | 'group-update' | …)` with fully-typed payloads and IntelliSense. No raw Baileys decoding, no `any`.
 - **One chainable builder** — `client.send(jid).text(…).reply(quoted).mentions([…])` resolves to the sent message key when awaited.
 - **Rich & interactive out of the box** — native buttons, lists, carousels, and Meta-AI-style rich responses written as plain markdown.
-- **Auto lifecycle** — QR or pairing-code login, auto-reconnect with backoff, clean logout, optional `ignoreMe`.
+- **Auto lifecycle** — QR or pairing-code login, auto-reconnect with backoff, clean logout, optional `ignoreMe`, and an opt-in watchdog that reconnects a session that silently stops receiving.
 - **Pluggable storage** — independent `AuthStore` and `MessageStore` interfaces with `file`, `memory`, `sqlite`, `redis`, `postgres`, and `convex` adapters.
-- **Batteries included** — command framework, broadcast with rate limiting, and scheduled sends (WhatsApp Web only), plus lazy media processing (image/video/audio/sticker) on both providers.
+- **Batteries included** — command framework with multi-step questions (`ctx.ask()`) and per-user state (`ctx.session`), broadcast, and scheduled sends (WhatsApp Web only), plus lazy media processing (image/video/audio/sticker) on both providers.
+- **Safe by default** — broadcasts are evenly paced, each sender is limited to 20 commands a minute, the default message store is capped, and reconnects back off — so a busy or abused bot keeps running on a small server.
+- **Lightweight** — nine runtime dependencies, and importing Zaileys adds only about 13 ms on top of Baileys itself.
 - **Runs everywhere** — dual ESM/CJS with `.d.ts` + `.d.cts` types; verified on Node, Bun, Deno, and Termux.
 - **Modern foundation** — Baileys `7.0.0-rc14` (includes the CVE-2026-48063 spoofing patch), built and type-checked with the native (Go) TypeScript 7 compiler.
 
@@ -210,15 +212,36 @@ const brief = "*Daily brief* ☕\n\n```ts\nconst client = new Client()\n```\n\n:
 await client.send(jid).text(brief, { rich: true, title: '📰 zaileys' })
 ```
 
-### Commands, broadcast & schedule
+### Commands, conversations & per-user state
 
-These run on the WhatsApp Web provider; on the Cloud API, handle `text` events and send in a loop instead.
+Commands run on the WhatsApp Web provider; on the Cloud API, handle `text` events instead (`client.waitForMessage()` works on both).
 
 ```typescript
 const client = new Client({ commandPrefix: ['/', '!'] })
-client.command('ping', (ctx) => ctx.reply('pong 🏓'))
+client.command('ping', async (ctx) => {
+  await ctx.reply('pong 🏓')
+})
 
-await client.broadcast(jids, (b) => b.text('Announcement'), { rateLimitPerSec: 5 })
+// Ask, then wait for the same person's answer. The answer never triggers another command.
+client.command('daftar', async (ctx) => {
+  const name = await ctx.ask('What is your name?')
+  const age = await ctx.ask(`Hi ${name.text}, how old are you?`, { timeout: 120_000 })
+  await ctx.reply(`Registered ${name.text}, ${age.text} years old.`)
+})
+
+// Remember small values per user, in the message store you already use.
+client.command('lang', async (ctx) => {
+  if (ctx.args[0]) await ctx.session.set('lang', ctx.args[0])
+  await ctx.reply(`Language: ${(await ctx.session.get<string>('lang')) ?? 'en'}`)
+})
+```
+
+Each sender can run 20 commands a minute by default; tune it with `commandFlood` or turn it off with `commandFlood: false`.
+
+### Broadcast & schedule
+
+```typescript
+await client.broadcast(jids, (b) => b.text('Announcement')) // one per second, evenly spaced
 await client.scheduleAt(new Date(Date.now() + 60_000), (b) => b.text('Sends in 1 minute'))
 ```
 
@@ -254,7 +277,7 @@ const client = new Client({
 | `postgres` | `PostgresAuthStore` | `PostgresMessageStore` | `pg`             |
 | `convex`   | `ConvexAuthStore`   | `ConvexMessageStore`   | `convex`         |
 
-> ⭐ default. Convex requires deploying the helper functions in [`examples/convex/`](./examples/convex) — see that folder's README.
+> ⭐ default. `MemoryMessageStore` keeps the latest 10,000 messages (`maxMessages`); use a database store for longer history. Every message store also keeps `ctx.session` values, in its own table or keys. Convex requires deploying the helper functions in [`examples/convex/`](./examples/convex) — see that folder's README.
 
 ## Runtime support
 

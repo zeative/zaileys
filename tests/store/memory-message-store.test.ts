@@ -30,3 +30,38 @@ describe('MemoryMessageStore — adapter specifics', () => {
     ).rejects.toBeInstanceOf(ZaileysStoreError)
   })
 })
+
+describe('MemoryMessageStore — maxMessages', () => {
+  const message = (id: string, jid = 'a@s.whatsapp.net', ts = 1) =>
+    ({ key: { remoteJid: jid, id, fromMe: false }, message: { conversation: id }, messageTimestamp: ts }) as never
+
+  it('keeps 10 000 messages by default and drops the oldest after that', async () => {
+    const store = new MemoryMessageStore()
+    for (let i = 0; i <= 10_000; i += 1) await store.saveMessage(message(`m${i}`))
+    expect(await store.getMessage({ remoteJid: 'a@s.whatsapp.net', id: 'm0', fromMe: false })).toBeUndefined()
+    expect(await store.getMessage({ remoteJid: 'a@s.whatsapp.net', id: 'm1', fromMe: false })).toBeDefined()
+    expect(await store.getMessage({ remoteJid: 'a@s.whatsapp.net', id: 'm10000', fromMe: false })).toBeDefined()
+  })
+
+  it('removes an evicted message from its chat listing too', async () => {
+    const store = new MemoryMessageStore({ maxMessages: 2 })
+    await store.saveMessage(message('old', 'x@s.whatsapp.net'))
+    await store.saveMessage(message('b', 'y@s.whatsapp.net'))
+    await store.saveMessage(message('c', 'y@s.whatsapp.net'))
+    expect(await store.listMessages('x@s.whatsapp.net')).toEqual([])
+    expect((await store.listMessages('y@s.whatsapp.net')).map((m) => m.key.id).sort()).toEqual(['b', 'c'])
+  })
+
+  it('does not evict when an existing message is updated in place', async () => {
+    const store = new MemoryMessageStore({ maxMessages: 2 })
+    await store.saveMessage(message('a'))
+    await store.saveMessage(message('b'))
+    await store.saveMessage(message('a', 'a@s.whatsapp.net', 2))
+    expect(await store.getMessage({ remoteJid: 'a@s.whatsapp.net', id: 'b', fromMe: false })).toBeDefined()
+  })
+
+  it('accepts Infinity to turn the cap off and rejects a cap below 1', () => {
+    expect(() => new MemoryMessageStore({ maxMessages: Number.POSITIVE_INFINITY })).not.toThrow()
+    expect(() => new MemoryMessageStore({ maxMessages: 0 })).toThrow(ZaileysStoreError)
+  })
+})

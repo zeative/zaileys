@@ -50,7 +50,7 @@ it cuts database round-trips per message.
 
 | Class | Options | `listMessages` default limit | Notes |
 | --- | --- | --- | --- |
-| `MemoryMessageStore` | none | all | Grows with traffic until auto-delete prunes it; empty after restart |
+| `MemoryMessageStore` | `maxMessages` (default 10 000, oldest dropped first; `Infinity` for no cap) | all | Capped at ~40 MB by default; auto-delete still prunes by age; empty after restart |
 | `SqliteMessageStore` | `{ database, readonly?, tablePrefix? }` | 100 | Tables `messages`, `chats`, `contacts`, `presence` |
 | `PostgresMessageStore` | `{ connectionString?, pool?, max?, tablePrefix? }` | 100 | Tables `zaileys_messages`, `zaileys_chats`, `zaileys_contacts`, `zaileys_presence` |
 | `RedisMessageStore` | `{ url?, client?, namespace? }` | 100 | Presence keys expire after 300 s; `clear()` only deletes its own key families |
@@ -208,8 +208,8 @@ the connection opens; your fields merge over the defaults. Options: `maxAgeMs`, 
 `chats: 'all' | (jid) => boolean`; `autoDelete: false` keeps everything. It only prunes zaileys' copy, and uses
 `pruneMessages()` when the store has it (all built-ins do), else `deleteMessage()` per message.
 
-- It never runs on the Cloud API, so a long-running Cloud server on `MemoryMessageStore` grows forever —
-  prune on a timer yourself, or use a database store.
+- It never runs on the Cloud API. A long-running Cloud server on `MemoryMessageStore` is still capped by
+  `maxMessages`, but chats, contacts and presence are not; prune on a timer yourself, or use a database store.
 - `maxPerChat` alone doesn't bound memory: new chats keep adding messages.
 - Pruned messages can no longer be quoted, forwarded, or downloaded by key.
 

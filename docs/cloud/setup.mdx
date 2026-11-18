@@ -167,6 +167,9 @@ Every field of the `cloud` option on `new Client()`:
 <ParamField body="baseUrl" type="string" default="'https://graph.facebook.com'">
   Origin for Graph API requests. Point it at a proxy, or at a mock server in tests.
 </ParamField>
+<ParamField body="requestTimeoutMs" type="number" default="30000">
+  How long a Graph API request may take, in milliseconds, before it's aborted with `REQUEST_FAILED`. A timed-out request isn't retried, because Meta may already have received it — check before you resend.
+</ParamField>
 
 Requests go to `<baseUrl>/<apiVersion>/<path>`. A send, for example, is a `POST` to `https://graph.facebook.com/v23.0/106540352242922/messages`.
 
@@ -236,6 +239,8 @@ When you reply from your phone, the <Term id="service-window" /> opens and the b
 | `AUTH` | `cloud auth rejected (401) — check accessToken/phoneNumberId` | The token expired (temporary tokens last 24 hours), was copied only in part, or belongs to a system user without access to this number. Generate a new one. |
 | `REQUEST_FAILED` | `cloud health-check failed (400)` | Meta rejected the request — usually the phone number ID is wrong. Copy the ID from API Setup, not the phone number. |
 | `REQUEST_FAILED` | `cloud health-check request failed` | The Graph API couldn't be reached. Check your network, proxy, and `baseUrl`. |
+| `REQUEST_FAILED` | `cloud health-check timed out after 30000 ms; …` | The Graph API didn't answer within `requestTimeoutMs`. Check your network and proxy, or raise `requestTimeoutMs`. |
+| `CONFIG` | `cloud.requestTimeoutMs must be a finite number of milliseconds above 0, …` | Pass a positive number, or leave it out for the 30-second default. |
 | `CONFIG` | `this operation needs cloud.wabaId (WhatsApp Business Account id)` | Add `wabaId` to the `cloud` options. |
 | `AUTH` | `graph auth rejected: …` | A later call was refused, usually because the token expired or lacks `whatsapp_business_management`. On `client.send()` it arrives as `SEND_FAILED` with this error on `error.cause`. |
 

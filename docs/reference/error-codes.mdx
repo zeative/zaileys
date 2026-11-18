@@ -172,7 +172,7 @@ Each code belongs to an error class, and the class tells you where it came from.
 
 ### REQUEST_FAILED
 
-`ZaileysCloudError`. A Graph API request failed outright: a network error, a status Meta doesn't retry, three failed attempts on a 5xx, or a response with no ID. The health check on `connect()` uses the same code.
+`ZaileysCloudError`. A Graph API request failed outright: a network error, no answer within `cloud.requestTimeoutMs` (30 s by default, not retried), a status Meta doesn't retry, three failed attempts on a 5xx, or a response with no ID. The health check on `connect()` uses the same code.
 
 **Do this:** read the Meta code in the message and look it up under [Meta Cloud API codes](#meta-cloud-api-codes). Network failures keep the original on `cause`. [Full entry](/reference/errors#zaileysclouderror)
 

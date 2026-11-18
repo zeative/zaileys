@@ -42,8 +42,9 @@ Details: https://zaileys.kejaa.id/cloud/setup#get-your-credentials
 | `allowUnsigned` | `false` | Accepts POSTs without `appSecret`. Local development only: anyone who learns the URL can inject messages |
 | `apiVersion` | `'v23.0'` | Graph version in every URL |
 | `baseUrl` | `'https://graph.facebook.com'` | Proxy or mock server |
+| `requestTimeoutMs` | `30000` | Aborts a Graph request (and the `connect()` health check) with `REQUEST_FAILED` `… timed out after N ms`. Not retried: the send may have reached Meta. Not finite or `<= 0` → `CONFIG` |
 
-Construction checks only that `accessToken` and `phoneNumberId` are non-empty strings — a non-null assertion on
+Construction checks that `accessToken` and `phoneNumberId` are non-empty strings and that `requestTimeoutMs`, when set, is positive — a non-null assertion on
 `process.env.X!` compiles but is `undefined` at runtime, which is the usual `CONFIG` cause.
 
 ## Connecting

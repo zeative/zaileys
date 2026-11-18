@@ -567,6 +567,9 @@ If `accessToken` or `phoneNumberId` is missing, `new Client()` throws right away
 <ParamField body="cloud.baseUrl" type="string">
   A different Graph API address, for tests or a proxy.
 </ParamField>
+<ParamField body="cloud.requestTimeoutMs" type="number" default="30000">
+  How long a Graph API request may take before it fails with `REQUEST_FAILED`. Timed-out requests aren't retried.
+</ParamField>
 
 These options have no effect on the Cloud API, because there's no WhatsApp Web connection: `auth`, `authType`, `phoneNumber`, `qrTerminal`, `cacheSignal`, `reconnect`, `authGuard`, `autoRejectCall`, and `baileys`. Commands (`commandPrefix`), `plugins`, `autoDelete`, and scheduled sends (`scheduleRateLimitPerSec`) need that connection too, so they don't run on the Cloud API. `operationGuard` and `presence` only pace features the Cloud API doesn't have. Events you register with `client.on()`, and `citation`, `ignoreMe`, `sessionId`, `store`, `logger`, and `statusLog`, work the same. Setup is walked through in [Cloud API setup](/cloud/setup).
 

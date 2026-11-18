@@ -22,6 +22,34 @@ function cloudClient() {
   })
 }
 
+describe('cloud connect health-check — request timeout', () => {
+  it('connect() rejects with REQUEST_FAILED when the health check hangs past requestTimeoutMs', async () => {
+    vi.useFakeTimers()
+    try {
+      fetchMock.mockImplementation(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init.signal?.addEventListener('abort', () => reject(init.signal?.reason))
+          }),
+      )
+      const c = new Client({
+        provider: 'cloud',
+        cloud: { accessToken: 'tok-123', phoneNumberId: '5550001', requestTimeoutMs: 2_000 },
+        autoConnect: false,
+        statusLog: false,
+      })
+      const pending = c.connect().catch((e: unknown) => e)
+      await vi.advanceTimersByTimeAsync(2_000)
+      const err = await pending
+      expect(err).toBeInstanceOf(ZaileysCloudError)
+      expect((err as ZaileysCloudError).code).toBe('REQUEST_FAILED')
+      expect((err as ZaileysCloudError).message).toContain('timed out after 2000 ms')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+})
+
 describe('cloud connect health-check', () => {
   it('connect() hits the phone-number endpoint with bearer auth and emits connect', async () => {
     fetchMock.mockResolvedValueOnce(

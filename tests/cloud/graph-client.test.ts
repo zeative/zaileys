@@ -126,3 +126,76 @@ describe('graph client', () => {
     expect((fetchMock.mock.calls[0] as [string])[0]).toMatch(/^http:\/\/localhost:9999\/v[0-9.]+\/555$/)
   })
 })
+
+describe('graph client — request timeout', () => {
+  const hang = (_url: string, init: RequestInit): Promise<Response> =>
+    new Promise((_resolve, reject) => {
+      init.signal?.addEventListener('abort', () => reject(init.signal?.reason))
+    })
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('aborts a hung request after the 30 s default and rejects with REQUEST_FAILED', async () => {
+    fetchMock.mockImplementation(hang)
+    const pending = client()
+      .post('555/messages', {})
+      .catch((e: unknown) => e)
+    await vi.advanceTimersByTimeAsync(29_999)
+    expect((fetchMock.mock.calls[0] as [string, RequestInit])[1].signal?.aborted).toBe(false)
+    await vi.advanceTimersByTimeAsync(1)
+    const err = await pending
+    expect(err).toBeInstanceOf(ZaileysCloudError)
+    expect((err as ZaileysCloudError).code).toBe('REQUEST_FAILED')
+    expect((err as ZaileysCloudError).message).toContain('timed out after 30000 ms')
+    expect((err as ZaileysCloudError).cause).toBeDefined()
+  })
+
+  it('does not retry a timed-out request, since it may already have reached Meta', async () => {
+    fetchMock.mockImplementation(hang)
+    const pending = client()
+      .post('555/messages', {})
+      .catch((e: unknown) => e)
+    await vi.advanceTimersByTimeAsync(30_000)
+    await pending
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('honours cloud.requestTimeoutMs', async () => {
+    fetchMock.mockImplementation(hang)
+    const c = createGraphClient(
+      { accessToken: 'tok', phoneNumberId: '555', requestTimeoutMs: 1_000 },
+      { delay: () => Promise.resolve() },
+    )
+    const pending = c.get('555').catch((e: unknown) => e)
+    await vi.advanceTimersByTimeAsync(1_000)
+    expect(((await pending) as ZaileysCloudError).message).toContain('timed out after 1000 ms')
+  })
+
+  it('times out a response whose body never finishes', async () => {
+    fetchMock.mockImplementation(async (_url: string, init: RequestInit) => {
+      const body = new ReadableStream({
+        start(ctrl) {
+          init.signal?.addEventListener('abort', () => ctrl.error(init.signal?.reason))
+        },
+      })
+      return new Response(body, { status: 200 })
+    })
+    const pending = client()
+      .get('555')
+      .catch((e: unknown) => e)
+    await vi.advanceTimersByTimeAsync(30_000)
+    expect(((await pending) as ZaileysCloudError).code).toBe('REQUEST_FAILED')
+  })
+
+  it('clears the timer once the request settles', async () => {
+    fetchMock.mockResolvedValueOnce(ok({ id: '555' }))
+    await client().get('555')
+    expect(vi.getTimerCount()).toBe(0)
+  })
+})

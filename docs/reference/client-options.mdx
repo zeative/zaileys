@@ -156,6 +156,9 @@ Every field is optional. `new Client()` on its own connects to WhatsApp Web with
 <ParamField body="cloud.baseUrl" type="string" default="'https://graph.facebook.com'">
   Graph API origin. Override it to route requests through a proxy or a test server.
 </ParamField>
+<ParamField body="cloud.requestTimeoutMs" type="number" default="30000">
+  Milliseconds before a Graph API request, including the health check on `connect()`, is aborted with `REQUEST_FAILED`. A timed-out request is not retried, because it may already have reached Meta. Must be above `0`; otherwise `new Client()` throws `CONFIG`.
+</ParamField>
 
 ## Connection and login
 

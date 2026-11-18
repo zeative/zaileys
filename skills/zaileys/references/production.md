@@ -9,6 +9,7 @@
 - Docker
 - Process managers and restart policy
 - Graceful shutdown and health checks
+- Sessions that stop receiving (experimental watchdog)
 - Logging
 - Security defaults
 - Runtimes and bundlers
@@ -211,6 +212,31 @@ For a health endpoint, report `client.state` (`connected`, or `reconnecting` as 
 and alerts, not a liveness probe that restarts: `reconnecting` spans backoff (up to 60 s, 5 min when
 `rate-limited`) and `qr-pending` needs a human, so restarts only multiply login attempts. An HTTP server also
 keeps the process alive after the client stops — exit explicitly as in the restart-policy section.
+
+## Sessions that stop receiving (experimental watchdog)
+
+A WhatsApp Web socket can stay open and pass Baileys' keepalive pings while messages stop arriving and no close
+comes; `client.state` still reads `connected`. Rebuilding the socket usually recovers it. The watchdog is
+experimental, WhatsApp Web only (a no-op on the Cloud API), and **off by default**:
+
+```ts
+import { Client } from 'zaileys'
+
+const bot = new Client({ watchdog: true })
+const tuned = new Client({ watchdog: { idleMs: 30 * 60_000, probeTimeoutMs: 15_000 } })
+```
+
+| Field | Default | Rule |
+| --- | --- | --- |
+| `idleMs` | `900000` (15 min) without a pushed message, receipt, notification, call, presence, or chatstate | finite, `>= 60000` |
+| `probeTimeoutMs` | `10000` | finite, `> 0` |
+
+A bad value throws `ZaileysConnectionError` `INVALID_OPTIONS` from `new Client()`. After `idleMs` of silence it
+looks up the own number (a USync query contacts never see). An answer means the bot is just quiet. A failure or
+timeout logs `watchdog: no inbound traffic for <n> min and the probe failed; reconnecting` at `warn` through
+`logger` (so set `ZAILEYS_DEBUG=warn` to see it) and ends the socket as `connection-lost`: the normal
+`disconnect` (`willReconnect: true`) and `reconnecting` events follow, and credentials are never erased. It stops
+on `disconnect()` and on any close that won't reconnect.
 
 ## Logging
 

@@ -6,6 +6,7 @@ import type { OperationGuardOptions } from '../automation/operation-guard.js'
 import type { PresenceThrottleOptions } from '../automation/presence.js'
 import type { AuthGuardOptions } from '../connection/auth-guard.js'
 import type { DisconnectReasonDomain } from '../connection/disconnect-reason.js'
+import type { WatchdogOptions } from '../connection/watchdog.js'
 import type { CommandBlockedReason, CommandContext } from '../command/types.js'
 import type { CitationConfig, MessageContext } from '../events/context.js'
 import type { InboundEventMap } from '../events/types.js'
@@ -109,6 +110,8 @@ export interface ClientOptions {
   authGuard?: AuthGuardOptions
   /** Guards the stored session. By default only an explicit logout may erase credentials. */
   session?: SessionSafetyOptions
+  /** Experimental, WhatsApp Web only: reconnects a session that stays open but stops receiving. Default off; `true` = 15 min idle, 10 s probe. */
+  watchdog?: WatchdogOptions | boolean
   /**
    * Media loading and processing limits. Process-wide: they govern shared CPU, RAM and ffmpeg
    * children, so with several clients in one process the last one constructed wins.

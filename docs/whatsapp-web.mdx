@@ -3,7 +3,7 @@ title: "WhatsApp Web setup"
 sidebarTitle: "WhatsApp Web setup"
 description: "Log in with a QR code or pairing code, keep and reset sessions, handle reconnects, and keep your number safe on the Unofficial provider."
 icon: "qr-code"
-keywords: ["qr code", "scan qr", "pairing code", "link with phone number", "session", "sessionId", "logout", "log out", "reconnect", "disconnect reason", "logged out", "auth guard", "auth-exhausted", "ban", "rate limit", "linked devices", "baileys"]
+keywords: ["qr code", "scan qr", "pairing code", "link with phone number", "session", "sessionId", "logout", "log out", "reconnect", "disconnect reason", "logged out", "watchdog", "stops receiving", "auth guard", "auth-exhausted", "ban", "rate limit", "linked devices", "baileys"]
 ---
 
 import { ProviderSupport } from "/snippets/provider-support.jsx"
@@ -22,6 +22,7 @@ This page covers running a bot on the Unofficial provider: logging in, keeping t
 | Keep the login across restarts | [`sessionId`, `auth`](#keep-the-session) | The <Term id="session" /> is saved to `.zaileys/auth/<sessionId>` |
 | Start over with a new login | [`client.logout()`](#force-a-new-login) | The device is unlinked and the saved session deleted |
 | Change how reconnects work | [`reconnect`](#stay-connected) | Retries follow your delays and attempt limit |
+| Recover a session that stops receiving | [`watchdog`](#recover-a-session-that-stops-receiving) (experimental) | A silent connection that fails a check reconnects |
 | Stop endless login attempts | [`authGuard`](#limit-login-attempts) | Zaileys gives up after 5 QR codes or 3 pairing codes |
 | Lower the ban risk | [`operationGuard`, `presence`](#avoid-bans) | Group actions and typing updates are spaced out |
 | Close the connection | [`client.disconnect()`](#disconnect-or-log-out) | The bot goes offline, and the session stays saved |
@@ -297,6 +298,40 @@ The `reason` on `disconnect` and `reconnecting` is one of:
 | `rate-limited` | 429 | WhatsApp is throttling this account. | Waits `rateLimitedDelayMs` (5 minutes), then reconnects. |
 | `connection-closed`, `connection-lost`, `multi-device-mismatch`, `unavailable-service` | 428, 408, 411, 503 | A network or server problem. | Reconnects with the usual waits. |
 | `unknown` | — | Any other reason, including you calling `disconnect()`. | Reconnects, unless you closed the connection yourself. |
+
+### Recover a session that stops receiving
+
+<Warning>
+  Experimental. The watchdog is off by default, and its behaviour may change in a minor release.
+</Warning>
+
+Sometimes a WhatsApp Web connection stays open and passes its keepalive checks, but messages stop arriving and no disconnect ever comes. Rebuilding the connection usually fixes it. The watchdog does that for you:
+
+```ts bot.ts
+import { Client } from 'zaileys'
+
+const client = new Client({ watchdog: true })
+```
+
+While connected, it tracks when WhatsApp last pushed a message, receipt, notification, call, presence, or typing update. After `idleMs` with none of those, it asks WhatsApp to look up your own number — a request contacts can't see. If the answer comes back, the bot was just quiet and nothing happens. If it fails or takes longer than `probeTimeoutMs`, the logger warns:
+
+```text
+watchdog: no inbound traffic for 15 min and the probe failed; reconnecting
+```
+
+Then the connection closes with reason `connection-lost` and reconnects through the usual [`reconnecting`](#react-to-connection-changes) flow. The saved session is never deleted. The watchdog stops on `client.disconnect()` and on any close that won't reconnect. It does nothing on the Official provider.
+
+<ParamField body="watchdog" type="boolean | { idleMs?: number; probeTimeoutMs?: number }" default="off">
+  `true` uses the defaults below. `false` or leaving it out turns it off.
+</ParamField>
+<ParamField body="watchdog.idleMs" type="number" default="900000">
+  Quiet time before the check runs — 15 minutes by default. Must be at least `60000`.
+</ParamField>
+<ParamField body="watchdog.probeTimeoutMs" type="number" default="10000">
+  How long the check may take before the session counts as stuck. Must be more than `0`.
+</ParamField>
+
+Values that are not finite, or out of range, make `new Client()` throw a `ZaileysConnectionError` with code `INVALID_OPTIONS` that names the field.
 
 ### When the saved session is deleted
 

@@ -100,6 +100,12 @@ import { printQrToTerminal } from '../connection/qr-terminal.js'
 import { createReconnectStrategy, type ReconnectStrategy } from '../connection/reconnect.js'
 import { createSocketCaches } from '../connection/socket-caches.js'
 import {
+  attachConnectionWatchdog,
+  resolveWatchdogOptions,
+  type ResolvedWatchdogOptions,
+  type WatchdogHandle,
+} from '../connection/watchdog.js'
+import {
   createConnectionStateMachine,
   type ConnectionStateMachine,
 } from '../connection/state-machine.js'
@@ -261,6 +267,8 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private readonly operationGuard: OperationGuard
   private readonly presenceThrottle: PresenceThrottleOptions | undefined
   private readonly scheduleLimiter: RateLimiter | undefined
+  private readonly watchdogOptions: ResolvedWatchdogOptions | undefined
+  private watchdog: WatchdogHandle | undefined
   private authExhausted = false
   private storesClosedByDisconnect = false
   /** Each chat's disappearing timer, learned from inbound messages so outbound sends can inherit it. */
@@ -337,6 +345,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.reconnectStrategy = createReconnectStrategy(this.reconnectOptions)
     this.authGuard = createAuthGuard(options.authGuard)
     this.clearAuthReasons = options.session?.clearAuthOn ?? DEFAULT_CLEAR_AUTH_REASONS
+    this.watchdogOptions = resolveWatchdogOptions(options.watchdog)
     this.operationGuard = createOperationGuard(options.operationGuard)
     this.presenceThrottle = options.presence
     const schedulePerSec = options.scheduleRateLimitPerSec ?? 1
@@ -776,6 +785,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = undefined
     }
+    this.stopWatchdog()
     this.inboundHandle?.detach()
     this.inboundHandle = undefined
     this.detachCommands()
@@ -1346,6 +1356,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       })
     }
     this.attachCommandsIfReady()
+    this.startWatchdog()
     void this.ensureScheduler()
       .loadPending()
       .catch((err) => this.logger.warn(err, 'scheduler loadPending failed'))
@@ -1376,6 +1387,21 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.connectResolve = undefined
     this.connectReject = undefined
     if (resolve) resolve()
+  }
+
+  private startWatchdog(): void {
+    this.stopWatchdog()
+    const socket = this._socket
+    if (!this.watchdogOptions || !socket) return
+    this.watchdog = attachConnectionWatchdog(socket, this.watchdogOptions, {
+      logger: this.logger,
+      sessionId: this.sessionId,
+    })
+  }
+
+  private stopWatchdog(): void {
+    this.watchdog?.stop()
+    this.watchdog = undefined
   }
 
   private async resolveMessageForResend(key: WAMessageKey): Promise<NonNullable<WAMessage['message']> | undefined> {
@@ -1528,6 +1554,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   }
 
   private async handleClose(lastDisconnect: ConnectionUpdate['lastDisconnect']): Promise<void> {
+    this.stopWatchdog()
     this.inboundHandle?.detach()
     this.inboundHandle = undefined
     this.detachCommands()

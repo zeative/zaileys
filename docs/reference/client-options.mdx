@@ -101,6 +101,7 @@ Every field is optional. `new Client()` on its own connects to WhatsApp Web with
 | [`qrTerminal`](#connection-and-login) | `boolean` | `true` | WhatsApp Web |
 | [`reconnect`](#reconnectoptions) | `ReconnectOptions` | `{}` — retries forever | WhatsApp Web |
 | [`session`](#session) | `SessionSafetyOptions` | only a logout deletes the session | WhatsApp Web |
+| [`watchdog`](#watchdog) | `boolean \| WatchdogOptions` | off | WhatsApp Web |
 | [`auth`](#storage) | `AuthStoreBundle` | files in `./.zaileys/auth/<sessionId>` | WhatsApp Web |
 | [`store`](#storage) | `MessageStore` | `MemoryMessageStore` | Both |
 | [`cacheSignal`](#storage) | `boolean` | `true` | WhatsApp Web |
@@ -191,6 +192,28 @@ Every field is optional. `new Client()` on its own connects to WhatsApp Web with
 <ParamField body="session.clearAuthOn" type="DisconnectReasonDomain[]" default="['logged-out']">
   Disconnect reasons allowed to delete the saved session. By default only a logout does — Zaileys backs up the credentials first. Add `'forbidden'` or `'connection-replaced'` to delete on those too. [When the saved session is deleted](/whatsapp-web#when-the-saved-session-is-deleted)
 </ParamField>
+
+### Watchdog
+
+Experimental, off by default. Reconnects a WhatsApp Web session that stays open but stops receiving: after `idleMs` with no message, receipt, notification, call, presence, or typing update from WhatsApp, Zaileys looks up your own number. If that check fails or takes longer than `probeTimeoutMs`, the logger warns `watchdog: no inbound traffic for <n> min and the probe failed; reconnecting`, and the connection closes as `connection-lost` and reconnects. The saved session is never deleted. Does nothing on the Cloud API. [Recover a session that stops receiving](/whatsapp-web#recover-a-session-that-stops-receiving)
+
+<ParamField body="watchdog" type="boolean | WatchdogOptions" default="off">
+  `true` turns it on with the defaults below. `false` or leaving it out keeps it off.
+</ParamField>
+<ParamField body="watchdog.idleMs" type="number" default="900000">
+  Quiet time before the check runs, in milliseconds — 15 minutes by default. Must be a finite number, `60000` or more.
+</ParamField>
+<ParamField body="watchdog.probeTimeoutMs" type="number" default="10000">
+  How long the check may take, in milliseconds. Must be a finite number above `0`.
+</ParamField>
+
+An out-of-range or non-finite value makes `new Client()` throw a `ZaileysConnectionError` with code `INVALID_OPTIONS` that names the field.
+
+```ts
+import { Client } from 'zaileys'
+
+const client = new Client({ watchdog: { idleMs: 30 * 60_000 } })
+```
 
 ### ReconnectOptions
 

@@ -50,7 +50,7 @@ Topic references — open the one the task touches:
 | Cloud API setup, webhook, templates, 24-hour window, Meta limits | [references/cloud-api.md](references/cloud-api.md) |
 | Auth and message stores, sessions, multiple accounts | [references/storage-and-sessions.md](references/storage-and-sessions.md) |
 | Every error code, message, disconnect reason, and Meta code | [references/errors.md](references/errors.md) |
-| Server sizing, media limits, ffmpeg, Docker, process managers | [references/production.md](references/production.md) |
+| Server sizing, media limits, ffmpeg, Docker, process managers, a session that stops receiving | [references/production.md](references/production.md) |
 | Version history: v3 → v4 and changes within v4 | [references/migration.md](references/migration.md) |
 
 Templates for new projects are in `assets/templates/web/` and `assets/templates/cloud/`. The read-only project

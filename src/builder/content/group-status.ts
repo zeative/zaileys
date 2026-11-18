@@ -2,6 +2,7 @@ import { getContentType, normalizeMessageContent, proto, type AnyMessageContent,
 import { ZaileysBuilderError } from '../errors.js'
 import { RELAY_CONTENT_KEY, RELAY_REQUIRE_GROUP_KEY, RELAY_STATUS_MEDIA_KEY, type StatusMedia } from './buttons.js'
 import { loadMedia } from '../media-loader.js'
+import { mediaDownloadOptions } from '../../utils/media-host.js'
 import type {
   GroupStatusFont,
   GroupStatusMedia,
@@ -171,7 +172,7 @@ export const buildGroupStatusRepost = async (
     let buffer: Buffer
     try {
       const { downloadMediaMessage } = await import('baileys')
-      buffer = (await downloadMediaMessage(original, 'buffer', {})) as Buffer
+      buffer = (await downloadMediaMessage(original, 'buffer', mediaDownloadOptions(content))) as Buffer
     } catch (err) {
       throw new ZaileysBuilderError('MEDIA_LOAD_FAILED', 'groupStatus() could not download the source media', {
         cause: err,

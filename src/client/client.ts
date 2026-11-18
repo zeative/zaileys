@@ -729,15 +729,23 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   async disconnect(): Promise<void> {
     if (this._provider === 'cloud') return this.disconnectCloud()
     if (this.disconnectInflight) return this.disconnectInflight
-    if (this.machine.state === 'idle' || this.machine.state === 'disconnected') return
-    this.disconnectInflight = this.teardown().finally(() => {
+    if (this.machine.state === 'idle') return
+    if (this.machine.state === 'disconnected') {
+      /** A close that did not reconnect already released the runtime; only the stores stay open. */
+      if (this.connectAttemptSeq === 0 || this.storesClosedByDisconnect) return
+      this.disconnectInflight = this.closeStores()
+    } else {
+      this.disconnectInflight = this.teardown()
+    }
+    const inflight = this.disconnectInflight.finally(() => {
       this.disconnectInflight = undefined
     })
-    return this.disconnectInflight
+    this.disconnectInflight = inflight
+    return inflight
   }
 
-  private async teardown(): Promise<void> {
-    this.machine.transition('disconnecting')
+  /** Stops every timer, watcher and listener a connection started, so nothing fires on a dead socket. */
+  private async releaseRuntime(): Promise<void> {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer)
       this.reconnectTimer = undefined
@@ -747,21 +755,17 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.detachCommands()
     this.autoDeleteSweeper?.stop()
     this.autoDeleteSweeper = undefined
-    await this.pluginLoader?.stop().catch(() => undefined)
+    const loader = this.pluginLoader
     this.pluginLoader = undefined
     this.pluginRegistry = undefined
     this._scheduler?.dispose()
     this._presence?.dispose()
     for (const c of this.listenerCleanup) c.off()
     this.listenerCleanup = []
-    if (this._socket) {
-      try {
-        this._socket.end(undefined)
-      } catch (err) {
-        this.logger.warn(err, 'socket.end threw')
-      }
-      this._socket = undefined
-    }
+    await loader?.stop().catch(() => undefined)
+  }
+
+  private async closeStores(): Promise<void> {
     try {
       await this.auth.signal.close()
     } catch (err) {
@@ -773,6 +777,21 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       this.logger.warn(err, 'store.close failed')
     }
     this.storesClosedByDisconnect = true
+  }
+
+  private async teardown(): Promise<void> {
+    this.machine.transition('disconnecting')
+    const socket = this._socket
+    this._socket = undefined
+    await this.releaseRuntime()
+    if (socket) {
+      try {
+        socket.end(undefined)
+      } catch (err) {
+        this.logger.warn(err, 'socket.end threw')
+      }
+    }
+    await this.closeStores()
     this.machine.transition('disconnected')
     if (this.disconnectEmittedFor !== this.connectAttemptSeq) {
       const reason: DisconnectReasonDomain = this.pendingDisconnectReason ?? 'unknown'
@@ -1548,11 +1567,8 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     this.logStatus({ kind: 'disconnect', reason, willReconnect })
     this.emit('disconnect', { sessionId: this.sessionId, reason, willReconnect })
     if (!willReconnect) {
-      if (this._socket) {
-        for (const c of this.listenerCleanup) c.off()
-        this.listenerCleanup = []
-        this._socket = undefined
-      }
+      this._socket = undefined
+      void this.releaseRuntime()
       if (this.machine.canTransition('disconnected')) {
         this.machine.transition('disconnected')
       }

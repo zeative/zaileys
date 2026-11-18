@@ -131,6 +131,28 @@ describe('Client — non-fatal disconnect schedules reconnect', () => {
     expect(reconnecting).not.toHaveBeenCalled()
   })
 
+  it('a close that will not reconnect stops scheduled timers, and disconnect() still closes the stores', async () => {
+    vi.useFakeTimers()
+    try {
+      const auth = memAuth()
+      const sock = createMockSocket({ user: { id: 'me' } })
+      makeWASocketMock.mockReturnValue(sock)
+      const c = new Client({ auth, qrTerminal: false, reconnect: { enabled: false }, autoConnect: false })
+      const p = c.connect()
+      sock.triggerConnectionUpdate({ connection: 'open' })
+      await p
+      c.presence.typing('628123@s.whatsapp.net', 60_000)
+      sock.triggerConnectionUpdate({ connection: 'close', lastDisconnect: { error: boomErr(428) } })
+      await vi.waitFor(() => expect(c.state).toBe('disconnected'))
+      await vi.runOnlyPendingTimersAsync()
+      expect(vi.getTimerCount()).toBe(0)
+      await c.disconnect()
+      expect(auth.__closeSignal).toBe(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('reconnect.maxAttempts caps retries', async () => {
     vi.useFakeTimers()
     const auth = memAuth()

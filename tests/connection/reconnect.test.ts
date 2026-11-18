@@ -283,3 +283,30 @@ describe('createReconnectStrategy — fake timer compatibility', () => {
     vi.useRealTimers()
   })
 })
+
+describe('createReconnectStrategy — restart-required fast path', () => {
+  it('reconnects at once on the first restart-required, then backs off as usual', () => {
+    const s = createReconnectStrategy({ initialDelayMs: 1000, jitterFactor: 0 }, { random: noJitter })
+    expect(s.next('restart-required')).toEqual({ attempt: 1, delayMs: 0 })
+    expect(s.next('restart-required')).toEqual({ attempt: 2, delayMs: 2000 })
+  })
+
+  it('offers the fast path again after reset(), which runs on every open', () => {
+    const s = createReconnectStrategy({ initialDelayMs: 1000, jitterFactor: 0 }, { random: noJitter })
+    s.next('restart-required')
+    s.reset()
+    expect(s.next('restart-required')).toEqual({ attempt: 1, delayMs: 0 })
+  })
+
+  it('still honours enabled: false and maxAttempts', () => {
+    expect(createReconnectStrategy({ enabled: false }).next('restart-required')).toBeNull()
+    const capped = createReconnectStrategy({ maxAttempts: 1 }, { random: noJitter })
+    capped.next('connection-lost')
+    expect(capped.next('restart-required')).toBeNull()
+  })
+
+  it('keeps the regular delay for other reasons', () => {
+    const s = createReconnectStrategy({ initialDelayMs: 1000, jitterFactor: 0 }, { random: noJitter })
+    expect(s.next('connection-lost')).toEqual({ attempt: 1, delayMs: 1000 })
+  })
+})

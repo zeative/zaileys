@@ -1,6 +1,7 @@
 import { Readable } from 'node:stream'
 import type { WAMessage } from 'baileys'
 import type { MediaDownloadResult, MediaKind } from '../types.js'
+import { mediaDownloadOptions } from '../../utils/media-host.js'
 
 export interface DownloadLogger {
   warn(obj: unknown, msg?: string): void
@@ -30,8 +31,9 @@ export const createDownloadFn = (
 ): (() => Promise<MediaDownloadResult>) => {
   return async (): Promise<MediaDownloadResult> => {
     try {
-      const { downloadMediaMessage } = await import('baileys')
-      const buffer = (await downloadMediaMessage(msg, 'buffer', {})) as Buffer
+      const { downloadMediaMessage, normalizeMessageContent } = await import('baileys')
+      const options = mediaDownloadOptions(normalizeMessageContent(msg.message))
+      const buffer = (await downloadMediaMessage(msg, 'buffer', options)) as Buffer
       const mime = extractMime(msg, kind) ?? 'application/octet-stream'
       return { buffer, mime, size: buffer.byteLength }
     } catch (error) {
@@ -48,8 +50,9 @@ export const createStreamFn = (
 ): (() => Promise<Readable>) => {
   return async (): Promise<Readable> => {
     try {
-      const { downloadMediaMessage } = await import('baileys')
-      const stream = (await downloadMediaMessage(msg, 'stream', {})) as Readable
+      const { downloadMediaMessage, normalizeMessageContent } = await import('baileys')
+      const options = mediaDownloadOptions(normalizeMessageContent(msg.message))
+      const stream = (await downloadMediaMessage(msg, 'stream', options)) as Readable
       return stream
     } catch (error) {
       logger?.warn({ error, kind, id: msg.key?.id }, 'media stream download failed')

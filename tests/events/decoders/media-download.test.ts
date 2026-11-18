@@ -46,6 +46,20 @@ describe('createDownloadFn', () => {
     expect(downloadMediaMessage).toHaveBeenCalledWith(expect.anything(), 'buffer', {})
   })
 
+  it('sends a sticker whose url sits on the a.whatsapp.net placeholder to the default media host', async () => {
+    downloadMediaMessage.mockResolvedValueOnce(Buffer.alloc(1))
+    const msg = {
+      key: { remoteJid: '111@s.whatsapp.net', id: 'S' },
+      message: {
+        ephemeralMessage: {
+          message: { stickerMessage: { url: 'https://a.whatsapp.net/v/t62/x.enc?mms3=true', directPath: '/v/t62/x.enc' } },
+        },
+      },
+    } as unknown as WAMessage
+    await createDownloadFn(msg, 'sticker')()
+    expect(downloadMediaMessage).toHaveBeenCalledWith(msg, 'buffer', { host: 'mmg.whatsapp.net' })
+  })
+
   it('falls back to octet-stream when mimetype is absent', async () => {
     downloadMediaMessage.mockResolvedValueOnce(Buffer.alloc(2))
     const msg = {

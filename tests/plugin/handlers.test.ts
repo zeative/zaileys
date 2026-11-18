@@ -101,6 +101,27 @@ describe('event methods', () => {
     expect(pluginCtx.category).toBe('tool')
   })
 
+  it('logs a rejected async method instead of leaving the rejection unhandled', async () => {
+    const error = vi.fn()
+    const h = host()
+    const reg = new PluginRegistry({ client: h as never, logger: { error, warn: vi.fn() } as never })
+    const failure = new Error('socket closed')
+    await reg.loadPlugin(definePlugin({ name: 'flaky', text: async () => { throw failure } }), '/bot/plugins/tool/x.ts', '/bot/plugins')
+    const unhandled = vi.fn()
+    process.on('unhandledRejection', unhandled)
+    try {
+      h.listeners[0]!.handler({ text: 'halo' })
+      await new Promise((resolve) => setImmediate(resolve))
+      expect(unhandled).not.toHaveBeenCalled()
+      expect(error).toHaveBeenCalledWith(
+        expect.objectContaining({ err: failure, name: 'flaky', event: 'text' }),
+        'plugin: event handler failed',
+      )
+    } finally {
+      process.off('unhandledRejection', unhandled)
+    }
+  })
+
   it('never wires `message` as an event — that name is the command handler', async () => {
     const { host: h } = await load(definePlugin({ name: 'bare', message: vi.fn() }))
     expect(h.listeners).toHaveLength(0)

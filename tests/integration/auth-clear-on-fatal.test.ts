@@ -147,13 +147,17 @@ describe('integration: fatal disconnect clears FileAuthStore', () => {
     const basePath = path.join(tmpRoot, 'session-401')
     await seedAuthDir(basePath)
     const { sock } = await bootWith(basePath)
+    const socketsBefore = makeWASocketMock.mock.calls.length
     simulateBoomDisconnect(sock, 401)
     await new Promise((r) => setTimeout(r, 20))
     expect((await listAuthFiles(basePath)).length).toBeGreaterThan(0)
-    await new Promise((r) => setTimeout(r, 3100)) // wait out POST_OPEN_LOGOUT_RETRY_DELAY_MS
+    await vi.waitFor(() => expect(makeWASocketMock.mock.calls.length).toBeGreaterThan(socketsBefore), {
+      timeout: 15_000,
+      interval: 50,
+    })
     simulateBoomDisconnect(sock, 401)
     expect(await waitForEmpty(basePath)).toHaveLength(0)
-  })
+  }, 20_000)
 
   it('non-fatal 428 preserves auth files', async () => {
     const basePath = path.join(tmpRoot, 'session-428')

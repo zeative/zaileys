@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto'
-import type { AnyMessageContent, MiscMessageGenerationOptions, WAMessage } from 'baileys'
+import { DisconnectReason, type AnyMessageContent, type MiscMessageGenerationOptions, type WAMessage } from 'baileys'
 import { MessageBuilder, type BuilderSocketLike } from '../builder/builder.js'
 import type { MessageStore, ScheduledJobRecord } from '../store/types.js'
 import type { Logger } from '../client/types.js'
@@ -40,6 +40,13 @@ const DEFAULT_TIMER: SchedulerTimer = {
   clear: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
 }
 
+/** Baileys raises a 428 Boom on a closed socket; zaileys modules use the NOT_CONNECTED code. */
+const isNotConnected = (err: unknown): boolean => {
+  if (typeof err !== 'object' || err === null) return false
+  if ((err as { code?: unknown }).code === 'NOT_CONNECTED') return true
+  return (err as { output?: { statusCode?: unknown } }).output?.statusCode === DisconnectReason.connectionClosed
+}
+
 const isSnapshot = (value: unknown): value is ScheduledContentSnapshot =>
   typeof value === 'object' &&
   value !== null &&
@@ -56,6 +63,7 @@ export class Scheduler {
   private readonly memory: Map<string, ScheduledJobRecord> = new Map()
   private readonly timers: Map<string, unknown> = new Map()
   private readonly failures: Map<string, number> = new Map()
+  private disposed = false
 
   constructor(deps: SchedulerDeps) {
     this.store = deps.store
@@ -83,6 +91,7 @@ export class Scheduler {
   }
 
   async loadPending(): Promise<void> {
+    this.disposed = false
     const list = this.store.listScheduledJobs
     if (!list) {
       for (const job of this.memory.values()) {
@@ -105,6 +114,7 @@ export class Scheduler {
   }
 
   dispose(): void {
+    this.disposed = true
     for (const handle of this.timers.values()) this.timer.clear(handle)
     this.timers.clear()
   }
@@ -125,6 +135,7 @@ export class Scheduler {
    * in chunks instead.
    */
   private arm(record: ScheduledJobRecord): void {
+    if (this.disposed) return
     const delay = Math.max(0, record.fireAt - this.now())
     if (delay > MAX_TIMER_DELAY_MS) {
       const handle = this.timer.set(() => {
@@ -147,6 +158,11 @@ export class Scheduler {
         if (this.acquire) await this.acquire()
         await this.sendSnapshot(record.payload)
       } catch (err) {
+        if (isNotConnected(err)) {
+          /** An outage is not a failed attempt; loadPending() re-arms the job when the client reopens. */
+          this.logger?.warn({ id: record.id }, 'scheduled send skipped: client not connected; waiting for reconnect')
+          return
+        }
         const attempts = (this.failures.get(record.id) ?? 0) + 1
         this.failures.set(record.id, attempts)
         if (attempts >= MAX_SEND_ATTEMPTS) {

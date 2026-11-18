@@ -39,7 +39,7 @@ Written for maintainers and for AI agents asked to "publish", "release", "rilis"
 | --- | --- | --- |
 | npm package `zaileys` | registry.npmjs.org, dist-tag `latest` | `npm publish` from this machine with `NPM_TOKEN` (step 5) |
 | Git | `origin/main`, `origin/v4`, tag `zaileys@X.Y.Z` | `git push` (step 6) |
-| Docs | https://zaileys.kejaa.id (Vercel project `zaileys-docs`) | static export deployed with the Vercel CLI (step 7) |
+| Docs | https://zaileys.kejaa.id (Dokploy dcloud, project `zaileys`, app `docs`) | built by Dokploy from `docs/Dockerfile` on push (step 7) |
 | Agent Skill / Claude Code plugin | installed straight from the GitHub repo | nothing to do: the plugin has no `version`, so every pushed commit reaches users |
 
 Not used: GitHub Releases and `.github/workflows/release.yml` (it only triggers on `v*` tags; our tags are
@@ -170,6 +170,16 @@ node docs/scripts/build-static.mjs            # writes docs-dist/ (gitignored); 
   lands in a stray folder inside the repo.
 - The build must end with `✓ static site ready in docs-dist`. Every check inside it (error codes, templates, search
   ranking, anchors, SEO) must print ✓.
+
+**Live host: Dokploy.** The site runs on the dcloud Dokploy (project `zaileys`, app `docs`, domain `zaileys.kejaa.id`
+behind Cloudflare). Dokploy builds `docs/Dockerfile` (context `.`): the same `build-static.mjs`, then nginx with the config
+from `docs/scripts/build-nginx.mjs`, which mirrors `vercel.json` (redirects, no trailing slash, `/.md`, cache headers,
+404). A push that touches `docs/**` redeploys it; to deploy by hand, press Deploy on the app. Check the result with
+`curl -sI https://zaileys.kejaa.id/quickstart` (200) and `/reference/changelog` (301).
+
+To build the image locally: `docker build -f docs/Dockerfile -t zaileys-docs . && docker run -p 8080:80 zaileys-docs`.
+
+The Vercel deploy below is the old host (the project is paused), kept in case the site moves back.
 
 Deploy with the Vercel CLI (the maintainer is logged in on this machine):
 

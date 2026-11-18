@@ -1,8 +1,8 @@
-import webp from 'node-webpmux';
 import { BufferConverter, FFMPEG_CONSTANTS, MimeValidator, detectFileType, generateId, type MediaInput } from './core.js';
 import { ffmpegTransform } from './transform.js';
 import { ImageProcessor } from './image.js';
 import { VideoProcessor } from './video.js';
+import { setWebpExif } from './webp-exif.js';
 
 export type StickerShapeType = 'circle' | 'rounded' | 'oval' | 'default';
 
@@ -54,13 +54,7 @@ export class StickerProcessor {
           ? await this.processAnimated(buffer, fileType.mime, quality)
           : await ImageProcessor.resizeForSticker(buffer, quality, shape);
 
-      const exif = this.createExifMetadata(metadata);
-      const img = new webp.Image();
-      await img.load(webpBuffer);
-      img.exif = exif;
-
-      const finalBuffer = await img.save(null);
-      return Buffer.isBuffer(finalBuffer) ? finalBuffer : Buffer.from(finalBuffer as Uint8Array);
+      return setWebpExif(webpBuffer, this.createExifMetadata(metadata));
     } catch (error: unknown) {
       throw new Error(`Sticker creation failed: ${error instanceof Error ? error.message : String(error)}`);
     }

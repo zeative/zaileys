@@ -33,11 +33,10 @@ vi.mock('../../src/media/ffmpeg/core.js', async () => {
   }
 })
 
-const loadMock = vi.fn(async () => undefined)
-const saveMock = vi.fn(async () => Buffer.from('FINAL'))
-vi.mock('node-webpmux', () => ({
-  default: { Image: class { exif: unknown; load = loadMock; save = saveMock } },
+const { setExifMock } = vi.hoisted(() => ({
+  setExifMock: vi.fn((_webp: Buffer, _exif: Buffer) => Buffer.from('FINAL')),
 }))
+vi.mock('../../src/media/ffmpeg/webp-exif.js', () => ({ setWebpExif: setExifMock }))
 
 import { StickerProcessor } from '../../src/media/ffmpeg/sticker.js'
 
@@ -47,8 +46,7 @@ beforeEach(() => {
   durationMock.mockReset()
   durationMock.mockResolvedValue(3)
   processMock.mockClear()
-  loadMock.mockClear()
-  saveMock.mockClear()
+  setExifMock.mockClear()
 })
 
 describe('StickerProcessor.create', () => {
@@ -57,7 +55,7 @@ describe('StickerProcessor.create', () => {
     const out = await StickerProcessor.create(Buffer.from('i'))
     expect(out.toString()).toBe('FINAL')
     expect(resizeStickerMock).toHaveBeenCalledOnce()
-    expect(loadMock).toHaveBeenCalledOnce()
+    expect(setExifMock).toHaveBeenCalledOnce()
   })
 
   it('ST2: passes custom quality and shape through to the image processor', async () => {
@@ -105,12 +103,8 @@ describe('StickerProcessor.create', () => {
 
   it('ST8: embeds custom pack metadata into the exif buffer', async () => {
     fileTypeMock.mockResolvedValue({ mime: 'image/png', ext: 'png' })
-    let captured: Buffer | undefined
-    saveMock.mockImplementationOnce(async function (this: { exif: Buffer }) {
-      captured = this.exif
-      return Buffer.from('FINAL')
-    })
     await StickerProcessor.create(Buffer.from('i'), { packageName: 'MyPack', authorName: 'Me' })
+    const captured = setExifMock.mock.calls.at(-1)?.[1]
     expect(captured!.toString('utf8')).toContain('MyPack')
     expect(captured!.toString('utf8')).toContain('Me')
   })

@@ -32,9 +32,6 @@ Pure-JS image processing (thumbnail, resize, sticker shaping) when `sharp` is no
 dynamic `import()` on first use so startup does not pay for it. Also an optional peer of baileys, which
 uses it for media thumbnails. Consumers: `src/media/ffmpeg/image.ts`.
 
-### node-webpmux — `^3.2.1`
-Reads/writes WebP EXIF to embed sticker-pack metadata. Consumers: `src/media/ffmpeg/sticker.ts`.
-
 ### audio-decode — `^2.2.3`
 Not imported by zaileys itself: it is an optional peer of baileys, which decodes audio with it to draw the
 waveform on voice notes. Declared here so voice notes keep their waveform without users installing it.
@@ -87,6 +84,7 @@ Real Postgres/Redis integration runs only when `DATABASE_URL` / `REDIS_URL` are 
 - **figlet**, **gradient-string** — ASCII banner removed; v4 is silent-by-default.
 - **radashi** — single helper inlined.
 - **@zaileys/media-process** workspace — media inlined into `src/media`.
+- **node-webpmux** (4.19) — replaced by `src/media/ffmpeg/webp-exif.ts`, which writes the sticker EXIF chunk byte for byte as it did, without its 560 KB libwebp build.
 - **async-mutex**, **nanospinner**, **valibot** (4.19) — never imported by `src/`; baileys ships its own `async-mutex`.
 
 ## Audit checklist

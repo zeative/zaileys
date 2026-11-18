@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events'
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Chat, Contact, PresenceData, WAMessage } from 'baileys'
 import type { MessageStore } from '../../src/store/index.js'
 import { ZaileysStoreError } from '../../src/types/store-error.js'
@@ -188,11 +188,10 @@ export const runMessageStoreContract = (
         store.bind({ ev } as never)
         const msgs = sampleMessages('bind@s.whatsapp.net', 2)
         ev.emit('messages.upsert', { messages: msgs, type: 'notify' })
-        await new Promise((resolve) => setImmediate(resolve))
-        const m0 = await store.getMessage(msgs[0]!.key)
-        const m1 = await store.getMessage(msgs[1]!.key)
-        expect(m0).toBeDefined()
-        expect(m1).toBeDefined()
+        await vi.waitFor(async () => {
+          expect(await store.getMessage(msgs[0]!.key)).toBeDefined()
+          expect(await store.getMessage(msgs[1]!.key)).toBeDefined()
+        }, { timeout: 5_000 })
       })
 
       it('E2: chats.upsert event persists chats', async () => {
@@ -200,9 +199,9 @@ export const runMessageStoreContract = (
         store.bind({ ev } as never)
         const chat = sampleChat('bindchat@s.whatsapp.net')
         ev.emit('chats.upsert', [chat])
-        await new Promise((resolve) => setImmediate(resolve))
-        const read = await store.getChat('bindchat@s.whatsapp.net')
-        expect(read).toBeDefined()
+        await vi.waitFor(async () => expect(await store.getChat('bindchat@s.whatsapp.net')).toBeDefined(), {
+          timeout: 5_000,
+        })
       })
 
       it('E3: contacts.upsert event persists contacts', async () => {
@@ -210,9 +209,9 @@ export const runMessageStoreContract = (
         store.bind({ ev } as never)
         const contact = sampleContact('bindct@s.whatsapp.net')
         ev.emit('contacts.upsert', [contact])
-        await new Promise((resolve) => setImmediate(resolve))
-        const read = await store.getContact('bindct@s.whatsapp.net')
-        expect(read).toBeDefined()
+        await vi.waitFor(async () => expect(await store.getContact('bindct@s.whatsapp.net')).toBeDefined(), {
+          timeout: 5_000,
+        })
       })
 
       it('E4: presence.update event persists presence', async () => {
@@ -220,10 +219,9 @@ export const runMessageStoreContract = (
         store.bind({ ev } as never)
         const jid = 'bindp@s.whatsapp.net'
         ev.emit('presence.update', { id: jid, presences: { [jid]: samplePresence() } })
-        await new Promise((resolve) => setImmediate(resolve))
-        const read = await store.getPresence(jid)
-        expect(read).toBeDefined()
-        expect(read!.lastKnownPresence).toBe('available')
+        await vi.waitFor(async () => {
+          expect((await store.getPresence(jid))?.lastKnownPresence).toBe('available')
+        }, { timeout: 5_000 })
       })
     })
 

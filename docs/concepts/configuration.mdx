@@ -41,7 +41,7 @@ Every option is optional. `new Client()` alone gives you a bot that logs in with
 By default, the login is saved as files in `./.zaileys/auth/<sessionId>`, and messages are kept in memory, so they're gone after a restart. To keep both in SQLite, install the driver:
 
 ```bash
-npm install better-sqlite3
+npm install better-sqlite3@11
 ```
 
 Then pass an auth store and a message store:
@@ -591,7 +591,7 @@ If `accessToken` or `phoneNumberId` is missing, `new Client()` throws right away
   How long a Graph API request may take before it fails with `REQUEST_FAILED`. Timed-out requests aren't retried.
 </ParamField>
 
-These options have no effect on the Cloud API, because there's no WhatsApp Web connection: `auth`, `authType`, `phoneNumber`, `qrTerminal`, `cacheSignal`, `reconnect`, `authGuard`, `autoRejectCall`, and `baileys`. Commands (`commandPrefix`), `plugins`, `autoDelete`, and scheduled sends (`scheduleRateLimitPerSec`) need that connection too, so they don't run on the Cloud API. `operationGuard` and `presence` only pace features the Cloud API doesn't have. Events you register with `client.on()`, and `citation`, `ignoreMe`, `sessionId`, `store`, `logger`, and `statusLog`, work the same. Setup is walked through in [Cloud API setup](/cloud/setup).
+These options have no effect on the Cloud API, because there's no WhatsApp Web connection: `auth`, `authType`, `phoneNumber`, `qrTerminal`, `cacheSignal`, `reconnect`, `session`, `watchdog`, `authGuard`, `autoRejectCall`, and `baileys`. Commands (`commandPrefix`, `commandFlood`), `plugins`, `autoDelete`, and scheduled sends (`scheduleRateLimitPerSec`) need that connection too, so they don't run on the Cloud API. `operationGuard` and `presence` only pace features the Cloud API doesn't have. Events you register with `client.on()`, and `citation`, `ignoreMe`, `sessionId`, `store`, `logger`, and `statusLog`, work the same. Setup is walked through in [Cloud API setup](/cloud/setup).
 
 ## Pass settings to Baileys
 
@@ -632,6 +632,8 @@ const client = new Client({
 | `ignoreMe` | `true` | [React to your own messages](#react-to-your-own-messages) |
 | `citation` | — | [Mark owners and banned users](#mark-owners-and-banned-users) |
 | `reconnect` | on | [Tune reconnects](#tune-reconnects) |
+| `session` | only a logout deletes the session | [When the saved session is deleted](/whatsapp-web#when-the-saved-session-is-deleted) |
+| `watchdog` | off (experimental) | [Recover a session that stops receiving](/whatsapp-web#recover-a-session-that-stops-receiving) |
 | `authGuard` | on | [Stop a stuck login loop](#stop-a-stuck-login-loop) |
 | `statusLog` | `true` | [Silence the terminal logs](#silence-the-terminal-logs) |
 | `logger` | silent | [See debug logs](#see-debug-logs) |
@@ -642,6 +644,7 @@ const client = new Client({
 | `autoDelete` | on, 30 days | [Control how long messages are kept](#control-how-long-messages-are-kept) |
 | `plugins` | — | [Load plugins from a folder](#load-plugins-from-a-folder) |
 | `sticker` | — | [Set sticker defaults](#set-sticker-defaults) |
+| `media` | 64 MB files, 4 ffmpeg jobs, 50 MP images | [MediaOptions](/reference/client-options#mediaoptions) |
 | `baileys` | `{}` | [Pass settings to Baileys](#pass-settings-to-baileys) |
 
 ## Common questions

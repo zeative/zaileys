@@ -471,6 +471,8 @@ Check each of these:
 3. **You're messaging from a different account** than the bot's own.
 4. **You're on the Unofficial provider.** Commands don't run on the Cloud API.
 5. **You're on v4.14.1 or later if the command is a photo caption.** Earlier versions only matched text messages.
+6. **The sender is under the flood limit.** By default one sender can run 20 commands per 60 seconds; past that, commands are blocked with reason `flood` until the window ends. See [Flood protection](/bots/commands#flood-protection).
+7. **No `ctx.ask()` or `waitForMessage()` is waiting for that sender in that chat.** A message that answers a wait isn't run as a command.
 
 ```ts
 import { Client } from 'zaileys'
@@ -486,7 +488,7 @@ client.on('command-not-found', ({ command }) => {
 })
 ```
 
-A command stopped by a guard, such as `admin` or `cooldown`, sends nothing. Listen for `command-blocked` to tell the user why. See [Commands](/bots/commands).
+A command stopped by a guard, such as `admin`, `cooldown`, or the flood limit, sends nothing (unless you set `commandFlood.notice`). Listen for `command-blocked` to tell the user why. See [Commands](/bots/commands).
 
 ### A command fails with no error in the terminal
 
@@ -687,6 +689,8 @@ These features need a WhatsApp Web connection, so they don't run on the Official
 - Plugins and auto-delete never start.
 - `broadcast()`, `scheduleAt()` sends, and `forward()` fail with `client not connected`.
 
+`client.waitForMessage()` and `client.session()` do work there, so a multi-step flow can still run from a `text` handler.
+
 Handle commands in an event handler, and send to each recipient with `client.send()`:
 
 ```ts
@@ -711,7 +715,7 @@ Database stores load their driver only when you use them, and throw a `ZaileysSt
 The SQLite message is partly in Indonesian — "belum terpasang" means "isn't installed". Install the driver with your package manager:
 
 ```bash
-npm install better-sqlite3
+npm install better-sqlite3@11
 ```
 
 The default file store needs no driver. See [Storage](/data/storage).

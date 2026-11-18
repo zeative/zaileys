@@ -91,7 +91,7 @@ Creates a client. Unless `autoConnect` is `false`, it starts connecting straight
   Every field is optional — see [ClientOptions](/reference/client-options).
 </ParamField>
 
-**Throws:** with `provider: 'cloud'`, `ZaileysCloudError` with code `CONFIG` — `provider 'cloud' requires cloud.accessToken` or `provider 'cloud' requires cloud.phoneNumberId`. A failed auto-connect doesn't throw: it's emitted as an `error` event, and only if you listen for `error`.
+**Throws:** with `provider: 'cloud'`, `ZaileysCloudError` with code `CONFIG` — `provider 'cloud' requires cloud.accessToken`, `provider 'cloud' requires cloud.phoneNumberId`, or a `cloud.requestTimeoutMs` that isn't above `0`. `ZaileysConnectionError` `INVALID_OPTIONS` for a bad `sessionId`, `reconnect` delay, or `watchdog` value, and `ZaileysCommandError` `INVALID_OPTIONS` for a bad `commandFlood`. A failed auto-connect doesn't throw: it's emitted as an `error` event, and only if you listen for `error`.
 
 ```ts
 import { Client } from 'zaileys'
@@ -143,7 +143,7 @@ interface Client {
 }
 ```
 
-Closes the connection and keeps the login, so the next `connect()` doesn't need a new QR code. On WhatsApp Web, it also stops commands, plugins, auto-delete, and scheduled-message timers, and closes the auth and message stores. It emits `disconnect` with `willReconnect: false`, and does nothing if the client isn't connected.
+Closes the connection and keeps the login, so the next `connect()` doesn't need a new QR code. On WhatsApp Web, it also stops commands, plugins, auto-delete, the watchdog, and scheduled-message timers, and closes the auth and message stores. On both providers, pending `waitForMessage()` calls reject with `ASK_CANCELLED`. It emits `disconnect` with `willReconnect: false`, and does nothing if the client isn't connected.
 
 <ProviderSupport web={true} cloud={true} />
 
@@ -1304,8 +1304,8 @@ Sends the same message to many chats, one at a time and rate-limited.
 <ParamField body="build" type="(b: MessageBuilder<'init'>) => MessageBuilder<'content-set'>" required>
   Adds content to a builder already addressed to one recipient. Called once per recipient.
 </ParamField>
-<ParamField body="options.rateLimitPerSec" type="number" default="5">
-  The most messages sent per second. Must be greater than `0`.
+<ParamField body="options.rateLimitPerSec" type="number" default="1">
+  Messages sent per second, evenly spaced with no initial burst. Must be greater than `0`.
 </ParamField>
 <ParamField body="options.retry" type="{ maxRetries: number; backoffMs: (attempt: number) => number }">
   Retry each failed recipient up to `maxRetries` times, waiting `backoffMs(attempt)` between tries.
@@ -1486,8 +1486,8 @@ const names = await client.usernames(['115362955808779@lid', '234256710246613@li
 | `ZaileysDomainError` | `NOT_CONNECTED` and others | Module methods |
 | `ZaileysAutomationError` | `NOT_CONNECTED`, `PRESENCE_FAILED`, `SCHEDULE_INVALID`, `RATE_LIMIT_INVALID` | `presence`, `rejectCall`, `scheduleAt`, `broadcast` |
 | `ZaileysCommandError` | `DUPLICATE_COMMAND`, `INVALID_COMMAND_NAME` | `command` |
-| `ZaileysCommandError` | `ASK_TIMEOUT`, `ASK_CANCELLED`, `ASK_LIMIT`, `INVALID_OPTIONS` | `waitForMessage` |
-| `ZaileysConnectionError` | `INVALID_OPTIONS`, `CREDS_READ_FAILED`, `CONNECT_ABORTED`, `CONNECTION_CLOSED`, `STORE_NOT_REOPENABLE` | `new Client()` with a bad `sessionId` or `reconnect` option; `connect` |
+| `ZaileysCommandError` | `ASK_TIMEOUT`, `ASK_CANCELLED`, `ASK_LIMIT`, `INVALID_OPTIONS` | `waitForMessage`; `INVALID_OPTIONS` also from `new Client()` with a bad `commandFlood` |
+| `ZaileysConnectionError` | `INVALID_OPTIONS`, `CREDS_READ_FAILED`, `CONNECT_ABORTED`, `CONNECTION_CLOSED`, `STORE_NOT_REOPENABLE` | `new Client()` with a bad `sessionId`, `reconnect`, or `watchdog` option; `connect` |
 
 Every code and how to fix it: [Errors](/reference/errors) and [Error handling](/data/error-handling).
 

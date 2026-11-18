@@ -51,8 +51,8 @@ You can't remove the risk, but you can keep it low:
 
 - **Use a number you can afford to lose**, not your personal or main business number.
 - **Don't cold-message strangers in bulk.** Unsolicited mass messages are the fastest way to get reported.
-- **Pace your sends.** `client.broadcast()` sends at most 5 messages per second by default. Lower it with `rateLimitPerSec`.
-- **Keep the built-in guards on.** Zaileys limits login attempts and spaces out group actions for you — see [Avoid bans](/whatsapp-web#avoid-bans).
+- **Pace your sends.** `client.broadcast()` sends one message per second by default, evenly spaced. Change it with `rateLimitPerSec`.
+- **Keep the built-in guards on.** Zaileys limits login attempts, spaces out group actions, and caps how many commands one sender can run a minute — see [Avoid bans](/whatsapp-web#avoid-bans).
 - **Move critical messages to the Official provider.** One-time passwords and payment alerts shouldn't depend on a number that can be banned.
 
 ## Switch providers
@@ -119,7 +119,7 @@ Work through this list before you move a WhatsApp Web bot to the Cloud API:
 3. **Serve the webhook.** Mount `client.webhook()` on a public HTTPS URL and register it in the Meta dashboard ([Webhook](/cloud/webhook)).
 4. **Remove WhatsApp Web–only calls.** `client.group`, `privacy`, `newsletter`, `community`, `profile`, `chat`, `contact`, `business`, and `presence`, plus `edit()`, `delete()`, `pin()`, `unpin()`, `setDisappearing()`, and `rejectCall()`, throw a `ZaileysProviderError` with code `UNSUPPORTED_ON_CLOUD` as soon as you touch them.
 5. **Replace message types the Cloud API can't send.** Polls, carousels, events, group invites, products sent with `.product()`, rich responses (`rich: true`), copy and call buttons, and more than 3 reply buttons reject with a `ZaileysBuilderError` (code `SEND_FAILED`) whose `error.cause` is a `ZaileysCloudError` with code `NOT_IMPLEMENTED`. `album()` rejects with `SEND_FAILED`.
-6. **Check your automation.** In the current release, commands, middleware, plugins, `broadcast()`, `scheduleAt()`, `forward()`, and auto-delete rely on the WhatsApp Web connection and don't work on the Cloud API. The [feature matrix](/feature-matrix) has the details.
+6. **Check your automation.** In the current release, commands (with `ctx.ask()` and flood protection), middleware, plugins, `broadcast()`, `scheduleAt()`, `forward()`, and auto-delete rely on the WhatsApp Web connection and don't work on the Cloud API. `client.waitForMessage()` and `client.session()` work on both. The [feature matrix](/feature-matrix) has the details.
 7. **Send templates to start conversations.** Outside the 24-hour window, a free-form send fails with Meta error `131047`. Use `client.sendTemplate()` with an approved [template](/cloud/templates).
 8. **Listen for Cloud-only events.** `template-status`, `flow-response`, and `order` only fire on the Cloud API ([Cloud events](/cloud/events)). `message-status` fires on both, and gains `conversationId` and `error` here.
 

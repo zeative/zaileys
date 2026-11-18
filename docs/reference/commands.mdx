@@ -21,6 +21,8 @@ This page lists every type, method, and event of the command framework. For a wa
 | [`client.commands()`](#client-commands) | `() => RegisteredCommand[]` |
 | [`client.use()`](#client-use) | `(middleware: Middleware) => Client` |
 | [`client.unuse()`](#client-unuse) | `(middleware: Middleware) => Client` |
+| [`client.waitForMessage()`](/reference/client#waitformessage) | `(options: WaitForMessageOptions) => Promise<MessageContext>` |
+| [`client.session()`](/reference/client#session) | `(jid: string) => SessionHandle` |
 | [`parseCommand()`](#parsecommand) | `(text: string, prefixes: string[]) => ParsedArgs` |
 | [`CommandHandler`](#commandhandler) | `(ctx: CommandContext) => Promise<void> \| void` |
 | [`Middleware`](#middleware) | `(ctx: CommandContext, next: () => Promise<void>) => Promise<void> \| void` |

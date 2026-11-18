@@ -32,7 +32,8 @@ Severity is about what happens in production. Check each item against the code; 
 
 **Critical — the bot breaks, loses data, or endangers the number**
 
-- Ban risk (WhatsApp Web): `authGuard` or `operationGuard` disabled; loops of `client.send()` to many chats
+- Ban risk (WhatsApp Web): `authGuard` or `operationGuard` disabled, or `commandFlood: false` on a bot open to
+  strangers; loops of `client.send()` to many chats
   instead of `client.broadcast()`; bulk group creation, joins, or member adds; cold messaging lists of numbers.
 - Login loops: `client.connect()` inside a `disconnect` handler, process managers restarting a bot that exits
   on `auth-exhausted`, multiple processes or replicas on one session (`connection-replaced`).

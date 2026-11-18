@@ -20,6 +20,7 @@ Not sure which provider you're on? It's WhatsApp Web unless you created the clie
 | Access token login | ✗ No | ✓ Yes | `connect()` checks the token and phone number ID. | [Guide](/cloud/setup) |
 | Saved session and automatic reconnect | ✓ Yes | ✗ No | The Cloud API has no session. Each send is its own HTTPS request. | [Guide](/whatsapp-web#stay-connected) |
 | Login attempt limit (`authGuard`) | ✓ Yes | ✗ No | | [Guide](/whatsapp-web#limit-login-attempts) |
+| Watchdog for a session that stops receiving (`watchdog`) | ✓ Yes | ✗ No | Experimental and off by default. Does nothing on the Cloud API. | [Guide](/whatsapp-web#recover-a-session-that-stops-receiving) |
 | Incoming messages through a webhook | ✗ No | ✓ Yes | `client.webhook()` | [Guide](/cloud/webhook) |
 | Several accounts in one process | ✓ Yes | ✓ Yes | One client per `sessionId` or phone number ID. | [Guide](/data/multi-account) |
 
@@ -98,6 +99,7 @@ Not sure which provider you're on? It's WhatsApp Web unless you created the clie
 | Communities | ✓ Yes | ✗ No | | [Guide](/groups/communities) |
 | Channels (newsletters) | ✓ Yes | ✗ No | | [Guide](/groups/newsletters) |
 | Group events (`group-join`, `group-leave`, `group-update`) | ✓ Yes | ✗ No | | [Guide](/concepts/events) |
+| Cached group details (`group.cachedMetadata()`) | ✓ Yes | ✗ No | Up to five minutes old, refreshed by group events. | [Guide](/groups/groups#read-a-groups-details) |
 
 ## Bots & automation
 
@@ -105,6 +107,9 @@ Not sure which provider you're on? It's WhatsApp Web unless you created the clie
 | --- | --- | --- | --- | --- |
 | Message events (`client.on`) | ✓ Yes | ◐ Partial | Cloud delivers text, media, locations, contacts, reactions, and button or list taps. No edit, delete, poll, group, call, or presence events. | [Guide](/concepts/events) |
 | Commands (`client.command`) | ✓ Yes | ✗ No | In the current release, commands are only dispatched over the WhatsApp Web connection. Handle `text` events instead. | [Guide](/bots/commands) |
+| Command flood protection (`commandFlood`) | ✓ Yes | ✗ No | On by default: 20 commands per sender per 60 seconds. It guards command dispatch, which only runs on WhatsApp Web. | [Guide](/bots/commands#flood-protection) |
+| Ask a question and wait for the answer | ✓ Yes | ◐ Partial | `ctx.ask()` runs inside commands, so WhatsApp Web only. `client.waitForMessage()` works on both. | [Guide](/bots/commands#ask-a-question-and-wait-for-the-answer) |
+| Per-user values (`ctx.session`, `client.session()`) | ✓ Yes | ✓ Yes | Kept in the message store. On the Cloud API, use `client.session(jid)`, since commands don't run there. | [Guide](/bots/commands#remember-things-per-user) |
 | Middleware | ✓ Yes | ✗ No | Runs with commands. | [Guide](/bots/middleware) |
 | Plugins | ✓ Yes | ✗ No | Plugins load when the WhatsApp Web connection opens. | [Guide](/bots/plugins) |
 | Broadcast | ✓ Yes | ✗ No | Throws `INVALID_OPTIONS` (`client not connected`) on the Cloud API. | [Guide](/bots/broadcast-and-schedule) |

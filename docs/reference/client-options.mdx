@@ -628,7 +628,7 @@ const client = new Client({
 
 <AccordionGroup>
   <Accordion title="Which options do anything on the Cloud API?">
-    `provider`, `cloud`, `sessionId`, `autoConnect`, `store`, `ignoreMe`, `citation`, `sticker`, `logger`, and `statusLog`. `commandPrefix` only sets `msg.isPrefix` there. Everything else drives the WhatsApp Web connection and is ignored.
+    `provider`, `cloud`, `sessionId`, `autoConnect`, `store`, `ignoreMe`, `citation`, `sticker`, `media`, `logger`, and `statusLog`. `commandPrefix` only sets `msg.isPrefix` there, and `commandFlood` never applies, because commands don't run. Everything else drives the WhatsApp Web connection and is ignored.
   </Accordion>
   <Accordion title="My bot never connects and prints nothing. How do I see why?">
     Auto-connect errors go to the `error` event, and the default logger is silent. Add `client.on('error', ({ error }) => console.error(error))`, or run with `ZAILEYS_DEBUG=1`.
@@ -645,7 +645,7 @@ const client = new Client({
 | `ZaileysCloudError` `CONFIG`: `provider 'cloud' requires cloud.accessToken` | `new Client()` with `provider: 'cloud'` and no token | Pass `cloud.accessToken`. Check that the environment variable is set. |
 | `ZaileysCloudError` `CONFIG`: `provider 'cloud' requires cloud.phoneNumberId` | `new Client()` with `provider: 'cloud'` and no phone number ID | Pass `cloud.phoneNumberId` from **WhatsApp → API Setup** in the Meta dashboard. |
 | `ZaileysCloudError` `AUTH`: `cloud auth rejected (401) — check accessToken/phoneNumberId` | Connecting on the Cloud API with a wrong or expired token (401 or 403) | Generate a new token and check the phone number ID. |
-| `Error`: `phoneNumber is required when authType is "pairing"` | `connect()` — or auto-connect — with `authType: 'pairing'` and no `phoneNumber` | Add `phoneNumber`, country code first, digits only. |
+| `ZaileysConnectionError` `INVALID_OPTIONS`: `phoneNumber is required when authType is "pairing"` | `connect()` — or auto-connect — with `authType: 'pairing'` and no `phoneNumber` | Add `phoneNumber`, country code first, digits only. |
 | `ZaileysCommandError` `INVALID_OPTIONS`: `commandFlood.maxCommands must be a positive integer, got 0` | `new Client()` with a `commandFlood` limit that isn't a positive integer, or an empty `notice` | Pass positive integers, or `commandFlood: false` to turn it off. |
 | `auth-exhausted` event, then a disconnect | Too many QR or pairing codes without a completed login (`authGuard`) | Finish linking on the phone, then call `client.connect()` again. |
 

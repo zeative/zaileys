@@ -53,7 +53,7 @@ Every Zaileys error has:
 | --- | --- | --- |
 | `ZaileysBuilderError` | `client.send()`, `msg.reply()`, edits, and forwards | `INVALID_OPTIONS`, `MEDIA_LOAD_FAILED`, `SEND_FAILED` |
 | `ZaileysDomainError` | `client.group`, `privacy`, `newsletter`, `community`, `profile`, `chat`, `contact`, `business` | `NOT_CONNECTED`, `OPERATION_FAILED` |
-| `ZaileysCommandError` | Commands and middleware | `HANDLER_ERROR`, `DUPLICATE_COMMAND` |
+| `ZaileysCommandError` | Commands, middleware, `ctx.ask()`, and `waitForMessage()` | `HANDLER_ERROR`, `DUPLICATE_COMMAND`, `ASK_TIMEOUT` |
 | `ZaileysAutomationError` | Broadcasts, scheduling, presence, and rate limits | `SCHEDULE_INVALID`, `PRESENCE_FAILED` |
 | `ZaileysStoreError` | Auth and message stores | `STORE_NOT_AVAILABLE`, `STORE_CONNECTION_FAILED` |
 | `ZaileysConnectionError` | `new Client()`, `connect()`, and pairing | `INVALID_OPTIONS`, `CREDS_READ_FAILED`, `CONNECTION_CLOSED` |

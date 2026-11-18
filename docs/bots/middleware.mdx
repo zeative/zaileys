@@ -56,8 +56,10 @@ client.use(logCommands)
 flowchart TD
   msg["/kick @Budi"] --> match{"Matches a<br/>command?"}
   match -->|no| notFound["command-not-found"]
-  match -->|yes| guards{"Guards pass?"}
-  guards -->|no| blocked["command-blocked"]
+  match -->|yes| flood{"Under the<br/>flood limit?"}
+  flood -->|no| blocked["command-blocked"]
+  flood -->|yes| guards{"Guards pass?"}
+  guards -->|no| blocked
   guards -->|yes| first["Middleware 1"] --> second["Middleware 2"] --> handler["Handler"]
 ```
 
@@ -137,6 +139,8 @@ client.use(async (ctx, next) => {
 ```
 
 A sixth command within a minute gets the warning instead of running. To slow down a single command instead, use its [`cooldown` guard](/bots/commands#limit-who-can-run-a-command).
+
+The built-in [flood protection](/bots/commands#flood-protection) already blocks a sender after 20 commands per minute, before middleware runs. For a stricter limit without code, set `commandFlood: { maxCommands: 5 }`: it counts in fixed windows and replies with `notice` at most once per window. Keep the middleware when you want a sliding window or a reply every time.
 
 ### Reply when a command fails
 

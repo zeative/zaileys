@@ -259,6 +259,7 @@ object at `trace` — so keep it at `info` or above, or give your pino logger `r
 | Webhook POSTs require `appSecret` | Unsigned POSTs get `401`; `cloud.allowUnsigned: true` is for local development only | Missing app secret in the deploy env: every message is rejected |
 | Secrets redacted in the default logger | Tokens and keys stay out of log shipping | Custom loggers (above) |
 | Session files `0600`, dirs `0700` | Other local users can't read the session | A volume owned by another user: `STORE_READ_FAILED` / `STORE_WRITE_FAILED` |
+| Command flood guard: 20 commands per sender per 60 s | One sender can't make the bot reply in bursts | A busy power user gets `command-blocked` `flood`; raise `commandFlood.maxCommands` instead of `false` |
 | Plugin hot reload off when `NODE_ENV=production` | Writes to the plugins dir can't execute code | Set `NODE_ENV=production`, or `plugins.watch` is on |
 
 ## Runtimes and bundlers

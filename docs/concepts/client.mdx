@@ -145,7 +145,7 @@ If a login never completes, the client stops after 5 QR codes or 3 pairing codes
 | Stop the bot and keep the login | `await client.disconnect()` | Kept — the next start connects without a QR code |
 | Unlink the device and forget the login | `await client.logout()` | Deleted — the next start needs a new QR or pairing code |
 
-`disconnect()` cancels any pending reconnect, stops message handling, commands, scheduled messages, auto-delete, and plugins, then closes the connection, the auth store, and the message store. It fires `disconnect` with `willReconnect: false`.
+`disconnect()` cancels any pending reconnect and every pending `waitForMessage()` or `ctx.ask()` (they reject with `ASK_CANCELLED`), stops message handling, commands, scheduled messages, auto-delete, the watchdog, and plugins, then closes the connection, the auth store, and the message store. It fires `disconnect` with `willReconnect: false`.
 
 `logout()` also logs out on WhatsApp's side — the bot disappears from the phone's **Linked devices** list — and deletes the saved login before disconnecting. Its `disconnect` event has the reason `logged-out`.
 
@@ -185,7 +185,7 @@ With `provider: 'cloud'` there's no phone to link and no connection to keep open
 - **There's no QR code, pairing code, session folder, or reconnecting.** The states go `idle → connecting → connected`, or to `disconnected` if the check fails. The `qr`, `pairing-code`, `reconnecting`, and `auth-exhausted` events never fire.
 - **Messages arrive through the <Term id="webhook" />**, not the connection. `client.webhook()` returns the handler Meta calls ([Webhook](/cloud/webhook)). Replies and sends still need the `connected` state — until the token check passes, they throw `client not connected`.
 - **`disconnect()`** stops the client and fires `disconnect` with the reason `unknown`. There's no linked device, so use `disconnect()` rather than `logout()`.
-- **Some features need the WhatsApp Web connection and don't run here:** commands and middleware, plugins, auto-delete, `broadcast()`, scheduled sends, and `forward()`. `broadcast()` and `forward()` throw `client not connected`, and scheduled messages never go out. Events you register with `client.on()` work normally.
+- **Some features need the WhatsApp Web connection and don't run here:** commands and middleware, plugins, auto-delete, `broadcast()`, scheduled sends, and `forward()`. `broadcast()` and `forward()` throw `client not connected`, and scheduled messages never go out. Events you register with `client.on()` work normally. So do `client.waitForMessage()` and `client.session()`.
 
 Check the token yourself at startup:
 

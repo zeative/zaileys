@@ -52,7 +52,7 @@ Cloud API sends need the `connected` state too: until the token check passes the
 | `edit()`, `delete()`, `pin()`, `unpin()`, `setDisappearing()`, `rejectCall()` | `UNSUPPORTED_ON_CLOUD` |
 | Polls, carousels, events, group invites, `.product()`, `rich: true`, `htmlApp()`, copy/call buttons, more than 3 reply buttons | The send rejects with `ZaileysBuilderError` `SEND_FAILED`; `error.cause` is a `ZaileysCloudError` with code `NOT_IMPLEMENTED` |
 | `album()` | `SEND_FAILED` — send each file separately |
-| Commands, middleware, plugins, auto-delete | Never run — handle `text` events |
+| Commands (with `ctx.ask()` and `commandFlood`), middleware, plugins, auto-delete | Never run — handle `text` events; `client.waitForMessage()` and `client.session()` work on both |
 | `broadcast()`, `forward()` | Throw `client not connected` |
 | `scheduleAt()` | Saves the job, but the send fails when due |
 | Mentions, view once, GIF playback, disappearing timers on a send | Silently ignored |

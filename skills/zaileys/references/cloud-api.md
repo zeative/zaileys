@@ -293,4 +293,5 @@ Throughput, messaging tiers, and pricing: https://zaileys.kejaa.id/cloud/limits
 Web-only modules (`client.group`, `presence`, …) and `edit()`/`delete()`/`pin()` throw `UNSUPPORTED_ON_CLOUD`.
 Commands, middleware, plugins, and auto-delete never run; `broadcast()` and `forward()` reject with
 `client not connected`; scheduled jobs fail when due and are dropped after retries. Parse commands with
-`parseCommand()` in a `text` handler. The full comparison is in the providers reference.
+`parseCommand()` in a `text` handler; `client.waitForMessage()` and `client.session(jid)` do work there, so
+multi-step flows and per-user values still run. The full comparison is in the providers reference.

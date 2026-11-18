@@ -122,8 +122,7 @@ describe('e2e: a stored session survives real-world disconnects', () => {
   it('an explicit logout wipes the live session but leaves a recoverable snapshot', async () => {
     const { client } = await boot()
     await client.logout()
-    await new Promise((r) => setTimeout(r, 40))
-    expect(await liveAuthFiles()).toHaveLength(0)
+    await vi.waitFor(async () => expect(await liveAuthFiles()).toHaveLength(0), { timeout: 5_000 })
     const remaining = await fs.readdir(basePath)
     const snapshots = remaining.filter((n) => n.startsWith('creds.revoked-'))
     expect(snapshots).toHaveLength(1)
@@ -145,8 +144,11 @@ describe('e2e: a stored session survives real-world disconnects', () => {
     if (process.platform === 'win32') return
     const { client, sock } = await boot()
     sock.triggerCredsUpdate({ lastAccountSyncTimestamp: 99 })
-    await new Promise((r) => setTimeout(r, 40))
-    const mode = (await fs.stat(path.join(basePath, 'creds.json'))).mode & 0o777
+    const credsPath = path.join(basePath, 'creds.json')
+    await vi.waitFor(async () => {
+      expect(JSON.parse(await fs.readFile(credsPath, 'utf8')).lastAccountSyncTimestamp).toBe(99)
+    }, { timeout: 5_000 })
+    const mode = (await fs.stat(credsPath)).mode & 0o777
     expect(mode).toBe(0o600)
     await client.disconnect().catch(() => undefined)
   })

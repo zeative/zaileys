@@ -27,6 +27,33 @@ export interface CloudMe {
 const MEDIA_DOWNLOAD_TIMEOUT_MS = 60_000
 const MEDIA_DOWNLOAD_MAX_BYTES = 128 * 1024 * 1024
 
+/** Reads a body chunk by chunk, stopping at `max` bytes or when `signal` aborts, instead of buffering it whole. */
+const readCappedBody = async (res: Response, max: number, signal: AbortSignal): Promise<Buffer> => {
+  if (!res.body) return Buffer.from(await res.arrayBuffer())
+  const reader = res.body.getReader()
+  const aborted = new Promise<never>((_resolve, reject) => {
+    const fail = (): void => reject(new ZaileysCloudError('REQUEST_FAILED', 'media download timed out'))
+    if (signal.aborted) fail()
+    else signal.addEventListener('abort', fail, { once: true })
+  })
+  aborted.catch(() => undefined)
+  const chunks: Uint8Array[] = []
+  let total = 0
+  try {
+    for (;;) {
+      const { done, value } = await Promise.race([reader.read(), aborted])
+      if (done) break
+      total += value.byteLength
+      if (total > max) throw new ZaileysCloudError('REQUEST_FAILED', `media exceeds ${max} bytes`)
+      chunks.push(value)
+    }
+  } catch (err) {
+    await reader.cancel().catch(() => undefined)
+    throw err
+  }
+  return Buffer.concat(chunks, total)
+}
+
 /** Meta serves media from these origins; anything else must not receive the access token. */
 const ALLOWED_MEDIA_HOST_SUFFIXES: readonly string[] = [
   '.fbcdn.net',
@@ -214,28 +241,29 @@ export class CloudTransport implements Transport {
      * download origins are allowed to see it.
      */
     assertMetaMediaHost(meta.url)
+    /** The deadline covers the body as well, so a CDN that stalls mid-transfer cannot hang the caller. */
     const controller = new AbortController()
     const timer = setTimeout(() => controller.abort(), MEDIA_DOWNLOAD_TIMEOUT_MS)
-    let res: Response
+    let buffer: Buffer
     try {
-      res = await fetch(meta.url, {
-        headers: { Authorization: `Bearer ${this.options.accessToken}` },
-        redirect: 'error',
-        signal: controller.signal,
-      })
-    } catch (err) {
-      throw new ZaileysCloudError('REQUEST_FAILED', 'media download failed', { cause: err })
+      let res: Response
+      try {
+        res = await fetch(meta.url, {
+          headers: { Authorization: `Bearer ${this.options.accessToken}` },
+          redirect: 'error',
+          signal: controller.signal,
+        })
+      } catch (err) {
+        throw new ZaileysCloudError('REQUEST_FAILED', 'media download failed', { cause: err })
+      }
+      if (!res.ok) throw new ZaileysCloudError('REQUEST_FAILED', `media download failed (${res.status})`)
+      const declared = Number(res.headers?.get?.('content-length') ?? '0')
+      if (Number.isFinite(declared) && declared > MEDIA_DOWNLOAD_MAX_BYTES) {
+        throw new ZaileysCloudError('REQUEST_FAILED', `media exceeds ${MEDIA_DOWNLOAD_MAX_BYTES} bytes`)
+      }
+      buffer = await readCappedBody(res, MEDIA_DOWNLOAD_MAX_BYTES, controller.signal)
     } finally {
       clearTimeout(timer)
-    }
-    if (!res.ok) throw new ZaileysCloudError('REQUEST_FAILED', `media download failed (${res.status})`)
-    const declared = Number(res.headers?.get?.('content-length') ?? '0')
-    if (Number.isFinite(declared) && declared > MEDIA_DOWNLOAD_MAX_BYTES) {
-      throw new ZaileysCloudError('REQUEST_FAILED', `media exceeds ${MEDIA_DOWNLOAD_MAX_BYTES} bytes`)
-    }
-    const buffer = Buffer.from(await res.arrayBuffer())
-    if (buffer.byteLength > MEDIA_DOWNLOAD_MAX_BYTES) {
-      throw new ZaileysCloudError('REQUEST_FAILED', `media exceeds ${MEDIA_DOWNLOAD_MAX_BYTES} bytes`)
     }
     const mime = meta.mime_type ?? (await detectMimeFromBuffer(buffer))
     return { buffer, mime, size: buffer.byteLength }

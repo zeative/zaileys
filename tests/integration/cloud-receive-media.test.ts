@@ -68,6 +68,50 @@ describe('integration: cloud receive media', () => {
     expect((cdnInit.headers as Record<string, string>).Authorization).toBe('Bearer tok')
   })
 
+  it('downloadMedia times out when the CDN stops sending mid-body', async () => {
+    const c = await connectedClient()
+    await c.webhook()(post(fixture))
+    await new Promise((r) => setTimeout(r, 10))
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    try {
+      const stalled = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(new Uint8Array([0xff, 0xd8]))
+        },
+      })
+      fetchMock
+        .mockResolvedValueOnce(ok({ url: 'https://lookaside.fbsbx.com/whatsapp_business/attachments/?mid=MEDIA-IN-1' }))
+        .mockResolvedValueOnce(new Response(stalled))
+      const pending = c.downloadMedia({ id: 'wamid.IMAGE01', remoteJid: '628111000222@s.whatsapp.net', fromMe: false })
+      const outcome = expect(pending).rejects.toMatchObject({ code: 'REQUEST_FAILED' })
+      await vi.advanceTimersByTimeAsync(60_000)
+      await outcome
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('downloadMedia stops reading a body with no content-length once it passes 128 MB', async () => {
+    const c = await connectedClient()
+    await c.webhook()(post(fixture))
+    await new Promise((r) => setTimeout(r, 10))
+    const chunk = new Uint8Array(1024 * 1024)
+    let pulled = 0
+    const endless = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        pulled += 1
+        controller.enqueue(chunk)
+      },
+    })
+    fetchMock
+      .mockResolvedValueOnce(ok({ url: 'https://lookaside.fbsbx.com/whatsapp_business/attachments/?mid=MEDIA-IN-1' }))
+      .mockResolvedValueOnce(new Response(endless))
+    await expect(
+      c.downloadMedia({ id: 'wamid.IMAGE01', remoteJid: '628111000222@s.whatsapp.net', fromMe: false }),
+    ).rejects.toMatchObject({ code: 'REQUEST_FAILED' })
+    expect(pulled).toBeLessThan(140)
+  })
+
   it('downloadMedia returns null for unknown message', async () => {
     const c = await connectedClient()
     const result = await c.downloadMedia({ id: 'wamid.NOPE', remoteJid: 'x@s.whatsapp.net', fromMe: false })

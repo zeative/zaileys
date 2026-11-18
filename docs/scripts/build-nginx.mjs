@@ -59,6 +59,9 @@ ${redirects}
   location / {
     # Like vercel.json's trailingSlash: false.
     rewrite ^/(.+)/$ /$1 permanent;
+    # no-transform stops Cloudflare's Email Address Obfuscation from rewriting JIDs such as 628…@s.whatsapp.net
+    # inside the page's compiled MDX, which breaks client-side navigation (pages render empty).
+    add_header Cache-Control "public, max-age=0, must-revalidate, no-transform";
     try_files $uri $uri.html $uri/index.html =404;
   }
 }

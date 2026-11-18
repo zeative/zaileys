@@ -21,7 +21,7 @@ Ask what the bot must do, then pick — don't default to WhatsApp Web because it
 | Customer support or notifications on a business number that must not be banned | Cloud API | Meta's sanctioned API |
 | Messaging people who haven't written in 24 hours (OTP, order updates, reminders) | Cloud API | Approved templates reach opted-in users any time |
 | Serverless or request/response hosting | Cloud API | Messages arrive at a webhook; WhatsApp Web needs a long-running process |
-| Delivery and read status per message | Cloud API | `message-status` event |
+| Delivery status with Meta's error codes and conversation IDs | Cloud API | `message-status` fires on both; `error` and `conversationId` are Cloud-only |
 
 WhatsApp Web automates an unofficial protocol through Baileys. WhatsApp can restrict or ban numbers that behave
 like bots, so recommend a number the user can afford to lose, and the Cloud API for anything critical.
@@ -36,7 +36,7 @@ like bots, so recommend a number the user can afford to lose, and the Cloud API 
 | Incoming messages | Over the connection zaileys keeps open | `client.webhook()` mounted on a public HTTPS URL |
 | Reconnects | Automatic with backoff; `authGuard` limits login attempts | Not applicable |
 | States | `idle → connecting → qr-pending/pairing-pending → connected → reconnecting …` | `idle → connecting → connected` (or `disconnected` if the token is rejected) |
-| Events that never fire | `message-status`, `template-status`, `flow-response`, `order` | `qr`, `pairing-code`, `reconnecting`, `auth-exhausted`, `edit`, `delete`, `poll-vote`, `mention`, group, call, and presence events |
+| Events that never fire | `template-status`, `flow-response`, `order` | `qr`, `pairing-code`, `reconnecting`, `auth-exhausted`, `edit`, `delete`, `poll-vote`, `mention`, group, call, and presence events |
 | Cost | Free | Meta's WhatsApp Business pricing |
 
 Cloud API sends need the `connected` state too: until the token check passes they throw
@@ -118,6 +118,7 @@ need no branching — only the features in the tables above do.
    (file store with an absolute `basePath`, a mounted volume, or a database store).
 2. Remove `client.webhook()`, `client.cloud`, `sendTemplate()`, and `markRead()` — they throw `CONFIG`. Use
    `client.chat.markRead()` for read receipts.
-3. Stop relying on `message-status`, `template-status`, `flow-response`, and `order`.
+3. Stop relying on `template-status`, `flow-response`, and `order`. `message-status` still fires, decoded from
+   delivery receipts, without `conversationId` and `error`.
 4. Add ban protection: keep `authGuard` and `operationGuard` on, use `client.broadcast()` for bulk sends, and
    don't cold-message people in bulk.

@@ -35,7 +35,8 @@
 | Connection | `connect`, `disconnect`, `error` | `{ me }`, `{ reason, willReconnect }`, `{ error }` | Yes | Yes |
 | | `qr`, `pairing-code`, `reconnecting`, `auth-exhausted` | Login and retry state | Yes | No |
 | Commands | `command-blocked`, `command-error`, `command-not-found` | Command framework only; listening to `command-error` stops zaileys logging it | Yes | No |
-| Cloud only | `message-status`, `template-status`, `flow-response`, `order` | Arrive through `client.webhook()` | No | Yes |
+| Delivery | `message-status` | `{ id, status, recipientId, timestamp }`; `conversationId` and `error` only on the Cloud API | Yes | Yes |
+| Cloud only | `template-status`, `flow-response`, `order` | Arrive through `client.webhook()` | No | Yes |
 
 Payload fields: https://zaileys.kejaa.id/reference/events
 

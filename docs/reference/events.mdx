@@ -45,7 +45,7 @@ This page lists every event you can pass to `client.on()`, with the exact payloa
 | [`command-blocked`](#command-blocked) | A guard stopped a command | `{ command, reason, retryIn?, ctx }` | Yes | No |
 | [`command-error`](#command-error) | A command handler or middleware threw | `{ command, error, ctx }` | Yes | No |
 | [`command-not-found`](#command-not-found) | A prefixed message matched no command | `{ command, message }` | Yes | No |
-| [`message-status`](#message-status) | A sent message is sent, delivered, read, or failed | `CloudStatusEvent` | No | Yes |
+| [`message-status`](#message-status) | A sent message is sent, delivered, read, or failed | `CloudStatusEvent` | Yes | Yes |
 | [`template-status`](#template-status) | Meta reviews one of your templates | `CloudTemplateStatusEvent` | No | Yes |
 | [`flow-response`](#flow-response) | Someone completes a WhatsApp Flow | `CloudFlowResponseEvent` | No | Yes |
 | [`order`](#order) | Someone orders from your catalog | `CloudOrderEvent` | No | Yes |
@@ -735,7 +735,7 @@ client.on('command-not-found', async ({ command, message }) => {
 
 ## Cloud API
 
-These arrive through the <Term id="webhook" /> and only fire with `provider: 'cloud'`. Meta sends timestamps in Unix **seconds**. Flow responses and orders fire only their own event, not `message`. More in [Cloud events](/cloud/events).
+These arrive through the <Term id="webhook" /> and only fire with `provider: 'cloud'` — except `message-status`, which also fires on WhatsApp Web, decoded from delivery receipts, without `conversationId` and `error`. Meta sends timestamps in Unix **seconds**. Flow responses and orders fire only their own event, not `message`. More in [Cloud events](/cloud/events).
 
 A client handles every webhook payload you hand it — Zaileys doesn't filter by phone number ID, so route payloads yourself when one server serves several numbers. The webhook answers Meta with `200` once the signature checks out, even if your handlers fail, and those failures don't reach the `error` event.
 

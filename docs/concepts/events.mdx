@@ -161,12 +161,13 @@ These come from the command framework ([Commands](/bots/commands)). Commands nee
 
 | Event | Fires when |
 | --- | --- |
-| `message-status` | A message you sent is sent, delivered, read, or failed. |
 | `template-status` | Meta approves, rejects, or pauses one of your templates. |
 | `flow-response` | Someone completes a WhatsApp Flow. |
 | `order` | Someone places an order from your catalog. |
 
 These arrive through the <Term id="webhook" />. See [Cloud events](/cloud/events).
+
+`message-status` — a message you sent is sent, delivered, read, or failed — fires on both providers. On WhatsApp Web it has no `conversationId` or `error`.
 
 ## Should you use `message` or `text`?
 

@@ -9,9 +9,9 @@ keywords: ["message-status", "delivery status", "read receipt", "template-status
 import { ProviderSupport } from "/snippets/provider-support.jsx"
 import { Term } from "/snippets/glossary.jsx"
 
-Listen for what only the Cloud API reports — delivery and read status, template reviews, WhatsApp Flow answers, and orders — with the same `client.on()` you use for messages.
+Listen for what the Cloud API reports beyond messages — delivery and read status, template reviews, WhatsApp Flow answers, and orders — with the same `client.on()` you use for messages.
 
-<ProviderSupport web={false} cloud={true} note="These four events only fire on the Cloud API. Message events work on both providers." />
+<ProviderSupport web={false} cloud={true} note="template-status, flow-response, and order only fire on the Cloud API. message-status fires on both providers; conversationId and error are Cloud-only. Message events work on both." />
 
 ## Quick reference
 
@@ -310,7 +310,7 @@ A `401` or `403` from Meta arrives as code `AUTH` (`graph auth rejected: …`), 
     Subscribe your webhook to **message_template_status_update** in the Meta dashboard. It's a separate field from **messages**.
   </Accordion>
   <Accordion title="Can I get delivery status on WhatsApp Web?">
-    No. `message-status` only fires on the Cloud API, because it comes from Meta's webhook.
+    Yes. On WhatsApp Web, `message-status` is decoded from WhatsApp's delivery receipts for messages the bot sent. The payload is the same, without `conversationId` and `error`.
   </Accordion>
   <Accordion title="The same status arrived twice">
     Meta can deliver a webhook more than once. Make handlers safe to repeat — for example, key your records by `update.id` and `update.status`.

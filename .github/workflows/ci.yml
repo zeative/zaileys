@@ -87,3 +87,12 @@ jobs:
           name: coverage-node${{ matrix.node }}
           path: coverage/
           if-no-files-found: ignore
+
+  gate:
+    name: Quality Gate
+    if: always()
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every Node version to pass
+        run: test "${{ needs.quality.result }}" = "success"

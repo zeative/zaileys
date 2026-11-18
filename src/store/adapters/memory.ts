@@ -27,6 +27,7 @@ export class MemoryMessageStore implements MessageStore {
   private readonly listeners: Map<string, Listener> = new Map()
   private closed = false
   private readonly maxMessages: number
+  private evictCursor: MapIterator<string> | undefined
 
   constructor(options: MemoryMessageStoreOptions = {}) {
     const max = options.maxMessages ?? DEFAULT_MAX_MESSAGES
@@ -191,9 +192,16 @@ export class MemoryMessageStore implements MessageStore {
     }
   }
 
-  /** Maps keep insertion order, so the first key is the message saved longest ago. */
+  /**
+   * Maps keep insertion order, so the first key is the message saved longest ago. One iterator is kept
+   * across evictions: a fresh one would step over every deleted slot at the front, making each eviction O(cap).
+   */
   private evictOldest(): void {
-    const oldest = this.messages.keys().next()
+    let oldest = (this.evictCursor ??= this.messages.keys()).next()
+    if (oldest.done) {
+      this.evictCursor = this.messages.keys()
+      oldest = this.evictCursor.next()
+    }
     if (oldest.done) return
     const evicted = this.messages.get(oldest.value)
     this.messages.delete(oldest.value)
@@ -245,6 +253,7 @@ export class MemoryMessageStore implements MessageStore {
   async clear(): Promise<void> {
     this.assertOpen()
     this.messages.clear()
+    this.evictCursor = undefined
     this.messagesByJid.clear()
     this.chats.clear()
     this.contacts.clear()

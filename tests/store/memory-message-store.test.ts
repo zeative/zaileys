@@ -60,6 +60,22 @@ describe('MemoryMessageStore — maxMessages', () => {
     expect(await store.getMessage({ remoteJid: 'a@s.whatsapp.net', id: 'b', fromMe: false })).toBeDefined()
   })
 
+  it('keeps evicting oldest-first across deletes, updates and clear()', async () => {
+    const store = new MemoryMessageStore({ maxMessages: 3 })
+    const has = async (id: string) =>
+      (await store.getMessage({ remoteJid: 'a@s.whatsapp.net', id, fromMe: false })) !== undefined
+    for (const id of ['a', 'b', 'c', 'd']) await store.saveMessage(message(id))
+    expect(await has('a')).toBe(false)
+    await store.deleteMessage({ remoteJid: 'a@s.whatsapp.net', id: 'c', fromMe: false })
+    await store.saveMessage(message('b', 'a@s.whatsapp.net', 9))
+    await store.saveMessage(message('e'))
+    await store.saveMessage(message('f'))
+    expect([await has('b'), await has('d'), await has('e'), await has('f')]).toEqual([false, true, true, true])
+    await store.clear()
+    for (const id of ['g', 'h', 'i', 'j']) await store.saveMessage(message(id))
+    expect([await has('g'), await has('h'), await has('i'), await has('j')]).toEqual([false, true, true, true])
+  })
+
   it('accepts Infinity to turn the cap off and rejects a cap below 1', () => {
     expect(() => new MemoryMessageStore({ maxMessages: Number.POSITIVE_INFINITY })).not.toThrow()
     expect(() => new MemoryMessageStore({ maxMessages: 0 })).toThrow(ZaileysStoreError)

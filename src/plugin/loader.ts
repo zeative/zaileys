@@ -58,6 +58,8 @@ export class PluginLoader {
   private debounce: ReturnType<typeof setTimeout> | undefined
   private readonly pending = new Set<string>()
   private flushChain: Promise<void> = Promise.resolve()
+  /** `start()` runs unawaited from the connection's open handler, so `stop()` can finish before it does. */
+  private stopped = false
 
   constructor(deps: {
     registry: PluginRegistry
@@ -80,7 +82,11 @@ export class PluginLoader {
 
   async start(): Promise<void> {
     const files = await scanPluginFiles(this.dir, this.pattern, this.ignore)
-    for (const file of files) await this.loadFile(file)
+    for (const file of files) {
+      if (this.stopped) return
+      await this.loadFile(file)
+    }
+    if (this.stopped) return
     if (this.watchEnabled) {
       if (process.env['NODE_ENV'] === 'production') {
         this.logger?.warn(
@@ -93,6 +99,7 @@ export class PluginLoader {
   }
 
   async stop(): Promise<void> {
+    this.stopped = true
     if (this.debounce) clearTimeout(this.debounce)
     this.watcher?.close()
     this.watcher = undefined
@@ -103,6 +110,7 @@ export class PluginLoader {
 
   private async loadFile(file: string): Promise<void> {
     const plugin = await importPlugin(file, this.bust)
+    if (this.stopped) return
     if (!plugin) {
       const err = new Error(`failed to import plugin: ${file}`)
       this.onError?.(err, file)
@@ -112,10 +120,16 @@ export class PluginLoader {
     const before = this.registry.list()
     await this.registry.loadPlugin(plugin, file, this.dir)
     const added = this.registry.list().find((n) => !before.includes(n))
-    if (added) this.fileToName.set(file, added)
+    if (added === undefined) return
+    if (this.stopped) {
+      await this.registry.unload(added)
+      return
+    }
+    this.fileToName.set(file, added)
   }
 
   private startWatch(): void {
+    if (this.stopped) return
     try {
       this.watcher = fsWatch(this.dir, { recursive: true }, (_evt, filename) => {
         if (filename == null) return
@@ -138,6 +152,7 @@ export class PluginLoader {
     this.pending.clear()
     this.bust += 1
     for (const file of files) {
+      if (this.stopped) return
       const existing = this.fileToName.get(file)
       if (existing) {
         await this.registry.unload(existing)

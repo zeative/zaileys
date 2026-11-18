@@ -60,6 +60,7 @@ export function attachCommandDispatcher(deps: DispatcherDeps): DispatcherHandle 
       const block = await checkGuards(resolution.def.meta, ctx, {
         isAdmin: deps.isAdmin ?? (async () => false),
         now: () => Date.now(),
+        cooldowns: deps.registry.cooldowns,
       })
       if (block !== null) {
         deps.onBlocked?.(block, ctx)

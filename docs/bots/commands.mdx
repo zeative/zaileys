@@ -138,7 +138,7 @@ A group admin who sends `/kick @Budi` removes Budi. Anyone else, or the same adm
   Only runs for an admin of the group, and implies `group`. Zaileys fetches the group's member list to check. If that fails, the sender counts as not an admin.
 </ParamField>
 <ParamField body="cooldown" type="number">
-  Seconds the same person must wait before running this command again. The wait counts from their last run that got through, and attempts blocked by another guard don't start it. Cooldowns live in memory, so a restart clears them.
+  Seconds the same person must wait before running this command again. The wait counts from their last run that got through, and attempts blocked by another guard don't start it. Each client keeps its own cooldowns in memory, for up to 10,000 sender and command pairs, so a restart clears them.
 </ParamField>
 
 Guards run in this order: `group` or `private`, then `admin`, then `cooldown`. They all run before [middleware](/bots/middleware).

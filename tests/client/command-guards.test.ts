@@ -71,6 +71,19 @@ describe('command guards through the client', () => {
     expect(payload.retryIn).toBeGreaterThan(0)
   })
 
+  it('keeps cooldowns per client, so one bot never blocks a sender on another', async () => {
+    const first = connected()
+    const second = connected()
+    const runFirst = vi.fn()
+    const runSecond = vi.fn()
+    first.command({ name: 'daily', cooldown: 86_400 }, runFirst)
+    second.command({ name: 'daily', cooldown: 86_400 }, runSecond)
+    await send(first, '!daily')
+    await send(second, '!daily')
+    expect(runFirst).toHaveBeenCalledTimes(1)
+    expect(runSecond).toHaveBeenCalledTimes(1)
+  })
+
   it('blocks an admin-only command when the group cannot be read', async () => {
     const client = connected()
     const run = vi.fn()

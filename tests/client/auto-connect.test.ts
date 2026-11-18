@@ -2,7 +2,8 @@ import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { makeInboundSocket } from '../_helpers/mock-socket-events.js'
 import { createMockSocket } from '../_helpers/mock-socket.js'
 
-const { makeWASocketMock, initAuthCredsMock, printQrMock } = vi.hoisted(() => ({
+const { makeWASocketMock, initAuthCredsMock, printQrMock, fetchVersionMock } = vi.hoisted(() => ({
+  fetchVersionMock: vi.fn(async () => ({ version: [2, 3000, 0], isLatest: true })),
   makeWASocketMock: vi.fn(),
   initAuthCredsMock: vi.fn(() => ({ fake: 'creds' })),
   printQrMock: vi.fn(async (_qr: string) => undefined),
@@ -15,7 +16,7 @@ vi.mock('baileys', async () => {
     default: makeWASocketMock,
     makeWASocket: makeWASocketMock,
     initAuthCreds: initAuthCredsMock,
-    fetchLatestBaileysVersion: vi.fn(async () => ({ version: [2, 3000, 0], isLatest: true })),
+    fetchLatestBaileysVersion: fetchVersionMock,
     DisconnectReason: {
       loggedOut: 401, forbidden: 403, connectionLost: 408, multideviceMismatch: 411,
       connectionClosed: 428, connectionReplaced: 440, badSession: 500,
@@ -65,6 +66,23 @@ describe('Client auto-connect — DX', () => {
     expect(c.state).toBe('idle')
     await vi.waitFor(() => expect(c.state).not.toBe('idle'))
     expect(makeWASocketMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('stops waiting for the version lookup after three seconds and connects on the bundled version', async () => {
+    vi.useFakeTimers()
+    try {
+      fetchVersionMock.mockImplementationOnce(() => new Promise(() => undefined))
+      makeWASocketMock.mockReturnValue(createMockSocket({ user: { id: SELF } }))
+      const c = new Client({ auth: new MemoryAuthStore(), qrTerminal: false })
+      await vi.advanceTimersByTimeAsync(2_999)
+      expect(makeWASocketMock).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(1)
+      await vi.waitFor(() => expect(makeWASocketMock).toHaveBeenCalledTimes(1))
+      expect(makeWASocketMock.mock.calls[0]![0]).not.toHaveProperty('version')
+      expect(c.state).toBe('connecting')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('reaches connected after open without manual connect()', async () => {

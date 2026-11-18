@@ -235,6 +235,9 @@ const assertSafeSessionId = (sessionId: string): string => {
   return sessionId
 }
 
+/** The lookup hits raw.githubusercontent.com with no timeout; slow or blocked networks must not stall connect(). */
+const VERSION_LOOKUP_TIMEOUT_MS = 3_000
+
 export class Client extends TypedEventEmitter<ClientEventMap> {
   readonly sessionId: string
   auth: AuthStoreBundle
@@ -378,13 +381,24 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     if (this.versionWarming) return this.versionWarming
     try {
       if (typeof fetchLatestBaileysVersion !== 'function') return Promise.resolve()
-      this.versionWarming = fetchLatestBaileysVersion()
+      const lookup = fetchLatestBaileysVersion()
         .then(({ version }) => {
           this.waVersion = version
         })
         .catch((err) => {
           this.logger.warn(err, 'fetchLatestBaileysVersion failed; using bundled version')
         })
+      let timer: ReturnType<typeof setTimeout> | undefined
+      const deadline = new Promise<void>((resolve) => {
+        timer = setTimeout(() => {
+          this.logger.warn(
+            { timeoutMs: VERSION_LOOKUP_TIMEOUT_MS },
+            'WhatsApp version lookup is slow; connecting with the bundled version',
+          )
+          resolve()
+        }, VERSION_LOOKUP_TIMEOUT_MS)
+      })
+      this.versionWarming = Promise.race([lookup, deadline]).finally(() => clearTimeout(timer))
       return this.versionWarming
     } catch {
       return Promise.resolve()

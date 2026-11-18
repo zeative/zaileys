@@ -177,10 +177,10 @@ Requires **Node.js v20+**. The `file` auth store is the zero-config default and 
 Other storage backends are **optional peer dependencies** — install only the one you use:
 
 ```bash
-npm i better-sqlite3   # sqlite adapters
-npm i redis            # redis adapters
-npm i pg               # postgres adapters
-npm i convex           # convex adapters
+npm i better-sqlite3@11   # sqlite adapters
+npm i redis@4             # redis adapters
+npm i pg                  # postgres adapters
+npm i convex              # convex adapters
 ```
 
 `sharp` is an optional accelerator for media/sticker processing; without it Zaileys falls back to a pure-JS path automatically. It is **not** a Zaileys dependency, but Baileys pulls it in as a peer — on platforms with no prebuilt binary (Termux/Android, some Alpine) install with `--legacy-peer-deps` to skip it.

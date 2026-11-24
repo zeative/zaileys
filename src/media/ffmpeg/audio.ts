@@ -26,6 +26,26 @@ export class AudioProcessor {
     return ffmpegTransform(buffer, inputExt, type === 'opus' ? 'ogg' : 'mp3', `${type.toUpperCase()} conversion`, options);
   }
 
+  /**
+   * Opus clip for a sound sticker: takes the audio track of an audio or video file and cuts it to the
+   * sticker's 6s limit, since WhatsApp loops the sound together with the sticker.
+   */
+  static async stickerSound(input: MediaInput): Promise<{ ogg: Buffer; seconds: number }> {
+    const buffer = await BufferConverter.toBuffer(input);
+    const fileType = await detectFileType(buffer);
+    const mime = fileType?.mime ?? '';
+    if (!mime.startsWith(FFMPEG_CONSTANTS.MIME.AUDIO) && !mime.startsWith(FFMPEG_CONSTANTS.MIME.VIDEO)) {
+      throw new Error(`Invalid file type: expected audio/* or video/*, got ${mime || 'unknown'}`);
+    }
+    const inputExt = await BufferConverter.getExtension(buffer);
+    const ogg = await ffmpegTransform(buffer, inputExt, 'ogg', 'Sticker sound conversion', [
+      '-vn', '-t', String(FFMPEG_CONSTANTS.STICKER.MAX_DURATION),
+      '-c:a', 'libopus', '-b:a', '48k', '-ac', '1', '-avoid_negative_ts', 'make_zero', '-map_metadata', '-1', '-f', 'ogg',
+    ]);
+    const { seconds } = await this.waveform(ogg);
+    return { ogg, seconds: Math.min(seconds, FFMPEG_CONSTANTS.STICKER.MAX_DURATION) };
+  }
+
   static async waveform(input: MediaInput): Promise<{ waveform: Uint8Array; seconds: number }> {
     const buffer = await BufferConverter.toBuffer(input);
     const inputExt = await BufferConverter.getExtension(buffer);

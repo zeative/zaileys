@@ -40,7 +40,12 @@ import { buildListContent } from './content/list.js'
 import { buildLocationContent } from './content/location.js'
 import { buildPollContent } from './content/poll.js'
 import { buildProductContent } from './content/product.js'
-import { buildStickerContent } from './content/sticker.js'
+import {
+  attachStickerAudio,
+  buildStickerContent,
+  RELAY_SOUND_STICKER_KEY,
+  type SoundSticker,
+} from './content/sticker.js'
 import { buildTemplateContent } from './content/template.js'
 import { buildTextContent } from './content/text.js'
 import { buildVideoContent } from './content/video.js'
@@ -401,10 +406,13 @@ export class MessageBuilder<State extends BuilderState> {
           )
         }
         const statusMedia = relayContent[RELAY_STATUS_MEDIA_KEY] as StatusMedia | undefined
+        const soundSticker = relayContent[RELAY_SOUND_STICKER_KEY] as SoundSticker | undefined
         const inner =
           statusMedia !== undefined
             ? await this.buildStatusMedia(statusMedia)
-            : (relayInner as proto.IMessage)
+            : soundSticker !== undefined
+              ? await this.buildSoundSticker(soundSticker)
+              : (relayInner as proto.IMessage)
         const headerMedia = relayContent[RELAY_MEDIA_KEY] as HeaderMedia | undefined
         const cardsMedia = relayContent[RELAY_CARDS_MEDIA_KEY] as CardMedia[] | undefined
         return this.sendRelay(
@@ -467,6 +475,29 @@ export class MessageBuilder<State extends BuilderState> {
     header.hasMediaAttachment = true
     if (media.kind === 'image' && prepared.imageMessage) header.imageMessage = prepared.imageMessage
     if (media.kind === 'video' && prepared.videoMessage) header.videoMessage = prepared.videoMessage
+  }
+
+  /** Uploads the sticker and its sound separately; the sound rides inside the sticker as field 26. */
+  private async buildSoundSticker(media: SoundSticker): Promise<proto.IMessage> {
+    if (this.socket.waUploadToServer === undefined) {
+      throw new ZaileysBuilderError('SEND_FAILED', 'socket does not support media upload (sound sticker)')
+    }
+    const upload = { upload: this.socket.waUploadToServer } as never
+    try {
+      const { audioMessage } = (await prepareWAMessageMedia(
+        { audio: media.ogg, mimetype: 'audio/ogg; codecs=opus', seconds: media.seconds } as never,
+        upload,
+      )) as { audioMessage?: proto.Message.IAudioMessage }
+      const { stickerMessage } = (await prepareWAMessageMedia(
+        { sticker: media.webp, mimetype: 'image/webp' } as never,
+        upload,
+      )) as { stickerMessage?: proto.Message.IStickerMessage }
+      if (!audioMessage || !stickerMessage) throw new Error('upload returned no media message')
+      Object.assign(stickerMessage, { width: 512, height: 512, isAnimated: media.isAnimated })
+      return { stickerMessage: attachStickerAudio(stickerMessage, audioMessage) }
+    } catch (err) {
+      throw new ZaileysBuilderError('SEND_FAILED', 'sound sticker upload failed', { cause: err })
+    }
   }
 
   /**

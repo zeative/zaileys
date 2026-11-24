@@ -36,6 +36,11 @@ export type DocumentOptions = {
 
 export type StickerOptions = StickerMetadataType & {
   animated?: boolean
+  /**
+   * Sound sticker: `true` uses the source's own audio track (a video becomes an animated sticker that
+   * plays its sound), or pass another audio/video source. Converted to opus and cut to 6s.
+   */
+  sound?: boolean | MediaSource
 }
 
 export type AlbumItem = {

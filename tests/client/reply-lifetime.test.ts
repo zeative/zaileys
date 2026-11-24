@@ -111,3 +111,76 @@ describe('every send into a disappearing chat inherits its timer', () => {
     expect(optionsOf(sendMessage).ephemeralExpiration).toBeUndefined()
   })
 })
+
+describe('raw socket sends inherit the timer too', () => {
+  type Internals = {
+    applyChatTimerByDefault(socket: unknown): void
+    wireSocket(socket: unknown): void
+  }
+
+  const rawSocket = () => {
+    const sendMessage = vi.fn(async () => ({}))
+    const relayMessage = vi.fn(async () => 'ID')
+    const handlers = new Map<string, (arg: unknown) => void>()
+    const socket = {
+      user: { id: 'me@s.whatsapp.net' },
+      sendMessage,
+      relayMessage,
+      ev: { on: (e: string, fn: (arg: unknown) => void) => handlers.set(e, fn), off: vi.fn() },
+    }
+    const client = new Client({ auth: new MemoryAuthStore(), qrTerminal: false, autoConnect: false })
+    ;(client as unknown as Internals).applyChatTimerByDefault(socket)
+    return { client, socket, sendMessage, relayMessage, handlers }
+  }
+
+  it('fills ephemeralExpiration on socket.sendMessage', async () => {
+    const { client, socket, sendMessage } = rawSocket()
+    client.emit('message', msg(604800))
+    await socket.sendMessage(SENDER, { text: 'halo' })
+    expect((sendMessage.mock.calls[0] as unknown[])[2]).toEqual({ ephemeralExpiration: 604800 })
+  })
+
+  it('respects an explicit 0 and skips reactions', async () => {
+    const { client, socket, sendMessage } = rawSocket()
+    client.emit('message', msg(604800))
+    await socket.sendMessage(SENDER, { text: 'halo' }, { ephemeralExpiration: 0 })
+    await socket.sendMessage(SENDER, { react: { text: '👍', key: {} } })
+    expect((sendMessage.mock.calls[0] as unknown[])[2]).toEqual({ ephemeralExpiration: 0 })
+    expect((sendMessage.mock.calls[1] as unknown[])[2]).toBeUndefined()
+  })
+
+  it('stamps contextInfo.expiration on socket.relayMessage, turning bare text into extended text', async () => {
+    const { client, socket, relayMessage } = rawSocket()
+    client.emit('message', msg(86400))
+    const sticker = { stickerMessage: { url: 'x' } }
+    const text = { conversation: 'halo' }
+    await socket.relayMessage(SENDER, sticker, {})
+    await socket.relayMessage(SENDER, text, {})
+    expect(sticker).toEqual({ stickerMessage: { url: 'x', contextInfo: { expiration: 86400 } } })
+    expect(text).toEqual({ extendedTextMessage: { text: 'halo', contextInfo: { expiration: 86400 } } })
+    expect(relayMessage).toHaveBeenCalledTimes(2)
+  })
+
+  it('leaves relayed protocol messages and unknown chats alone', async () => {
+    const { client, socket } = rawSocket()
+    client.emit('message', msg(86400))
+    const revoke = { protocolMessage: { type: 0 } }
+    const elsewhere = { stickerMessage: { url: 'x' } }
+    await socket.relayMessage(SENDER, revoke, {})
+    await socket.relayMessage('628999@s.whatsapp.net', elsewhere, {})
+    expect(revoke).toEqual({ protocolMessage: { type: 0 } })
+    expect(elsewhere).toEqual({ stickerMessage: { url: 'x' } })
+  })
+
+  it('learns and clears the timer from chats.update, and our own echoes never clear it', async () => {
+    const { client, socket, sendMessage, handlers } = rawSocket()
+    ;(client as unknown as Internals).wireSocket(socket)
+    handlers.get('chats.update')?.([{ id: SENDER, ephemeralExpiration: 7776000 }])
+    client.emit('message', { ...msg(), isFromMe: true } as MessageContext)
+    await socket.sendMessage(SENDER, { text: 'a' })
+    handlers.get('chats.update')?.([{ id: SENDER, ephemeralExpiration: null }])
+    await socket.sendMessage(SENDER, { text: 'b' })
+    expect((sendMessage.mock.calls[0] as unknown[])[2]).toEqual({ ephemeralExpiration: 7776000 })
+    expect((sendMessage.mock.calls[1] as unknown[])[2]).toBeUndefined()
+  })
+})

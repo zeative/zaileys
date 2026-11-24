@@ -1,6 +1,8 @@
 import makeWASocket, {
   fetchLatestBaileysVersion,
+  getContentType,
   initAuthCreds,
+  normalizeMessageContent,
   S_WHATSAPP_NET,
   type AuthenticationCreds,
   type UserFacingSocketConfig,
@@ -78,6 +80,7 @@ import {
 } from '../automation/index.js'
 import type { CitationConfig, MessageContext } from '../events/context.js'
 import { createDownloadFn } from '../events/decoders/_media-download.js'
+import { normalizedUserJid } from '../events/decoders/_shared.js'
 import { ephemeralExpirationOf } from '../events/decoders/messages.js'
 import type { CallPayload, MediaDownloadResult, MediaKind } from '../events/types.js'
 import {
@@ -198,6 +201,20 @@ export const parseMexUsers = (result: unknown): Array<{ jid: string; username: s
 }
 
 /** Structural view of baileys' `signalRepository.lidMapping`, which no public socket type exposes. */
+/** Content types that must not carry a disappearing timer; WhatsApp rejects or ignores it there. */
+const RELAY_NO_TIMER = new Set<string>([
+  'protocolMessage',
+  'reactionMessage',
+  'encReactionMessage',
+  'pinInChatMessage',
+  'keepInChatMessage',
+  'ephemeralMessage',
+  'senderKeyDistributionMessage',
+  'messageContextInfo',
+])
+
+const CONTROL_CONTENT = ['react', 'delete', 'edit', 'pin', 'keep', 'disappearingMessagesInChat', 'limitSharing']
+
 interface LidMappingStore {
   getPNForLID?: (lid: string) => Promise<string | null>
   getLIDForPN?: (pn: string) => Promise<string | null>
@@ -680,6 +697,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     })
     const socket = makeWASocket(config)
     this._socket = socket
+    this.applyChatTimerByDefault(socket)
     this.store.bind(socket as unknown as BaileysSocketLike)
     this.wireSocket(socket)
     return promise
@@ -1078,7 +1096,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     const recordSent = (message: WAMessage): void => {
       void this.store.saveMessage(message).catch((err) => this.logger.warn(err, 'recordSent failed'))
     }
-    const inherit = (jid: string): number | undefined => this.chatExpiration.get(jid)
+    const inherit = (jid: string): number | undefined => this.chatTimerOf(jid)
     if (this._provider === 'cloud' || isJid(to)) {
       return MessageBuilder.create(socket, to, undefined, recordSent, inherit)
     }
@@ -1094,15 +1112,89 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private rememberChatExpiration(msg: MessageContext): void {
     const room = msg.roomId
     if (room === null) return
-    if (msg.ephemeralDuration === null) {
-      this.chatExpiration.delete(room)
-      return
+    /** Our own echoes may come from a send that predates the timer, so they never switch it off. */
+    if (msg.ephemeralDuration === null && msg.isFromMe) return
+    this.setChatTimer(room, msg.ephemeralDuration)
+  }
+
+  private chatTimerOf(jid: string): number | undefined {
+    return this.chatExpiration.get(normalizedUserJid(jid))
+  }
+
+  /** Records a chat's disappearing timer under both its PN and LID so either addressing form inherits it. */
+  private setChatTimer(jid: string, seconds: number | null | undefined): void {
+    const apply = (key: string): void => {
+      if (!seconds || seconds <= 0) {
+        this.chatExpiration.delete(key)
+        return
+      }
+      if (this.chatExpiration.size >= 500 && !this.chatExpiration.has(key)) {
+        const oldest = this.chatExpiration.keys().next().value
+        if (oldest !== undefined) this.chatExpiration.delete(oldest)
+      }
+      this.chatExpiration.set(key, seconds)
     }
-    if (this.chatExpiration.size >= 500 && !this.chatExpiration.has(room)) {
-      const oldest = this.chatExpiration.keys().next().value
-      if (oldest !== undefined) this.chatExpiration.delete(oldest)
+    const key = normalizedUserJid(jid)
+    apply(key)
+    const mapping = this.lidMapping()
+    const alias = key.endsWith('@lid') ? mapping?.getPNForLID : key.endsWith('@s.whatsapp.net') ? mapping?.getLIDForPN : undefined
+    if (alias === undefined) return
+    void Promise.resolve()
+      .then(() => alias.call(mapping, key))
+      .then((other) => {
+        if (other) apply(normalizedUserJid(other))
+      })
+      .catch((err) => this.logger.debug(err, 'chat timer alias lookup failed'))
+  }
+
+  /**
+   * Raw socket sends skip the builder, so without this WhatsApp marks them "sender may be using an
+   * older WhatsApp" in chats with disappearing messages on. Fills the chat's timer unless the caller set one.
+   */
+  private applyChatTimerByDefault(socket: BaileysSocket): void {
+    const timerFor = (jid: string): number | undefined =>
+      typeof jid !== 'string' || jid.endsWith('@newsletter') || jid === 'status@broadcast' ? undefined : this.chatTimerOf(jid)
+    if (typeof socket.sendMessage === 'function') {
+      socket.sendMessage = new Proxy(socket.sendMessage, {
+        apply: (target, thisArg, args: Parameters<BaileysSocket['sendMessage']>) => {
+          const [jid, content, options = {}] = args
+          const c = (content ?? {}) as Record<string, unknown>
+          if (typeof jid === 'string' && 'disappearingMessagesInChat' in c) {
+            const v = c['disappearingMessagesInChat']
+            this.setChatTimer(jid, v === true ? 604800 : typeof v === 'number' ? v : null)
+          }
+          const control = CONTROL_CONTENT.some((k) => k in c)
+          const timer = options.ephemeralExpiration === undefined && !control ? timerFor(jid) : undefined
+          if (timer !== undefined) args = [jid, content, { ...options, ephemeralExpiration: timer }]
+          return Reflect.apply(target, thisArg, args)
+        },
+      })
     }
-    this.chatExpiration.set(room, msg.ephemeralDuration)
+    if (typeof socket.relayMessage === 'function') {
+      socket.relayMessage = new Proxy(socket.relayMessage, {
+        apply: (target, thisArg, args: Parameters<BaileysSocket['relayMessage']>) => {
+          const [jid, message, opts] = args
+          const timer = opts?.statusJidList ? undefined : timerFor(jid)
+          const inner = timer === undefined || !message ? undefined : normalizeMessageContent(message)
+          const type = inner ? getContentType(inner) : undefined
+          if (inner && type && !RELAY_NO_TIMER.has(type)) {
+            if (type === 'conversation') {
+              inner.extendedTextMessage = { text: inner.conversation ?? '' }
+              delete inner.conversation
+            }
+            const body = inner[type === 'conversation' ? 'extendedTextMessage' : type] as
+              | { contextInfo?: { expiration?: number | null } | null }
+              | null
+              | undefined
+            if (body && typeof body === 'object') {
+              body.contextInfo ??= {}
+              body.contextInfo.expiration ??= timer ?? null
+            }
+          }
+          return Reflect.apply(target, thisArg, args)
+        },
+      })
+    }
   }
 
   edit(key: WAMessageKey): EditBuilder {
@@ -1261,8 +1353,18 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         this.logger.warn(err, 'rememberCallerInfo failed')
       }
     }
-    const onGroupsUpdate = (updates: Array<{ id?: string | null }>): void => {
-      for (const update of updates) if (update.id) this._group?.invalidateMetadata(update.id)
+    const onGroupsUpdate = (updates: Array<{ id?: string | null; ephemeralDuration?: number | null }>): void => {
+      for (const update of updates) {
+        if (!update.id) continue
+        this._group?.invalidateMetadata(update.id)
+        if ('ephemeralDuration' in update) this.setChatTimer(update.id, update.ephemeralDuration)
+      }
+    }
+    const onChats = (chats: Array<{ id?: string | null; ephemeralExpiration?: number | null }>): void => {
+      for (const chat of chats) if (chat.id && 'ephemeralExpiration' in chat) this.setChatTimer(chat.id, chat.ephemeralExpiration)
+    }
+    const onHistory = (sync: { chats?: Array<{ id?: string | null; ephemeralExpiration?: number | null }> }): void => {
+      if (sync.chats) onChats(sync.chats)
     }
     const onParticipantsUpdate = (update: { id: string }): void => {
       this._group?.invalidateMetadata(update.id)
@@ -1270,6 +1372,10 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     socket.ev.on('connection.update', onConnection)
     socket.ev.on('creds.update', onCreds)
     socket.ev.on('groups.update', onGroupsUpdate)
+    socket.ev.on('groups.upsert', onGroupsUpdate)
+    socket.ev.on('chats.upsert', onChats)
+    socket.ev.on('chats.update', onChats)
+    socket.ev.on('messaging-history.set', onHistory)
     socket.ev.on('group-participants.update', onParticipantsUpdate)
     const ws = (socket as { ws?: { on?: unknown; off?: unknown } }).ws
     if (ws !== undefined && typeof ws.on === 'function' && typeof ws.off === 'function') {
@@ -1284,6 +1390,10 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
       off: () => socket.ev.off('creds.update', onCreds),
     })
     this.listenerCleanup.push({ off: () => socket.ev.off('groups.update', onGroupsUpdate) })
+    this.listenerCleanup.push({ off: () => socket.ev.off('groups.upsert', onGroupsUpdate) })
+    this.listenerCleanup.push({ off: () => socket.ev.off('chats.upsert', onChats) })
+    this.listenerCleanup.push({ off: () => socket.ev.off('chats.update', onChats) })
+    this.listenerCleanup.push({ off: () => socket.ev.off('messaging-history.set', onHistory) })
     this.listenerCleanup.push({ off: () => socket.ev.off('group-participants.update', onParticipantsUpdate) })
   }
 

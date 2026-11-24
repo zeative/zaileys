@@ -393,11 +393,15 @@ Turns an image, GIF, or video into a WebP sticker and sends it. A file that's al
 <ParamField body="opts.authorName" type="string" default="the client's sticker default, else 'https://github.com/zeative/zaileys'">
   Author name. `author` and `publisher` are accepted as aliases.
 </ParamField>
+<ParamField body="opts.sound" type="boolean | MediaSource" default="false">
+  Send a sound sticker. `true` takes the audio from `src`; a `MediaSource` (audio or video) supplies a custom sound. The sound is converted to Opus and cut to 6 seconds. WhatsApp Web only — the cloud provider rejects it with `SEND_FAILED`.
+</ParamField>
 
-**Errors:** `MEDIA_LOAD_FAILED` — `sticker() conversion failed: …`, or when the file can't be loaded.
+**Errors:** `MEDIA_LOAD_FAILED` — `sticker() conversion failed: …`, `sticker() sound: source has no usable audio track (…)`, or when the file can't be loaded. `SEND_FAILED` — `sound sticker upload failed`, or the socket can't upload media.
 
 ```ts
 await client.send(jid).sticker('./logo.png', { shape: 'circle', packageName: 'Toko Budi', authorName: 'tokobudi.id' })
+await client.send(jid).sticker('./clip.mp4', { sound: true })
 ```
 
 Guide: [Send a sticker](/messaging/media#send-a-sticker). Set pack defaults once with the [`sticker` client option](/reference/client-options#stickermetadatatype).

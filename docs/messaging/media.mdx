@@ -183,6 +183,16 @@ await client.send(jid).sticker('./logo.png', {
 <ParamField body="authorName" type="string">
   Author shown next to the pack name.
 </ParamField>
+<ParamField body="sound" type="boolean | MediaSource" default="false">
+  Make it a sound sticker that plays audio when tapped. `true` uses the source video's own audio; pass another file (audio or video) to use that sound instead. The sound is cut to 6 seconds. WhatsApp Web only.
+</ParamField>
+
+Turn a short clip into a sticker that plays its own sound, or give any sticker a custom one:
+
+```ts
+await client.send(jid).sticker('./clip.mp4', { sound: true })
+await client.send(jid).sticker('./cat.png', { sound: './meow.ogg' })
+```
 
 <Tip>
   Tired of repeating `packageName` and `authorName`? Set them once for every sticker with the `sticker` option on `new Client()` — see [Configuration](/concepts/configuration).

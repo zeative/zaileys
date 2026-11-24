@@ -1,5 +1,12 @@
 # zaileys
 
+## 4.20.1
+
+### Patch Changes
+
+- carry the chat's disappearing timer on every outgoing message, including stickers and raw `client.socket.sendMessage()` / `relayMessage()` sends, so WhatsApp no longer shows "This message won't disappear – sender may be using an older version of WhatsApp" in chats with disappearing messages on
+- learn a chat's timer from chat and group setting changes, the history sync and `setDisappearing()`, not only from incoming messages, and keep it under both the phone-number and LID address of the chat
+
 ## 4.20.0
 
 ### Check before upgrading

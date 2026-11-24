@@ -147,12 +147,13 @@ WhatsApp deletes the message for everyone after the timer runs out — here 86,4
   How long the message lives, in seconds. Must be a positive whole number, or it throws `INVALID_OPTIONS`.
 </ParamField>
 
-**You rarely need to call it.** When a chat already has disappearing messages turned on, Zaileys reads the timer from the messages you receive there and applies it to everything you send to that chat — text, media, albums, and buttons alike. `.disappearing()` only overrides it for one message.
+**You rarely need to call it.** When a chat already has disappearing messages turned on, Zaileys applies its timer to everything you send to that chat — text, media, stickers, albums, and buttons alike, including raw sends through `client.socket`. Without it, WhatsApp shows an "i" next to the message: *This message won't disappear – sender may be using an older version of WhatsApp*. `.disappearing()` only overrides it for one message.
 
 <Accordion title="How the automatic timer works">
 
-  - The timer is learned from **incoming** messages. After the bot starts, it knows a chat's timer once that chat has sent it a message.
-  - The latest incoming message wins. If it has no timer, the chat is treated as having none.
+  - The timer is learned from **incoming** messages, from chat and group setting changes, from the chat list WhatsApp syncs on connect, and from `client.setDisappearing()`.
+  - The latest incoming message or setting change wins. If it has no timer, the chat is treated as having none. Your own messages sent from another device never turn it off.
+  - Reactions, edits, deletes, pins, and status posts never carry a timer, and an `ephemeralExpiration` you pass to `client.socket.sendMessage()` is kept.
   - Timers are kept in memory for the 500 most recently active chats.
   - `msg.reply()` always mirrors the timer of the message it quotes.
 

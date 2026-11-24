@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { MiscMessageGenerationOptions, WAMessage } from 'baileys'
 import { Client } from '../../src/client/client.js'
 import { MemoryAuthStore } from '../../src/auth/adapters/memory.js'
+import { MemoryMessageStore } from '../../src/store/adapters/memory.js'
 import type { MessageContext } from '../../src/events/context.js'
 
 const SENDER = '628111@s.whatsapp.net'
@@ -182,5 +183,49 @@ describe('raw socket sends inherit the timer too', () => {
     await socket.sendMessage(SENDER, { text: 'b' })
     expect((sendMessage.mock.calls[0] as unknown[])[2]).toEqual({ ephemeralExpiration: 7776000 })
     expect((sendMessage.mock.calls[1] as unknown[])[2]).toBeUndefined()
+  })
+})
+
+describe('chat timers survive a restart through the store', () => {
+  type Internals = {
+    saveChatTimers(): Promise<void>
+    loadChatTimers(): Promise<void>
+    closeStores(): Promise<void>
+    chatTimerOf(jid: string): number | undefined
+  }
+  const make = (store: MemoryMessageStore) =>
+    new Client({ auth: new MemoryAuthStore(), store, qrTerminal: false, autoConnect: false }) as unknown as Client &
+      Internals
+
+  it('saves learned timers and loads them into a fresh client', async () => {
+    const store = new MemoryMessageStore()
+    const first = make(store)
+    first.emit('message', msg(604800))
+    await first.saveChatTimers()
+    expect(await store.getSessionValue('zaileys:chat-timers', 'timers')).toEqual({ [SENDER]: 604800 })
+
+    const second = make(store)
+    expect(second.chatTimerOf(SENDER)).toBeUndefined()
+    await second.loadChatTimers()
+    expect(second.chatTimerOf(SENDER)).toBe(604800)
+  })
+
+  it('keeps a timer learned this run over the saved one and drops junk', async () => {
+    const store = new MemoryMessageStore()
+    await store.setSessionValue('zaileys:chat-timers', 'timers', { [SENDER]: 86400, 'x@s.whatsapp.net': 'bad' })
+    const client = make(store)
+    client.emit('message', msg(604800))
+    await client.loadChatTimers()
+    expect(client.chatTimerOf(SENDER)).toBe(604800)
+    expect(client.chatTimerOf('x@s.whatsapp.net')).toBeUndefined()
+  })
+
+  it('flushes a pending save when the stores close', async () => {
+    const store = new MemoryMessageStore()
+    const setSessionValue = vi.spyOn(store, 'setSessionValue')
+    const client = make(store)
+    client.emit('message', msg(86400))
+    await client.closeStores()
+    expect(setSessionValue).toHaveBeenCalledWith('zaileys:chat-timers', 'timers', { [SENDER]: 86400 })
   })
 })

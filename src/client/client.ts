@@ -234,6 +234,7 @@ interface ConnectionUpdate {
  * value like `../../..` would delete arbitrary directories — reachable wherever the id comes from a
  * request or a database row.
  */
+const CHAT_TIMER_SCOPE = 'zaileys:chat-timers'
 const SESSION_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/
 
 /**
@@ -296,6 +297,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private storesClosedByDisconnect = false
   /** Each chat's disappearing timer, learned from inbound messages so outbound sends can inherit it. */
   private readonly chatExpiration = new Map<string, number>()
+  private chatTimersSave: ReturnType<typeof setTimeout> | undefined
   private _socket: BaileysSocket | undefined
   private reconnectTimer: ReturnType<typeof setTimeout> | undefined
   /** Lets overlapping `disconnect()` calls, including the library's own, share one teardown. */
@@ -665,6 +667,8 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
     if (attempt !== this.connectAttemptSeq || this.state !== 'connecting') {
       throw new ZaileysConnectionError('CONNECT_ABORTED', 'disconnected before connect resolved')
     }
+    /** Not awaited: the socket opens long after this resolves, and fresh timers win over saved ones anyway. */
+    void this.loadChatTimers()
     this.credsLoadedAtConnect = Boolean(loaded)
     const creds = Object.assign({} as AuthenticationCreds, loaded ?? initAuthCreds())
     this.creds = creds
@@ -833,6 +837,7 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   }
 
   private async closeStores(): Promise<void> {
+    await this.saveChatTimers()
     try {
       await this.auth.signal.close()
     } catch (err) {
@@ -1125,14 +1130,16 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
   private setChatTimer(jid: string, seconds: number | null | undefined): void {
     const apply = (key: string): void => {
       if (!seconds || seconds <= 0) {
-        this.chatExpiration.delete(key)
+        if (this.chatExpiration.delete(key)) this.saveChatTimersSoon()
         return
       }
+      if (this.chatExpiration.get(key) === seconds) return
       if (this.chatExpiration.size >= 500 && !this.chatExpiration.has(key)) {
         const oldest = this.chatExpiration.keys().next().value
         if (oldest !== undefined) this.chatExpiration.delete(oldest)
       }
       this.chatExpiration.set(key, seconds)
+      this.saveChatTimersSoon()
     }
     const key = normalizedUserJid(jid)
     apply(key)
@@ -1145,6 +1152,40 @@ export class Client extends TypedEventEmitter<ClientEventMap> {
         if (other) apply(normalizedUserJid(other))
       })
       .catch((err) => this.logger.debug(err, 'chat timer alias lookup failed'))
+  }
+
+  /** Timers live in the store's session values so a restart does not forget them until the chat speaks again. */
+  private saveChatTimersSoon(): void {
+    if (!this.store.setSessionValue || this.chatTimersSave) return
+    this.chatTimersSave = setTimeout(() => void this.saveChatTimers(), 1000)
+    this.chatTimersSave.unref?.()
+  }
+
+  private async saveChatTimers(): Promise<void> {
+    if (!this.chatTimersSave) return
+    clearTimeout(this.chatTimersSave)
+    this.chatTimersSave = undefined
+    try {
+      await this.store.setSessionValue?.(CHAT_TIMER_SCOPE, 'timers', Object.fromEntries(this.chatExpiration))
+    } catch (err) {
+      this.logger.warn(err, 'saving chat timers failed')
+    }
+  }
+
+  private async loadChatTimers(): Promise<void> {
+    if (!this.store.getSessionValue) return
+    try {
+      const saved = await this.store.getSessionValue(CHAT_TIMER_SCOPE, 'timers')
+      if (!saved || typeof saved !== 'object') return
+      for (const [jid, seconds] of Object.entries(saved as Record<string, unknown>)) {
+        /** A timer learned this run is newer than the saved one. */
+        if (typeof seconds === 'number' && seconds > 0 && !this.chatExpiration.has(jid)) {
+          this.chatExpiration.set(jid, seconds)
+        }
+      }
+    } catch (err) {
+      this.logger.warn(err, 'loading chat timers failed')
+    }
   }
 
   /**

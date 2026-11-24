@@ -12,6 +12,7 @@ Every v4 release listed in the project's changelog, newest first. Releases witho
 
   - In a chat with disappearing messages on, some messages from the bot showed an "i" with *This message won't disappear – sender may be using an older version of WhatsApp*. Every outgoing message now carries the chat's timer — stickers and raw sends through `client.socket` included. [Send disappearing messages](/messaging/text#send-disappearing-messages)
   - The bot knows a chat's timer sooner: from chat and group setting changes, the chat list synced on connect, and `client.setDisappearing()`, not only once someone writes in the chat. The timer also applies whether the chat is addressed by phone number or LID.
+  - Learned timers survive a restart when the store supports session values, so the first message after a reconnect already disappears.
 </Update>
 
 <Update label="v4.20.0">

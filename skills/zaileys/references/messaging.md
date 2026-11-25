@@ -116,6 +116,9 @@ source string can come from a chat message.
   input is not re-encoded but its pack metadata is replaced. Pass `animated: true` for GIF/video sources —
   conversion detects animation, but the message flag comes only from this option. `shape`
   (`'default' | 'circle' | 'rounded' | 'oval'`) applies to stills; `quality` defaults to 60.
+- **Sound stickers** (WhatsApp Web only): `sticker(src, { sound: true })` turns a short clip into a sticker
+  that plays the source video's own audio when tapped; `sound: <MediaSource>` gives any sticker a custom
+  sound (audio or video, cut to 6 s, transcoded to Opus). Ignored on the Cloud API.
 - **Sticker defaults**: `new Client({ sticker: { packageName, authorName } })` sets pack metadata for every
   sticker (aliases `pack`/`packname`, `author`/`publisher`). It is a static default shared by all clients in
   the process; per-call options override it. Built-in fallback: `Zaileys Library` / the GitHub URL.

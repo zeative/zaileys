@@ -1,5 +1,11 @@
 # zaileys
 
+## 4.21.0
+
+### Minor Changes
+
+- 2b0badc: add sound stickers: `sticker(src, { sound: true })` plays the source video's own audio when tapped, and `sound: <file>` gives any sticker a custom sound (Opus, up to 6 s); WhatsApp Web only
+
 ## 4.20.1
 
 ### Patch Changes

@@ -1,0 +1,6 @@
+// Worker zaileys-docs (zaileys.kejaa.id). Dipakai .github/workflows/docs-deploy.yml.
+{
+  "name": "zaileys-docs",
+  "compatibility_date": "2026-11-01",
+  "assets": { "directory": "../../docs-dist", "html_handling": "drop-trailing-slash", "not_found_handling": "404-page" }
+}

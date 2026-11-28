@@ -1,5 +1,6 @@
-# Builds the static docs (Mintlify export + Pagefind search + 404) and ships them to Vercel.
-# Needs three repository secrets: VERCEL_TOKEN, VERCEL_ORG_ID, VERCEL_PROJECT_ID.
+# Builds the static docs (Mintlify export + Pagefind search + 404) and ships them to the
+# Cloudflare Worker zaileys-docs (zaileys.kejaa.id). Config lives in docs/cloudflare/.
+# Needs repository secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID.
 # Without them the build still runs and the deploy step is skipped, so CI never fails on a fork.
 name: Deploy Docs
 
@@ -18,6 +19,9 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
       - uses: actions/checkout@v4
 
@@ -47,10 +51,11 @@ jobs:
           test -f docs-dist/sitemap.xml
           test -f docs-dist/og/quickstart.jpg
 
-      - name: Deploy to Vercel
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
-          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
-        if: ${{ env.VERCEL_TOKEN != '' }}
-        run: npx -y vercel@latest deploy docs-dist --prod --yes --token "$VERCEL_TOKEN"
+      - name: Deploy to Cloudflare
+        if: ${{ env.CLOUDFLARE_API_TOKEN != '' }}
+        run: |
+          rm -rf docs-dist/.vercel docs-dist/vercel.json
+          cp docs/cloudflare/_redirects docs/cloudflare/_headers docs-dist/
+          npx -y wrangler@4 deploy -c docs/cloudflare/wrangler.jsonc
+          sleep 5
+          curl -sf -o /dev/null -w "zaileys.kejaa.id %{http_code}\n" https://zaileys.kejaa.id/
